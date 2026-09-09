@@ -28,5 +28,6 @@ global using NovelSpeaker.App.Shell.Navigation;
 global using PlayerNavigationRequest = NovelSpeaker.App.Shell.Navigation.PlayerRoute;
 global using BookDetailsNavigationRequest = NovelSpeaker.App.Shell.Navigation.BookDetailsRoute;
 global using NovelSpeaker.TestKit.Common;
+global using NovelSpeaker.TestKit.Cache;
 global using NovelSpeaker.TestKit.Wpf;
 global using NovelSpeaker.App.WpfTests.TestDoubles;

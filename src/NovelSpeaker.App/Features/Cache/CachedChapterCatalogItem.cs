@@ -39,12 +39,14 @@ internal sealed record CachedChapterDecoration(
             null,
             ChapterCacheStatusKind.ConfigurationUnavailable);
 
-    public static CachedChapterDecoration From(CachedChapterCacheItem chapter) =>
+    public static CachedChapterDecoration From(
+        CachedChapterSummary chapter,
+        ChapterCacheStatus status) =>
         new(
             chapter.Title,
-            chapter.CachedSegmentCount,
+            status.CachedSegmentCount,
             chapter.EntryCount,
             chapter.TotalSizeBytes,
-            chapter.CurrentConfigurationSegmentCount,
-            chapter.CurrentConfigurationStatus);
+            status.TotalSegmentCount,
+            status.Kind);
 }

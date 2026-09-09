@@ -98,13 +98,13 @@ public sealed class WpfStartupRuntimeTests
         {
             var events = new List<string>();
             var export = new FakeChapterExportCoordinator(Task.CompletedTask, events);
-            var cache = new FakeCacheWorkspaceBackgroundTaskOwner(events);
+            var planRepairs = new FakeSpeechPlanRepairCoordinator(events);
             var runtime = new WpfStartupRuntime(
                 Dispatcher.CurrentDispatcher,
                 _ => { },
                 TimeSpan.FromSeconds(1));
 
-            await runtime.WaitForBackgroundTasksAsync(export, cache, CancellationToken.None);
+            await runtime.WaitForBackgroundTasksAsync(export, planRepairs, null, CancellationToken.None);
 
             Assert.Equal(1, export.CancelCallCount);
             Assert.Equal(["export", "cache"], events);
@@ -119,13 +119,13 @@ public sealed class WpfStartupRuntimeTests
             var exportCancellation = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var events = new List<string>();
             var export = new FakeChapterExportCoordinator(exportCancellation.Task, events);
-            var cache = new FakeCacheWorkspaceBackgroundTaskOwner(events);
+            var planRepairs = new FakeSpeechPlanRepairCoordinator(events);
             var runtime = new WpfStartupRuntime(
                 Dispatcher.CurrentDispatcher,
                 _ => { },
                 TimeSpan.FromMilliseconds(50));
 
-            await runtime.WaitForBackgroundTasksAsync(export, cache, CancellationToken.None);
+            await runtime.WaitForBackgroundTasksAsync(export, planRepairs, null, CancellationToken.None);
 
             Assert.Equal(1, export.CancelCallCount);
             Assert.Equal(["export", "cache"], events);
@@ -163,13 +163,20 @@ public sealed class WpfStartupRuntimeTests
         public Task WaitForCurrentBatchAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class FakeCacheWorkspaceBackgroundTaskOwner(List<string> events) : ICacheWorkspaceBackgroundTaskOwner
+    private sealed class FakeSpeechPlanRepairCoordinator(List<string> events) : ISpeechPlanRepairCoordinator
     {
-        public Task StopBackgroundOperationsAsync(CancellationToken cancellationToken)
+        public Task RequestAsync(
+            SpeechPlanRepairRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task StopAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             events.Add("cache");
             return Task.CompletedTask;
         }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

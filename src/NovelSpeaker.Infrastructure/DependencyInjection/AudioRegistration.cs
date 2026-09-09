@@ -21,7 +21,7 @@ public static class AudioRegistration
         services.TryAddSingleton<IAudioPlayerFactory, NaudioAudioPlayerFactory>();
         services.TryAddSingleton<IPlaybackAudioFailureReporter, PlaybackAudioFailureReporter>();
         services.TryAddSingleton<IBookPlaybackContentFailureReporter, BookPlaybackContentFailureReporter>();
-        services.TryAddSingleton<ICacheWorkspaceFailureReporter, CacheWorkspaceFailureReporter>();
+        services.TryAddSingleton<ICacheCompletenessFailureReporter, CacheCompletenessFailureReporter>();
         services.TryAddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();
         services.TryAddSingleton<SqliteAudioCacheIndex>();
         services.TryAddSingleton<AudioCacheFileStore>();

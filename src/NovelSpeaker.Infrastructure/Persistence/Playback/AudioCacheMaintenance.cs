@@ -40,7 +40,7 @@ internal sealed class AudioCacheMaintenance
     public async Task<bool> RunAsync(
         CancellationToken cancellationToken,
         bool cleanupOrphanedPlans,
-        Action<CacheChangedEventArgs>? cacheChanged = null)
+        Action<CacheInvalidation>? invalidation = null)
     {
         var changed = false;
         _fileStore.DeleteResidualTemporaryFiles(cancellationToken);
@@ -60,7 +60,7 @@ internal sealed class AudioCacheMaintenance
             {
                 await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
                 changed = true;
-                PublishChapterChange(entry, cacheChanged);
+                PublishChapterChange(entry, invalidation);
                 continue;
             }
 
@@ -69,7 +69,7 @@ internal sealed class AudioCacheMaintenance
             {
                 await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
                 changed = true;
-                PublishChapterChange(entry, cacheChanged);
+                PublishChapterChange(entry, invalidation);
                 continue;
             }
 
@@ -78,7 +78,7 @@ internal sealed class AudioCacheMaintenance
                 await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
                 _fileStore.TryDeleteFile(filePath);
                 changed = true;
-                PublishChapterChange(entry, cacheChanged);
+                PublishChapterChange(entry, invalidation);
                 continue;
             }
 
@@ -91,18 +91,18 @@ internal sealed class AudioCacheMaintenance
         if (_fileStore.DeleteOrphanCacheFiles(knownPaths, cancellationToken))
         {
             changed = true;
-            cacheChanged?.Invoke(new CacheChangedEventArgs(null, null));
+            invalidation?.Invoke(CacheInvalidation.ForGlobal(AllPhysicalAspects));
         }
 
         var limitChanged = await EnforceLimitAsync(
             cancellationToken,
-            change => cacheChanged?.Invoke(change)).ConfigureAwait(false);
+            change => invalidation?.Invoke(change)).ConfigureAwait(false);
         if (cleanupOrphanedPlans && await _speechPlanStore
                 .DeletePlansWithoutCacheEntriesAsync(cancellationToken)
                 .ConfigureAwait(false) > 0)
         {
             changed = true;
-            cacheChanged?.Invoke(new CacheChangedEventArgs(null, null));
+            invalidation?.Invoke(CacheInvalidation.ForGlobal(CacheInvalidationAspect.Coverage));
         }
 
         return changed || limitChanged;
@@ -110,7 +110,7 @@ internal sealed class AudioCacheMaintenance
 
     public async Task<bool> EnforceLimitAsync(
         CancellationToken cancellationToken,
-        Action<CacheChangedEventArgs>? cacheChanged = null)
+        Action<CacheInvalidation>? invalidation = null)
     {
         var limitBytes = _limitProvider.GetCurrentLimitBytes();
         var summary = await _index.GetSummaryAsync(cancellationToken).ConfigureAwait(false);
@@ -141,7 +141,7 @@ internal sealed class AudioCacheMaintenance
                 await _index.RemoveAsync(entry.CacheKey, cancellationToken).ConfigureAwait(false);
                 totalSize = Math.Max(0, totalSize - entry.FileSize);
                 changed = true;
-                cacheChanged?.Invoke(new CacheChangedEventArgs(entry.BookId, entry.ChapterIndex));
+                PublishChapterChange(entry, invalidation);
             }
         }
 
@@ -156,10 +156,46 @@ internal sealed class AudioCacheMaintenance
 
     private static void PublishChapterChange(
         AudioCacheMaintenanceEntry entry,
-        Action<CacheChangedEventArgs>? cacheChanged)
+        Action<CacheInvalidation>? invalidation)
     {
-        cacheChanged?.Invoke(new CacheChangedEventArgs(entry.BookId, entry.ChapterIndex));
+        if (entry.ChapterIndex is int chapterIndex)
+        {
+            invalidation?.Invoke(CacheInvalidation.ForChapters(
+                entry.BookId,
+                [chapterIndex],
+                AllPhysicalAspects));
+        }
+        else
+        {
+            invalidation?.Invoke(CacheInvalidation.ForBook(entry.BookId, AllPhysicalAspects));
+        }
     }
+
+    private static void PublishChapterChange(
+        AudioCacheIndexEntry entry,
+        Action<CacheInvalidation>? invalidation)
+    {
+        if (entry.BookId is null)
+        {
+            invalidation?.Invoke(CacheInvalidation.ForGlobal(AllPhysicalAspects));
+        }
+        else if (entry.ChapterIndex is int chapterIndex)
+        {
+            invalidation?.Invoke(CacheInvalidation.ForChapters(
+                entry.BookId,
+                [chapterIndex],
+                AllPhysicalAspects));
+        }
+        else
+        {
+            invalidation?.Invoke(CacheInvalidation.ForBook(entry.BookId, AllPhysicalAspects));
+        }
+    }
+
+    private const CacheInvalidationAspect AllPhysicalAspects =
+        CacheInvalidationAspect.PhysicalSummary |
+        CacheInvalidationAspect.CatalogStructure |
+        CacheInvalidationAspect.Coverage;
 
     private static StringComparer GetPathComparer()
     {

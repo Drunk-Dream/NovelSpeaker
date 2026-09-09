@@ -61,7 +61,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService(),
+                new CachePresentationTestDouble(),
+                new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();

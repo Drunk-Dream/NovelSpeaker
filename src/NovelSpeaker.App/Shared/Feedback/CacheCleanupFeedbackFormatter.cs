@@ -6,12 +6,12 @@ namespace NovelSpeaker.App.Shared.Feedback;
 internal static class CacheCleanupFeedbackFormatter
 {
     public static (string Title, string Message, bool IsWarning) Format(
-        CacheCleanupResult result,
+        AudioCacheStoreCleanupResult result,
         string successTitle,
         string warningTitle)
     {
         var deletedText = $"已清理 {result.DeletedEntryCount} 项，释放 {FormatBytes(result.DeletedBytes)}。";
-        if (!result.HasWarnings)
+        if (result.ProtectedEntryCount == 0 && result.FailedEntryCount == 0)
         {
             return (successTitle, deletedText, false);
         }

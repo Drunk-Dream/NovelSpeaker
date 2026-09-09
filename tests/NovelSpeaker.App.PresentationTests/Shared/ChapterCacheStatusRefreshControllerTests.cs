@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Playback.Cache;
 using NovelSpeaker.App.Shared.Presentation.Cache;
 using NovelSpeaker.App.Shared.Presentation.Platform;
@@ -14,7 +15,7 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var bothResultsApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var requestedBatches = new List<int[]>();
-        var service = new FakeCacheWorkspaceService
+        var service = new FakeCacheCoverageQuery
         {
             StatusHandler = async (_, chapterIndices, cancellationToken) =>
             {
@@ -62,7 +63,7 @@ public sealed class ChapterCacheStatusRefreshControllerTests
     public void Deactivate_discards_a_result_waiting_to_reach_the_ui()
     {
         var scheduler = new QueuedUiScheduler();
-        var service = new FakeCacheWorkspaceService
+        var service = new FakeCacheCoverageQuery
         {
             StatusHandler = (_, chapterIndices, _) =>
                 Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
@@ -85,63 +86,23 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         Assert.Equal(0, applyCount);
     }
 
-    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    private sealed class FakeCacheCoverageQuery : ICacheCoverageQuery
     {
         public Func<string, IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlyList<ChapterCacheStatus>>> StatusHandler { get; init; } =
             (_, _, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
 
-        public event EventHandler<CacheChangedEventArgs>? Changed
-        {
-            add { }
-            remove { }
-        }
-
-        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
-            string bookId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
             string bookId,
             IReadOnlyCollection<int> chapterIndices,
             CancellationToken cancellationToken) =>
             StatusHandler(bookId, chapterIndices, cancellationToken);
 
-        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearChaptersAsync(
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
             string bookId,
             IReadOnlyCollection<int> chapterIndices,
+            IReadOnlyCollection<PlaybackChapterMetadata> chapters,
             CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            StatusHandler(bookId, chapterIndices, cancellationToken);
     }
 
     private sealed class ImmediateUiScheduler : IUiScheduler

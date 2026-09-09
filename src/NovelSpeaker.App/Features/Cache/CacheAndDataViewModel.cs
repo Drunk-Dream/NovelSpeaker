@@ -22,7 +22,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private const long Gigabyte = 1024L * 1024 * 1024;
 
     private readonly IAppSettingsService _settingsService;
-    private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly IAudioCacheStore _cacheStore;
     private readonly ICacheCatalog _cacheCatalog;
     private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
     private readonly IAppDiagnosticsService _diagnosticsService;
@@ -46,7 +46,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     public CacheAndDataViewModel(
         IAppSettingsService settingsService,
-        ICacheWorkspaceService cacheWorkspaceService,
+        IAudioCacheStore cacheStore,
         ICacheCatalog cacheCatalog,
         ICacheInvalidationCoordinator invalidationCoordinator,
         IAppDiagnosticsService diagnosticsService,
@@ -58,7 +58,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         : base(navigator, feedbackService)
     {
         _settingsService = settingsService;
-        _cacheWorkspaceService = cacheWorkspaceService;
+        _cacheStore = cacheStore;
         _cacheCatalog = cacheCatalog;
         _invalidationCoordinator = invalidationCoordinator;
         _diagnosticsService = diagnosticsService;
@@ -205,7 +205,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         try
         {
             var overviewVersion = GetOverviewRefreshVersion();
-            var result = await _cacheWorkspaceService.ClearAllAsync(cancellationToken);
+            var result = await _cacheStore.ClearAllAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await RefreshOverviewAfterCacheMutationAsync(overviewVersion, cancellationToken);
             ShowCleanupFeedback(result);
@@ -327,7 +327,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
             if (requiresTrim)
             {
                 var overviewVersion = GetOverviewRefreshVersion();
-                await _cacheWorkspaceService.TrimToConfiguredLimitAsync(cancellationToken);
+                await _cacheStore.RunMaintenanceAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 await RefreshOverviewAfterCacheMutationAsync(overviewVersion, cancellationToken);
             }
@@ -683,7 +683,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         ClearAllCommand.NotifyCanExecuteChanged();
     }
 
-    private void ShowCleanupFeedback(CacheCleanupResult result)
+    private void ShowCleanupFeedback(AudioCacheStoreCleanupResult result)
     {
         var feedback = CacheCleanupFeedbackFormatter.Format(result, "缓存已清理", "缓存已部分清理");
         if (feedback.IsWarning)

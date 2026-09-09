@@ -853,7 +853,7 @@ Row 内少量 BookCard
 
 # Phase G：接口、Shared、测试与代码清理
 
-## [ ] T020（P1）：清理 Application ports、Shared helpers 与 compatibility code
+## [x] T020（P1）：清理 Application ports、Shared helpers 与 compatibility code
 
 依赖：T019。
 
@@ -871,6 +871,8 @@ Row 内少量 BookCard
 禁止：按接口数量机械追求某个目标值。
 
 ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极少数例外。
+
+完成成果：删除 `ICacheWorkspaceService` 及其实现、事件参数和失败/后台兼容入口；缓存页面/详情/播放器改用 store、catalog、coverage、invalidation 和 speech-plan repair 的最小职责 port，移除旧 cache DTO/formatter 入口，并将集成测试迁移到 typed invalidation。
 
 ## [ ] T021（P1）：重构测试体系并减少重复维护面
 

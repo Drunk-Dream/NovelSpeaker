@@ -79,7 +79,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new FakeCacheWorkspaceService(),
+                new CachePresentationTestDouble(),
+                new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
             var page = new PlayerPage(viewModel)
@@ -174,7 +175,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService(),
+                new CachePresentationTestDouble(),
+                new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);
@@ -278,7 +280,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService(),
+                new CachePresentationTestDouble(),
+                new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);
@@ -380,7 +383,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService(),
+                new CachePresentationTestDouble(),
+                new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);
@@ -485,7 +489,8 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new FakeCacheWorkspaceService(),
+                new CachePresentationTestDouble(),
+                new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);

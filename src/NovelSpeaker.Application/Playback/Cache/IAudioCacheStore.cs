@@ -5,8 +5,6 @@ namespace NovelSpeaker.Application.Playback.Cache;
 /// </summary>
 public interface IAudioCacheStore
 {
-    event EventHandler<CacheChangedEventArgs>? Changed;
-
     Task<AudioCacheStoreSummary> GetSummaryAsync(CancellationToken cancellationToken);
 
     Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken);
@@ -74,7 +72,7 @@ public interface IAudioCacheStore
     /// <summary>
     /// Returns the requested entries that have indexed, decodable cache files during this read-only
     /// snapshot evaluation, without updating LRU metadata. Concurrent mutations may make the returned
-    /// snapshot immediately stale; callers use <see cref="Changed"/> to schedule a refresh.
+    /// snapshot immediately stale; callers use the cache invalidation coordinator to schedule a refresh.
     /// </summary>
     Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesAsync(
         IReadOnlyCollection<AudioCacheKey> keys,

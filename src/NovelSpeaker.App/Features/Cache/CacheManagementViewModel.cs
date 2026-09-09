@@ -19,7 +19,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private const int ChapterDecorationWindowSize = 32;
     private const int SelectionDecorationResetThreshold = 64;
 
-    private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly IAudioCacheStore _cacheStore;
     private readonly ICacheCatalog _cacheCatalog;
     private readonly ICacheCoverageQuery _cacheCoverageQuery;
     private readonly ICachePlanRepairRequestor? _cachePlanRepairRequestor;
@@ -72,7 +72,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private string? _selectedBookDecoration;
 
     public CacheManagementViewModel(
-        ICacheWorkspaceService cacheWorkspaceService,
+        IAudioCacheStore cacheStore,
         ICacheCatalog cacheCatalog,
         ICacheCoverageQuery cacheCoverageQuery,
         ICacheInvalidationCoordinator invalidationCoordinator,
@@ -84,7 +84,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         IUiScheduler? uiScheduler = null,
         ICachePlanRepairRequestor? cachePlanRepairRequestor = null)
     {
-        _cacheWorkspaceService = cacheWorkspaceService;
+        _cacheStore = cacheStore;
         _cacheCatalog = cacheCatalog;
         _cacheCoverageQuery = cacheCoverageQuery;
         _cachePlanRepairRequestor = cachePlanRepairRequestor;
@@ -391,7 +391,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         }
 
         await ExecuteCleanupAsync(
-            ct => _cacheWorkspaceService.ClearChaptersAsync(selectedBookId, selectedIndices, ct),
+            ct => _cacheStore.ClearChaptersAsync(selectedBookId, selectedIndices, ct),
             cancellationToken);
     }
 
@@ -506,7 +506,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     }
 
     private async Task ExecuteCleanupAsync(
-        Func<CancellationToken, Task<CacheCleanupResult>> cleanupAsync,
+        Func<CancellationToken, Task<AudioCacheStoreCleanupResult>> cleanupAsync,
         CancellationToken cancellationToken)
     {
         IsBusy = true;
@@ -1921,18 +1921,21 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             : _chapterRefreshOverrides.TryGet(chapter.ChapterIndex, out var refreshOverride)
                 ? refreshOverride
                 : CachedChapterDecoration.Placeholder(chapter.Title);
-        var cachedChapter = new CachedChapterCacheItem(
+        var cachedChapter = new CachedChapterSummary(
             chapter.BookId,
             chapter.ChapterIndex,
             decoration.Title,
             decoration.CachedSegmentCount,
             decoration.EntryCount,
-            decoration.TotalSizeBytes,
+            decoration.TotalSizeBytes);
+        var coverage = new ChapterCacheStatus(
+            chapter.ChapterIndex,
+            decoration.CachedSegmentCount,
             decoration.CurrentConfigurationSegmentCount)
         {
-            CurrentConfigurationStatus = decoration.CurrentConfigurationStatus
+            Kind = decoration.CurrentConfigurationStatus
         };
-        var exportAvailability = GetExportAvailability(cachedChapter);
+        var exportAvailability = GetExportAvailability(cachedChapter, coverage);
         return new CachedChapterListItemViewModel(
             chapter.BookId,
             chapter.ChapterIndex,
@@ -1940,7 +1943,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             decoration.Title,
             CacheCleanupFeedbackFormatter.FormatBytes(decoration.TotalSizeBytes),
             $"{decoration.EntryCount} 条缓存",
-            CacheManagementCompletenessFormatter.Format(cachedChapter),
+            CacheManagementCompletenessFormatter.Format(cachedChapter, coverage),
             exportAvailability.IsExportable,
             exportAvailability.StatusText,
             exportAvailability.ToolTip,
@@ -2079,7 +2082,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         NotifyCommandStateChanged();
     }
 
-    private void ShowCleanupFeedback(CacheCleanupResult result)
+    private void ShowCleanupFeedback(AudioCacheStoreCleanupResult result)
     {
         var feedback = CacheCleanupFeedbackFormatter.Format(result, "缓存已清理", "缓存已部分清理");
         if (feedback.IsWarning)
@@ -2188,9 +2191,11 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             ChapterExportBatchStatus.Running or
             ChapterExportBatchStatus.Cancelling;
 
-    private static ChapterExportAvailability GetExportAvailability(CachedChapterCacheItem chapter)
+    private static ChapterExportAvailability GetExportAvailability(
+        CachedChapterSummary chapter,
+        ChapterCacheStatus coverage)
     {
-        if (chapter.CurrentConfigurationSegmentCount is null)
+        if (coverage.TotalSegmentCount is null)
         {
             return new ChapterExportAvailability(
                 false,
@@ -2198,7 +2203,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 "无法读取当前 TTS 与文本配置对应的章节缓存。");
         }
 
-        var total = chapter.CurrentConfigurationSegmentCount.Value;
+        var total = coverage.TotalSegmentCount.Value;
         if (total == 0)
         {
             return new ChapterExportAvailability(
@@ -2207,12 +2212,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 "当前文本配置下没有可播放段落。");
         }
 
-        if (chapter.CachedSegmentCount != total)
+        if (coverage.CachedSegmentCount != total)
         {
             return new ChapterExportAvailability(
                 false,
                 "缓存不完整，无法导出",
-                $"当前配置缓存为 {chapter.CachedSegmentCount}/{total} 段，请先完成缓存。");
+                $"当前配置缓存为 {coverage.CachedSegmentCount}/{total} 段，请先完成缓存。");
         }
 
         return new ChapterExportAvailability(

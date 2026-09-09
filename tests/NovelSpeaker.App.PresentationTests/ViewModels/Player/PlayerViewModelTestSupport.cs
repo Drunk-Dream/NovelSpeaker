@@ -29,12 +29,13 @@ public sealed partial class PlayerViewModelTests
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
         FakeAppSettingsService? settingsService = null,
         FakeActiveCacheCoordinator? activeCacheCoordinator = null,
-        ICacheWorkspaceService? cacheWorkspaceService = null,
+        FakeCachePresentationDependencies? cacheDependencies = null,
         FakePlaybackStopTimer? stopTimer = null,
         FakeMiniPlayerLauncher? miniPlayerLauncher = null,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
+        cacheDependencies ??= new FakeCachePresentationDependencies();
         var viewModel = new PlayerViewModel(
             coordinator,
             stopTimer ?? new FakePlaybackStopTimer(),
@@ -46,7 +47,8 @@ public sealed partial class PlayerViewModelTests
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator(),
-            cacheWorkspaceService ?? new FakeCacheWorkspaceService(),
+            cacheDependencies.CoverageQuery,
+            cacheDependencies.InvalidationCoordinator,
             miniPlayerLauncher ?? new FakeMiniPlayerLauncher(),
             timeProvider ?? TimeProvider.System,
             uiScheduler ?? new ImmediateUiScheduler());
@@ -120,9 +122,9 @@ public sealed partial class PlayerViewModelTests
         }
     }
 
-    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    private sealed class FakeCachePresentationDependencies : ICacheCoverageQuery, ICacheInvalidationCoordinator
     {
-        private EventHandler<CacheChangedEventArgs>? _changed;
+        private EventHandler<CacheInvalidationBatch>? _batchPublished;
 
         public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
 
@@ -132,35 +134,19 @@ public sealed partial class PlayerViewModelTests
 
         public IReadOnlyList<int> LastRequestedChapterIndices { get; private set; } = [];
 
-        public int SubscriberCount => _changed?.GetInvocationList().Length ?? 0;
+        public int SubscriberCount => _batchPublished?.GetInvocationList().Length ?? 0;
 
-        public event EventHandler<CacheChangedEventArgs>? Changed
+        public FakeCachePresentationDependencies CoverageQuery => this;
+
+        public FakeCachePresentationDependencies InvalidationCoordinator => this;
+
+        public event EventHandler<CacheInvalidationBatch>? BatchPublished
         {
-            add => _changed += value;
-            remove => _changed -= value;
+            add => _batchPublished += value;
+            remove => _batchPublished -= value;
         }
 
-        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
-            string bookId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
             string bookId,
             IReadOnlyCollection<int> chapterIndices,
             CancellationToken cancellationToken)
@@ -171,28 +157,21 @@ public sealed partial class PlayerViewModelTests
                    Task.FromResult(Statuses);
         }
 
-        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearChaptersAsync(
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
             string bookId,
             IReadOnlyCollection<int> chapterIndices,
+            IReadOnlyCollection<PlaybackChapterMetadata> chapters,
             CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+            GetAsync(bookId, chapterIndices, cancellationToken);
 
-        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
+        public void Publish(CacheInvalidation invalidation) =>
+            _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation]));
 
-        public void Publish(CacheChangedEventArgs eventArgs) => _changed?.Invoke(this, eventArgs);
+        public Task FlushPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class ImmediateUiScheduler : IUiScheduler
@@ -216,13 +195,23 @@ public sealed partial class PlayerViewModelTests
     private sealed class QueuedUiScheduler : IUiScheduler
     {
         private readonly Queue<(Action Action, TaskCompletionSource Completion)> _pending = [];
+        private bool _isExecuting;
 
         public int PendingCount => _pending.Count;
 
-        public bool CheckAccess() => true;
+        public bool QueueActions { get; set; }
+
+        public bool CheckAccess() => !QueueActions || _isExecuting;
 
         public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
         {
+            if (!QueueActions || _isExecuting)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                action();
+                return Task.CompletedTask;
+            }
+
             var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             _pending.Enqueue((action, completion));
             return completion.Task;
@@ -234,8 +223,16 @@ public sealed partial class PlayerViewModelTests
         public void RunNext()
         {
             var pending = _pending.Dequeue();
-            pending.Action();
-            pending.Completion.TrySetResult();
+            _isExecuting = true;
+            try
+            {
+                pending.Action();
+                pending.Completion.TrySetResult();
+            }
+            finally
+            {
+                _isExecuting = false;
+            }
         }
     }
 

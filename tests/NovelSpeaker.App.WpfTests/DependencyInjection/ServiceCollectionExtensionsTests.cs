@@ -174,9 +174,14 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<ITtsResponseValidator>(provider.GetRequiredService<ITtsResponseValidator>());
                 Assert.IsAssignableFrom<IAudioCache>(provider.GetRequiredService<IAudioCache>());
                 Assert.IsAssignableFrom<IAudioCacheStore>(provider.GetRequiredService<IAudioCacheStore>());
-                Assert.IsAssignableFrom<ICacheWorkspaceService>(provider.GetRequiredService<ICacheWorkspaceService>());
-                Assert.IsAssignableFrom<ICacheWorkspaceBackgroundTaskOwner>(
-                    provider.GetRequiredService<ICacheWorkspaceBackgroundTaskOwner>());
+                Assert.IsAssignableFrom<ICacheCatalog>(provider.GetRequiredService<ICacheCatalog>());
+                Assert.IsAssignableFrom<ICacheCoverageQuery>(provider.GetRequiredService<ICacheCoverageQuery>());
+                Assert.IsAssignableFrom<ICacheInvalidationCoordinator>(
+                    provider.GetRequiredService<ICacheInvalidationCoordinator>());
+                Assert.IsAssignableFrom<ISpeechPlanRepairCoordinator>(
+                    provider.GetRequiredService<ISpeechPlanRepairCoordinator>());
+                Assert.IsAssignableFrom<ICachePlanRepairRequestor>(
+                    provider.GetRequiredService<ICachePlanRepairRequestor>());
                 Assert.IsAssignableFrom<IExportChaptersService>(provider.GetRequiredService<IExportChaptersService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                 Assert.IsType<PlaybackPrefetchCoordinator>(provider.GetRequiredService<IPlaybackPrefetchController>());
@@ -365,8 +370,11 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IHttpTtsClient),
             typeof(ITtsRuleTestService),
             typeof(IBookPlaybackContentService),
-            typeof(ICacheWorkspaceService),
-            typeof(ICacheWorkspaceBackgroundTaskOwner),
+            typeof(ICacheCatalog),
+            typeof(ICacheCoverageQuery),
+            typeof(ICacheInvalidationCoordinator),
+            typeof(ISpeechPlanRepairCoordinator),
+            typeof(ICachePlanRepairRequestor),
             typeof(IPlaybackAudioProvider),
             typeof(IActiveCacheCoordinator),
             typeof(IChapterExportCoordinator),

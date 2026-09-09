@@ -482,7 +482,9 @@ public sealed partial class BookDetailsPageTests
             managementService,
             managementService,
             managementService,
-            new FakeCacheWorkspaceService(),
+            new CachePresentationTestDouble(),
+            new CachePresentationTestDouble(),
+            new CachePresentationTestDouble(),
             new FakeAppSettingsService(),
             new BookCoverGenerator(),
             new FakeFeedbackService(),
@@ -673,52 +675,6 @@ public sealed partial class BookDetailsPageTests
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
             => Task.FromResult<BookDeleteResult?>(null);
-    }
-
-    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
-    {
-        public event EventHandler<CacheChangedEventArgs>? Changed
-        {
-            add { }
-            remove { }
-        }
-
-        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
-
-        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearChaptersAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

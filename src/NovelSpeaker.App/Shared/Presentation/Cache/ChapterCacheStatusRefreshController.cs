@@ -9,7 +9,7 @@ namespace NovelSpeaker.App.Shared.Presentation.Cache;
 /// </summary>
 internal sealed class ChapterCacheStatusRefreshController
 {
-    private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly ICacheCoverageQuery _cacheCoverageQuery;
     private readonly IUiScheduler _uiScheduler;
     private readonly Action<string, IReadOnlyCollection<int>, IReadOnlyCollection<ChapterCacheStatus>> _applyStatuses;
     private readonly Action<Exception> _reportFailure;
@@ -23,12 +23,12 @@ internal sealed class ChapterCacheStatusRefreshController
     private int _activationGeneration;
 
     public ChapterCacheStatusRefreshController(
-        ICacheWorkspaceService cacheWorkspaceService,
+        ICacheCoverageQuery cacheCoverageQuery,
         IUiScheduler uiScheduler,
         Action<string, IReadOnlyCollection<int>, IReadOnlyCollection<ChapterCacheStatus>> applyStatuses,
         Action<Exception> reportFailure)
     {
-        _cacheWorkspaceService = cacheWorkspaceService;
+        _cacheCoverageQuery = cacheCoverageQuery;
         _uiScheduler = uiScheduler;
         _applyStatuses = applyStatuses;
         _reportFailure = reportFailure;
@@ -135,7 +135,7 @@ internal sealed class ChapterCacheStatusRefreshController
                     _pendingChapterIndices.Clear();
                 }
 
-                var statuses = await _cacheWorkspaceService.GetChapterCacheStatusesAsync(
+                var statuses = await _cacheCoverageQuery.GetAsync(
                     bookId,
                     chapterIndices,
                     cancellationToken);

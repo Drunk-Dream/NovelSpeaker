@@ -52,7 +52,8 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new FakeCacheWorkspaceService(),
+                new CachePresentationTestDouble(),
+                new CachePresentationTestDouble(),
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession);
@@ -99,7 +100,8 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new FakeCacheWorkspaceService(),
+                new CachePresentationTestDouble(),
+                new CachePresentationTestDouble(),
                 new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel)
             {
@@ -155,62 +157,6 @@ public sealed class NavigationPageLifecycleTests
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
-
-    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
-    {
-        public event EventHandler<CacheChangedEventArgs>? Changed
-        {
-            add { }
-            remove { }
-        }
-
-        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
-            string bookId,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
-
-        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearChaptersAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
     }
 
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService

@@ -340,36 +340,6 @@ public sealed class SqliteAudioCacheTests
     }
 
     [Fact]
-    public async Task Changed_is_published_after_successful_mutations_and_not_for_no_ops()
-    {
-        var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 2, 0, 1, 10, "第一段");
-        var changes = new List<CacheChangedEventArgs>();
-        fixture.Cache.Changed += (_, eventArgs) => changes.Add(eventArgs);
-
-        await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                key,
-                "book-1",
-                2,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
-
-        Assert.Equal([new CacheChangedEventArgs("book-1", 2)], changes);
-        Assert.Equal(1, (await fixture.Cache.GetSummaryAsync(CancellationToken.None)).EntryCount);
-
-        changes.Clear();
-        await fixture.Cache.ClearChapterAsync("book-1", 9, CancellationToken.None);
-        Assert.Empty(changes);
-
-        await fixture.Cache.InvalidateAsync(key, CancellationToken.None);
-        Assert.Equal([new CacheChangedEventArgs(null, null)], changes);
-        Assert.Equal(0, (await fixture.Cache.GetSummaryAsync(CancellationToken.None)).EntryCount);
-    }
-
-    [Fact]
     public async Task Typed_invalidation_is_published_after_commit_with_the_narrowest_known_scope()
     {
         var timeProvider = new ManualTimeProvider();
@@ -622,10 +592,14 @@ public sealed class SqliteAudioCacheTests
     [Fact]
     public async Task TryGetAsync_removes_stale_database_entry_when_file_is_not_decodable()
     {
-        var fixture = await CreateFixtureAsync();
+        var timeProvider = new ManualTimeProvider();
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(timeProvider);
+        var batches = new List<CacheInvalidationBatch>();
+        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
+        var fixture = await CreateFixtureAsync(
+            timeProvider: timeProvider,
+            invalidationCoordinator: invalidationCoordinator);
         var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
-        var changes = new List<CacheChangedEventArgs>();
-        fixture.Cache.Changed += (_, eventArgs) => changes.Add(eventArgs);
         var stored = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
                 key,
@@ -635,6 +609,8 @@ public sealed class SqliteAudioCacheTests
                 CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
                 "audio/mpeg"),
             CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+        batches.Clear();
 
         await File.WriteAllTextAsync(stored.FilePath, "not audio", CancellationToken.None);
 
@@ -644,7 +620,10 @@ public sealed class SqliteAudioCacheTests
         Assert.Null(hit);
         Assert.Equal(0, summary.EntryCount);
         Assert.False(File.Exists(stored.FilePath));
-        Assert.Equal([new CacheChangedEventArgs(null, null)], changes.Skip(1).ToArray());
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+        var scope = Assert.IsType<CacheInvalidationScope.Chapters>(
+            Assert.Single(Assert.Single(batches).Changes).Scope);
+        Assert.Equal([0], scope.ChapterIndices);
     }
 
     [Fact]
@@ -891,7 +870,12 @@ public sealed class SqliteAudioCacheTests
     public async Task RunMaintenanceAsync_removes_missing_and_long_unused_corrupt_entries_with_chapter_notifications()
     {
         var timeProvider = new ManualTimeProvider();
-        var fixture = await CreateFixtureAsync(timeProvider: timeProvider);
+        await using var invalidationCoordinator = new CacheInvalidationCoordinator(timeProvider);
+        var batches = new List<CacheInvalidationBatch>();
+        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
+        var fixture = await CreateFixtureAsync(
+            timeProvider: timeProvider,
+            invalidationCoordinator: invalidationCoordinator);
         var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
         await planStore.SaveAsync(
             CreatePlan(
@@ -928,18 +912,20 @@ public sealed class SqliteAudioCacheTests
         File.Delete(missing.FilePath);
         File.Copy(PlaybackTestAudio.CorruptMp3Path, corrupt.FilePath, overwrite: true);
         timeProvider.Advance(TimeSpan.FromDays(31));
-
-        var changes = new List<CacheChangedEventArgs>();
-        fixture.Cache.Changed += (_, args) => changes.Add(args);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+        batches.Clear();
 
         await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
+        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
 
         Assert.Null(await fixture.Cache.TryGetAsync(missingKey, CancellationToken.None));
         Assert.Null(await fixture.Cache.TryGetAsync(corruptKey, CancellationToken.None));
         Assert.Null(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
         Assert.Null(await planStore.GetAsync("cache-chapter-1-1", CancellationToken.None));
-        Assert.Contains(new CacheChangedEventArgs("book-1", 0), changes);
-        Assert.Contains(new CacheChangedEventArgs("book-1", 1), changes);
+        var chapterScope = Assert.IsType<CacheInvalidationScope.Chapters>(
+            Assert.Single(Assert.Single(batches).Changes).Scope);
+        Assert.Equal("book-1", chapterScope.BookId);
+        Assert.Equal([0, 1], chapterScope.ChapterIndices);
 
         await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
         var command = connection.CreateCommand();

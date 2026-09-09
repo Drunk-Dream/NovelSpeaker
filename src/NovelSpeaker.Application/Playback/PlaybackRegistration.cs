@@ -21,13 +21,7 @@ public static class PlaybackRegistration
         services.TryAddSingleton<ICacheCatalog, CacheCatalog>();
         services.TryAddSingleton<ICacheCoverageQuery, CacheCoverageQuery>();
         services.TryAddSingleton<ISpeechPlanRepairCoordinator, SpeechPlanRepairCoordinator>();
-        services.TryAddSingleton<CacheWorkspaceService>();
-        services.TryAddSingleton<ICachePlanRepairRequestor>(
-            serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
-        services.TryAddSingleton<ICacheWorkspaceService>(
-            serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
-        services.TryAddSingleton<ICacheWorkspaceBackgroundTaskOwner>(
-            serviceProvider => serviceProvider.GetRequiredService<CacheWorkspaceService>());
+        services.TryAddSingleton<ICachePlanRepairRequestor, SpeechPlanRepairRequestor>();
         services.TryAddSingleton<ExportFileNameSanitizer>();
         services.TryAddSingleton<IExportChaptersService, ExportChaptersService>();
         services.TryAddSingleton<IChapterExportCoordinator, ChapterExportCoordinator>();

@@ -20,7 +20,7 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
     private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
     private readonly IAppSettingsService _settingsService;
     private readonly IRegexReplacementRuleRepository? _regexRuleRepository;
-    private readonly ICacheWorkspaceFailureReporter? _failureReporter;
+    private readonly ICacheCompletenessFailureReporter? _failureReporter;
 
     public CacheCoverageQuery(
         IAudioCacheStore cacheStore,
@@ -28,7 +28,7 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
         ISelectedTtsRuleProvider selectedRuleProvider,
         IAppSettingsService settingsService,
         IRegexReplacementRuleRepository? regexRuleRepository = null,
-        ICacheWorkspaceFailureReporter? failureReporter = null)
+        ICacheCompletenessFailureReporter? failureReporter = null)
     {
         _cacheStore = cacheStore;
         _metadataQuery = metadataQuery;

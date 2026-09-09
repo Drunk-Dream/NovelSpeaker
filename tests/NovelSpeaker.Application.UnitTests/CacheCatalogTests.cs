@@ -33,12 +33,6 @@ public sealed class CacheCatalogTests
 
     private sealed class FakeAudioCacheStore : IAudioCacheStore
     {
-        public event EventHandler<CacheChangedEventArgs>? Changed
-        {
-            add { }
-            remove { }
-        }
-
         public IReadOnlyList<CachedChapterStoreSummary> Chapters { get; init; } = [];
 
         public Task<AudioCacheStoreSummary> GetSummaryAsync(CancellationToken cancellationToken) =>

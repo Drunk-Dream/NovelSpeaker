@@ -34,15 +34,13 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         _invalidationCoordinator = invalidationCoordinator;
     }
 
-    public event EventHandler<CacheChangedEventArgs>? Changed;
-
     public async Task<AudioCacheEntry?> TryGetAsync(AudioCacheKey key, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(key);
         var result = await RunExclusiveAsync(ct => TryGetCoreAsync(key, ct), cancellationToken).ConfigureAwait(false);
         if (result.Invalidation is { } invalidation)
         {
-            OnCommitted(invalidation, new CacheChangedEventArgs(null, null));
+            OnCommitted(invalidation);
         }
 
         return result.Entry;
@@ -67,7 +65,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
                     change =>
                     {
                         changed = true;
-                        maintenanceChanges.Add(ToInvalidation(change));
+                        maintenanceChanges.Add(change);
                     },
                     ct),
                 cancellationToken).ConfigureAwait(false);
@@ -95,7 +93,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         var invalidation = await RunExclusiveAsync(ct => InvalidateCoreAsync(key, ct), cancellationToken).ConfigureAwait(false);
         if (invalidation is not null)
         {
-            OnCommitted(invalidation, new CacheChangedEventArgs(null, null));
+            OnCommitted(invalidation);
         }
     }
 
@@ -317,8 +315,8 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         bool cleanupOrphanedPlans,
         CancellationToken cancellationToken)
     {
-        var changes = new List<CacheChangedEventArgs>();
-        var seenChanges = new HashSet<CacheChangedEventArgs>();
+        var changes = new List<CacheInvalidation>();
+        var seenChanges = new HashSet<CacheInvalidation>();
         try
         {
             await RunExclusiveAsync(
@@ -338,7 +336,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         {
             foreach (var change in changes)
             {
-                OnCommitted(ToInvalidation(change));
+                OnCommitted(change);
             }
         }
     }
@@ -495,7 +493,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
     private async Task<AudioCacheEntry> StoreCoreAsync(
         AudioCacheWriteRequest request,
         Action<CacheInvalidationAspect> storeChanged,
-        Action<CacheChangedEventArgs> maintenanceChanged,
+        Action<CacheInvalidation> maintenanceChanged,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -690,29 +688,10 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         }
     }
 
-    private void OnCommitted(
-        CacheInvalidation invalidation,
-        CacheChangedEventArgs? legacyChangeOverride = null)
+    private void OnCommitted(CacheInvalidation invalidation)
     {
         _invalidationCoordinator?.Publish(invalidation);
-        var legacyChange = legacyChangeOverride ?? invalidation.Scope switch
-        {
-            CacheInvalidationScope.Global => new CacheChangedEventArgs(null, null),
-            CacheInvalidationScope.Book book => new CacheChangedEventArgs(book.BookId, null),
-            CacheInvalidationScope.Chapters chapters => new CacheChangedEventArgs(
-                chapters.BookId,
-                chapters.ChapterIndices.Count == 1 ? chapters.ChapterIndices[0] : null),
-            _ => throw new InvalidOperationException("未知的缓存失效范围。")
-        };
-        Changed?.Invoke(this, legacyChange);
     }
-
-    private static CacheInvalidation ToInvalidation(CacheChangedEventArgs change) =>
-        change.BookId is null
-            ? CacheInvalidation.ForGlobal(AllPhysicalAspects)
-            : change.ChapterIndex is int chapterIndex
-                ? CacheInvalidation.ForChapters(change.BookId, [chapterIndex], AllPhysicalAspects)
-                : CacheInvalidation.ForBook(change.BookId, AllPhysicalAspects);
 
     private static CacheInvalidation CreateEntryInvalidation(AudioCacheIndexEntry entry) =>
         entry.BookId is null

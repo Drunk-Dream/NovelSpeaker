@@ -57,7 +57,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         IAppFeedbackService feedbackService,
         IAppNavigator navigator,
         IPlayerAutoScrollCoordinator autoScrollCoordinator,
-        ICacheWorkspaceService cacheWorkspaceService,
+        ICacheCoverageQuery cacheCoverageQuery,
+        ICacheInvalidationCoordinator invalidationCoordinator,
         IMiniPlayerLauncher miniPlayerLauncher,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
@@ -82,7 +83,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             _timeProvider);
         _cacheDecorationController = new PlayerCacheDecorationController(
             activeCacheCoordinator,
-            cacheWorkspaceService,
+            cacheCoverageQuery,
+            invalidationCoordinator,
             settingsService,
             _contentController,
             _uiScheduler,

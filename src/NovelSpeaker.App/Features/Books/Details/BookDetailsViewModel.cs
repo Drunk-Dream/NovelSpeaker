@@ -21,7 +21,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IBookDetailsQuery _bookDetailsQuery;
     private readonly IBookMetadataUpdateService _bookMetadataUpdateService;
     private readonly IBookDeletionService _bookDeletionService;
-    private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly IAudioCacheStore _cacheStore;
+    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
     private readonly IAppSettingsService _settingsService;
     private readonly IUiScheduler _uiScheduler;
     private readonly IBookCoverGenerator _bookCoverGenerator;
@@ -52,7 +53,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IBookDetailsQuery bookDetailsQuery,
         IBookMetadataUpdateService bookMetadataUpdateService,
         IBookDeletionService bookDeletionService,
-        ICacheWorkspaceService cacheWorkspaceService,
+        IAudioCacheStore cacheStore,
+        ICacheCoverageQuery cacheCoverageQuery,
+        ICacheInvalidationCoordinator invalidationCoordinator,
         IAppSettingsService settingsService,
         IBookCoverGenerator bookCoverGenerator,
         IAppFeedbackService feedbackService,
@@ -66,7 +69,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _bookDetailsQuery = bookDetailsQuery;
         _bookMetadataUpdateService = bookMetadataUpdateService;
         _bookDeletionService = bookDeletionService;
-        _cacheWorkspaceService = cacheWorkspaceService;
+        _cacheStore = cacheStore;
+        _invalidationCoordinator = invalidationCoordinator;
         _settingsService = settingsService;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _bookCoverGenerator = bookCoverGenerator;
@@ -77,7 +81,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _playbackCoordinator = playbackCoordinator;
         _navigator = navigator;
         _cacheStatusRefresh = new ChapterCacheStatusRefreshController(
-            _cacheWorkspaceService,
+            cacheCoverageQuery,
             _uiScheduler,
             (_, requestedChapterIndices, statuses) =>
                 ApplyChapterCacheStatuses(requestedChapterIndices, statuses),
@@ -375,7 +379,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         BeginMutation();
         try
         {
-            var result = await _cacheWorkspaceService.ClearBookAsync(_bookId, cancellationToken);
+            var result = await _cacheStore.ClearBookAsync(_bookId, cancellationToken);
             var statistics = await _bookDetailsQuery.GetStatisticsAsync(_bookId, cancellationToken);
             if (statistics is not null)
             {
@@ -736,7 +740,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         DeactivateCacheStatusUpdates();
         _cacheStatusCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _cacheStatusRefresh.Activate(_cacheStatusCancellationTokenSource.Token);
-        _cacheWorkspaceService.Changed += OnCacheChanged;
+        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
         _settingsService.Changed += OnSettingsChanged;
         _isCacheStatusUpdatesActive = true;
     }
@@ -745,7 +749,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     {
         if (_isCacheStatusUpdatesActive)
         {
-            _cacheWorkspaceService.Changed -= OnCacheChanged;
+            _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
             _settingsService.Changed -= OnSettingsChanged;
             _isCacheStatusUpdatesActive = false;
         }
@@ -756,16 +760,40 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _cacheStatusRefresh.Deactivate();
     }
 
-    private void OnCacheChanged(object? sender, CacheChangedEventArgs eventArgs)
+    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
     {
-        if (string.IsNullOrWhiteSpace(_bookId) ||
-            (!string.IsNullOrWhiteSpace(eventArgs.BookId) &&
-             !string.Equals(eventArgs.BookId, _bookId, StringComparison.Ordinal)))
+        if (string.IsNullOrWhiteSpace(_bookId))
         {
             return;
         }
 
-        ScheduleCacheStatusRefresh(eventArgs.ChapterIndex);
+        foreach (var change in batch.Changes)
+        {
+            if (!change.Aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) &&
+                !change.Aspects.HasFlag(CacheInvalidationAspect.Coverage))
+            {
+                continue;
+            }
+
+            switch (change.Scope)
+            {
+                case CacheInvalidationScope.Global:
+                    ScheduleCacheStatusRefresh(chapterIndex: null);
+                    break;
+                case CacheInvalidationScope.Book book
+                    when string.Equals(book.BookId, _bookId, StringComparison.Ordinal):
+                    ScheduleCacheStatusRefresh(chapterIndex: null);
+                    break;
+                case CacheInvalidationScope.Chapters chapters
+                    when string.Equals(chapters.BookId, _bookId, StringComparison.Ordinal):
+                    foreach (var chapterIndex in chapters.ChapterIndices)
+                    {
+                        ScheduleCacheStatusRefresh(chapterIndex);
+                    }
+
+                    break;
+            }
+        }
     }
 
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs eventArgs)

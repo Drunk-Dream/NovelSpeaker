@@ -18,7 +18,7 @@ public sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
     private readonly IRegexReplacementRuleRepository? _regexRuleRepository;
     private readonly IChapterSpeechPlanStore? _speechPlanStore;
     private readonly ICacheInvalidationCoordinator? _invalidationCoordinator;
-    private readonly ICacheWorkspaceFailureReporter? _failureReporter;
+    private readonly ICacheCompletenessFailureReporter? _failureReporter;
     private readonly ConcurrentDictionary<RepairKey, Lazy<Task>> _repairs = new();
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly SemaphoreSlim _concurrency = new(MaximumConcurrency, MaximumConcurrency);
@@ -33,7 +33,7 @@ public sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
         IRegexReplacementRuleRepository? regexRuleRepository = null,
         IChapterSpeechPlanStore? speechPlanStore = null,
         ICacheInvalidationCoordinator? invalidationCoordinator = null,
-        ICacheWorkspaceFailureReporter? failureReporter = null)
+        ICacheCompletenessFailureReporter? failureReporter = null)
     {
         _contentService = contentService;
         _settingsService = settingsService;

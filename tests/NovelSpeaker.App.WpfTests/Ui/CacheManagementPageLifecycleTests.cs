@@ -16,17 +16,17 @@ public sealed class CacheManagementPageLifecycleTests
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
-            var workspace = new CachePageWorkspace
+            var cache = new CachePresentationTestDouble
             {
-                Books = [new CachedBookCacheItem("book-1", "第一本", null, 1, 1, 1024)]
+                Books = [new CachedBookSummary("book-1", "第一本", null, 1, 1, 1024)]
             };
-            var page = new CacheManagementPage(CreateViewModel(workspace));
+            var page = new CacheManagementPage(CreateViewModel(cache));
 
             await page.OnNavigatedToAsync();
-            Assert.Equal(1, workspace.InvalidationSubscriptionCount);
+            Assert.Equal(1, cache.InvalidationSubscriptionCount);
 
             await page.OnNavigatedFromAsync();
-            Assert.Equal(0, workspace.InvalidationSubscriptionCount);
+            Assert.Equal(0, cache.InvalidationSubscriptionCount);
         });
     }
 
@@ -35,14 +35,15 @@ public sealed class CacheManagementPageLifecycleTests
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
-            var workspace = new CachePageWorkspace
+            var cache = new CachePresentationTestDouble
             {
-                Books = [new CachedBookCacheItem("book-1", "第一本", "作者甲", 1, 1, 1024)],
-                Chapters = [new CachedChapterCacheItem("book-1", 0, "第一章", 1, 1, 1024, 1)],
-                LoadOnBackgroundThread = true
+                Books = [new CachedBookSummary("book-1", "第一本", "作者甲", 1, 1, 1024)],
+                Statuses = [new ChapterCacheStatus(0, 1, 1)]
             };
+            cache.ChaptersByBook["book-1"] =
+            [new CachedChapterSummary("book-1", 0, "第一章", 1, 1, 1024)];
             var feedback = new CachePageFeedback();
-            var viewModel = CreateViewModel(workspace, feedback);
+            var viewModel = CreateViewModel(cache, feedback);
             var page = new CacheManagementPage(viewModel);
             page.Measure(new System.Windows.Size(1280, 820));
             page.Arrange(new System.Windows.Rect(0, 0, 1280, 820));
@@ -57,208 +58,18 @@ public sealed class CacheManagementPageLifecycleTests
     }
 
     private static CacheManagementViewModel CreateViewModel(
-        CachePageWorkspace workspace,
+        CachePresentationTestDouble cache,
         CachePageFeedback? feedback = null) =>
         new(
-            workspace,
-            new CachePageCatalog(workspace),
-            new CachePageCoverageQuery(workspace),
-            workspace.InvalidationCoordinator,
+            cache,
+            cache,
+            cache,
+            cache,
             feedback ?? new CachePageFeedback(),
             new CachePageDialog(),
             new CachePageNavigator(),
             new WpfFakeChapterExportCoordinator(),
             new CachePageFileDialogs());
-
-    private sealed class CachePageCatalog(CachePageWorkspace workspace) : ICacheCatalog
-    {
-        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public async Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
-            (await workspace.GetCachedBooksAsync(cancellationToken))
-                .Select(book => new CachedBookSummary(book.BookId, book.Title, book.Author, book.ChapterCount, book.EntryCount, book.TotalSizeBytes))
-                .ToArray();
-
-        public async Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(
-            IReadOnlyCollection<string> bookIds,
-            CancellationToken cancellationToken) =>
-            (await GetCachedBooksAsync(cancellationToken))
-                .Where(book => bookIds.Contains(book.BookId, StringComparer.Ordinal))
-                .ToArray();
-
-        public async Task<CachedBookSummary?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
-            (await workspace.GetCachedBookAsync(bookId, cancellationToken)) is { } book
-                ? new CachedBookSummary(book.BookId, book.Title, book.Author, book.ChapterCount, book.EntryCount, book.TotalSizeBytes)
-                : null;
-
-        public async Task<IReadOnlyList<CachedChapterCatalogEntry>> GetCachedChapterCatalogAsync(
-            string bookId,
-            CancellationToken cancellationToken) =>
-            (await workspace.GetCachedChaptersAsync(bookId, cancellationToken))
-                .Select(chapter => new CachedChapterCatalogEntry(chapter.BookId, chapter.ChapterIndex, chapter.Title))
-                .ToArray();
-
-        public async Task<IReadOnlyList<CachedChapterSummary>> GetCachedChaptersAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            (await workspace.GetCachedChaptersAsync(bookId, cancellationToken))
-                .Where(chapter => chapterIndices.Contains(chapter.ChapterIndex))
-                .Select(chapter => new CachedChapterSummary(
-                    chapter.BookId,
-                    chapter.ChapterIndex,
-                    chapter.Title,
-                    chapter.CachedSegmentCount,
-                    chapter.EntryCount,
-                    chapter.TotalSizeBytes))
-                .ToArray();
-
-        public async Task<CachedChapterSummary?> GetCachedChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            (await GetCachedChaptersAsync(bookId, [chapterIndex], cancellationToken)).FirstOrDefault();
-    }
-
-    private sealed class CachePageCoverageQuery(CachePageWorkspace workspace) : ICacheCoverageQuery
-    {
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
-                workspace.Chapters
-                    .Where(chapter => chapter.BookId == bookId && chapterIndices.Contains(chapter.ChapterIndex))
-                    .Select(chapter => new ChapterCacheStatus(
-                        chapter.ChapterIndex,
-                        chapter.CachedSegmentCount,
-                        chapter.CurrentConfigurationSegmentCount)
-                    {
-                        Kind = chapter.CurrentConfigurationStatus
-                    })
-                    .ToArray());
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            IReadOnlyCollection<NovelSpeaker.Application.Playback.PlaybackChapterMetadata> chapters,
-            CancellationToken cancellationToken) =>
-            GetAsync(bookId, chapterIndices, cancellationToken);
-    }
-
-    private sealed class CachePageWorkspace : ICacheWorkspaceService
-    {
-        private EventHandler<CacheChangedEventArgs>? _changed;
-
-        public IReadOnlyList<CachedBookCacheItem> Books { get; init; } = [];
-
-        public IReadOnlyList<CachedChapterCacheItem> Chapters { get; init; } = [];
-
-        public bool LoadOnBackgroundThread { get; init; }
-
-        public int SubscriptionCount { get; private set; }
-
-        public FakeCacheInvalidationCoordinator InvalidationCoordinator { get; } = new();
-
-        public int InvalidationSubscriptionCount => InvalidationCoordinator.SubscriptionCount;
-
-        event EventHandler<CacheChangedEventArgs>? ICacheWorkspaceService.Changed
-        {
-            add
-            {
-                _changed += value;
-                SubscriptionCount++;
-            }
-            remove
-            {
-                _changed -= value;
-                SubscriptionCount--;
-            }
-        }
-
-        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(Books);
-
-        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
-            Task.FromResult(Books.FirstOrDefault(book => book.BookId == bookId));
-
-        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(
-            string bookId,
-            CancellationToken cancellationToken)
-        {
-            var chapters = Chapters.Where(chapter => chapter.BookId == bookId).ToArray();
-            return LoadOnBackgroundThread
-                ? Task.Run<IReadOnlyList<CachedChapterCacheItem>>(() => chapters, cancellationToken)
-                : Task.FromResult<IReadOnlyList<CachedChapterCacheItem>>(chapters);
-        }
-
-        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken)
-        {
-            return Task.FromResult(
-                Chapters.FirstOrDefault(chapter =>
-                    chapter.BookId == bookId && chapter.ChapterIndex == chapterIndex));
-        }
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
-
-        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken) =>
-            Task.FromResult(new CacheCleanupResult(0, 0, 0, 0));
-
-        public Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) =>
-            Task.FromResult(new CacheCleanupResult(0, 0, 0, 0));
-
-        public Task<CacheCleanupResult> ClearChaptersAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new CacheCleanupResult(0, 0, 0, 0));
-
-        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new CacheCleanupResult(0, 0, 0, 0));
-    }
-
-    private sealed class FakeCacheInvalidationCoordinator : ICacheInvalidationCoordinator
-    {
-        private EventHandler<CacheInvalidationBatch>? _batchPublished;
-
-        public event EventHandler<CacheInvalidationBatch>? BatchPublished
-        {
-            add
-            {
-                _batchPublished += value;
-                SubscriptionCount++;
-            }
-            remove
-            {
-                _batchPublished -= value;
-                SubscriptionCount--;
-            }
-        }
-
-        public int SubscriptionCount { get; private set; }
-
-        public void Publish(CacheInvalidation invalidation) =>
-            _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation]));
-
-        public Task FlushPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 
     private sealed class CachePageFeedback : IAppFeedbackService
     {

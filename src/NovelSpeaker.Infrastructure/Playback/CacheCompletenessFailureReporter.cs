@@ -6,11 +6,11 @@ namespace NovelSpeaker.Infrastructure.Playback;
 /// <summary>
 /// Records unavailable cache-completeness results using only a stable operation and exception type.
 /// </summary>
-public sealed class CacheWorkspaceFailureReporter : ICacheWorkspaceFailureReporter
+public sealed class CacheCompletenessFailureReporter : ICacheCompletenessFailureReporter
 {
-    private readonly ILogger<CacheWorkspaceFailureReporter> _logger;
+    private readonly ILogger<CacheCompletenessFailureReporter> _logger;
 
-    public CacheWorkspaceFailureReporter(ILogger<CacheWorkspaceFailureReporter> logger)
+    public CacheCompletenessFailureReporter(ILogger<CacheCompletenessFailureReporter> logger)
     {
         _logger = logger;
     }

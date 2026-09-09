@@ -34,11 +34,11 @@ public sealed class CacheAndDataViewModelTests
         {
             NextConfirmationDecision = AppConfirmationDecision.Cancel
         };
-        var workspaceService = new FakeCacheWorkspaceService
+        var cacheStore = new FakeCacheStore
         {
             Overview = new CacheOverviewModel(3L * 1024 * 1024 * 1024, 20, AppSettings.DefaultCacheLimitBytes, true)
         };
-        var viewModel = CreateViewModel(settingsService, workspaceService, dialogService: dialogService);
+        var viewModel = CreateViewModel(settingsService, cacheStore, dialogService: dialogService);
         await viewModel.LoadAsync(CancellationToken.None);
 
         viewModel.CacheLimitValueText = "1";
@@ -56,7 +56,7 @@ public sealed class CacheAndDataViewModelTests
         {
             CacheLimitBytes = 4L * 1024 * 1024 * 1024
         });
-        var workspaceService = new FakeCacheWorkspaceService
+        var cacheStore = new FakeCacheStore
         {
             Overviews =
             [
@@ -69,14 +69,14 @@ public sealed class CacheAndDataViewModelTests
         {
             NextConfirmationDecision = AppConfirmationDecision.Confirm
         };
-        var viewModel = CreateViewModel(settingsService, workspaceService, dialogService, feedbackService);
+        var viewModel = CreateViewModel(settingsService, cacheStore, dialogService, feedbackService);
         await viewModel.LoadAsync(CancellationToken.None);
 
         viewModel.CacheLimitValueText = "2";
         await viewModel.CommitCacheLimitAsync(CancellationToken.None);
 
         Assert.Equal(2L * 1024 * 1024 * 1024, settingsService.CurrentSettings.CacheLimitBytes);
-        Assert.True(workspaceService.TrimCalled);
+        Assert.True(cacheStore.TrimCalled);
         Assert.Equal("缓存仍高于上限", feedbackService.LastTitle);
     }
 
@@ -87,7 +87,7 @@ public sealed class CacheAndDataViewModelTests
         {
             CacheLimitBytes = 4L * 1024 * 1024 * 1024
         });
-        var workspaceService = new FakeCacheWorkspaceService
+        var cacheStore = new FakeCacheStore
         {
             Overview = new CacheOverviewModel(
                 1L * 1024 * 1024 * 1024,
@@ -95,28 +95,28 @@ public sealed class CacheAndDataViewModelTests
                 4L * 1024 * 1024 * 1024,
                 false)
         };
-        var viewModel = CreateViewModel(settingsService, workspaceService);
+        var viewModel = CreateViewModel(settingsService, cacheStore);
         await viewModel.LoadAsync(CancellationToken.None);
 
         var liveOverview = new TaskCompletionSource<CacheOverviewModel>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        workspaceService.PendingOverviewTasks.Enqueue(liveOverview);
+        cacheStore.PendingOverviewTasks.Enqueue(liveOverview);
         var actualOverview = new CacheOverviewModel(
             3L * 1024 * 1024 * 1024,
             30,
             4L * 1024 * 1024 * 1024,
             false);
-        workspaceService.Overview = actualOverview;
-        workspaceService.InvalidationCoordinator.Publish(
+        cacheStore.Overview = actualOverview;
+        cacheStore.InvalidationCoordinator.Publish(
             CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary));
-        await workspaceService.FirstOverviewLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await cacheStore.FirstOverviewLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         viewModel.CacheLimitValueText = "2";
         var commit = viewModel.CommitCacheLimitAsync(CancellationToken.None);
         liveOverview.SetResult(actualOverview);
         await commit;
 
-        Assert.True(workspaceService.TrimCalled);
+        Assert.True(cacheStore.TrimCalled);
         Assert.Equal(2L * 1024 * 1024 * 1024, settingsService.CurrentSettings.CacheLimitBytes);
     }
 
@@ -141,14 +141,14 @@ public sealed class CacheAndDataViewModelTests
     [Fact]
     public async Task ClearAllAsync_is_confirmed_from_cache_and_data_page_and_refreshes_overview()
     {
-        var workspaceService = new FakeCacheWorkspaceService
+        var cacheStore = new FakeCacheStore
         {
             Overviews =
             [
                 new CacheOverviewModel(4096, 4, AppSettings.DefaultCacheLimitBytes, false),
                 new CacheOverviewModel(1024, 1, AppSettings.DefaultCacheLimitBytes, false)
             ],
-            ClearAllResult = new CacheCleanupResult(3072, 3, 1, 0)
+            ClearAllResult = new AudioCacheStoreCleanupResult(3072, 3, 1, 0)
         };
         var dialogService = new FakeAppDialogService
         {
@@ -156,15 +156,15 @@ public sealed class CacheAndDataViewModelTests
         };
         var feedbackService = new FakeFeedbackService();
         var viewModel = CreateViewModel(
-            workspaceService: workspaceService,
+            cacheStore: cacheStore,
             dialogService: dialogService,
             feedbackService: feedbackService);
         await viewModel.LoadAsync(CancellationToken.None);
 
         await viewModel.ClearAllCommand.ExecuteAsync(null);
 
-        Assert.Equal(1, workspaceService.ClearAllCallCount);
-        Assert.Equal(2, workspaceService.GetOverviewCallCount);
+        Assert.Equal(1, cacheStore.ClearAllCallCount);
+        Assert.Equal(2, cacheStore.GetOverviewCallCount);
         Assert.Equal("1 KB", viewModel.TotalCacheSizeText);
         Assert.Equal("缓存已部分清理", feedbackService.LastTitle);
     }
@@ -172,7 +172,7 @@ public sealed class CacheAndDataViewModelTests
     [Fact]
     public async Task Active_page_tracks_physical_cache_invalidation_without_reentry()
     {
-        var workspaceService = new FakeCacheWorkspaceService
+        var cacheStore = new FakeCacheStore
         {
             Overviews =
             [
@@ -180,10 +180,10 @@ public sealed class CacheAndDataViewModelTests
                 new CacheOverviewModel(1024, 1, AppSettings.DefaultCacheLimitBytes, false)
             ]
         };
-        var viewModel = CreateViewModel(workspaceService: workspaceService);
+        var viewModel = CreateViewModel(cacheStore: cacheStore);
 
         await viewModel.LoadAsync(CancellationToken.None);
-        workspaceService.InvalidationCoordinator.Publish(
+        cacheStore.InvalidationCoordinator.Publish(
             CacheInvalidation.ForChapters(
                 "book-1",
                 [0],
@@ -196,41 +196,41 @@ public sealed class CacheAndDataViewModelTests
     [Fact]
     public async Task Reentering_page_does_not_reuse_cancelled_overview_refresh()
     {
-        var workspaceService = new FakeCacheWorkspaceService();
+        var cacheStore = new FakeCacheStore();
         var firstOverview = new TaskCompletionSource<CacheOverviewModel>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        workspaceService.PendingOverviewTasks.Enqueue(firstOverview);
+        cacheStore.PendingOverviewTasks.Enqueue(firstOverview);
         using var firstActivation = new CancellationTokenSource();
-        var viewModel = CreateViewModel(workspaceService: workspaceService);
+        var viewModel = CreateViewModel(cacheStore: cacheStore);
 
         var firstLoad = viewModel.LoadAsync(firstActivation.Token);
-        await workspaceService.FirstOverviewLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await cacheStore.FirstOverviewLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         viewModel.Deactivate();
         firstActivation.Cancel();
-        workspaceService.Overview = new CacheOverviewModel(2048, 2, AppSettings.DefaultCacheLimitBytes, false);
+        cacheStore.Overview = new CacheOverviewModel(2048, 2, AppSettings.DefaultCacheLimitBytes, false);
 
         await viewModel.LoadAsync(CancellationToken.None);
         await firstLoad;
 
-        Assert.Equal(2, workspaceService.GetOverviewCallCount);
+        Assert.Equal(2, cacheStore.GetOverviewCallCount);
         Assert.Equal("2 KB", viewModel.TotalCacheSizeText);
     }
 
     private static CacheAndDataViewModel CreateViewModel(
         FakeAppSettingsService? settingsService = null,
-        FakeCacheWorkspaceService? workspaceService = null,
+        FakeCacheStore? cacheStore = null,
         FakeAppDialogService? dialogService = null,
         FakeFeedbackService? feedbackService = null,
         FakeDiagnosticsService? diagnosticsService = null,
         TimeProvider? timeProvider = null)
     {
-        var workspace = workspaceService ?? new FakeCacheWorkspaceService();
+        var store = cacheStore ?? new FakeCacheStore();
         return new CacheAndDataViewModel(
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),
-            workspace,
-            new FakeCacheCatalog(workspace),
-            workspace.InvalidationCoordinator,
+            store,
+            new FakeCacheCatalog(store),
+            store.InvalidationCoordinator,
             diagnosticsService ?? new FakeDiagnosticsService(),
             new FakeNavigationService(),
             dialogService ?? new FakeAppDialogService(),
@@ -239,69 +239,45 @@ public sealed class CacheAndDataViewModelTests
             new InlineUiScheduler());
     }
 
-    private sealed class FakeCacheCatalog(FakeCacheWorkspaceService workspace) : ICacheCatalog
+    private sealed class FakeCacheCatalog(FakeCacheStore store) : ICacheCatalog
     {
-        public async Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-            await workspace.GetOverviewAsync(cancellationToken);
+        public async Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken)
+        {
+            var summary = await store.GetSummaryAsync(cancellationToken);
+            return new CacheOverviewModel(
+                summary.TotalSizeBytes,
+                summary.EntryCount,
+                summary.LimitBytes,
+                summary.IsOverLimit);
+        }
 
         public async Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
-            (await workspace.GetCachedBooksAsync(cancellationToken))
-                .Select(book => new CachedBookSummary(
-                    book.BookId,
-                    book.Title,
-                    book.Author,
-                    book.ChapterCount,
-                    book.EntryCount,
-                    book.TotalSizeBytes))
-                .ToArray();
+            throw new NotSupportedException();
 
         public async Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(
             IReadOnlyCollection<string> bookIds,
             CancellationToken cancellationToken) =>
-            (await GetCachedBooksAsync(cancellationToken))
-                .Where(book => bookIds.Contains(book.BookId, StringComparer.Ordinal))
-                .ToArray();
+            throw new NotSupportedException();
 
         public async Task<CachedBookSummary?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
-            (await workspace.GetCachedBookAsync(bookId, cancellationToken)) is { } book
-                ? new CachedBookSummary(book.BookId, book.Title, book.Author, book.ChapterCount, book.EntryCount, book.TotalSizeBytes)
-                : null;
+            throw new NotSupportedException();
 
         public async Task<IReadOnlyList<CachedChapterCatalogEntry>> GetCachedChapterCatalogAsync(
             string bookId,
             CancellationToken cancellationToken) =>
-            (await workspace.GetCachedChaptersAsync(bookId, cancellationToken))
-                .Select(chapter => new CachedChapterCatalogEntry(chapter.BookId, chapter.ChapterIndex, chapter.Title))
-                .ToArray();
+            throw new NotSupportedException();
 
         public async Task<IReadOnlyList<CachedChapterSummary>> GetCachedChaptersAsync(
             string bookId,
             IReadOnlyCollection<int> chapterIndices,
             CancellationToken cancellationToken) =>
-            (await workspace.GetCachedChaptersAsync(bookId, cancellationToken))
-                .Where(chapter => chapterIndices.Contains(chapter.ChapterIndex))
-                .Select(chapter => new CachedChapterSummary(
-                    chapter.BookId,
-                    chapter.ChapterIndex,
-                    chapter.Title,
-                    chapter.CachedSegmentCount,
-                    chapter.EntryCount,
-                    chapter.TotalSizeBytes))
-                .ToArray();
+            throw new NotSupportedException();
 
         public async Task<CachedChapterSummary?> GetCachedChapterAsync(
             string bookId,
             int chapterIndex,
             CancellationToken cancellationToken) =>
-            (await workspace.GetCachedChapterAsync(bookId, chapterIndex, cancellationToken)) is { } chapter
-                ? new CachedChapterSummary(
-                    chapter.BookId,
-                    chapter.ChapterIndex,
-                    chapter.Title,
-                    chapter.CachedSegmentCount,
-                    chapter.EntryCount,
-                    chapter.TotalSizeBytes)
-                : null;
+            throw new NotSupportedException();
     }
 
     private sealed class InlineUiScheduler : IUiScheduler
@@ -322,17 +298,11 @@ public sealed class CacheAndDataViewModelTests
         }
     }
 
-    private sealed class FakeCacheWorkspaceService : ICacheWorkspaceService
+    private sealed class FakeCacheStore : IAudioCacheStore
     {
         private readonly Queue<CacheOverviewModel> _overviewQueue = new();
 
         public FakeCacheInvalidationCoordinator InvalidationCoordinator { get; } = new();
-
-        public event EventHandler<CacheChangedEventArgs>? Changed
-        {
-            add { }
-            remove { }
-        }
 
         public CacheOverviewModel Overview { get; set; } = new(0, 0, AppSettings.DefaultCacheLimitBytes, false);
 
@@ -355,7 +325,7 @@ public sealed class CacheAndDataViewModelTests
 
         public bool TrimCalled { get; private set; }
 
-        public CacheCleanupResult ClearAllResult { get; set; } = new(0, 0, 0, 0);
+        public AudioCacheStoreCleanupResult ClearAllResult { get; set; } = new(0, 0, 0, 0);
 
         public int ClearAllCallCount { get; private set; }
 
@@ -366,7 +336,7 @@ public sealed class CacheAndDataViewModelTests
         public TaskCompletionSource FirstOverviewLoadStarted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken)
+        public Task<AudioCacheStoreSummary> GetSummaryAsync(CancellationToken cancellationToken)
         {
             GetOverviewCallCount++;
             if (PendingOverviewTasks.Count > 0)
@@ -380,44 +350,81 @@ public sealed class CacheAndDataViewModelTests
                 Overview = _overviewQueue.Dequeue();
             }
 
-            return Task.FromResult(Overview);
+            return Task.FromResult(new AudioCacheStoreSummary(
+                Overview.TotalSizeBytes,
+                Overview.EntryCount,
+                Overview.LimitBytes,
+                Overview.IsOverLimit));
         }
 
-        private static async Task<CacheOverviewModel> WaitForOverviewAsync(
+        private static async Task<AudioCacheStoreSummary> WaitForOverviewAsync(
             TaskCompletionSource<CacheOverviewModel> pendingOverview,
+            CancellationToken cancellationToken)
+        {
+            var overview = await pendingOverview.Task.WaitAsync(cancellationToken);
+            return new AudioCacheStoreSummary(
+                overview.TotalSizeBytes,
+                overview.EntryCount,
+                overview.LimitBytes,
+                overview.IsOverLimit);
+        }
+
+        public Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<CachedBookStoreSummary?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(
+            string bookId,
             CancellationToken cancellationToken) =>
-            await pendingOverview.Task.WaitAsync(cancellationToken);
-
-        public Task<IReadOnlyList<CachedBookCacheItem>> GetCachedBooksAsync(CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<CachedBookCacheItem?> GetCachedBookAsync(string bookId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
-        public Task<IReadOnlyList<CachedChapterCacheItem>> GetCachedChaptersAsync(string bookId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<CachedChapterCacheItem?> GetCachedChapterAsync(
+        public Task<CachedChapterStoreSummary?> GetChapterAsync(
             string bookId,
             int chapterIndex,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ChapterCacheStatus>> GetCurrentConfigurationStatusesAsync(
+            IReadOnlyCollection<CurrentCacheChapterQuery> chapters,
+            SynthesisProfileFingerprint synthesisProfile,
+            CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
+        public Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesAsync(
+            IReadOnlyCollection<AudioCacheKey> keys,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AudioCacheStoreCleanupResult> ClearBookAsync(
+            string bookId,
             CancellationToken cancellationToken)
         {
             throw new NotSupportedException();
         }
 
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetChapterCacheStatusesAsync(
+        public Task<AudioCacheStoreCleanupResult> ClearChapterAsync(
+            string bookId,
+            int chapterIndex,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<AudioCacheStoreCleanupResult> ClearChaptersAsync(
             string bookId,
             IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken)
-        {
+            CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+
+        public Task<AudioCacheStoreCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
+        {
+            ClearAllCallCount++;
+            InvalidationCoordinator.Publish(
+                CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary));
+            return Task.FromResult(ClearAllResult);
         }
 
-        public Task TrimToConfiguredLimitAsync(CancellationToken cancellationToken)
+        public Task RunMaintenanceAsync(CancellationToken cancellationToken)
         {
             TrimCalled = true;
             InvalidationCoordinator.Publish(
@@ -425,31 +432,7 @@ public sealed class CacheAndDataViewModelTests
             return Task.CompletedTask;
         }
 
-        public Task<CacheCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<CacheCleanupResult> ClearChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<CacheCleanupResult> ClearChaptersAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
-
-        public Task<CacheCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
-        {
-            ClearAllCallCount++;
-            InvalidationCoordinator.Publish(
-                CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary));
-            return Task.FromResult(ClearAllResult);
-        }
+        public Task RunStartupMaintenanceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeCacheInvalidationCoordinator : ICacheInvalidationCoordinator

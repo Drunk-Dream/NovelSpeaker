@@ -4,11 +4,12 @@ namespace NovelSpeaker.App.Features.Cache;
 
 internal static class CacheManagementCompletenessFormatter
 {
-    public static string Format(CachedChapterCacheItem chapter)
+    public static string Format(CachedChapterSummary chapter, ChapterCacheStatus status)
     {
         ArgumentNullException.ThrowIfNull(chapter);
+        ArgumentNullException.ThrowIfNull(status);
 
-        switch (chapter.CurrentConfigurationStatus)
+        switch (status.Kind)
         {
             case ChapterCacheStatusKind.PlanMissing:
                 return "完整度：计划计算中";
@@ -22,18 +23,18 @@ internal static class CacheManagementCompletenessFormatter
                 return "完整度：配置不可用";
         }
 
-        if (chapter.CurrentConfigurationSegmentCount is null)
+        if (status.TotalSegmentCount is null)
         {
             return "完整度：配置不可用";
         }
 
-        var totalSegmentCount = chapter.CurrentConfigurationSegmentCount.Value;
+        var totalSegmentCount = status.TotalSegmentCount.Value;
         if (totalSegmentCount <= 0)
         {
             return "完整度：无可播放内容";
         }
 
-        var ratio = Math.Clamp(chapter.CachedSegmentCount / (double)totalSegmentCount, 0, 1);
-        return $"完整度：{chapter.CachedSegmentCount}/{totalSegmentCount} 段 · {ratio:P0}";
+        var ratio = Math.Clamp(status.CachedSegmentCount / (double)totalSegmentCount, 0, 1);
+        return $"完整度：{status.CachedSegmentCount}/{totalSegmentCount} 段 · {ratio:P0}";
     }
 }

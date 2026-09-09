@@ -18,7 +18,7 @@ internal sealed class PlayerCacheDecorationController
     private const int SelectionDecorationResetThreshold = 64;
 
     private readonly IActiveCacheCoordinator _activeCacheCoordinator;
-    private readonly ICacheWorkspaceService _cacheWorkspaceService;
+    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
     private readonly IAppSettingsService _settingsService;
     private readonly PlayerContentController _contentController;
     private readonly IUiScheduler _uiScheduler;
@@ -37,14 +37,15 @@ internal sealed class PlayerCacheDecorationController
 
     public PlayerCacheDecorationController(
         IActiveCacheCoordinator activeCacheCoordinator,
-        ICacheWorkspaceService cacheWorkspaceService,
+        ICacheCoverageQuery cacheCoverageQuery,
+        ICacheInvalidationCoordinator invalidationCoordinator,
         IAppSettingsService settingsService,
         PlayerContentController contentController,
         IUiScheduler uiScheduler,
         Action<string, Exception> reportFailure)
     {
         _activeCacheCoordinator = activeCacheCoordinator ?? throw new ArgumentNullException(nameof(activeCacheCoordinator));
-        _cacheWorkspaceService = cacheWorkspaceService ?? throw new ArgumentNullException(nameof(cacheWorkspaceService));
+        _invalidationCoordinator = invalidationCoordinator ?? throw new ArgumentNullException(nameof(invalidationCoordinator));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _contentController = contentController ?? throw new ArgumentNullException(nameof(contentController));
         _uiScheduler = uiScheduler ?? throw new ArgumentNullException(nameof(uiScheduler));
@@ -52,7 +53,7 @@ internal sealed class PlayerCacheDecorationController
         _selectionController = new PlayerActiveCacheSelectionController(activeCacheCoordinator);
         _selectionController.StateChanged += OnSelectionStateChanged;
         _statusRefreshController = new ChapterCacheStatusRefreshController(
-            cacheWorkspaceService,
+            cacheCoverageQuery,
             uiScheduler,
             ApplyChapterCacheStatuses,
             exception => reportFailure("刷新章节缓存进度失败", exception));
@@ -80,7 +81,7 @@ internal sealed class PlayerCacheDecorationController
         _isActive = true;
         _statusRefreshController.Activate(cancellationToken);
         _activeCacheCoordinator.SnapshotChanged += OnActiveCacheSnapshotChanged;
-        _cacheWorkspaceService.Changed += OnCacheChanged;
+        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
         _settingsService.Changed += OnSettingsChanged;
         _selectionController.ApplySnapshot(_activeCacheCoordinator.CurrentSnapshot);
     }
@@ -91,7 +92,7 @@ internal sealed class PlayerCacheDecorationController
         if (_isActive)
         {
             _activeCacheCoordinator.SnapshotChanged -= OnActiveCacheSnapshotChanged;
-            _cacheWorkspaceService.Changed -= OnCacheChanged;
+            _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
             _settingsService.Changed -= OnSettingsChanged;
             _isActive = false;
         }
@@ -307,17 +308,41 @@ internal sealed class PlayerCacheDecorationController
             "更新主动缓存状态失败");
     }
 
-    private void OnCacheChanged(object? sender, CacheChangedEventArgs eventArgs)
+    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
     {
         var loadedBookId = _contentController.LoadedBook?.BookId;
-        if (string.IsNullOrWhiteSpace(loadedBookId) ||
-            (!string.IsNullOrWhiteSpace(eventArgs.BookId) &&
-             !string.Equals(eventArgs.BookId, loadedBookId, StringComparison.Ordinal)))
+        if (string.IsNullOrWhiteSpace(loadedBookId))
         {
             return;
         }
 
-        RequestStatusRefresh(eventArgs.ChapterIndex);
+        foreach (var change in batch.Changes)
+        {
+            if (!change.Aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) &&
+                !change.Aspects.HasFlag(CacheInvalidationAspect.Coverage))
+            {
+                continue;
+            }
+
+            switch (change.Scope)
+            {
+                case CacheInvalidationScope.Global:
+                    RequestStatusRefresh(chapterIndex: null);
+                    break;
+                case CacheInvalidationScope.Book book
+                    when string.Equals(book.BookId, loadedBookId, StringComparison.Ordinal):
+                    RequestStatusRefresh(chapterIndex: null);
+                    break;
+                case CacheInvalidationScope.Chapters chapters
+                    when string.Equals(chapters.BookId, loadedBookId, StringComparison.Ordinal):
+                    foreach (var chapterIndex in chapters.ChapterIndices)
+                    {
+                        RequestStatusRefresh(chapterIndex);
+                    }
+
+                    break;
+            }
+        }
     }
 
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs eventArgs)

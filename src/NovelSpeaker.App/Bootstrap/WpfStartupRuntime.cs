@@ -284,18 +284,6 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     internal async Task WaitForBackgroundTasksAsync(
         IChapterExportCoordinator chapterExportCoordinator,
-        ICacheWorkspaceBackgroundTaskOwner cacheWorkspaceBackgroundTaskOwner,
-        CancellationToken cancellationToken)
-    {
-        await WaitForBackgroundTasksCoreAsync(
-            chapterExportCoordinator,
-            cacheWorkspaceBackgroundTaskOwner.StopBackgroundOperationsAsync,
-            invalidationCoordinator: null,
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    internal async Task WaitForBackgroundTasksAsync(
-        IChapterExportCoordinator chapterExportCoordinator,
         ISpeechPlanRepairCoordinator speechPlanRepairCoordinator,
         ICacheInvalidationCoordinator? invalidationCoordinator,
         CancellationToken cancellationToken)
