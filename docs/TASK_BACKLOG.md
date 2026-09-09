@@ -874,7 +874,7 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 
 完成成果：删除 `ICacheWorkspaceService` 及其实现、事件参数和失败/后台兼容入口；缓存页面/详情/播放器改用 store、catalog、coverage、invalidation 和 speech-plan repair 的最小职责 port，移除旧 cache DTO/formatter 入口，并将集成测试迁移到 typed invalidation。
 
-## [ ] T021（P1）：重构测试体系并减少重复维护面
+## [x] T021（P1）：重构测试体系并减少重复维护面
 
 依赖：T020。
 
@@ -893,6 +893,8 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 
 - 测试总数可减少，但必须给出“删除了哪些重复/实现细节测试、哪些稳定合同仍覆盖”的摘要。
 - 不能通过合并多个无关 assertion 到单个测试人为压数量。
+
+完成成果：Presentation 的 CacheManagement、CacheAndData、Player 测试复用共享 `CachePresentationTestDouble`，删除重复的本地 cache workspace/coverage/catalog fake 与 adapter；将大而重复的 CacheManagement fixture 收敛为 3 个稳定行为测试，并拆分 BookDetails 聚合测试以保持行为矩阵可读；WPF 保留页面/导航/视觉契约测试。T021 focused Presentation 测试 55/55、WPF focused 测试 18/18 通过。
 
 ## [ ] T022（P1）：全项目 dead code / legacy namespace / duplicate state 清理
 

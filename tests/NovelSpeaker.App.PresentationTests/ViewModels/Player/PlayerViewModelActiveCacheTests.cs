@@ -6,6 +6,7 @@ using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.TestKit.Cache;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
@@ -171,7 +172,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Chapter_cache_percentages_refresh_on_initial_load_and_matching_cache_changes()
     {
-        var cacheDependencies = new FakeCachePresentationDependencies
+        var cacheDependencies = new CachePresentationTestDouble
         {
             Statuses =
             [
@@ -231,7 +232,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Page_leave_discards_cache_status_projection_that_reaches_the_ui_late()
     {
-        var cacheDependencies = new FakeCachePresentationDependencies
+        var cacheDependencies = new CachePresentationTestDouble
         {
             Statuses = []
         };
@@ -258,7 +259,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Reactivation_refreshes_cache_window_for_playback_position_advanced_off_page()
     {
-        var cacheDependencies = new FakeCachePresentationDependencies();
+        var cacheDependencies = new CachePresentationTestDouble();
         var playback = CreatePlaybackCoordinator();
         var viewModel = CreateViewModel(
             playback,
@@ -284,9 +285,9 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Moving_current_chapter_refreshes_the_new_cache_window_for_a_10000_chapter_catalog()
     {
-        var cacheDependencies = new FakeCachePresentationDependencies
+        var cacheDependencies = new CachePresentationTestDouble
         {
-            StatusHandler = (_, indices, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
+            CoverageHandler = (_, indices, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
                 indices.Contains(9_999)
                     ? [new ChapterCacheStatus(9_999, 1, 1)]
                     : [])

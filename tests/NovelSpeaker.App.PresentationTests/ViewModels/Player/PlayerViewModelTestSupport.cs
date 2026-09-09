@@ -13,6 +13,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.TestKit.Common;
+using NovelSpeaker.TestKit.Cache;
 using NovelSpeaker.TestKit.Navigation;
 using Xunit;
 
@@ -29,13 +30,13 @@ public sealed partial class PlayerViewModelTests
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
         FakeAppSettingsService? settingsService = null,
         FakeActiveCacheCoordinator? activeCacheCoordinator = null,
-        FakeCachePresentationDependencies? cacheDependencies = null,
+        CachePresentationTestDouble? cacheDependencies = null,
         FakePlaybackStopTimer? stopTimer = null,
         FakeMiniPlayerLauncher? miniPlayerLauncher = null,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
-        cacheDependencies ??= new FakeCachePresentationDependencies();
+        cacheDependencies ??= new CachePresentationTestDouble();
         var viewModel = new PlayerViewModel(
             coordinator,
             stopTimer ?? new FakePlaybackStopTimer(),
@@ -47,8 +48,8 @@ public sealed partial class PlayerViewModelTests
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator(),
-            cacheDependencies.CoverageQuery,
-            cacheDependencies.InvalidationCoordinator,
+            cacheDependencies,
+            cacheDependencies,
             miniPlayerLauncher ?? new FakeMiniPlayerLauncher(),
             timeProvider ?? TimeProvider.System,
             uiScheduler ?? new ImmediateUiScheduler());
@@ -120,58 +121,6 @@ public sealed partial class PlayerViewModelTests
             CurrentSnapshot = snapshot;
             _snapshotChanged?.Invoke(this, snapshot);
         }
-    }
-
-    private sealed class FakeCachePresentationDependencies : ICacheCoverageQuery, ICacheInvalidationCoordinator
-    {
-        private EventHandler<CacheInvalidationBatch>? _batchPublished;
-
-        public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
-
-        public Func<string, IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlyList<ChapterCacheStatus>>>? StatusHandler { get; set; }
-
-        public int StatusCallCount { get; private set; }
-
-        public IReadOnlyList<int> LastRequestedChapterIndices { get; private set; } = [];
-
-        public int SubscriberCount => _batchPublished?.GetInvocationList().Length ?? 0;
-
-        public FakeCachePresentationDependencies CoverageQuery => this;
-
-        public FakeCachePresentationDependencies InvalidationCoordinator => this;
-
-        public event EventHandler<CacheInvalidationBatch>? BatchPublished
-        {
-            add => _batchPublished += value;
-            remove => _batchPublished -= value;
-        }
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken)
-        {
-            StatusCallCount++;
-            LastRequestedChapterIndices = chapterIndices.ToArray();
-            return StatusHandler?.Invoke(bookId, chapterIndices, cancellationToken) ??
-                   Task.FromResult(Statuses);
-        }
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            IReadOnlyCollection<PlaybackChapterMetadata> chapters,
-            CancellationToken cancellationToken) =>
-            GetAsync(bookId, chapterIndices, cancellationToken);
-
-        public void Publish(CacheInvalidation invalidation) =>
-            _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation]));
-
-        public Task FlushPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class ImmediateUiScheduler : IUiScheduler

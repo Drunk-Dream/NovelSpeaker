@@ -16,8 +16,31 @@ internal sealed class CachePresentationTestDouble :
     ICachePlanRepairRequestor
 {
     private EventHandler<CacheInvalidationBatch>? _batchPublished;
+    private readonly Queue<AudioCacheStoreSummary> _summaryQueue = new();
 
     public AudioCacheStoreSummary StoreSummary { get; set; } = new(0, 0, 0, false);
+
+    public IReadOnlyList<AudioCacheStoreSummary>? SummarySequence
+    {
+        set
+        {
+            _summaryQueue.Clear();
+            if (value is null)
+            {
+                return;
+            }
+
+            foreach (var summary in value)
+            {
+                _summaryQueue.Enqueue(summary);
+            }
+        }
+    }
+
+    public Queue<TaskCompletionSource<AudioCacheStoreSummary>> PendingSummaryTasks { get; } = new();
+
+    public TaskCompletionSource SummaryLoadStarted { get; } =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public IReadOnlyList<CachedBookSummary> Books { get; set; } = [];
 
@@ -25,6 +48,12 @@ internal sealed class CachePresentationTestDouble :
         new(StringComparer.Ordinal);
 
     public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
+
+    public Func<
+        string,
+        IReadOnlyCollection<int>,
+        CancellationToken,
+        Task<IReadOnlyList<ChapterCacheStatus>>>? CoverageHandler { get; set; }
 
     public AudioCacheStoreCleanupResult CleanupResult { get; set; } = new(0, 0, 0, 0);
 
@@ -36,9 +65,21 @@ internal sealed class CachePresentationTestDouble :
 
     public int CoverageQueryCallCount { get; private set; }
 
+    public int SummaryQueryCallCount { get; private set; }
+
+    public int ClearAllCallCount { get; private set; }
+
+    public bool MaintenanceCalled { get; private set; }
+
+    public int StatusCallCount => CoverageQueryCallCount;
+
     public int RepairRequestCount { get; private set; }
 
     public int InvalidationSubscriptionCount => _batchPublished?.GetInvocationList().Length ?? 0;
+
+    public int SubscriberCount => InvalidationSubscriptionCount;
+
+    public IReadOnlyList<int> LastRequestedChapterIndices { get; private set; } = [];
 
     public event EventHandler<CacheInvalidationBatch>? BatchPublished
     {
@@ -46,8 +87,22 @@ internal sealed class CachePresentationTestDouble :
         remove => _batchPublished -= value;
     }
 
-    public Task<AudioCacheStoreSummary> GetSummaryAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(StoreSummary);
+    public Task<AudioCacheStoreSummary> GetSummaryAsync(CancellationToken cancellationToken)
+    {
+        SummaryQueryCallCount++;
+        if (PendingSummaryTasks.Count > 0)
+        {
+            SummaryLoadStarted.TrySetResult();
+            return WaitForSummaryAsync(PendingSummaryTasks.Dequeue(), cancellationToken);
+        }
+
+        if (_summaryQueue.Count > 0)
+        {
+            StoreSummary = _summaryQueue.Dequeue();
+        }
+
+        return Task.FromResult(StoreSummary);
+    }
 
     public Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<CachedBookStoreSummary>>(
@@ -154,6 +209,7 @@ internal sealed class CachePresentationTestDouble :
 
     public Task<AudioCacheStoreCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
     {
+        ClearAllCallCount++;
         Publish(CacheInvalidation.ForGlobal(
             CacheInvalidationAspect.PhysicalSummary |
             CacheInvalidationAspect.CatalogStructure |
@@ -163,6 +219,7 @@ internal sealed class CachePresentationTestDouble :
 
     public Task RunMaintenanceAsync(CancellationToken cancellationToken)
     {
+        MaintenanceCalled = true;
         Publish(CacheInvalidation.ForGlobal(
             CacheInvalidationAspect.PhysicalSummary |
             CacheInvalidationAspect.CatalogStructure |
@@ -172,12 +229,15 @@ internal sealed class CachePresentationTestDouble :
 
     public Task RunStartupMaintenanceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-        Task.FromResult(new CacheOverviewModel(
-            StoreSummary.TotalSizeBytes,
-            StoreSummary.EntryCount,
-            StoreSummary.LimitBytes,
-            StoreSummary.IsOverLimit));
+    public async Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken)
+    {
+        var summary = await GetSummaryAsync(cancellationToken);
+        return new CacheOverviewModel(
+            summary.TotalSizeBytes,
+            summary.EntryCount,
+            summary.LimitBytes,
+            summary.IsOverLimit);
+    }
 
     public Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
         Task.FromResult(Books);
@@ -226,6 +286,12 @@ internal sealed class CachePresentationTestDouble :
         CancellationToken cancellationToken)
     {
         CoverageQueryCallCount++;
+        LastRequestedChapterIndices = chapterIndices.ToArray();
+        if (CoverageHandler is not null)
+        {
+            return CoverageHandler(bookId, chapterIndices, cancellationToken);
+        }
+
         return Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
             Statuses.Where(status => chapterIndices.Contains(status.ChapterIndex)).ToArray());
     }
@@ -255,6 +321,11 @@ internal sealed class CachePresentationTestDouble :
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+    private static async Task<AudioCacheStoreSummary> WaitForSummaryAsync(
+        TaskCompletionSource<AudioCacheStoreSummary> pendingSummary,
+        CancellationToken cancellationToken) =>
+        await pendingSummary.Task.WaitAsync(cancellationToken);
 
     private IReadOnlyList<CachedChapterSummary> GetChapters(string bookId) =>
         ChaptersByBook.GetValueOrDefault(bookId, []);

@@ -6,6 +6,7 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.TestKit.Cache;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.ViewModels;
@@ -15,8 +16,8 @@ public sealed class CacheManagementViewModelTests
     [Fact]
     public async Task Loading_and_selecting_book_projects_catalog_and_current_coverage()
     {
-        var cache = CreateCache();
-        var viewModel = CreateViewModel(cache);
+        var fixture = CreateCache();
+        var viewModel = CreateViewModel(fixture);
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
@@ -31,8 +32,8 @@ public sealed class CacheManagementViewModelTests
     [Fact]
     public async Task Selecting_and_clearing_chapters_uses_store_batch_boundary()
     {
-        var cache = CreateCache();
-        var viewModel = CreateViewModel(cache);
+        var fixture = CreateCache();
+        var viewModel = CreateViewModel(fixture);
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
@@ -40,16 +41,16 @@ public sealed class CacheManagementViewModelTests
 
         await viewModel.ClearSelectedChaptersCommand.ExecuteAsync(null);
 
-        Assert.Equal(("book-1", new[] { 0 }), cache.LastClearChaptersRequest);
-        Assert.Equal(1, cache.ClearChaptersCallCount);
-        Assert.Equal("缓存已清理", cache.Feedback.LastTitle);
+        Assert.Equal(("book-1", new[] { 0 }), fixture.Cache.LastClearChaptersRequest);
+        Assert.Equal(1, fixture.Cache.ClearChaptersCallCount);
+        Assert.Equal("缓存已清理", fixture.Feedback.LastTitle);
     }
 
     [Fact]
     public async Task Large_catalog_is_replaced_as_one_collection_projection()
     {
-        var cache = CreateCache(chapterCount: 10_000);
-        var viewModel = CreateViewModel(cache);
+        var fixture = CreateCache(chapterCount: 10_000);
+        var viewModel = CreateViewModel(fixture);
         var actions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
         viewModel.Chapters.CollectionChanged += (_, args) => actions.Add(args.Action);
 
@@ -65,7 +66,7 @@ public sealed class CacheManagementViewModelTests
             actions);
     }
 
-    private static CacheTestDouble CreateCache(int chapterCount = 2)
+    private static CacheFixture CreateCache(int chapterCount = 2)
     {
         var chapters = Enumerable.Range(0, chapterCount)
             .Select(index => new CachedChapterSummary(
@@ -82,189 +83,46 @@ public sealed class CacheManagementViewModelTests
                 chapter.ChapterIndex == 0 ? 1 : 0,
                 2))
             .ToArray();
-        return new CacheTestDouble(chapters, statuses);
+        var cache = new CachePresentationTestDouble
+        {
+            Books =
+            [
+                new CachedBookSummary(
+                    "book-1",
+                    "第一本",
+                    "作者甲",
+                    chapterCount,
+                    chapterCount,
+                    chapterCount * 1024L)
+            ],
+            Statuses = statuses,
+            StoreSummary = new AudioCacheStoreSummary(
+                chapterCount * 1024L,
+                chapterCount,
+                AppSettings.DefaultCacheLimitBytes,
+                false),
+            CleanupResult = new AudioCacheStoreCleanupResult(1024, chapterCount, 0, 0)
+        };
+        cache.ChaptersByBook["book-1"] = chapters;
+        return new CacheFixture(cache, new RecordingFeedback());
     }
 
-    private static CacheManagementViewModel CreateViewModel(CacheTestDouble cache) =>
+    private static CacheManagementViewModel CreateViewModel(CacheFixture fixture) =>
         new(
-            cache,
-            cache,
-            cache,
-            cache,
-            cache.Feedback,
+            fixture.Cache,
+            fixture.Cache,
+            fixture.Cache,
+            fixture.Cache,
+            fixture.Feedback,
             new ConfirmingDialog(),
             new TestNavigator(),
             new TestExportCoordinator(),
             new NoopFileDialogs(),
             new InlineUiScheduler());
 
-    private sealed class CacheTestDouble : IAudioCacheStore, ICacheCatalog, ICacheCoverageQuery, ICacheInvalidationCoordinator
-    {
-        private readonly IReadOnlyList<CachedChapterSummary> _chapters;
-        private readonly IReadOnlyList<ChapterCacheStatus> _statuses;
-        private EventHandler<CacheInvalidationBatch>? _batchPublished;
-
-        public CacheTestDouble(
-            IReadOnlyList<CachedChapterSummary> chapters,
-            IReadOnlyList<ChapterCacheStatus> statuses)
-        {
-            _chapters = chapters;
-            _statuses = statuses;
-            Feedback = new RecordingFeedback();
-        }
-
-        public RecordingFeedback Feedback { get; }
-
-        public int ClearChaptersCallCount { get; private set; }
-
-        public (string BookId, int[] ChapterIndices)? LastClearChaptersRequest { get; private set; }
-
-        public event EventHandler<CacheInvalidationBatch>? BatchPublished
-        {
-            add => _batchPublished += value;
-            remove => _batchPublished -= value;
-        }
-
-        public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new CacheOverviewModel(1024, _chapters.Count, AppSettings.DefaultCacheLimitBytes, false));
-
-        public Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CachedBookSummary>>(
-            [new CachedBookSummary("book-1", "第一本", "作者甲", _chapters.Count, _chapters.Count, _chapters.Count * 1024L)]);
-
-        public Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(
-            IReadOnlyCollection<string> bookIds,
-            CancellationToken cancellationToken) =>
-            GetCachedBooksAsync(cancellationToken);
-
-        public Task<CachedBookSummary?> GetCachedBookAsync(
-            string bookId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<CachedBookSummary?>(
-                new CachedBookSummary("book-1", "第一本", "作者甲", _chapters.Count, _chapters.Count, _chapters.Count * 1024L));
-
-        public Task<IReadOnlyList<CachedChapterCatalogEntry>> GetCachedChapterCatalogAsync(
-            string bookId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CachedChapterCatalogEntry>>(
-                _chapters.Select(chapter => new CachedChapterCatalogEntry(
-                    chapter.BookId,
-                    chapter.ChapterIndex,
-                    chapter.Title)).ToArray());
-
-        public Task<IReadOnlyList<CachedChapterSummary>> GetCachedChaptersAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CachedChapterSummary>>(
-                _chapters.Where(chapter => chapterIndices.Contains(chapter.ChapterIndex)).ToArray());
-
-        public Task<CachedChapterSummary?> GetCachedChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(_chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex));
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
-                _statuses.Where(status => chapterIndices.Contains(status.ChapterIndex)).ToArray());
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            IReadOnlyCollection<PlaybackChapterMetadata> chapters,
-            CancellationToken cancellationToken) =>
-            GetAsync(bookId, chapterIndices, cancellationToken);
-
-        public Task<AudioCacheStoreSummary> GetSummaryAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new AudioCacheStoreSummary(1024, _chapters.Count, AppSettings.DefaultCacheLimitBytes, false));
-
-        public Task<IReadOnlyList<CachedBookStoreSummary>> GetBooksAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CachedBookStoreSummary>>([]);
-
-        public Task<CachedBookStoreSummary?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
-            Task.FromResult<CachedBookStoreSummary?>(null);
-
-        public Task<IReadOnlyList<CachedChapterStoreSummary>> GetChaptersAsync(
-            string bookId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<CachedChapterStoreSummary>>(
-                _chapters.Select(chapter => new CachedChapterStoreSummary(
-                    chapter.BookId,
-                    chapter.ChapterIndex,
-                    chapter.DistinctSegmentCount,
-                    chapter.EntryCount,
-                    chapter.TotalSizeBytes)).ToArray());
-
-        public Task<CachedChapterStoreSummary?> GetChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<CachedChapterStoreSummary?>(null);
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetCurrentConfigurationStatusesAsync(
-            IReadOnlyCollection<CurrentCacheChapterQuery> chapters,
-            SynthesisProfileFingerprint synthesisProfile,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(_statuses);
-
-        public Task<IReadOnlySet<AudioCacheKey>> GetValidEntriesAsync(
-            IReadOnlyCollection<AudioCacheKey> keys,
-            CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlySet<AudioCacheKey>>(new HashSet<AudioCacheKey>());
-
-        public Task<AudioCacheStoreCleanupResult> ClearChapterAsync(
-            string bookId,
-            int chapterIndex,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new AudioCacheStoreCleanupResult(1024, 1, 0, 0));
-
-        public Task<AudioCacheStoreCleanupResult> ClearChaptersAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken)
-        {
-            ClearChaptersCallCount++;
-            LastClearChaptersRequest = (bookId, chapterIndices.ToArray());
-            Publish(CacheInvalidation.ForChapters(
-                bookId,
-                chapterIndices,
-                CacheInvalidationAspect.PhysicalSummary |
-                CacheInvalidationAspect.CatalogStructure |
-                CacheInvalidationAspect.Coverage));
-            return Task.FromResult(new AudioCacheStoreCleanupResult(1024, chapterIndices.Count, 0, 0));
-        }
-
-        public Task<AudioCacheStoreCleanupResult> ClearBookAsync(
-            string bookId,
-            CancellationToken cancellationToken) =>
-            Task.FromResult(new AudioCacheStoreCleanupResult(1024, 1, 0, 0));
-
-        public Task<AudioCacheStoreCleanupResult> ClearAllAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(new AudioCacheStoreCleanupResult(1024, 1, 0, 0));
-
-        public Task RunMaintenanceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task RunStartupMaintenanceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task RequestAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            IReadOnlyCollection<ChapterCacheStatus> statuses,
-            CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public void Publish(CacheInvalidation invalidation) =>
-            _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation]));
-
-        public Task FlushPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
+    private sealed record CacheFixture(
+        CachePresentationTestDouble Cache,
+        RecordingFeedback Feedback);
 
     private sealed class RecordingFeedback : IAppFeedbackService
     {
