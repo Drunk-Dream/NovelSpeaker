@@ -970,7 +970,7 @@ current position：
 
 完成成果：完成 180/1000/3200/10000 章节的 beginning/middle/tail 诊断矩阵。复用现有 Player catalog、sparse decoration 和批量 projection，临时 probe 的 12 个组合全部通过：projection elapsed 分别约为 0.2–16.4ms、0.5–5.6ms、1.0–5.6ms、1.4–2.1ms，分配约为 55–60KB、284–310KB、896–900KB、2.84MB；通知次数为 2/6/15/42，未出现逐项 Add，current position 均保持直接索引定位。Presentation 规模/结构回归 28/28 通过，覆盖 10000 catalog、beginning/middle/tail locator、BookDetails/Player/CacheManagement；现有隔离 WPF 回归 15/15 通过，覆盖 180 项 locator、10000 项 Library row projection、10000 项 tail viewport、BookDetails 异步定位与 Player 返回路由；Library/CacheManagement/导航页面补充范围 9/9 通过。未采集可靠的 first interactive frame、Dispatcher heartbeat、真实 generated-container 计数或 GC/allocation/memory 长期趋势，因此不新增绝对耗时门槛；未发现新的生产瓶颈，也未引入 workaround。CachePagesView 组合范围因既有 `CachePagesViewTests.Cache_page_layout_contracts_cover_independent_columns_and_workspace_height` Desktop/harness 挂起而中止，未触及本切片生产代码。
 
-## [ ] T024（P1）：最终质量门禁与架构收口
+## [x] T024（P1）：最终质量门禁与架构收口
 
 依赖：T023。
 
@@ -1003,3 +1003,7 @@ dotnet test -c Release --no-build
 - 测试数量与分层变化；
 - 真实规模性能结果；
 - 仍存在但不阻塞发布的风险。
+
+完成成果：完成最终质量门禁和架构收口审计。`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore` 通过；Release build 首次因此前挂起的 WPF `testhost` PID 89540 锁定输出而失败，终止该精确残留进程后重跑通过（0 warning/0 error）。全量 `dotnet test -c Release --no-build` 已执行：Domain 15/15、Application 167/167、Infrastructure 342/342；Presentation 225/226，稳定复现既有 `LibraryViewModelTests.Library_loading_and_sort_contracts_cover_projection_filtering_and_state` 排序投影失败；WPF 188/193，5 个既有 `PlayerViewTests` 动画/滚动/卸载 Desktop harness 测试失败，单独复跑进一步在 `PlayerPage_first_navigation_centers_restored_current_segment_after_initial_layout` 命中 20 秒 hang diagnostics。Presentation Architecture/behavior-debt focused tests 18/18、WPF visual architecture focused tests 8/8 通过。
+
+架构收口结果：四层依赖、普通 Page/ViewModel 生命周期、Playback/Cache owner、大列表批量 projection/定位和无临时债务 baseline 均由现有 ArchitectureTests 通过；T022 已删除的 cache workspace/duplicate projection/compat 入口未重新出现，生产源码目标符号扫描无命中（合法的 TTS rule compatibility checker 除外）。真实规模结果见 T023。当前切片删除了本轮生成的 T023/WPF hang dump 与临时 probe；仓库仍有切片前既有 ignored `TestResults`/诊断产物，未擅自删除用户历史诊断数据，属于环境清理风险而非本切片改动。剩余 Library 测试时序问题、PlayerView Desktop/harness 问题和历史诊断目录均未触及生产实现，记录为不阻塞本轮架构收口的后续风险。
