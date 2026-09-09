@@ -1007,3 +1007,29 @@ dotnet test -c Release --no-build
 完成成果：完成最终质量门禁和架构收口审计。`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore` 通过；Release build 首次因此前挂起的 WPF `testhost` PID 89540 锁定输出而失败，终止该精确残留进程后重跑通过（0 warning/0 error）。全量 `dotnet test -c Release --no-build` 已执行：Domain 15/15、Application 167/167、Infrastructure 342/342；Presentation 225/226，稳定复现既有 `LibraryViewModelTests.Library_loading_and_sort_contracts_cover_projection_filtering_and_state` 排序投影失败；WPF 188/193，5 个既有 `PlayerViewTests` 动画/滚动/卸载 Desktop harness 测试失败，单独复跑进一步在 `PlayerPage_first_navigation_centers_restored_current_segment_after_initial_layout` 命中 20 秒 hang diagnostics。Presentation Architecture/behavior-debt focused tests 18/18、WPF visual architecture focused tests 8/8 通过。
 
 架构收口结果：四层依赖、普通 Page/ViewModel 生命周期、Playback/Cache owner、大列表批量 projection/定位和无临时债务 baseline 均由现有 ArchitectureTests 通过；T022 已删除的 cache workspace/duplicate projection/compat 入口未重新出现，生产源码目标符号扫描无命中（合法的 TTS rule compatibility checker 除外）。真实规模结果见 T023。当前切片删除了本轮生成的 T023/WPF hang dump 与临时 probe；仓库仍有切片前既有 ignored `TestResults`/诊断产物，未擅自删除用户历史诊断数据，属于环境清理风险而非本切片改动。剩余 Library 测试时序问题、PlayerView Desktop/harness 问题和历史诊断目录均未触及生产实现，记录为不阻塞本轮架构收口的后续风险。
+
+---
+
+# Phase I：全量测试失败修复
+
+## [x] T025（P0）：修复全量测试中失败的测试
+
+依赖：T024。
+
+目标：修复 T024 全量 Release 测试门禁中暴露的 Presentation 排序投影失败和 WPF PlayerView 动画/滚动/卸载失败，恢复可重复的全量测试通过结果。
+
+范围：
+
+- `LibraryViewModelTests.Library_loading_and_sort_contracts_cover_projection_filtering_and_state`；
+- 受影响的 `PlayerViewTests` 动画、章节切换滚动、虚拟化定位、页面卸载和首次导航定位场景；
+- 与上述失败直接相关的测试调度器、WPF Desktop harness 或生产滚动/投影生命周期代码。
+
+验收：
+
+- 先以独立精确测试确认每个失败的现象和根因；
+- 不通过放宽断言、删除测试、增加固定延时或允许可见窗口来获得绿色；
+- Presentation 失败测试及受影响 WPF 测试稳定通过；
+- Release build、ArchitectureTests、Presentation/WPF 相关全量测试通过，并复跑完整 `dotnet test -c Release --no-build`；
+- 不产生新的 trace/dump/screenshot/临时脚本残留，测试夹具保持 WPF 隔离和 fail-closed 约束。
+
+完成成果：完成全量失败修复。Presentation 排序投影测试将 scheduler 的“初始同步、快照回调排队、显式 drain”建模隔离，保留其他 queued-snapshot 测试的默认排队语义；PlayerView 直接 ViewModel fixture 补齐页面 activation/deactivation，WPF pump 改为有限的 Loaded→Render 屏障，滚动 controller 在 Render 阶段释放 programmatic-scroll 抑制以覆盖延迟布局滚动。手动浏览 fixture 使用 preview mouse-wheel 输入并以滚动位置/状态条件同步，不使用固定等待或可见窗口。Presentation 226/226、WPF 193/193、全量 943/943 通过；Release build 0 warning/0 error，format verify 通过。未删除兼容入口；仅清理本切片生成的精确 TestResults/hang dump 与临时 baseline worktree，保留更早历史诊断目录。

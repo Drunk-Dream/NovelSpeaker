@@ -78,6 +78,7 @@ public sealed partial class PlayerViewTests
                 new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -132,6 +133,7 @@ public sealed partial class PlayerViewTests
             }
             finally
             {
+                viewModel.OnPageNavigatedFrom();
                 window.Close();
             }
         });
@@ -184,6 +186,7 @@ public sealed partial class PlayerViewTests
                 new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -233,6 +236,7 @@ public sealed partial class PlayerViewTests
             }
             finally
             {
+                viewModel.OnPageNavigatedFrom();
                 window.Close();
             }
         });
@@ -292,6 +296,7 @@ public sealed partial class PlayerViewTests
                 new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -365,6 +370,7 @@ public sealed partial class PlayerViewTests
             }
             finally
             {
+                viewModel.OnPageNavigatedFrom();
                 window.Close();
             }
         });
@@ -417,6 +423,7 @@ public sealed partial class PlayerViewTests
                 new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -438,24 +445,35 @@ public sealed partial class PlayerViewTests
                 ShowActivated = false
             };
 
-            WpfWindowHost.Show(window);
-            DoEvents();
-            view.UpdateLayout();
+            try
+            {
+                WpfWindowHost.Show(window);
+                DoEvents();
+                view.UpdateLayout();
 
-            var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
-            var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+                var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
 
-            scrollViewer.ScrollToBottom();
-            DoEvents();
-            view.UpdateLayout();
+                scrollViewer.ScrollToBottom();
+                DoEvents();
+                view.UpdateLayout();
 
-            viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
-            WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(400));
+                viewModel.NextSegmentCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+                WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(400));
 
-            window.Close();
-            DoEvents();
+                window.Close();
+                DoEvents();
 
-            Assert.False(view.HasActiveSegmentScrollAnimation);
+                Assert.False(view.HasActiveSegmentScrollAnimation);
+            }
+            finally
+            {
+                viewModel.OnPageNavigatedFrom();
+                if (window.IsVisible || window.IsLoaded)
+                {
+                    window.Close();
+                }
+            }
         });
     }
 }

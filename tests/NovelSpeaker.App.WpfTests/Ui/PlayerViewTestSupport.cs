@@ -105,15 +105,17 @@ public sealed partial class PlayerViewTests
 
     private static void DoEvents()
     {
-        var frame = new DispatcherFrame();
-        Dispatcher.CurrentDispatcher.BeginInvoke(
-            DispatcherPriority.ApplicationIdle,
-            new Action(() => frame.Continue = false));
-        Dispatcher.PushFrame(frame);
+        Dispatcher.CurrentDispatcher.Invoke(
+            DispatcherPriority.Loaded,
+            new Action(() => { }));
+        Dispatcher.CurrentDispatcher.Invoke(
+            DispatcherPriority.Render,
+            new Action(() => { }));
     }
 
-    private static void WaitUntil(Func<bool> predicate, TimeSpan timeout)
+    private static void WaitUntil(Func<bool> predicate, TimeSpan timeout, Action? pump = null)
     {
+        pump ??= DoEvents;
         var stopwatch = Stopwatch.StartNew();
         while (stopwatch.Elapsed < timeout)
         {
@@ -122,19 +124,20 @@ public sealed partial class PlayerViewTests
                 return;
             }
 
-            DoEvents();
+            pump();
         }
 
-        DoEvents();
+        pump();
         Assert.True(predicate());
     }
 
-    private static void Pump(TimeSpan duration)
+    private static void Pump(TimeSpan duration, Action? pump = null)
     {
+        pump ??= DoEvents;
         var stopwatch = Stopwatch.StartNew();
         while (stopwatch.Elapsed < duration)
         {
-            DoEvents();
+            pump();
         }
     }
 

@@ -423,6 +423,7 @@ public sealed class LibraryViewModelTests
     private async Task Queued_playback_snapshot_is_used_by_a_new_sort_projection()
     {
         var playbackCoordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
+        var uiScheduler = new QueuedUiScheduler { QueueActions = false };
         var viewModel = CreateViewModel(
             catalogService: new FakeBookCatalogService(
             [
@@ -430,9 +431,10 @@ public sealed class LibraryViewModelTests
                 new BookSummary("book-2", "Beta", null, "第一章", DateTimeOffset.UtcNow, TotalChapterCount: 2)
             ]),
             playbackCoordinator: playbackCoordinator,
-            uiScheduler: new QueuedUiScheduler());
+            uiScheduler: uiScheduler);
 
         await viewModel.LoadAsync(CancellationToken.None);
+        uiScheduler.QueueActions = true;
         playbackCoordinator.Publish(
             PlaybackSnapshot.Idle with
             {
@@ -442,6 +444,8 @@ public sealed class LibraryViewModelTests
                 ChapterTitle = "第二章"
             });
 
+        uiScheduler.QueueActions = false;
+        uiScheduler.RunNext();
         viewModel.SelectedSortMode = LibrarySortMode.Title;
         viewModel.SelectedSortMode = LibrarySortMode.RecentReading;
 
@@ -978,11 +982,19 @@ public sealed class LibraryViewModelTests
     {
         private readonly Queue<Action> _pending = [];
 
-        public bool CheckAccess() => false;
+        public bool QueueActions { get; set; } = true;
+
+        public bool CheckAccess() => !QueueActions;
 
         public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (!QueueActions)
+            {
+                action();
+                return Task.CompletedTask;
+            }
+
             _pending.Enqueue(action);
             return Task.CompletedTask;
         }

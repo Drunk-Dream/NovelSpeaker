@@ -207,17 +207,31 @@ public sealed partial class PlayerViewTests
 
                 var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
                 var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+                segmentsListBox.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, -120)
+                {
+                    RoutedEvent = UIElement.PreviewMouseWheelEvent
+                });
                 scrollViewer.ScrollToBottom();
-                DoEvents();
+                view.UpdateLayout();
+                WaitUntil(
+                    () => scrollViewer.ScrollableHeight > 0 &&
+                          scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight - 1d,
+                    TimeSpan.FromSeconds(2));
                 view.UpdateLayout();
 
                 Assert.True(viewModel.ShowReturnToCurrentSegment);
                 Assert.True(scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight - 1d);
 
                 viewModel.ReturnToCurrentSegmentCommand.Execute(null);
-                DoEvents();
+                WaitUntil(
+                    () =>
+                    {
+                        view.UpdateLayout();
+                        return !viewModel.ShowReturnToCurrentSegment &&
+                               scrollViewer.VerticalOffset < scrollViewer.ScrollableHeight - 1d;
+                    },
+                    TimeSpan.FromSeconds(2));
                 view.UpdateLayout();
-                DoEvents();
 
                 var currentContainer = Assert.IsAssignableFrom<FrameworkElement>(
                     segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem));
@@ -312,8 +326,16 @@ public sealed partial class PlayerViewTests
 
                 var segmentsListBox = Assert.IsType<ListBox>(view.FindName("SegmentListBox"));
                 var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(segmentsListBox));
+                segmentsListBox.RaiseEvent(new MouseWheelEventArgs(Mouse.PrimaryDevice, Environment.TickCount, -120)
+                {
+                    RoutedEvent = UIElement.PreviewMouseWheelEvent
+                });
                 scrollViewer.ScrollToBottom();
-                DoEvents();
+                view.UpdateLayout();
+                WaitUntil(
+                    () => scrollViewer.ScrollableHeight > 0 &&
+                          scrollViewer.VerticalOffset >= scrollViewer.ScrollableHeight - 1d,
+                    TimeSpan.FromSeconds(2));
                 view.UpdateLayout();
 
                 var offsetBeforeAutoAdvance = scrollViewer.VerticalOffset;

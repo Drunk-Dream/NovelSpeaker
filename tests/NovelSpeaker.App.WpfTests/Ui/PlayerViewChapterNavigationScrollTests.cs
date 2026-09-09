@@ -65,6 +65,7 @@ public sealed partial class PlayerViewTests
                 new CachePresentationTestDouble(),
                 new WpfFakeMiniPlayerLauncher());
 
+            viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -116,6 +117,7 @@ public sealed partial class PlayerViewTests
             }
             finally
             {
+                viewModel.OnPageNavigatedFrom();
                 window.Close();
             }
         });

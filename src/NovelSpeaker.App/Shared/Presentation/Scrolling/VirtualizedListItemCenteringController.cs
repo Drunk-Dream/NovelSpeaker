@@ -300,7 +300,7 @@ internal sealed class VirtualizedListItemCenteringController
     private void EndProgrammaticScroll()
     {
         _dispatcher.BeginInvoke(
-            DispatcherPriority.ContextIdle,
+            DispatcherPriority.Render,
             new Action(() =>
             {
                 if (_programmaticScrollDepth > 0)
