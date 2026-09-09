@@ -923,7 +923,7 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 
 # Phase H：真实规模性能验收
 
-## [ ] T023（P0）：执行 180/1000/3000+/10000 章节架构性能验收
+## [x] T023（P0）：执行 180/1000/3000+/10000 章节架构性能验收
 
 依赖：T022。
 
@@ -967,6 +967,8 @@ current position：
 - 如果发现新的或回归的实际瓶颈，用 A/B 和 profiling 精确定位后在本任务内做最小架构一致修复，或如影响范围过大标 `[!]` 并记录下一规划问题。
 - 不建立固定绝对毫秒 CI 门槛；保留结构性回归测试。
 - 所有诊断 harness/trace/script 在任务结束前删除。
+
+完成成果：完成 180/1000/3200/10000 章节的 beginning/middle/tail 诊断矩阵。复用现有 Player catalog、sparse decoration 和批量 projection，临时 probe 的 12 个组合全部通过：projection elapsed 分别约为 0.2–16.4ms、0.5–5.6ms、1.0–5.6ms、1.4–2.1ms，分配约为 55–60KB、284–310KB、896–900KB、2.84MB；通知次数为 2/6/15/42，未出现逐项 Add，current position 均保持直接索引定位。Presentation 规模/结构回归 28/28 通过，覆盖 10000 catalog、beginning/middle/tail locator、BookDetails/Player/CacheManagement；现有隔离 WPF 回归 15/15 通过，覆盖 180 项 locator、10000 项 Library row projection、10000 项 tail viewport、BookDetails 异步定位与 Player 返回路由；Library/CacheManagement/导航页面补充范围 9/9 通过。未采集可靠的 first interactive frame、Dispatcher heartbeat、真实 generated-container 计数或 GC/allocation/memory 长期趋势，因此不新增绝对耗时门槛；未发现新的生产瓶颈，也未引入 workaround。CachePagesView 组合范围因既有 `CachePagesViewTests.Cache_page_layout_contracts_cover_independent_columns_and_workspace_height` Desktop/harness 挂起而中止，未触及本切片生产代码。
 
 ## [ ] T024（P1）：最终质量门禁与架构收口
 
