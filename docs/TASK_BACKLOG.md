@@ -896,7 +896,7 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 
 完成成果：Presentation 的 CacheManagement、CacheAndData、Player 测试复用共享 `CachePresentationTestDouble`，删除重复的本地 cache workspace/coverage/catalog fake 与 adapter；将大而重复的 CacheManagement fixture 收敛为 3 个稳定行为测试，并拆分 BookDetails 聚合测试以保持行为矩阵可读；WPF 保留页面/导航/视觉契约测试。T021 focused Presentation 测试 55/55、WPF focused 测试 18/18 通过。
 
-## [ ] T022（P1）：全项目 dead code / legacy namespace / duplicate state 清理
+## [x] T022（P1）：全项目 dead code / legacy namespace / duplicate state 清理
 
 依赖：T021。
 
@@ -914,6 +914,8 @@ ArchitectureTests 必须无临时白名单或只剩有明确长期理由的极�
 - duplicate cache/progress projection；
 - 无真实调用方的 Shared helper；
 - 临时 TODO/Obsolete/diagnostic flag。
+
+完成成果：删除无调用方的 `CachedChapterDecoration.From`，移除 CacheManagement 章节投影中重复构造的 `CachedChapterSummary`，将完整度 formatter 收敛为只接收真实依赖的 Coverage 状态，并让 BookDetails 复用 Shared 缓存字节格式化器；完成 legacy/compat、orphan DI、duplicate state 静态审计，保留仍承担已发布数据迁移职责的 legacy 路径兼容。ArchitectureTests、solution Release build 及 Domain/Application/Infrastructure 全量测试通过；Presentation/WPF 全量测试已执行，剩余失败为既有 Library 测试与 WPF PlayerView 自动化 Desktop/harness 问题，未触及本切片修改文件。
 
 完成后运行完整 ArchitectureTests + Release build + 相关全量非 WPF/WPF tests。
 

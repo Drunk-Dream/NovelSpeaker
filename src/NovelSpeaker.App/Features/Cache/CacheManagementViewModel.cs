@@ -1921,13 +1921,6 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             : _chapterRefreshOverrides.TryGet(chapter.ChapterIndex, out var refreshOverride)
                 ? refreshOverride
                 : CachedChapterDecoration.Placeholder(chapter.Title);
-        var cachedChapter = new CachedChapterSummary(
-            chapter.BookId,
-            chapter.ChapterIndex,
-            decoration.Title,
-            decoration.CachedSegmentCount,
-            decoration.EntryCount,
-            decoration.TotalSizeBytes);
         var coverage = new ChapterCacheStatus(
             chapter.ChapterIndex,
             decoration.CachedSegmentCount,
@@ -1935,7 +1928,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         {
             Kind = decoration.CurrentConfigurationStatus
         };
-        var exportAvailability = GetExportAvailability(cachedChapter, coverage);
+        var exportAvailability = GetExportAvailability(coverage);
         return new CachedChapterListItemViewModel(
             chapter.BookId,
             chapter.ChapterIndex,
@@ -1943,7 +1936,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             decoration.Title,
             CacheCleanupFeedbackFormatter.FormatBytes(decoration.TotalSizeBytes),
             $"{decoration.EntryCount} 条缓存",
-            CacheManagementCompletenessFormatter.Format(cachedChapter, coverage),
+            CacheManagementCompletenessFormatter.Format(coverage),
             exportAvailability.IsExportable,
             exportAvailability.StatusText,
             exportAvailability.ToolTip,
@@ -2191,9 +2184,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             ChapterExportBatchStatus.Running or
             ChapterExportBatchStatus.Cancelling;
 
-    private static ChapterExportAvailability GetExportAvailability(
-        CachedChapterSummary chapter,
-        ChapterCacheStatus coverage)
+    private static ChapterExportAvailability GetExportAvailability(ChapterCacheStatus coverage)
     {
         if (coverage.TotalSegmentCount is null)
         {

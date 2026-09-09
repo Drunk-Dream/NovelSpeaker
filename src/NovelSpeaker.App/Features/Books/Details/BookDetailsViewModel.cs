@@ -384,7 +384,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             if (statistics is not null)
             {
                 _loadedStatistics = statistics;
-                CacheSizeText = FormatBytes(statistics.CachedAudioBytes);
+                CacheSizeText = CacheCleanupFeedbackFormatter.FormatBytes(statistics.CachedAudioBytes);
             }
 
             var feedback = CacheCleanupFeedbackFormatter.Format(result, "缓存已清理", "缓存已部分清理");
@@ -698,7 +698,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         }
 
         _loadedStatistics = statistics;
-        CacheSizeText = FormatBytes(statistics.CachedAudioBytes);
+        CacheSizeText = CacheCleanupFeedbackFormatter.FormatBytes(statistics.CachedAudioBytes);
         NotifyCommandStateChanged();
     }
 
@@ -1010,23 +1010,4 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
     }
 
-    private static string FormatBytes(long bytes)
-    {
-        const double scale = 1024d;
-        if (bytes < scale)
-        {
-            return $"{bytes} B";
-        }
-
-        var units = new[] { "KB", "MB", "GB", "TB" };
-        var size = bytes / scale;
-        var unitIndex = 0;
-        while (size >= scale && unitIndex < units.Length - 1)
-        {
-            size /= scale;
-            unitIndex++;
-        }
-
-        return $"{size:0.#} {units[unitIndex]}";
-    }
 }

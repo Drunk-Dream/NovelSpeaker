@@ -53,7 +53,11 @@ internal sealed class CachePresentationTestDouble :
         string,
         IReadOnlyCollection<int>,
         CancellationToken,
-        Task<IReadOnlyList<ChapterCacheStatus>>>? CoverageHandler { get; set; }
+        Task<IReadOnlyList<ChapterCacheStatus>>>?
+        CoverageHandler
+    {
+        get; set;
+    }
 
     public AudioCacheStoreCleanupResult CleanupResult { get; set; } = new(0, 0, 0, 0);
 

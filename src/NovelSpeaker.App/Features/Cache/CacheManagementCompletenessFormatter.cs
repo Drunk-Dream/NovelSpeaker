@@ -4,9 +4,8 @@ namespace NovelSpeaker.App.Features.Cache;
 
 internal static class CacheManagementCompletenessFormatter
 {
-    public static string Format(CachedChapterSummary chapter, ChapterCacheStatus status)
+    public static string Format(ChapterCacheStatus status)
     {
-        ArgumentNullException.ThrowIfNull(chapter);
         ArgumentNullException.ThrowIfNull(status);
 
         switch (status.Kind)
