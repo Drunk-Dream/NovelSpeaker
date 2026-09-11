@@ -301,7 +301,7 @@ public sealed class NaudioAudioPlayerTests
 
         public bool IsDisposed { get; private set; }
 
-        public PlaybackState PlaybackState { get; private set; } = PlaybackState.Stopped;
+        public NAudio.Wave.PlaybackState PlaybackState { get; private set; } = NAudio.Wave.PlaybackState.Stopped;
 
         public WaveFormat? OutputWaveFormat => WaveProvider?.WaveFormat;
 
@@ -317,14 +317,14 @@ public sealed class NaudioAudioPlayerTests
 
         public void Init(IWaveProvider waveProvider) => WaveProvider = waveProvider;
 
-        public void Play() => PlaybackState = PlaybackState.Playing;
+        public void Play() => PlaybackState = NAudio.Wave.PlaybackState.Playing;
 
-        public void Pause() => PlaybackState = PlaybackState.Paused;
+        public void Pause() => PlaybackState = NAudio.Wave.PlaybackState.Paused;
 
         public void Stop()
         {
-            var wasStopped = PlaybackState == PlaybackState.Stopped;
-            PlaybackState = PlaybackState.Stopped;
+            var wasStopped = PlaybackState == NAudio.Wave.PlaybackState.Stopped;
+            PlaybackState = NAudio.Wave.PlaybackState.Stopped;
             if (!wasStopped)
             {
                 _playbackStopped?.Invoke(this, new StoppedEventArgs());
@@ -333,7 +333,7 @@ public sealed class NaudioAudioPlayerTests
 
         public void RaisePlaybackStopped(Exception? exception = null)
         {
-            PlaybackState = PlaybackState.Stopped;
+            PlaybackState = NAudio.Wave.PlaybackState.Stopped;
             _playbackStopped?.Invoke(this, new StoppedEventArgs(exception));
         }
 
@@ -343,7 +343,7 @@ public sealed class NaudioAudioPlayerTests
             EventHandler<StoppedEventArgs>? handlers,
             Exception? exception = null)
         {
-            PlaybackState = PlaybackState.Stopped;
+            PlaybackState = NAudio.Wave.PlaybackState.Stopped;
             handlers?.Invoke(this, new StoppedEventArgs(exception));
         }
 

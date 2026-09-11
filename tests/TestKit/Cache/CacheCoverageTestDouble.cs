@@ -12,7 +12,11 @@ internal sealed class CacheCoverageTestDouble : ICacheCoverageQuery
         IReadOnlyCollection<int>,
         CancellationToken,
         Task<IReadOnlyList<ChapterCacheStatus>>>?
-        CoverageHandler { get; set; }
+        CoverageHandler
+    {
+        get;
+        set;
+    }
 
     public int CoverageQueryCallCount { get; private set; }
 
