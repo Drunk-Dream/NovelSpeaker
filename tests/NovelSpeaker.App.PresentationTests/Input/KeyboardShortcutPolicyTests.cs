@@ -2,7 +2,7 @@ using System.Windows.Input;
 using NovelSpeaker.App.Shell.Input;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests.Input;
+namespace NovelSpeaker.App.PresentationTests.Input;
 
 public sealed class KeyboardShortcutPolicyTests
 {

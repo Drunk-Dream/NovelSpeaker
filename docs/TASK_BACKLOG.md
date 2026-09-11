@@ -271,7 +271,7 @@
 
 # Phase D：Presentation / WPF 测试瘦身
 
-## [ ] T004（P1）：删除重复 Presentation/WPF 测试，保留 UI 生命周期和 WPF 特有风险
+## [x] T004（P1）：删除重复 Presentation/WPF 测试，保留 UI 生命周期和 WPF 特有风险
 
 依赖：T003。
 
@@ -331,6 +331,12 @@
 - ArchitectureTests 保留并通过；
 - 两个测试项目完整通过；
 - 测试数量变化只记录，不作为验收条件。
+
+完成成果：
+
+- 将不依赖 WPF runtime 的 `KeyboardShortcutPolicyTests` 与 `KeyboardShortcutCoordinatorTests` 下移到 `PresentationTests/Input`，保留策略映射、激活目标切换、导航后导入目标等全部行为覆盖。
+- 保留 WPF 项目中的 `WpfShortcutContextResolverTests` 及导航/page lifecycle、binding/resource、virtualization/scroll、focus/popup/theme 等真正依赖 WPF runtime 的合同；没有删除 hidden isolated Desktop 规则，也没有引入固定延时或可见窗口回退。
+- Presentation/WPF 测试方法统计由 233/193 调整为 239/187（本切片仅调整职责归属，没有以减少数量作为目标）。Windows .NET 动态门禁受当前 WSL interop `UtilBindVsockAnyPort:309 socket failed 1` 阻塞，静态 Review 已通过。
 
 ---
 

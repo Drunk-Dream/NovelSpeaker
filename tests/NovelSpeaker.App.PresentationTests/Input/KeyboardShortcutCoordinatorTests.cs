@@ -4,7 +4,7 @@ using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Shell.Navigation;
 using Xunit;
 
-namespace NovelSpeaker.App.WpfTests.Input;
+namespace NovelSpeaker.App.PresentationTests.Input;
 
 public sealed class KeyboardShortcutCoordinatorTests
 {
