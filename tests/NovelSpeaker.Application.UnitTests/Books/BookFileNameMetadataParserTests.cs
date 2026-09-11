@@ -20,25 +20,26 @@ public sealed class BookFileNameMetadataParserTests
     }
 
     [Fact]
-    public void Parse_falls_back_to_file_name_when_template_does_not_match()
+    public void Parse_falls_back_to_file_name_when_template_cannot_match()
     {
-        var result = _parser.Parse(
-            "信息全知者-魔性沧月",
-            "{{name}} 作者：{{author}}");
+        var cases = new[]
+        {
+            (FileName: "信息全知者-魔性沧月", Template: "{{name}} 作者：{{author}}"),
+            (FileName: "信息全知者 作者：魔性沧月", Template: string.Empty),
+            (FileName: "信息全知者 作者：魔性沧月", Template: "{{author}}"),
+            (FileName: "信息全知者 作者：魔性沧月", Template: "{{name}} {{name}}"),
+            (FileName: "信息全知者 作者：魔性沧月", Template: "{{title}} 作者：{{author}}"),
+            (FileName: "信息全知者 作者：魔性沧月", Template: "《{{name}}》 作者：{{author}}")
+        };
 
-        Assert.False(result.IsMatched);
-        Assert.Equal("信息全知者-魔性沧月", result.SuggestedTitle);
-        Assert.Null(result.SuggestedAuthor);
-    }
+        foreach (var (fileName, template) in cases)
+        {
+            var result = _parser.Parse(fileName, template);
 
-    [Fact]
-    public void Parse_falls_back_when_template_is_empty()
-    {
-        var result = _parser.Parse("信息全知者 作者：魔性沧月", string.Empty);
-
-        Assert.False(result.IsMatched);
-        Assert.Equal("信息全知者 作者：魔性沧月", result.SuggestedTitle);
-        Assert.Null(result.SuggestedAuthor);
+            Assert.False(result.IsMatched);
+            Assert.Equal(fileName, result.SuggestedTitle);
+            Assert.Null(result.SuggestedAuthor);
+        }
     }
 
     [Fact]
@@ -53,17 +54,4 @@ public sealed class BookFileNameMetadataParserTests
         Assert.Equal("魔性沧月", result.SuggestedAuthor);
     }
 
-    [Fact]
-    public void Parse_falls_back_when_template_is_invalid_or_literal_does_not_match()
-    {
-        foreach (var template in new[]
-                 { "{{author}}", "{{name}} {{name}}", "{{title}} 作者：{{author}}", "《{{name}}》 作者：{{author}}" })
-        {
-            var result = _parser.Parse("信息全知者 作者：魔性沧月", template);
-
-            Assert.False(result.IsMatched);
-            Assert.Equal("信息全知者 作者：魔性沧月", result.SuggestedTitle);
-            Assert.Null(result.SuggestedAuthor);
-        }
-    }
 }

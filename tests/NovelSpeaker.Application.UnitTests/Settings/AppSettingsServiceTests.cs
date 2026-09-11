@@ -46,21 +46,6 @@ public sealed class AppSettingsServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_publishes_typed_source_change_without_cache_dependency()
-    {
-        var store = new FakeAppSettingsStore(AppSettings.Default);
-        using var service = new AppSettingsService(store, AppSettings.Default);
-        var changes = new List<AppSettingsChangedEventArgs>();
-        service.Changed += (_, change) => changes.Add(change);
-
-        await service.UpdateAsync(new AppSettingsUpdate { DefaultSpeakSpeed = 11 }, CancellationToken.None);
-
-        var change = Assert.Single(changes);
-        Assert.Equal(10, change.Previous.DefaultSpeakSpeed);
-        Assert.Equal(11, change.Current.DefaultSpeakSpeed);
-    }
-
-    [Fact]
     public async Task UpdateAsync_cancelled_while_waiting_does_not_save_or_publish()
     {
         var saveStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

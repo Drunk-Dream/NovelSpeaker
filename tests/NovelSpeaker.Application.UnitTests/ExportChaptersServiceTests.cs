@@ -76,7 +76,7 @@ public sealed class ExportChaptersServiceTests
             progress,
             CancellationToken.None);
 
-        Assert.Same(progress, writer.LastBatch?.Progress);
+        Assert.Equal(new ExportChaptersProgress(1, 1, 0), progress.LastValue);
     }
 
     [Fact]
@@ -614,8 +614,11 @@ public sealed class ExportChaptersServiceTests
 
     private sealed class CaptureProgress : IProgress<ExportChaptersProgress>
     {
+        public ExportChaptersProgress? LastValue { get; private set; }
+
         public void Report(ExportChaptersProgress value)
         {
+            LastValue = value;
         }
     }
 
@@ -635,6 +638,7 @@ public sealed class ExportChaptersServiceTests
             LastBatch = batch;
             BeforeWrite?.Invoke();
             cancellationToken.ThrowIfCancellationRequested();
+            batch.Progress?.Report(new ExportChaptersProgress(1, batch.Chapters.Count, batch.Chapters[0].ChapterIndex));
             return Task.FromResult(Result);
         }
     }

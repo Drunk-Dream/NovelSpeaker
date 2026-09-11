@@ -62,20 +62,6 @@ public sealed class AudioCacheKeyTests
     }
 
     [Fact]
-    public void AudioCacheIdentity_does_not_change_when_only_title_playback_setting_changes()
-    {
-        var profile = CreateProfile();
-        var body = StableSpeechSegmentIdentity.Body(17, 8);
-
-        var withoutTitle = AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
-            "chapter-1", body, "正文", profile));
-        var withTitle = AudioCacheKey.FromIdentity(AudioCacheIdentity.Create(
-            "chapter-1", body, "正文", profile));
-
-        Assert.Equal(withoutTitle, withTitle);
-    }
-
-    [Fact]
     public void FromSpeechTextHash_matches_the_key_built_from_the_original_speech_text()
     {
         var profile = CreateProfile();

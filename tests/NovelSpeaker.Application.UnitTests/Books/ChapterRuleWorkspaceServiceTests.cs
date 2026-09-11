@@ -8,7 +8,7 @@ namespace NovelSpeaker.Application.UnitTests.Books;
 public sealed class ChapterRuleWorkspaceServiceTests
 {
     [Fact]
-    public async Task GetRulesAsync_projects_delete_capability_without_changing_list_identity()
+    public async Task GetRulesAsync_projects_delete_capability_for_built_in_and_custom_rules()
     {
         var service = new ChapterRuleWorkspaceService(
             new FakeChapterRuleRepository(

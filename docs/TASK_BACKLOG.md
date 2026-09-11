@@ -201,7 +201,7 @@
 
 # Phase C：核心业务与基础设施测试瘦身
 
-## [ ] T003（P1）：精简 Domain/Application/Infrastructure 测试，只保留稳定风险合同
+## [x] T003（P1）：精简 Domain/Application/Infrastructure 测试，只保留稳定风险合同
 
 依赖：T002。
 
@@ -259,6 +259,13 @@
 - ArchitectureTests 通过；
 - 对应 test projects 完整通过；
 - 测试数量变化只记录，不设目标值。
+
+完成成果：
+
+- Application 测试删除无变化输入的 `AudioCacheIdentity` tautological 断言；将六种 filename fallback 输入（不匹配、空模板、缺少 name、重复 placeholder、未知 placeholder、literal 不匹配）收敛为一个稳定合同测试；将四个 stop-timer 非法 duration 边界合并为一个合同测试；删除未独立断言 cache 依赖的重复 settings change 测试。
+- Export progress 测试从 `Assert.Same` 实现细节改为验证 writer 报告的 `ExportChaptersProgress` 可观察行为；Chapter rule 测试名称同步真实断言，不再声称验证 list identity。
+- Domain 测试全部保留；Infrastructure 没有删除真实技术边界测试，尤其保留 SQLite schema/migration/query、cache 原子性与路径安全、JSON persistence、HTTP TTS、Jint sandbox、NAudio/MP3 和 export 合同。错置但仍有价值的 PlaybackCoordinator 编排套件列为后续重定位候选，未在本切片删除。
+- Application 测试由 171 减至 166（删除/合并 5 个测试入口）；Domain 15/15、Infrastructure 342/342 通过。ArchitectureTests + BehaviorDebtBaselineTests 18/18 通过；本切片合计保留 523 个 Domain/Application/Infrastructure 测试案例，较基线减少 5 个。
 
 ---
 
