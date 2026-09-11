@@ -63,7 +63,7 @@
 
 # Phase A：Application 模块边界守卫
 
-## [ ] T001（P0）：建立 Application 模块依赖 Fitness Tests
+## [x] T001（P0）：建立 Application 模块依赖 Fitness Tests
 
 目标：在开始 namespace/owner 迁移前，把本轮最终模块方向转成自动架构约束，并精确记录当前需要由后续任务消除的债务。
 
@@ -92,6 +92,8 @@
 - 当前基线在明确债务 baseline 下稳定通过；
 - 每个临时债务都有后续删除任务；
 - 原有四层、Feature、Playback owner、大列表等 ArchitectureTests 不弱化。
+
+完成成果：扩展现有 ArchitectureRules，识别六个 Application 模块并守护模块 cycle、Books/Speech/Settings → Cache、Cache → Playback、Desktop → Playback/Cache mutable truth 边界；新增精确到文件/类型/边且标注 T002/T003 的债务 baseline，并覆盖 namespace、alias、global using、static member 等引用形式。本任务未删除旧实现或 compat wrapper，遗留边由 T002/T003 清理。验证：locked restore、format、Release build（0 warning/0 error）、全量 Release test（951/951）均通过；未执行检查：无。剩余风险：baseline 中的已知历史依赖仍待 T002/T003 消除。
 
 ---
 

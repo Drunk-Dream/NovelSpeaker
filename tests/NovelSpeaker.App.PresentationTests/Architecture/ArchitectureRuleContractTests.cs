@@ -6,6 +6,257 @@ namespace NovelSpeaker.App.PresentationTests.Architecture;
 public sealed class ArchitectureRuleContractTests
 {
     [Fact]
+    public void ApplicationModuleRuleDetectsAForbiddenBooksToCacheDependency()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/Books/BooksService.cs",
+                "src/NovelSpeaker.Application",
+                "using NovelSpeaker.Application.Playback.Cache; namespace NovelSpeaker.Application.Books; public sealed class BooksService(IChapterSpeechPlanService service);"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/IChapterSpeechPlanService.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public interface IChapterSpeechPlanService;")
+        };
+
+        var dependencies = ArchitectureRules.FindApplicationModuleDependencies(files)
+            .Select(dependency => dependency.Display)
+            .ToArray();
+
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.IChapterSpeechPlanService)"
+            ],
+            dependencies);
+
+        var violations = ArchitectureRules.FindApplicationModuleDependencyViolations(files, []);
+
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.IChapterSpeechPlanService)"
+            ],
+            violations);
+    }
+
+    [Fact]
+    public void ApplicationModuleRuleAllowsAStableCacheIdentityContract()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/Speech/Compilation/SpeechFingerprint.cs",
+                "src/NovelSpeaker.Application",
+                "using NovelSpeaker.Application.Cache; namespace NovelSpeaker.Application.Speech.Compilation; public sealed class SpeechFingerprint(Fingerprint value);"),
+            Source(
+                "src/NovelSpeaker.Application/Cache/Fingerprint.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Cache; public sealed class Fingerprint;")
+        };
+
+        Assert.Empty(ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+    }
+
+    [Fact]
+    public void ApplicationModuleRuleRejectsCacheDependencyOnPlaybackCommands()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs",
+                "src/NovelSpeaker.Application",
+                "using NovelSpeaker.Application.Playback; namespace NovelSpeaker.Application.Playback.Cache; public sealed class CacheService(IPlaybackSession session);"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/IPlaybackSession.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback; public interface IPlaybackSession;")
+        };
+
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
+            ],
+            ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+    }
+
+    [Fact]
+    public void ApplicationModuleRuleDetectsNestedNamespacesAliasesAndStaticUsings()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs",
+                "src/NovelSpeaker.Application",
+                "using Session = NovelSpeaker.Application.Playback.IPlaybackSession; namespace NovelSpeaker.Application.Playback.Cache; public sealed class CacheService(Session session);"),
+            Source(
+                "src/NovelSpeaker.Application/Books/BooksService.cs",
+                "src/NovelSpeaker.Application",
+                "using static NovelSpeaker.Application.Playback.Cache.CacheInvalidation; namespace NovelSpeaker.Application.Books; public sealed class BooksService { public void Save() => ForGlobal(); }"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/IPlaybackSession.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback; public interface IPlaybackSession;"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidation.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public static class CacheInvalidation { public static void ForGlobal() { } }")
+        };
+
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.CacheInvalidation)",
+                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
+            ],
+            ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+    }
+
+    [Fact]
+    public void ApplicationModuleRuleAppliesProjectGlobalUsingsAcrossFiles()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/GlobalUsings.cs",
+                "src/NovelSpeaker.Application",
+                "global using NovelSpeaker.Application.Playback.Cache; global using Session = NovelSpeaker.Application.Playback.IPlaybackSession; global using Scope = NovelSpeaker.Application.Playback.Cache.CacheInvalidationScope.Global; global using static NovelSpeaker.Application.Playback.Cache.CacheInvalidation; global using static NovelSpeaker.Application.Playback.Cache.CacheInvalidationAspect; global using static NovelSpeaker.Application.Playback.Cache.CacheOptions; global using static NovelSpeaker.Application.Playback.Cache.CacheInvalidationScope; global using static NovelSpeaker.Application.Playback.Cache.CacheInvalidationScope.Global;"),
+            Source(
+                "src/NovelSpeaker.Application/Books/BooksService.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Books; public sealed class BooksService { public void Save(ICacheInvalidationCoordinator coordinator) { ForGlobal(); ForGeneric<int>(); _ = Second; _ = Coverage; _ = Default; _ = Secondary; _ = new Global(); _ = new Scope(); _ = Marker; } }"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public sealed class CacheService(Session session);"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/IPlaybackSession.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback; public interface IPlaybackSession;"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidation.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public static class CacheInvalidation { public static readonly int First = 1, Second = 2; public static void ForGlobal() { } public static void ForGeneric<T>() { } }"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/ICacheInvalidationCoordinator.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public interface ICacheInvalidationCoordinator;"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidationAspect.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public enum CacheInvalidationAspect { None, Coverage }"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheOptions.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public static class CacheOptions { public const int Default = 1, Secondary = 2; }"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidationScope.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public abstract record CacheInvalidationScope { public sealed record Global : CacheInvalidationScope { public static int Marker => 1; } }"),
+        };
+
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.CacheInvalidation)",
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.CacheInvalidationAspect)",
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.CacheInvalidationScope)",
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.CacheInvalidationScope.Global)",
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.CacheOptions)",
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Playback.Cache.ICacheInvalidationCoordinator)",
+                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
+            ],
+            ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+    }
+
+    [Fact]
+    public void ApplicationModuleRuleDoesNotImportNestedStaticMembersFromOuterType()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/GlobalUsings.cs",
+                "src/NovelSpeaker.Application",
+                "global using static NovelSpeaker.Application.Playback.Cache.CacheInvalidationScope;"),
+            Source(
+                "src/NovelSpeaker.Application/Books/BooksService.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Books; public sealed class BooksService { public void Save() { Marker(); _ = Local; } }"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidationScope.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public abstract record CacheInvalidationScope { public static void Outer() { static void Marker() { } const int Local = 1; } }")
+        };
+
+        Assert.Empty(ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+    }
+
+    [Fact]
+    public void ApplicationModuleRuleFindsCyclesAndAllowsOnlyTheExactDebtEdge()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/Books/BooksService.cs",
+                "src/NovelSpeaker.Application",
+                "using NovelSpeaker.Application.Cache; namespace NovelSpeaker.Application.Books; public sealed class BooksService(ICacheCatalog catalog, ICacheCatalogV2 secondCatalog);"),
+            Source(
+                "src/NovelSpeaker.Application/Cache/ICacheCatalog.cs",
+                "src/NovelSpeaker.Application",
+                "using NovelSpeaker.Application.Books; namespace NovelSpeaker.Application.Cache; public interface ICacheCatalog(IBookLibraryQuery query); public interface ICacheCatalogV2;"),
+            Source(
+                "src/NovelSpeaker.Application/Books/IBookLibraryQuery.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Books; public interface IBookLibraryQuery;")
+        };
+
+        var dependencies = ArchitectureRules.FindApplicationModuleDependencies(files);
+        var debt = dependencies
+            .Single(dependency => dependency.TargetType == "ICacheCatalog")
+            .Identity;
+
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.ICacheCatalog)",
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.ICacheCatalogV2)",
+                "src/NovelSpeaker.Application/Cache/ICacheCatalog.cs: Cache -> Books (NovelSpeaker.Application.Books.IBookLibraryQuery)"
+            ],
+            ArchitectureRules.FindApplicationModuleDependencyCycles(files, []));
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.ICacheCatalogV2)",
+                "src/NovelSpeaker.Application/Cache/ICacheCatalog.cs: Cache -> Books (NovelSpeaker.Application.Books.IBookLibraryQuery)"
+            ],
+            ArchitectureRules.FindApplicationModuleDependencyCycles(files, [debt]));
+        Assert.Empty(ArchitectureRules.FindApplicationModuleDependencyCycles(files, dependencies.Select(dependency => dependency.Identity).ToArray()));
+    }
+
+    [Fact]
+    public void ApplicationModuleRuleRejectsDesktopOwnershipOfPlaybackTruth()
+    {
+        var files = new[]
+        {
+            Source(
+                "src/NovelSpeaker.Application/Desktop/DesktopCoordinator.cs",
+                "src/NovelSpeaker.Application",
+                "using NovelSpeaker.Application.Playback; using NovelSpeaker.Application.Playback.Cache; namespace NovelSpeaker.Application.Desktop; public sealed class DesktopCoordinator(PlaybackCoordinator coordinator, PlaybackCommandProcessor processor, SpeechPlanRepairCoordinator repairCoordinator);"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/PlaybackCoordinator.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback; public sealed class PlaybackCoordinator; public sealed class PlaybackCommandProcessor;"),
+            Source(
+                "src/NovelSpeaker.Application/Playback/Cache/SpeechPlanRepairCoordinator.cs",
+                "src/NovelSpeaker.Application",
+                "namespace NovelSpeaker.Application.Playback.Cache; public sealed class SpeechPlanRepairCoordinator;")
+        };
+
+        Assert.Equal(
+            [
+                "src/NovelSpeaker.Application/Desktop/DesktopCoordinator.cs: Desktop -> Cache (NovelSpeaker.Application.Playback.Cache.SpeechPlanRepairCoordinator)",
+                "src/NovelSpeaker.Application/Desktop/DesktopCoordinator.cs: Desktop -> Playback (NovelSpeaker.Application.Playback.PlaybackCommandProcessor)",
+                "src/NovelSpeaker.Application/Desktop/DesktopCoordinator.cs: Desktop -> Playback (NovelSpeaker.Application.Playback.PlaybackCoordinator)"
+            ],
+            ArchitectureRules.FindApplicationModuleMutableTruthViolations(files));
+    }
+
+    [Fact]
     public void ForbiddenSourceDependencyRuleRejectsAddedDependency()
     {
         var files = new[]

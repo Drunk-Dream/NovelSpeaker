@@ -541,6 +541,46 @@ public sealed class ArchitectureTests
             .ToArray());
     }
 
+    private void ApplicationModulesHaveNoUnexpectedDependenciesOrCycles()
+    {
+        var applicationFiles = Repository.ReadProductSourceFiles()
+            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Application")
+            .ToArray();
+        var debts = KnownArchitectureBaseline.ApplicationModuleDependencyDebts;
+
+        var dependencyViolations = ArchitectureRules.FindApplicationModuleDependencyViolations(
+            applicationFiles,
+            debts.Keys.ToArray());
+        Assert.True(
+            dependencyViolations.Count == 0,
+            string.Join(Environment.NewLine, dependencyViolations));
+
+        var cycleViolations = ArchitectureRules.FindApplicationModuleDependencyCycles(
+            applicationFiles,
+            debts.Keys.ToArray());
+        Assert.True(
+            cycleViolations.Count == 0,
+            string.Join(Environment.NewLine, cycleViolations));
+
+        var mutableTruthViolations = ArchitectureRules.FindApplicationModuleMutableTruthViolations(applicationFiles);
+        Assert.True(
+            mutableTruthViolations.Count == 0,
+            string.Join(Environment.NewLine, mutableTruthViolations));
+
+        var dependencies = ArchitectureRules.FindApplicationModuleDependencies(applicationFiles);
+        Assert.Equal(
+            Enum.GetValues<ApplicationModule>().Order().ToArray(),
+            ArchitectureRules.FindApplicationModules(applicationFiles).Order().ToArray());
+
+        var actualDependencies = dependencies
+            .Select(dependency => dependency.Identity)
+            .ToHashSet(StringComparer.Ordinal);
+        Assert.All(debts.Keys, debt => Assert.Contains(debt, actualDependencies));
+        Assert.All(
+            debts.Values,
+            taskId => Assert.Contains(taskId, new[] { "T002", "T003" }));
+    }
+
     private static void PlayerPresentationControllersAreFeatureLocalConcreteTypes()
     {
         var controllerTypes = new[]
@@ -702,6 +742,7 @@ public sealed class ArchitectureTests
         LibraryUsesStandardWpfRowVirtualization();
         PlaybackStateHasOneOwnerAndReadOnlyConsumerContracts();
         PlayerPresentationControllersAreFeatureLocalConcreteTypes();
+        ApplicationModulesHaveNoUnexpectedDependenciesOrCycles();
     }
 
     [Fact]
