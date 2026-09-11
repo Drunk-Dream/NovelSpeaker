@@ -2,28 +2,39 @@
 
 ## 1. 阶段定位
 
-当前进入 **Application 模块边界收敛阶段**。规划基线：`1ee1a094393afab4bebc041e8e0374ea54730488`。
+当前进入 **代码库收敛与测试体系瘦身阶段**。规划基线：`33431ddcb2f998168b989516fefabb0131c675d9`。
 
-上一轮整体架构优化、Rules/Settings 收敛、Cache workspace 兼容层清理、真实规模性能验收和全量测试稳定性修复均已完成。本轮不再进行全面架构重构，只处理会影响后续长期维护以及日志/性能遥测/诊断系统接入的高优先级模块边界问题。
+上一轮 Application 模块边界收敛已完成：Cache、Playback、Books、Speech、Settings、Desktop 的职责和允许依赖方向已经稳定，Application module Architecture debt baseline 已清零，全量 Release test 为 955/955。
 
-本轮目标：
+本阶段是日志、性能遥测与诊断系统开发前的最后一轮历史债务清理。目标不是继续调整架构，而是减少长期开发积累的无价值代码和脆弱测试，使后续横切能力接入时：
 
-1. 把 Cache 从历史上的 `Playback` 子系统归属提升为一级 Application 模块；
-2. 消除 Settings/TTS/Regex 等源模块对 Cache invalidation 的反向依赖；
-3. 用 Architecture Fitness Tests 固定 Application 内部模块依赖方向；
-4. 仅在存在明确职责混合时收窄少量过宽 orchestration；
-5. 迁移完成后彻底清理旧 namespace、兼容层、重复 DTO/controller、DI alias 和测试遗留。
+- 生产代码只有一套当前实现；
+- 测试主要保护稳定行为、数据兼容和架构边界；
+- 合理内部重构不会因为大量实现细节测试而产生连锁失败；
+- TestKit、fake、fixture 和 helper 保持少而清晰；
+- 完整测试仍能对关键风险提供可信保护。
 
-**本轮明确不实现日志、性能遥测、诊断会话、诊断导出或对应 UI。** 这些能力留到下一轮，在本轮稳定后的模块/生命周期边界上建设。
+**本阶段不实现或预埋日志、性能遥测、诊断会话、诊断导出及其 UI。**
 
-必须保护：
+### 清理原则
 
-- 用户数据与已发布 SQLite migration；
-- 外部 TXT；
-- Rules/Settings/ReadingProgress；
-- PlaybackSnapshot、checkpoint、navigation、cache、active cache、export 的既有行为；
-- 已确认的大列表与 WPF virtualization 结构；
-- 当前全量测试行为合同。
+1. 不设置“必须降到 N 个测试”的机械数量目标；测试数量下降是结果，不是验收条件。
+2. 优先删除 dead/unreachable code、已失去调用方的 abstraction/adapter/DTO/helper、迁移期 compatibility 代码、重复覆盖和实现细节测试。
+3. 必须保留或等价覆盖：
+   - Architecture Fitness Tests；
+   - Playback session / Snapshot / checkpoint / command 关键语义；
+   - Cache identity / Coverage / plan / ActiveCache / Export；
+   - Settings / Rules 关键业务语义；
+   - SQLite schema / migration / 关键 query；
+   - 文件路径与外部 TXT 安全；
+   - HTTP TTS / Jint 安全与限流；
+   - navigation / ReturnRoute；
+   - 大列表结构合同；
+   - 真正依赖 WPF 的 navigation、binding、virtualization、scroll/focus/popup/theme 等行为。
+4. 不因为测试难维护而删除唯一的高风险行为保护；若原测试层级错误，应迁移到更合适的层级后再删除旧测试。
+5. 不为保留旧测试重新引入 production compatibility API。
+6. 生产代码清理不得改变用户行为、持久化格式、SQLite migration、缓存身份、文件布局或现有架构 owner。
+7. 本阶段结束后停止继续做“顺手架构优化”，直接进入日志 + 性能遥测 + 诊断系统规划/开发。
 
 ## 2. 状态
 
@@ -34,245 +45,352 @@
 
 优先级：
 
-- `P0`：必须完成的模块边界/依赖方向/状态 owner 工作；
-- `P1`：有明确收益但不值得扩大重构面的职责收敛；
-- `P2`：仅清理性工作，本轮原则上并入对应迁移任务或最终收口。
+- `P0`：清理前审计、关键测试保护、最终质量门禁；
+- `P1`：生产代码和测试体系的主要瘦身；
+- `P2`：低风险小型清理，仅在明显有收益时执行。
 
-完成后的任务保留并标记完成；只有下一次规划阶段才允许再次清空/重写 Backlog。
+完成后的任务保留并标记完成；只有新的规划阶段才再次清空/重写 Backlog。
 
 ## 3. 通用执行规则
 
 1. 一次只执行一个编号任务，完成后停止。
-2. 开始前阅读 `AGENTS.md`、`docs/01_ARCHITECTURE.md`、`docs/02_RUNTIME_AND_STATE.md`、`docs/03_DATA_AND_PERSISTENCE.md`、`docs/10_DECISIONS.md` 和当前任务。
-3. 先审计真实调用链、namespace、DI 注册、状态 owner 与测试，不按任务中示例文件机械移动。
-4. 行为保持型 move/rename 与语义变化尽量分清；允许同一任务多 commit，但任务完成前必须达到最终边界。
-5. 内部 API 不要求兼容。禁止为迁移保留 forwarding type、旧 namespace wrapper、alias interface 或 Obsolete bridge。
-6. 唯一必须保留的兼容是已发布用户数据、SQLite migration、持久化格式和明确外部合同；不要为内部 namespace 变化新增数据库 migration。
-7. 新 interface 仍遵循“存在真实技术/owner/跨模块边界才建立”；Feature-local controller 默认 internal concrete type。
-8. 不引入通用 EventBus/Messenger、Service Locator、CommandBus、BackgroundTaskManager 或大一统 CacheManager。
-9. 模块之间使用 typed snapshot/event/change source/role port；事件只描述源模块自身语义，不携带目标模块副作用命令。
-10. 每个迁移任务完成前必须清理：旧 namespace、旧目录、旧 DI registration、compat code、重复 DTO/controller、旧测试 double、临时 Architecture whitelist、TODO/Obsolete 和一次性诊断产物。
-11. 不为减小文件、构造参数或行数机械拆类。只有独立变化原因、独立生命周期或明确边界才允许抽取。
-12. 不改变 WPF virtualization、大列表 Catalog/Decoration、staged loading 等上一轮已稳定的架构。
-13. 本项目所有文本文件统一 LF；不得因换行符无关地批量重写。
-14. 每项任务完成后至少运行对应 focused tests + ArchitectureTests；最终任务执行完整 Release 门禁。
-15. 任务完成成果记录：最终 owner/依赖方向、删除的遗留、测试结果、未执行检查和剩余风险。
-16. 本轮不要顺带实现或预埋日志、性能遥测、诊断会话/导出框架；只需保证最终模块边界便于下一轮接入。
+2. 开始前阅读 `AGENTS.md`、`docs/08_TESTING_AND_QUALITY.md` 和当前任务；涉及具体业务时再阅读对应 owner 文档。
+3. 先证明“为什么可以删”，再删除。证据优先包括：无生产调用方、已被稳定实现替代、相同风险已有更合适层级覆盖、仅绑定旧迁移路径、helper/fake 已无消费者。
+4. 如当前 Codex 环境支持 `explore` subagent，可在 T001 以及后续大范围审计时使用其并行探索代码库；`explore` 只负责调查和提供证据，不直接决定删除。不可用时由主 agent 完成同样审计，不构成阻塞。
+5. 使用 subagent 时按清晰范围拆分，例如 Production、Application/Infrastructure tests、Presentation/WPF tests、TestKit/fixture，避免多个 agent 同时修改同一文件。
+6. 不依据文件行数、测试数量、构造参数数量或“看起来复杂”直接删除/拆分。
+7. 不创建新的通用 abstraction、Manager、Helper、EventBus 或 test framework 来“帮助清理”。
+8. 不新增第三方测试/mocking 框架，本轮默认使用现有能力。
+9. 删除测试前确认对应风险是否在其它层级已有稳定覆盖；重复测试只保留最接近真实 owner/技术边界的一层。
+10. WPF tests 只保留 WPF 特有行为；纯业务/presentation 语义不得继续在 WPF 层重复验证。
+11. Presentation tests 不实例化真实 WPF，不复制 Application 已稳定覆盖的纯业务算法。
+12. Infrastructure Integration tests 聚焦真实 SQLite/file/HTTP/Jint/NAudio/serialization 技术边界，不重复 Application 纯逻辑。
+13. Architecture Fitness Tests 是长期门禁，原则上不因本轮测试瘦身删除。
+14. 测试合并时优先参数化或共享最小 fixture，但不要形成一个修改即导致大量无关测试同时失败的“万能 fixture”。
+15. 测试 double 优先窄职责、局部使用；只有跨多个测试类复用且语义稳定时才进入 TestKit。
+16. 不使用固定 `Task.Delay`/`Thread.Sleep`、放宽断言、任意 retry 或增大 timeout 掩盖 flaky test。
+17. 发现真实产品 bug、数据兼容风险或架构违规时，不以“清理”为理由删除测试获得绿色。
+18. 每个任务完成前删除临时脚本、trace、dump、coverage 输出、探索文档和其它一次性产物。
+19. 所有文本文件保持 LF；不做与任务无关的全仓格式化。
+20. 每项任务完成后记录：删除/合并内容、删除依据、保留的核心风险保护、测试结果、测试数量变化（仅统计）、剩余候选和未处理原因。
+21. 本阶段不得实现日志、性能遥测、诊断系统，也不得为了下一阶段提前增加空接口、空目录或 speculative hook。
 
 ---
 
-# Phase A：Application 模块边界守卫
+# Phase A：探索与清理基线
 
-## [x] T001（P0）：建立 Application 模块依赖 Fitness Tests
+## [ ] T001（P0）：审计生产代码与测试体系，建立可执行清理清单
 
-目标：在开始 namespace/owner 迁移前，把本轮最终模块方向转成自动架构约束，并精确记录当前需要由后续任务消除的债务。
+目标：先基于当前真实代码和 955 个测试形成“保留 / 合并 / 删除 / 需要进一步确认”的证据化清单，避免边看边删造成误判。
 
-实施方向：
+允许使用 `explore` subagent，并建议在可用时并行探索，但不强制。
 
-1. 扩展现有 `ArchitectureTests/ArchitectureRules`，不要建立第二套架构测试框架。
-2. 将 Application 概念模块至少识别为：
-   - Books；
-   - Speech；
-   - Cache；
-   - Playback；
-   - Settings；
-   - Desktop。
-3. 建立可长期维护的 namespace/source dependency graph 检查，至少守护：
-   - Application 模块不得形成 cycle；
-   - Books/Speech/Settings 不允许依赖 Cache-specific invalidation、Coverage、store API；
-   - Cache 不允许依赖 Playback session state/commands；
-   - Playback 可以依赖 Cache 的稳定 role/query port；
-   - Desktop 不拥有 Playback/Cache mutable truth。
-4. 对当前尚未迁移的历史依赖允许使用**精确到文件/类型/边**的临时 baseline，但每一项必须注明由 T002 或 T003 删除。
-5. 不通过简单禁止整个 namespace 的方式误伤合理稳定的跨模块 read/query contract；先审计真实依赖再编码规则。
-6. 不增加第三方架构测试框架。
+### 探索范围
+
+**Production**
+
+- 无生产调用方的 class/interface/record/enum/helper；
+- 迁移后残留的旧 namespace、compat/forwarding/Obsolete 代码；
+- 只有测试调用、生产路径已不使用的 API；
+- 重复 mapper/formatter/projector/controller；
+- orphan DI registration、factory、service extension；
+- Feature-specific 能力错误留在全局 Shared；
+- 已失去意义的 lifecycle flag、defensive state、旧 fallback；
+- 临时 workaround、历史 TODO、一次性迁移分支；
+- 能可靠证明无引用的资源/XAML style/key。
+
+**Tests**
+
+按测试项目和风险分类：
+
+- 唯一核心行为保护；
+- Architecture/安全/数据兼容保护；
+- 与其它层级重复；
+- 绑定实现细节；
+- 只验证简单 property/转发/DI registration；
+- 迁移期/compatibility 专用；
+- flaky / 高维护成本但价值有限；
+- 大型 fixture 导致广泛耦合；
+- fake/stub/helper/TestKit 重复。
+
+### 执行方式
+
+1. 如可用，可使用数个 `explore` subagent 分范围调查；主 agent 汇总并交叉验证。
+2. 不在仓库长期新增 audit/report 文档。
+3. 如需临时清单，只在工作区临时保存并在任务结束前删除。
+4. 最终摘要直接写入 T001 的“完成成果”，至少包含：
+   - Production 高置信删除候选类别与代表性文件；
+   - 各测试项目的保留重点；
+   - 重复覆盖最严重的区域；
+   - TestKit/fixture 的主要耦合点；
+   - T002–T005 的重点是否需要微调。
+5. 本任务原则上不大规模删除代码；仅允许删除极少数当场可证明无调用方、无兼容意义的明显垃圾文件。
 
 验收：
 
-- 当前基线在明确债务 baseline 下稳定通过；
-- 每个临时债务都有后续删除任务；
-- 原有四层、Feature、Playback owner、大列表等 ArchitectureTests 不弱化。
-
-完成成果：扩展现有 ArchitectureRules，识别六个 Application 模块并守护模块 cycle、Books/Speech/Settings → Cache、Cache → Playback、Desktop → Playback/Cache mutable truth 边界；新增精确到文件/类型/边且标注 T002/T003 的债务 baseline，并覆盖 namespace、alias、global using、static member 等引用形式。本任务未删除旧实现或 compat wrapper，遗留边由 T002/T003 清理。验证：locked restore、format、Release build（0 warning/0 error）、全量 Release test（951/951）均通过；未执行检查：无。剩余风险：baseline 中的已知历史依赖仍待 T002/T003 消除。
+- 清理方向可以映射到后续 T002–T005；
+- 没有仅凭名称/行数判断“无用”的候选；
+- ArchitectureTests 通过；
+- 若修改生产/测试代码，相应 focused tests 通过。
 
 ---
 
-# Phase B：Cache 一级模块收敛
+# Phase B：生产代码收敛
 
-## [x] T002（P0）：将 Cache 提升为一级 Application 模块并重组 owner/DI
+## [ ] T002（P1）：清理生产代码中的 dead / legacy / duplicate 实现
 
 依赖：T001。
 
-目标：消除历史上 `Application.Playback.Cache` / `Playback.ActiveCache` / `Playback.Export` 与现有 `Application.Cache` 并存的模块归属，使 Cache 的 namespace、registration 和 Infrastructure adapter 结构与实际职责一致。
+目标：在不改变现有架构和用户行为的前提下，删除长期开发与迁移积累的生产代码遗留，使后续日志/遥测埋点面对唯一、清晰的真实执行路径。
 
-实施方向：
+### 优先清理
 
-1. 审计以下能力的真实 owner：
-   - Cache identity/fingerprint；
-   - `IAudioCache` / `IAudioCacheStore`；
-   - CacheCatalog / Coverage / invalidation；
-   - ChapterSpeechPlan / repair；
-   - ActiveCache；
-   - Cache-backed chapter export；
-   - cache protection / maintenance / persistence adapters。
-2. 以 `NovelSpeaker.Application.Cache` 为一级边界收敛 Cache-owned 类型，可按 `Plans/ActiveCache/Export` 等子目录组织。
-3. 建立独立的 Cache Application registration，例如 `AddNovelSpeakerCacheApplication()`；`PlaybackRegistration` 不再顺带注册 Cache owner。
-4. Infrastructure 中与 Cache 物理文件/index/maintenance/plan store/export writer 相关的实现按真实职责收敛，DI registration 与 Application 模块相对应。
-5. ActiveCache/Export 若依赖当前位于 Playback 的**非 session 通用能力**，先判断其真实 owner：
-   - 属于 TTS/audio generation 的，迁到 Speech/Cache 等合理边界或提取窄稳定 role port；
-   - 属于 book content/query 的，复用 Books 稳定 contract；
-   - 不允许为了完成目录搬迁形成 Cache ↔ Playback module cycle。
-6. Playback session owner、PlaybackSnapshot、Prefetch session 生命周期保持不变。
-7. 行为保持：cache key、文件布局、SQLite schema、export 输出、active cache 优先级均不得因 namespace 重构改变。
+1. **Dead code**
+   - 无任何生产调用方；
+   - DI 未注册且无显式构造路径；
+   - XAML/resource 无引用；
+   - 已被当前实现完全替代。
+2. **Migration residue**
+   - old/new/v2/compat/legacy/forwarding wrapper；
+   - 旧 namespace alias；
+   - 已结束迁移的 fallback 分支；
+   - 为旧测试保留的生产入口。
+3. **Duplicate/simple abstraction**
+   - 等价 formatter/mapper/helper；
+   - 只做无语义转发且不构成真实边界的 interface/service；
+   - orphan factory/registration/extension。
+4. **Shared 污染**
+   - 仅服务单 Feature/模块却遗留在全局 Shared 的类型；
+   - 若仍在使用，应移动回真实 owner，而不是机械清空 Shared。
+5. **Defensive state**
+   - transient/single-owner 架构稳定后已不再需要的 duplicate initialized/subscribed/loaded flag；
+   - 删除前必须证明生命周期已有唯一 owner 和测试保护。
 
-迁移清理（本任务必须完成）：
+### 禁止
 
-- 删除旧 `NovelSpeaker.Application.Playback.Cache/ActiveCache/Export` namespace 残留；
-- 删除空目录、forwarding type、旧 using alias；
-- 删除旧 Cache DI alias/重复 registration；
-- 更新测试 namespace/fake，不保留兼容测试 adapter；
-- 不新增 SQLite migration；
-- ArchitectureTests 中属于 T002 的临时 debt baseline 全部删除。
+- 不重新设计 Cache/Playback/Settings 等稳定模块边界；
+- 不拆大类仅为了减少行数；
+- 不改变 public product behavior；
+- 不修改已发布 SQLite migration；
+- 不改变 cache identity、file layout、reading checkpoint 等稳定数据语义；
+- 不把局部代码提升成新的通用 abstraction。
 
-测试：
+### 验收
 
-- Cache Application/Infrastructure focused tests；
-- Playback/Player/BookDetails/CacheManagement 关键集成与 Presentation tests；
-- ActiveCache/Export lifecycle tests；
-- DI tests；
-- ArchitectureTests。
-
-完成成果：Cache 的 Application/Infrastructure 类型、ActiveCache、ChapterSpeechPlan、Export、audio generation 与物理存储已迁入一级 Cache 边界；新增 Cache Application/Infrastructure registration，Playback 仅保留 session owner，并通过 Books contract、Speech rule/preview role 消除旧反向 owner。删除旧 `Application.Playback.Cache/ActiveCache/Export` 路径、alias 和重复 registration；更新测试与 Architecture baseline。验证：Application build、Unit 167/167、Infrastructure Integration 342/342、Architecture 46/46、WPF DI/navigation 18/18；静态复审 PASS。WSL 测试宿主启动需要沙箱外执行，未改变测试结果。
+- 修改区域 focused tests 通过；
+- ArchitectureTests 通过；
+- 因 production 删除而失去意义的测试可同步删除，但不得提前做大范围测试瘦身；
+- 完成成果记录主要删除项、保留的高风险候选及理由。
 
 ---
 
-# Phase C：配置源与 Cache 解耦
+# Phase C：核心业务与基础设施测试瘦身
 
-## [x] T003（P0）：用 typed source change 消除 Settings/Rules → Cache 反向依赖
+## [ ] T003（P1）：精简 Domain/Application/Infrastructure 测试，只保留稳定风险合同
 
 依赖：T002。
 
-目标：Settings、TTS Rules、Regex/Text Processing 只负责自身状态和 mutation 语义；由 Cache-owned integration 判断这些变化是否导致 Coverage/Plan 失效。
+目标：减少对内部调用步骤、辅助类型和重复逻辑的测试绑定，使 Application/Infrastructure 内部重构不再引发与真实行为无关的大面积测试失败。
 
-当前重点债务包括但不限于：
+### Domain/Application 保留重点
 
-- `AppSettingsService` 直接依赖 `ICacheInvalidationCoordinator`；
-- TTS rule mutation/use case 直接发布 Cache Coverage invalidation；
-- Regex replacement rule workspace 直接发布 Cache Coverage invalidation。
+- Playback command / session / Snapshot / checkpoint；
+- stale event、失败、取消、快速 session replacement；
+- Cache identity / key / Coverage / plan；
+- Cache invalidation/configuration-change 映射；
+- ActiveCache / Export owner 生命周期与取消；
+- Settings / Rules 的关键业务变化；
+- cancellation/version/concurrency 中真正影响正确性的合同；
+- 安全规则。
 
-实施方向：
+### Domain/Application 优先删除/合并
 
-1. 先列出真正影响 Cache identity/plan/Coverage 的源变化：
-   - Selected TTS rule；
-   - default speak speed；
-   - read chapter title；
-   - text segmentation options；
-   - Regex rule semantic changes；
-   - TTS rule semantic changes。
-2. 优先复用已有 `IAppSettingsService.Changed` 等稳定 typed change source；只有现有合同无法表达语义时才增加最小 typed change contract。
-3. Settings/Books/Speech mutation 成功提交后只发布自身变化，不引用 Cache namespace。
-4. 在 Cache 模块建立唯一的 configuration-change integration/observer，把源变化映射为 Cache Coverage/Plan invalidation。
-5. observer 为 process owner，启动/关闭和订阅释放必须明确；不得依赖页面存在。
-6. 不把 typed source changes 扩展成通用 EventBus，不建立“所有模块事件中心”。
-7. 保持失效语义：配置变化只使 projection 失效，不立即全库重算 Coverage。
+- 对简单 record/property/default value 的逐项测试；
+- 对 internal helper 调用顺序的测试；
+- 大量排列组合但没有新增风险维度的测试；
+- 只为旧 constructor/interface/namespace 存在的测试；
+- 多个测试类重复验证同一错误/取消路径；
+- 已由更高价值状态机/流程测试包含的细碎单元测试。
 
-迁移清理（本任务必须完成）：
+### Infrastructure Integration 保留重点
 
-- 从 Settings/Books/Speech 删除所有 Cache-specific using、字段、构造参数和 DI wiring；
-- 删除仅为旧反向 invalidation 存在的 helper/interface；
-- 删除重复事件或 adapter；
-- 删除 T003 对应 Architecture debt baseline；
-- 更新 focused tests，使源模块测试不需要 Cache fake。
+- SQLite schema/migration/升级；
+- 关键 query、排序、事务；
+- Audio cache index/file 原子性与恢复；
+- 用户数据根/路径安全；
+- HTTP TTS 兼容与关键错误分类；
+- Jint sandbox/security；
+- NAudio/MP3 真实 adapter 边界；
+- 真实 serialization/persistence format。
 
-完成成果：Settings 保留自身 `Changed` source，TTS Rule 与 Regex workspace 增加最小 typed change event；Cache 新增进程级 configuration observer，集中判断 Coverage 影响并由 Cache coordinator 管理订阅生命周期。已删除 Settings/Books/Speech 的 Cache invalidation 字段、构造参数、helper、DI wiring 和全部 T003 Architecture debt；不做 eager Coverage recomputation。验证：Application build、Unit 171/171、Infrastructure Integration 342/342、Architecture 46/46、WPF composition/startup 11/11；新增 observer 生命周期、有效 Speech profile、Display-only/disabled/no-op 映射测试，WSL 测试宿主仍需沙箱外启动。
+### Infrastructure 优先删除/合并
+
+- 重复 Application 纯逻辑；
+- repository/service 简单 passthrough 的多层重复验证；
+- 已有真实 round-trip 覆盖下的逐字段机械测试；
+- 只因旧 adapter/compat layer 产生的测试；
+- fixture 初始化过程本身的测试，除非属于安全/隔离合同。
+
+### 执行要求
+
+1. 每组删除说明替代保护位于何处。
+2. 参数化可合并同一风险的输入变体，但不要形成超大型 Theory。
+3. 清理后删除无消费者的 test-only builder/fake/helper。
+4. 不修改 production 以迁就测试，除非发现真实 bug。
 
 验收：
 
-- Books/Speech/Settings → Cache-specific API 的 ArchitectureTests 为零例外；
-- Application module graph 无 cycle；
-- 配置变更后 Cache active UI 仍能通过 invalidation 自动追上；
-- 不出现全库 eager Coverage recomputation。
+- 核心业务/基础设施合同仍有清晰测试入口；
+- ArchitectureTests 通过；
+- 对应 test projects 完整通过；
+- 测试数量变化只记录，不设目标值。
 
 ---
 
-# Phase D：有限职责收窄
+# Phase D：Presentation / WPF 测试瘦身
 
-## [x] T004（P1）：只对明确过宽的 orchestration 做局部收敛
+## [ ] T004（P1）：删除重复 Presentation/WPF 测试，保留 UI 生命周期和 WPF 特有风险
 
 依赖：T003。
 
-目标：在模块边界稳定后，仅处理已经有明显独立变化原因/生命周期的局部 orchestration；不再开启全面 ViewModel/Coordinator 重构。
+目标：解决 UI 层最容易出现的“内部稍改即大量测试失败”问题，让 Presentation 和 WPF 测试只保护各自真正拥有的风险。
 
-优先审计：
+### PresentationTests 应保留
 
-1. `CacheManagementViewModel`
-   - catalog reconciliation；
-   - live invalidation/single-flight refresh；
-   - physical/Coverage decoration；
-   - selection；
-   - export interaction。
-2. `PlaybackCoordinator`
-   - session truth/command orchestration 必须保留；
-   - volume persistence/debounce 等明显不属于 session truth 的职责可评估抽离。
+- ViewModel activation/deactivation；
+- 页面取消、迟到结果、版本保护；
+- staged loading 关键顺序；
+- snapshot/read-model → UI state 的重要 projection；
+- selection/current/cache decoration 等用户状态；
+- 复杂页面 interaction controller 的稳定行为；
+- Architecture Fitness Tests。
 
-执行规则：
+### PresentationTests 优先删除/合并
 
-- 先以“是否有独立生命周期/变化原因/测试边界”判断，不能以文件大小或构造参数数量判断。
-- CacheManagement 如确有必要，优先抽取 Feature-local concrete controller；不建立新的 Application façade 或 interface hierarchy。
-- Playback 只允许抽离不拥有 Book/Chapter/Segment/epoch/current snapshot truth 的职责。
-- 如果审计后认为某项拆分收益不足，可以在完成成果中记录“不拆”的证据，不强行改代码。
-- 不调整用户交互和视觉设计。
+- Application 已充分覆盖的纯业务算法；
+- 简单 command 仅验证调用某 mock 一次；
+- 简单 property passthrough；
+- 绑定具体 private controller/helper 的测试；
+- 每次 refactor 都需同步大量 constructor mock 的低价值 fixture；
+- 多个 VM 测试重复验证同一 shared primitive。
 
-迁移清理：
+### WpfTests 应保留
 
-- 抽取后删除原类中的重复字段/helper/state；
-- 不保留 forwarding method 兼容旧测试；
-- 重写绑定旧私有实现的测试；
-- 删除因此失去调用方的 Shared helper/DI registration。
+只保留真正依赖 WPF runtime 的合同：
+
+- navigation composition/page lifecycle；
+- binding/resource lookup；
+- virtualization/container recycling；
+- scroll/locator/auto-center；
+- focus/keyboard/mouse hit testing；
+- popup/dialog/flyout；
+- theme/style/icon/resource；
+- hidden isolated Desktop fail-closed；
+- 真实 Dispatcher/layout/render 时序中的关键回归。
+
+### WpfTests 优先删除/下移
+
+- 不需要 WPF runtime 的 VM/command/state 测试；
+- 与 PresentationTests 完全重复的业务行为；
+- 仅验证控件存在、文本常量、简单 XAML 属性且无历史风险的测试；
+- 依赖像素/时序但没有明确产品回归价值的脆弱断言；
+- 为旧视觉实现/旧 workaround 存在的测试。
+
+### 特别要求
+
+- 不放宽 hidden Desktop 安全规则；
+- 不用固定 Delay、任意 retry、增大 timeout“稳定”测试；
+- 高价值 flaky WPF test 应先修同步/隔离/fixture，不能直接删除。
 
 验收：
 
-- state owner 数量不增加；
-- 页面/Playback 生命周期语义不变；
-- ArchitectureTests 和相关 focused tests 通过。
-
-完成成果：审计 `CacheManagementViewModel` 后仅将具有独立导出准备、目录选择、取消、进程导出状态订阅和 UI 投影生命周期的 orchestration 收敛到 Feature-local `CacheManagementExportController`；目录、选择、缓存 decoration 与 live refresh 仍由页面 ViewModel 统一拥有。`PlaybackCoordinator` 未拆分，保留 session truth/command orchestration，未发现可在不转移播放状态 owner 的前提下足够独立的局部职责。验证：Release build、CacheManagementViewModelTests 3/3、CacheManagementPageLifecycleTests 2/2、ArchitectureTests/ArchitectureRuleContractTests 46/46；静态复审 PASS。WSL 测试宿主启动需要沙箱外执行，未改变测试结果。
+- PresentationTests 与 WpfTests 职责区分明显；
+- 同一非 WPF 风险不在两层机械重复；
+- ArchitectureTests 保留并通过；
+- 两个测试项目完整通过；
+- 测试数量变化只记录，不作为验收条件。
 
 ---
 
-# Phase E：遗留清理与最终收口
+# Phase E：TestKit、fixture 与测试基础设施收敛
 
-## [x] T005（P0）：清除本轮迁移遗留并执行完整质量门禁
+## [ ] T005（P1）：清理 TestKit / fake / fixture / helper，降低测试间耦合
 
 依赖：T004。
 
-目标：确保本轮结束后只有一套 Application 模块架构，为下一轮日志、性能遥测和诊断系统建设提供稳定接入面。
+目标：在测试数量瘦身后反向清理测试基础设施，使一个 production constructor、内部 service 或 fixture 的变化只影响真正相关的测试，而不是通过“大一统测试工具”扩散到整个套件。
 
-全项目审计并清理：
+### 清理方向
 
-- 旧 `Playback.Cache/ActiveCache/Export` namespace/reference；
-- 旧 Cache registration/alias；
-- Settings/Books/Speech → Cache-specific reverse dependency；
-- compatibility wrapper / forwarding type / Obsolete bridge；
-- duplicate DTO/read model/controller/projector；
+1. 删除 T003/T004 后无调用方的 fake、stub、builder、fixture、test host、assertion helper、test-only adapter。
+2. 合并真正语义相同的重复 test double。
+3. 拆除“万能 fixture”：
+   - 同时知道 Books/Playback/Cache/Settings/UI 多个无关模块的 fixture，只保留实际共享的最小稳定部分；
+   - Feature-specific fixture 回到对应测试目录。
+4. TestKit 只保留跨测试项目复用且长期稳定的能力，例如：
+   - 安全 WPF isolated Desktop；
+   - 测试数据根/临时文件生命周期；
+   - 少量稳定 Cache/audio fixture primitive。
+5. 优先通过真实窄 read model / snapshot 创建测试数据，不建立复杂 fluent test DSL。
+6. 删除为了 mock constructor 而暴露的 production test-only API。
+7. 检查 test project package/reference，删除已无用途的测试依赖。
+
+验收：
+
+- TestKit 不承载 Feature-specific 业务框架；
+- 无 orphan test utility；
+- 修改单个 Feature 内部 constructor 不再要求无关测试项目批量更新；
+- 全部测试项目可独立运行；
+- ArchitectureTests 通过。
+
+---
+
+# Phase F：最终仓库清理与质量门禁
+
+## [ ] T006（P0）：最终静态清理、重复覆盖复审与完整质量门禁
+
+依赖：T005。
+
+目标：确认代码库已从长期架构迁移状态收敛为适合开始日志、性能遥测和诊断系统开发的稳定基线。
+
+### 最终静态审计
+
+检查并处理：
+
+- production dead code；
 - orphan DI registration；
-- empty directory / legacy namespace；
-- 仅为迁移存在的 test fake/stub/helper；
-- Architecture temporary debt baseline；
-- TODO/临时 instrumentation/trace/dump/一次性脚本；
-- 无真实调用方的 Shared helper。
+- unused internal abstraction；
+- legacy/compat/obsolete/old/v2 命名或实现；
+- 无消费者 Shared/TestKit helper；
+- 无意义测试 fixture；
+- 重复测试文件/重复风险覆盖；
+- skipped/disabled test；
+- 属于历史迁移的 TODO/FIXME；
+- 临时 script/trace/dump/screenshot/coverage/benchmark artifact；
+- 空目录和迁移遗留文件；
+- test-only production API。
 
-必须确认：
+如环境支持，可再次使用 `explore` subagent 做独立复审，但必须由主 agent 验证删除建议。
 
-- Application module dependency graph 无 cycle、无临时白名单；
-- Cache 与 Playback registration/owner 已分离；
-- Playback mutable session state owner 仍唯一；
-- Settings process snapshot owner 仍唯一；
-- Cache physical truth、Coverage、repair、ActiveCache、Export owner 清晰；
-- 用户数据/SQLite migration/文件布局未因内部模块迁移改变；
-- 日志、性能遥测、诊断系统没有在本轮被实现或预埋第二套基础设施。
+### 核心保护复审
 
-最终门禁：
+最终确认至少仍有清晰测试保护：
+
+- 四层与 Application module Architecture Fitness Rules；
+- Playback canonical state owner；
+- ReadingProgress/checkpoint；
+- Cache identity/Coverage/plan；
+- ActiveCache/Export；
+- Settings/Rules；
+- SQLite migration；
+- 文件/路径安全；
+- HTTP TTS/Jint 安全；
+- navigation/ReturnRoute；
+- 大列表结构合同；
+- WPF isolated Desktop；
+- 关键 virtualization/scroll/theme/popup 行为。
+
+### 完整质量门禁
 
 ```powershell
 dotnet restore --locked-mode -r win-x64
@@ -281,13 +399,26 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
-完成成果应简要记录：
+若首次完整测试失败：
 
-- 最终 Application 模块图和允许依赖方向；
-- 迁移/删除的主要旧 namespace 与 abstraction；
-- 是否对 CacheManagement/Playback 做了有限拆分以及理由；
-- 完整测试结果；
-- 适合下一轮日志/性能遥测/诊断系统接入的稳定边界；
-- 仍存在但不阻塞下一轮的风险。
+1. 判断是真实回归、测试环境波动还是 flaky test；
+2. 不通过直接删除失败测试获得绿色；
+3. 对 flaky test 按风险价值处理：
+   - 高价值：修同步/隔离/fixture；
+   - 低价值且已有等价保护：有证据地删除；
+4. 完整套件最终必须稳定复跑通过。
 
-完成成果：审计确认 Application 仅保留 `Books`、`Speech`、`Cache`、`Playback`、`Settings`、`Desktop` 六个模块；允许方向为 `Cache → Books/Speech/Settings`、`Playback → Books/Speech/Cache/Settings`、`Speech → Settings`、`Desktop → Playback`，无模块环。删除 Application module Architecture debt 的临时白名单参数、baseline 属性、任务注释和旧 Cache 路径测试夹具；旧 `Application.Playback.Cache/ActiveCache/Export` 与 Infrastructure 旧 Cache 路径、alias、compat/forwarding abstraction 均无生产或测试引用。Cache 继续唯一拥有 physical cache、Coverage、repair、ActiveCache、Export；Playback 继续唯一拥有 mutable session truth；Settings 继续唯一拥有 process snapshot。本任务未新增或预埋日志、性能遥测、诊断会话/导出基础设施。未对 CacheManagement/Playback 继续拆分：T004 的有限拆分已形成稳定边界，Playback session orchestration 不存在可安全转移的独立 owner。验证：locked restore、format、solution Release build（0 warning/0 error）、全量 Release test 955/955、ArchitectureRuleContractTests/ArchitectureTests 46/46 均通过；首次全量测试出现一次临时 `app.db` fixture 锁竞争，单测复跑及完整套件复跑均通过。WSL 测试宿主启动需在沙箱外执行。下一轮可从 Cache process/background owner、Playback session owner、Settings typed snapshot/change source 和 Desktop stable role contract 接入日志/性能遥测/诊断；剩余风险仅为测试环境的 WSL socket/fixture 并发波动，不阻塞下一轮。
+### 完成成果
+
+记录：
+
+- Production 删除/合并的主要历史遗留；
+- 各测试项目清理前后测试数量，仅作为统计；
+- 删除的主要重复/实现细节测试类别；
+- 最终保留的核心测试风险地图；
+- TestKit/fixture 收敛结果；
+- 完整 Release 门禁结果；
+- 是否仍存在已知 flaky test；
+- 是否存在会阻塞日志/性能遥测/诊断系统开发的问题。
+
+若无阻塞问题，本任务完成后结束代码库清理阶段，下一轮直接进入 **日志 + 性能遥测 + 诊断系统**，不再追加常规架构/清理 Phase。
