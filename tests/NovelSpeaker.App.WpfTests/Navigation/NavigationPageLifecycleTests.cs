@@ -44,8 +44,8 @@ public sealed class NavigationPageLifecycleTests
                     null,
                     false,
                     false)),
-                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakePlaybackStopTimer(),
-                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
@@ -53,9 +53,9 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new CachePresentationTestDouble(),
-                new CachePresentationTestDouble(),
-                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeMiniPlayerLauncher());
+                new CacheCoverageTestDouble(),
+                new CacheInvalidationTestDouble(),
+                new FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession);
 
@@ -92,8 +92,8 @@ public sealed class NavigationPageLifecycleTests
                 PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")]));
             var viewModel = new PlayerViewModel(
                 playback,
-                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakePlaybackStopTimer(),
-                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
@@ -101,9 +101,9 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new CachePresentationTestDouble(),
-                new CachePresentationTestDouble(),
-                new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeMiniPlayerLauncher());
+                new CacheCoverageTestDouble(),
+                new CacheInvalidationTestDouble(),
+                new FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel)
             {
                 DataContext = new PlayerNavigationRequest("book-7", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession)

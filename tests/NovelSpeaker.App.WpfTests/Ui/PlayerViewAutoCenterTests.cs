@@ -71,8 +71,8 @@ public sealed partial class PlayerViewTests
                 chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new WpfFakePlaybackStopTimer(),
-                new WpfFakeActiveCacheCoordinator(),
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
@@ -80,9 +80,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new CachePresentationTestDouble(),
-                new CachePresentationTestDouble(),
-                new WpfFakeMiniPlayerLauncher());
+                new CacheCoverageTestDouble(),
+                new CacheInvalidationTestDouble(),
+                new FakeMiniPlayerLauncher());
 
             var page = new PlayerPage(viewModel)
             {
@@ -167,8 +167,8 @@ public sealed partial class PlayerViewTests
                 chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new WpfFakePlaybackStopTimer(),
-                new WpfFakeActiveCacheCoordinator(),
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
@@ -176,9 +176,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CachePresentationTestDouble(),
-                new CachePresentationTestDouble(),
-                new WpfFakeMiniPlayerLauncher());
+                new CacheCoverageTestDouble(),
+                new CacheInvalidationTestDouble(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -286,8 +286,8 @@ public sealed partial class PlayerViewTests
                 chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new WpfFakePlaybackStopTimer(),
-                new WpfFakeActiveCacheCoordinator(),
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
@@ -295,9 +295,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CachePresentationTestDouble(),
-                new CachePresentationTestDouble(),
-                new WpfFakeMiniPlayerLauncher());
+                new CacheCoverageTestDouble(),
+                new CacheInvalidationTestDouble(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -397,8 +397,8 @@ public sealed partial class PlayerViewTests
                 chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new WpfFakePlaybackStopTimer(),
-                new WpfFakeActiveCacheCoordinator(),
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
@@ -406,9 +406,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CachePresentationTestDouble(),
-                new CachePresentationTestDouble(),
-                new WpfFakeMiniPlayerLauncher());
+                new CacheCoverageTestDouble(),
+                new CacheInvalidationTestDouble(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
@@ -503,8 +503,8 @@ public sealed partial class PlayerViewTests
                 chapter);
             var viewModel = new PlayerViewModel(
                 coordinator,
-                new WpfFakePlaybackStopTimer(),
-                new WpfFakeActiveCacheCoordinator(),
+                new FakePlaybackStopTimer(),
+                new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
                 new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
@@ -512,9 +512,9 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CachePresentationTestDouble(),
-                new CachePresentationTestDouble(),
-                new WpfFakeMiniPlayerLauncher());
+                new CacheCoverageTestDouble(),
+                new CacheInvalidationTestDouble(),
+                new FakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();

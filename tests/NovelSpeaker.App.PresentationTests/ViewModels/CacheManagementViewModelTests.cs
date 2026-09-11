@@ -41,8 +41,8 @@ public sealed class CacheManagementViewModelTests
 
         await viewModel.ClearSelectedChaptersCommand.ExecuteAsync(null);
 
-        Assert.Equal(("book-1", new[] { 0 }), fixture.Cache.LastClearChaptersRequest);
-        Assert.Equal(1, fixture.Cache.ClearChaptersCallCount);
+        Assert.Equal(("book-1", new[] { 0 }), fixture.Store.LastClearChaptersRequest);
+        Assert.Equal(1, fixture.Store.ClearChaptersCallCount);
         Assert.Equal("缓存已清理", fixture.Feedback.LastTitle);
     }
 
@@ -83,7 +83,16 @@ public sealed class CacheManagementViewModelTests
                 chapter.ChapterIndex == 0 ? 1 : 0,
                 2))
             .ToArray();
-        var cache = new CachePresentationTestDouble
+        var store = new CacheStoreTestDouble
+        {
+            StoreSummary = new AudioCacheStoreSummary(
+                chapterCount * 1024L,
+                chapterCount,
+                AppSettings.DefaultCacheLimitBytes,
+                false),
+            CleanupResult = new AudioCacheStoreCleanupResult(1024, chapterCount, 0, 0)
+        };
+        var catalog = new CacheCatalogTestDouble
         {
             Books =
             [
@@ -94,25 +103,23 @@ public sealed class CacheManagementViewModelTests
                     chapterCount,
                     chapterCount,
                     chapterCount * 1024L)
-            ],
-            Statuses = statuses,
-            StoreSummary = new AudioCacheStoreSummary(
-                chapterCount * 1024L,
-                chapterCount,
-                AppSettings.DefaultCacheLimitBytes,
-                false),
-            CleanupResult = new AudioCacheStoreCleanupResult(1024, chapterCount, 0, 0)
+            ]
         };
-        cache.ChaptersByBook["book-1"] = chapters;
-        return new CacheFixture(cache, new RecordingFeedback());
+        catalog.ChaptersByBook["book-1"] = chapters;
+        return new CacheFixture(
+            store,
+            catalog,
+            new CacheCoverageTestDouble { Statuses = statuses },
+            new CacheInvalidationTestDouble(),
+            new RecordingFeedback());
     }
 
     private static CacheManagementViewModel CreateViewModel(CacheFixture fixture) =>
         new(
-            fixture.Cache,
-            fixture.Cache,
-            fixture.Cache,
-            fixture.Cache,
+            fixture.Store,
+            fixture.Catalog,
+            fixture.Coverage,
+            fixture.Invalidation,
             fixture.Feedback,
             new ConfirmingDialog(),
             new TestNavigator(),
@@ -121,7 +128,10 @@ public sealed class CacheManagementViewModelTests
             new InlineUiScheduler());
 
     private sealed record CacheFixture(
-        CachePresentationTestDouble Cache,
+        CacheStoreTestDouble Store,
+        CacheCatalogTestDouble Catalog,
+        CacheCoverageTestDouble Coverage,
+        CacheInvalidationTestDouble Invalidation,
         RecordingFeedback Feedback);
 
     private sealed class RecordingFeedback : IAppFeedbackService

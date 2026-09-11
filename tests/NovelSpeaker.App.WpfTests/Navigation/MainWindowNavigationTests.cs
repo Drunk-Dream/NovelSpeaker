@@ -44,7 +44,7 @@ public sealed class MainWindowNavigationTests
         await WpfTestHost.RunInStaAsync(async () =>
         {
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
-            var activeCache = new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(CreateActiveCacheSnapshot());
+            var activeCache = new FakeActiveCacheCoordinator(CreateActiveCacheSnapshot());
             var navigationService = new FakeNavigationService();
             var window = CreateWindow(
                 navigationService,
@@ -100,7 +100,7 @@ public sealed class MainWindowNavigationTests
         await WpfTestHost.RunInStaAsync(async () =>
         {
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
-            var chapterExport = new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeChapterExportCoordinator(
+            var chapterExport = new FakeChapterExportCoordinator(
                 new ChapterExportSnapshot(
                     Guid.NewGuid(),
                     "book-1",
@@ -996,10 +996,10 @@ public sealed class MainWindowNavigationTests
             new MainWindowViewModel(
                 new FakePlaybackCoordinator(),
                 new ShellActiveCacheController(
-                    activeCacheCoordinator ?? new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeActiveCacheCoordinator(),
+                    activeCacheCoordinator ?? new FakeActiveCacheCoordinator(),
                     feedbackService),
                 new ShellChapterExportController(
-                    chapterExportCoordinator ?? new NovelSpeaker.App.WpfTests.TestDoubles.WpfFakeChapterExportCoordinator(),
+                    chapterExportCoordinator ?? new FakeChapterExportCoordinator(),
                     feedbackService,
                     new FakePresentationLauncher()),
                 navigationService,

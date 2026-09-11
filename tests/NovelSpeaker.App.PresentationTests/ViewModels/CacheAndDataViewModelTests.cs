@@ -35,7 +35,7 @@ public sealed class CacheAndDataViewModelTests
         {
             NextConfirmationDecision = AppConfirmationDecision.Cancel
         };
-        var cacheStore = new CachePresentationTestDouble
+        var cacheStore = new CacheStoreTestDouble
         {
             StoreSummary = new AudioCacheStoreSummary(3L * 1024 * 1024 * 1024, 20, AppSettings.DefaultCacheLimitBytes, true)
         };
@@ -57,7 +57,7 @@ public sealed class CacheAndDataViewModelTests
         {
             CacheLimitBytes = 4L * 1024 * 1024 * 1024
         });
-        var cacheStore = new CachePresentationTestDouble
+        var cacheStore = new CacheStoreTestDouble
         {
             SummarySequence =
             [
@@ -70,7 +70,11 @@ public sealed class CacheAndDataViewModelTests
         {
             NextConfirmationDecision = AppConfirmationDecision.Confirm
         };
-        var viewModel = CreateViewModel(settingsService, cacheStore, dialogService, feedbackService);
+        var viewModel = CreateViewModel(
+            settingsService,
+            cacheStore,
+            dialogService: dialogService,
+            feedbackService: feedbackService);
         await viewModel.LoadAsync(CancellationToken.None);
 
         viewModel.CacheLimitValueText = "2";
@@ -88,7 +92,7 @@ public sealed class CacheAndDataViewModelTests
         {
             CacheLimitBytes = 4L * 1024 * 1024 * 1024
         });
-        var cacheStore = new CachePresentationTestDouble
+        var cacheStore = new CacheStoreTestDouble
         {
             StoreSummary = new AudioCacheStoreSummary(
                 1L * 1024 * 1024 * 1024,
@@ -96,7 +100,11 @@ public sealed class CacheAndDataViewModelTests
                 4L * 1024 * 1024 * 1024,
                 false)
         };
-        var viewModel = CreateViewModel(settingsService, cacheStore);
+        var invalidation = new CacheInvalidationTestDouble();
+        var viewModel = CreateViewModel(
+            settingsService,
+            cacheStore,
+            invalidationCoordinator: invalidation);
         await viewModel.LoadAsync(CancellationToken.None);
 
         var liveOverview = new TaskCompletionSource<AudioCacheStoreSummary>(
@@ -108,7 +116,7 @@ public sealed class CacheAndDataViewModelTests
             4L * 1024 * 1024 * 1024,
             false);
         cacheStore.StoreSummary = actualOverview;
-        cacheStore.Publish(
+        invalidation.Publish(
             CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary));
         await cacheStore.SummaryLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -142,7 +150,7 @@ public sealed class CacheAndDataViewModelTests
     [Fact]
     public async Task ClearAllAsync_is_confirmed_from_cache_and_data_page_and_refreshes_overview()
     {
-        var cacheStore = new CachePresentationTestDouble
+        var cacheStore = new CacheStoreTestDouble
         {
             SummarySequence =
             [
@@ -156,8 +164,10 @@ public sealed class CacheAndDataViewModelTests
             NextConfirmationDecision = AppConfirmationDecision.Confirm
         };
         var feedbackService = new FakeFeedbackService();
+        var invalidation = new CacheInvalidationTestDouble();
         var viewModel = CreateViewModel(
             cacheStore: cacheStore,
+            invalidationCoordinator: invalidation,
             dialogService: dialogService,
             feedbackService: feedbackService);
         await viewModel.LoadAsync(CancellationToken.None);
@@ -173,7 +183,7 @@ public sealed class CacheAndDataViewModelTests
     [Fact]
     public async Task Active_page_tracks_physical_cache_invalidation_without_reentry()
     {
-        var cacheStore = new CachePresentationTestDouble
+        var cacheStore = new CacheStoreTestDouble
         {
             SummarySequence =
             [
@@ -181,10 +191,13 @@ public sealed class CacheAndDataViewModelTests
                 new AudioCacheStoreSummary(1024, 1, AppSettings.DefaultCacheLimitBytes, false)
             ]
         };
-        var viewModel = CreateViewModel(cacheStore: cacheStore);
+        var invalidation = new CacheInvalidationTestDouble();
+        var viewModel = CreateViewModel(
+            cacheStore: cacheStore,
+            invalidationCoordinator: invalidation);
 
         await viewModel.LoadAsync(CancellationToken.None);
-        cacheStore.Publish(
+        invalidation.Publish(
             CacheInvalidation.ForChapters(
                 "book-1",
                 [0],
@@ -197,7 +210,7 @@ public sealed class CacheAndDataViewModelTests
     [Fact]
     public async Task Reentering_page_does_not_reuse_cancelled_overview_refresh()
     {
-        var cacheStore = new CachePresentationTestDouble();
+        var cacheStore = new CacheStoreTestDouble();
         var firstOverview = new TaskCompletionSource<AudioCacheStoreSummary>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         cacheStore.PendingSummaryTasks.Enqueue(firstOverview);
@@ -220,18 +233,20 @@ public sealed class CacheAndDataViewModelTests
 
     private static CacheAndDataViewModel CreateViewModel(
         FakeAppSettingsService? settingsService = null,
-        CachePresentationTestDouble? cacheStore = null,
+        CacheStoreTestDouble? cacheStore = null,
+        CacheInvalidationTestDouble? invalidationCoordinator = null,
         FakeAppDialogService? dialogService = null,
         FakeFeedbackService? feedbackService = null,
         FakeDiagnosticsService? diagnosticsService = null,
         TimeProvider? timeProvider = null)
     {
-        var store = cacheStore ?? new CachePresentationTestDouble();
+        var store = cacheStore ?? new CacheStoreTestDouble();
+        var invalidation = invalidationCoordinator ?? new CacheInvalidationTestDouble();
         return new CacheAndDataViewModel(
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),
             store,
-            store,
-            store,
+            new CacheCatalogTestDouble(store.GetOverviewAsync),
+            invalidation,
             diagnosticsService ?? new FakeDiagnosticsService(),
             new FakeNavigationService(),
             dialogService ?? new FakeAppDialogService(),

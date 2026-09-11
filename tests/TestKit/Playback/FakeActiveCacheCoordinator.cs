@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Cache.ActiveCache;
 
-namespace NovelSpeaker.App.PresentationTests.TestDoubles;
+namespace NovelSpeaker.TestKit.Playback;
 
 internal sealed class FakeActiveCacheCoordinator : IActiveCacheCoordinator
 {

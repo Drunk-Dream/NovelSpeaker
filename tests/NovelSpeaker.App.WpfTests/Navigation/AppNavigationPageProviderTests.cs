@@ -30,10 +30,9 @@ public sealed class AppNavigationPageProviderTests
             services.AddSingleton<IBookDetailsQuery>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IBookMetadataUpdateService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IBookDeletionService>(provider => provider.GetRequiredService<FakeBookManagementService>());
-            services.AddSingleton<CachePresentationTestDouble>();
-            services.AddSingleton<IAudioCacheStore>(provider => provider.GetRequiredService<CachePresentationTestDouble>());
-            services.AddSingleton<ICacheCoverageQuery>(provider => provider.GetRequiredService<CachePresentationTestDouble>());
-            services.AddSingleton<ICacheInvalidationCoordinator>(provider => provider.GetRequiredService<CachePresentationTestDouble>());
+            services.AddSingleton<IAudioCacheStore, CacheStoreTestDouble>();
+            services.AddSingleton<ICacheCoverageQuery, CacheCoverageTestDouble>();
+            services.AddSingleton<ICacheInvalidationCoordinator, CacheInvalidationTestDouble>();
             services.AddSingleton<IAppSettingsService, FakeAppSettingsService>();
             services.AddSingleton<IBookCoverGenerator, BookCoverGenerator>();
             services.AddSingleton<IAppFeedbackService, FakeAppFeedbackService>();

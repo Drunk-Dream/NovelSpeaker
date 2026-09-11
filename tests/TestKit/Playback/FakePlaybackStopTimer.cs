@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Playback;
 
-namespace NovelSpeaker.App.PresentationTests.TestDoubles;
+namespace NovelSpeaker.TestKit.Playback;
 
 internal sealed class FakePlaybackStopTimer : IPlaybackStopTimer
 {
@@ -12,8 +12,7 @@ internal sealed class FakePlaybackStopTimer : IPlaybackStopTimer
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public PlaybackStopTimerSnapshot CurrentSnapshot { get; private set; } =
-        PlaybackStopTimerSnapshot.None;
+    public PlaybackStopTimerSnapshot CurrentSnapshot { get; private set; } = PlaybackStopTimerSnapshot.None;
 
     public event EventHandler<PlaybackStopTimerSnapshot>? SnapshotChanged;
 

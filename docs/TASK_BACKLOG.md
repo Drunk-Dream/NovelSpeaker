@@ -342,7 +342,7 @@
 
 # Phase E：TestKit、fixture 与测试基础设施收敛
 
-## [ ] T005（P1）：清理 TestKit / fake / fixture / helper，降低测试间耦合
+## [x] T005（P1）：清理 TestKit / fake / fixture / helper，降低测试间耦合
 
 依赖：T004。
 
@@ -370,6 +370,13 @@
 - 修改单个 Feature 内部 constructor 不再要求无关测试项目批量更新；
 - 全部测试项目可独立运行；
 - ArchitectureTests 通过。
+
+完成成果：
+
+- 删除 Presentation/WPF 中重复的 ActiveCache、ChapterExport、MiniPlayer、StopTimer doubles，统一到 TestKit 的窄接口实现；WPF 特有的上下文与隔离桌面测试仍保留在 WPF 项目。
+- 删除跨项目无消费者的 `CachePresentationTestDouble`，拆为 `CacheStoreTestDouble`、`CacheCatalogTestDouble`、`CacheCoverageTestDouble`、`CacheInvalidationTestDouble`；Player 的组合 fixture 留在 Player 测试支持代码内，不再作为跨 feature 的万能 fixture。
+- 删除 TestKit 中仅被 NAudio 使用的 `FakeWavePlayer`，将其收回 `NaudioAudioPlayerTests`；没有修改 production API 或测试包引用。
+- TestKit 当前保留 27 个跨项目稳定 primitive；Presentation/WPF 测试统计保持为 239/187。`git diff --check` 通过，静态独立 Review 通过；针对性 .NET 门禁因当前 WSL interop `UtilBindVsockAnyPort:309 socket failed 1` 无法启动，未伪报绿色。
 
 ---
 

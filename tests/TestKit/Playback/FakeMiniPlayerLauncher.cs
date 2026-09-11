@@ -1,6 +1,6 @@
 using NovelSpeaker.App.Desktop.MiniPlayer;
 
-namespace NovelSpeaker.App.PresentationTests.TestDoubles;
+namespace NovelSpeaker.TestKit.Playback;
 
 internal sealed class FakeMiniPlayerLauncher : IMiniPlayerLauncher
 {

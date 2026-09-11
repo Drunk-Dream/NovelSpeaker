@@ -173,7 +173,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Chapter_cache_percentages_refresh_on_initial_load_and_matching_cache_changes()
     {
-        var cacheDependencies = new CachePresentationTestDouble
+        var cacheDependencies = new PlayerCacheTestDouble
         {
             Statuses =
             [
@@ -233,7 +233,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Page_leave_discards_cache_status_projection_that_reaches_the_ui_late()
     {
-        var cacheDependencies = new CachePresentationTestDouble
+        var cacheDependencies = new PlayerCacheTestDouble
         {
             Statuses = []
         };
@@ -260,7 +260,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Reactivation_refreshes_cache_window_for_playback_position_advanced_off_page()
     {
-        var cacheDependencies = new CachePresentationTestDouble();
+        var cacheDependencies = new PlayerCacheTestDouble();
         var playback = CreatePlaybackCoordinator();
         var viewModel = CreateViewModel(
             playback,
@@ -286,7 +286,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Moving_current_chapter_refreshes_the_new_cache_window_for_a_10000_chapter_catalog()
     {
-        var cacheDependencies = new CachePresentationTestDouble
+        var cacheDependencies = new PlayerCacheTestDouble
         {
             CoverageHandler = (_, indices, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
                 indices.Contains(9_999)

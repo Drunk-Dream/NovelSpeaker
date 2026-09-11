@@ -4,8 +4,9 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\TestKit\Common\ManualTimeProvider.cs" Link="TestKit\Common\ManualTimeProvider.cs" />
-    <Compile Include="..\TestKit\Cache\CachePresentationTestDouble.cs" Link="TestKit\Cache\CachePresentationTestDouble.cs" />
+    <Compile Include="..\TestKit\Cache\*.cs" Link="TestKit\Cache\%(Filename)%(Extension)" />
     <Compile Include="..\TestKit\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
+    <Compile Include="..\TestKit\Playback\*.cs" Link="TestKit\Playback\%(Filename)%(Extension)" />
     <Compile Include="..\TestKit\Speech\TestHttpTtsRules.cs" Link="Speech\TestHttpTtsRules.cs" />
   </ItemGroup>
   <ItemGroup>

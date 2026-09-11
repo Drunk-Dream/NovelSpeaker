@@ -295,6 +295,61 @@ public sealed class NaudioAudioPlayerTests
         return filePath;
     }
 
+    private sealed class FakeWavePlayer : IWavePlayer
+    {
+        private EventHandler<StoppedEventArgs>? _playbackStopped;
+
+        public bool IsDisposed { get; private set; }
+
+        public PlaybackState PlaybackState { get; private set; } = PlaybackState.Stopped;
+
+        public WaveFormat? OutputWaveFormat => WaveProvider?.WaveFormat;
+
+        public float Volume { get; set; } = 1f;
+
+        public IWaveProvider? WaveProvider { get; private set; }
+
+        public event EventHandler<StoppedEventArgs>? PlaybackStopped
+        {
+            add => _playbackStopped += value;
+            remove => _playbackStopped -= value;
+        }
+
+        public void Init(IWaveProvider waveProvider) => WaveProvider = waveProvider;
+
+        public void Play() => PlaybackState = PlaybackState.Playing;
+
+        public void Pause() => PlaybackState = PlaybackState.Paused;
+
+        public void Stop()
+        {
+            var wasStopped = PlaybackState == PlaybackState.Stopped;
+            PlaybackState = PlaybackState.Stopped;
+            if (!wasStopped)
+            {
+                _playbackStopped?.Invoke(this, new StoppedEventArgs());
+            }
+        }
+
+        public void RaisePlaybackStopped(Exception? exception = null)
+        {
+            PlaybackState = PlaybackState.Stopped;
+            _playbackStopped?.Invoke(this, new StoppedEventArgs(exception));
+        }
+
+        public EventHandler<StoppedEventArgs>? CapturePlaybackStoppedHandlers() => _playbackStopped;
+
+        public void RaiseCapturedPlaybackStopped(
+            EventHandler<StoppedEventArgs>? handlers,
+            Exception? exception = null)
+        {
+            PlaybackState = PlaybackState.Stopped;
+            handlers?.Invoke(this, new StoppedEventArgs(exception));
+        }
+
+        public void Dispose() => IsDisposed = true;
+    }
+
     private sealed class ThrowingInitWavePlayer : IWavePlayer
     {
         public bool IsDisposed { get; private set; }
