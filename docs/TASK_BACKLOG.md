@@ -456,4 +456,14 @@ dotnet test -c Release --no-build
 - 是否仍存在已知 flaky test；
 - 是否存在会阻塞日志/性能遥测/诊断系统开发的问题。
 
+完成成果：
+
+- 最终静态审计未发现可安全删除的 production dead code、孤立 DI registration、无消费者 internal abstraction、TestKit 类型、跳过/禁用测试或临时诊断产物；`legacy`、`compat`、`v2` 命中均复核为仍在使用的路径迁移、缓存身份、SQLite schema 或 HTTP TTS 兼容合同。
+- 重复覆盖复审确认 Presentation/WPF 当前方法入口统计为 239/187；核心架构、Playback canonical owner、ReadingProgress、Cache identity/coverage/plan、ActiveCache/Export、Settings/Rules、SQLite、路径安全、HTTP TTS/Jint、navigation、列表、isolated Desktop、virtualization/scroll/theme/popup 风险均仍有明确测试入口。
+- TestKit 保持 27 个跨项目稳定 primitive，未发现 orphan helper；没有新增 production test-only API，也没有发现可删除的测试包或项目引用。静态消费者扫描与 `git diff --check` 通过。
+- 删除已确认可再生且被 Git 忽略的本地 `artifacts/probe/toggleprobe`、`artifacts/publish`、`artifacts/publish-0.5.4`，以及 Presentation/WPF 的 `TestResults`（含历史 hang dump）；未删除任何 Git 跟踪文件。
+- 已按标准顺序尝试 `dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`、`dotnet test -c Release --no-build`；四条命令均在启动前受当前 WSL interop `UtilBindVsockAnyPort:309 socket failed 1` 阻塞，未伪报门禁通过。静态代码库没有发现会阻塞下一阶段日志、性能遥测或诊断系统开发的问题，但完整动态门禁仍需在可用 Windows/WSL interop 环境复跑。
+
 若无阻塞问题，本任务完成后结束代码库清理阶段，下一轮直接进入 **日志 + 性能遥测 + 诊断系统**，不再追加常规架构/清理 Phase。
+
+当前因完整动态门禁环境不可用，T006 保持未完成；恢复 Windows/WSL interop 后需重跑四条标准命令并在通过后更新状态。
