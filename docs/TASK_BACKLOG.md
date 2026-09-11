@@ -148,7 +148,7 @@
 
 # Phase C：配置源与 Cache 解耦
 
-## [ ] T003（P0）：用 typed source change 消除 Settings/Rules → Cache 反向依赖
+## [x] T003（P0）：用 typed source change 消除 Settings/Rules → Cache 反向依赖
 
 依赖：T002。
 
@@ -183,6 +183,8 @@
 - 删除重复事件或 adapter；
 - 删除 T003 对应 Architecture debt baseline；
 - 更新 focused tests，使源模块测试不需要 Cache fake。
+
+完成成果：Settings 保留自身 `Changed` source，TTS Rule 与 Regex workspace 增加最小 typed change event；Cache 新增进程级 configuration observer，集中判断 Coverage 影响并由 Cache coordinator 管理订阅生命周期。已删除 Settings/Books/Speech 的 Cache invalidation 字段、构造参数、helper、DI wiring 和全部 T003 Architecture debt；不做 eager Coverage recomputation。验证：Application build、Unit 171/171、Infrastructure Integration 342/342、Architecture 46/46、WPF composition/startup 11/11；新增 observer 生命周期、有效 Speech profile、Display-only/disabled/no-op 映射测试，WSL 测试宿主仍需沙箱外启动。
 
 验收：
 

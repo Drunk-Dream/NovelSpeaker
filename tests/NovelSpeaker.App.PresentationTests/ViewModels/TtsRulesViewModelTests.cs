@@ -466,6 +466,12 @@ public sealed class TtsRulesViewModelTests
     {
         private IReadOnlyList<TtsRuleSummary> _rules;
 
+        public event EventHandler<TtsRuleChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
         public TtsRuleUseCaseStub(IReadOnlyList<TtsRuleSummary> rules, TtsRuleEditorModel? defaultEditor)
         {
             _rules = rules;

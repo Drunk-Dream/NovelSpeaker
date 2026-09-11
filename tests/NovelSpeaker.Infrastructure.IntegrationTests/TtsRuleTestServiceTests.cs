@@ -332,6 +332,12 @@ public sealed class TtsRuleTestServiceTests
 
     private sealed class FakeRuleEditorUseCase(TtsRuleEditorModel editor) : ITtsRuleEditorUseCase
     {
+        public event EventHandler<TtsRuleChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
         public int SaveCallCount { get; private set; }
 
         public Task<TtsRuleDraftPreparationResult> PrepareDraftAsync(

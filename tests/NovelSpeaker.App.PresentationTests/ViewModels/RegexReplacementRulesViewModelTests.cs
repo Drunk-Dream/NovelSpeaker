@@ -472,6 +472,12 @@ public sealed class RegexReplacementRulesViewModelTests
         private readonly Dictionary<Guid, bool> _enabled;
         private List<Guid> _orderedRuleIds;
 
+        public event EventHandler<RegexReplacementRulesChangedEventArgs>? Changed
+        {
+            add { }
+            remove { }
+        }
+
         public FakeRegexReplacementRuleWorkspaceService(params RegexReplacementRuleEditorModel[] editors)
         {
             _editors = editors.ToDictionary(editor => editor.Id!.Value);

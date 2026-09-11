@@ -10,9 +10,11 @@ public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator
     private readonly object _gate = new();
     private readonly SemaphoreSlim _publishGate = new(1, 1);
     private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private IDisposable? _configurationChangeObserver;
     private List<CacheInvalidation> _pending = [];
     private Task? _scheduledFlush;
     private bool _stopping;
+    private int _disposed;
 
     public CacheInvalidationCoordinator(TimeProvider? timeProvider = null)
     {
@@ -20,6 +22,25 @@ public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator
     }
 
     public event EventHandler<CacheInvalidationBatch>? BatchPublished;
+
+    internal void AttachConfigurationChangeObserver(IDisposable observer)
+    {
+        ArgumentNullException.ThrowIfNull(observer);
+        lock (_gate)
+        {
+            if (_configurationChangeObserver is not null)
+            {
+                throw new InvalidOperationException("Cache configuration observer is already attached.");
+            }
+
+            if (_stopping)
+            {
+                throw new InvalidOperationException("Cache invalidation coordinator has stopped.");
+            }
+
+            _configurationChangeObserver = observer;
+        }
+    }
 
     public void Publish(CacheInvalidation invalidation)
     {
@@ -87,6 +108,18 @@ public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        IDisposable? configurationChangeObserver;
+        lock (_gate)
+        {
+            configurationChangeObserver = Interlocked.Exchange(ref _configurationChangeObserver, null);
+        }
+
+        configurationChangeObserver?.Dispose();
         try
         {
             await StopAsync(CancellationToken.None).ConfigureAwait(false);

@@ -3,6 +3,8 @@ namespace NovelSpeaker.Application.Books;
 /// <summary>Owns validation, field-level saves, and stable ordering for regex replacement rules.</summary>
 public interface IRegexReplacementRuleWorkspaceService
 {
+    event EventHandler<RegexReplacementRulesChangedEventArgs>? Changed;
+
     Task<IReadOnlyList<RegexReplacementRuleListItem>> GetRulesAsync(CancellationToken cancellationToken);
     Task<RegexReplacementRuleEditorModel?> GetEditorAsync(Guid ruleId, CancellationToken cancellationToken);
     Task<RegexReplacementRuleEditorModel> SaveEditorAsync(RegexReplacementRuleEditorModel editor, CancellationToken cancellationToken);

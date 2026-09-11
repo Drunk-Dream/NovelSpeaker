@@ -1,5 +1,4 @@
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.TestKit.Common;
 using Xunit;
@@ -47,21 +46,18 @@ public sealed class AppSettingsServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_invalidates_coverage_only_for_plan_identity_settings()
+    public async Task UpdateAsync_publishes_typed_source_change_without_cache_dependency()
     {
         var store = new FakeAppSettingsStore(AppSettings.Default);
-        await using var invalidationCoordinator = new CacheInvalidationCoordinator(new ManualTimeProvider());
-        var batches = new List<CacheInvalidationBatch>();
-        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
-        using var service = new AppSettingsService(store, AppSettings.Default, invalidationCoordinator);
+        using var service = new AppSettingsService(store, AppSettings.Default);
+        var changes = new List<AppSettingsChangedEventArgs>();
+        service.Changed += (_, change) => changes.Add(change);
 
         await service.UpdateAsync(new AppSettingsUpdate { DefaultSpeakSpeed = 11 }, CancellationToken.None);
-        await service.UpdateAsync(new AppSettingsUpdate { PrefetchCount = 1 }, CancellationToken.None);
-        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
 
-        var change = Assert.Single(Assert.Single(batches).Changes);
-        Assert.IsType<CacheInvalidationScope.Global>(change.Scope);
-        Assert.Equal(CacheInvalidationAspect.Coverage, change.Aspects);
+        var change = Assert.Single(changes);
+        Assert.Equal(10, change.Previous.DefaultSpeakSpeed);
+        Assert.Equal(11, change.Current.DefaultSpeakSpeed);
     }
 
     [Fact]

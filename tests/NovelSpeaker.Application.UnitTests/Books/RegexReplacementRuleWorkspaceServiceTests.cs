@@ -1,6 +1,5 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
-using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.TestKit.Common;
 using Xunit;
@@ -35,26 +34,52 @@ public sealed class RegexReplacementRuleWorkspaceServiceTests
     }
 
     [Fact]
-    public async Task SaveEditorAsync_publishes_coverage_invalidation_after_rule_commit()
+    public async Task SaveEditorAsync_publishes_typed_source_change_after_rule_commit()
     {
         var repository = new FakeRepository([]);
-        await using var invalidationCoordinator = new CacheInvalidationCoordinator(new ManualTimeProvider());
-        var batches = new List<CacheInvalidationBatch>();
-        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
-        var service = new RegexReplacementRuleWorkspaceService(
-            repository,
-            new RegexReplacementRuleErrorStore(),
-            TimeProvider.System,
-            invalidationCoordinator);
+        var service = CreateService(repository);
+        var changes = new List<RegexReplacementRulesChangedEventArgs>();
+        service.Changed += (_, change) => changes.Add(change);
 
         await service.SaveEditorAsync(
             new RegexReplacementRuleEditorModel(null, "规则", "正文", "替换", RegexReplacementScope.Speech),
             CancellationToken.None);
-        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
+        var change = Assert.Single(changes);
+        Assert.Equal(RegexReplacementRulesChangeKind.Saved, change.Kind);
+        Assert.True(change.AffectsSpeechProfile);
+    }
 
-        var change = Assert.Single(Assert.Single(batches).Changes);
-        Assert.IsType<CacheInvalidationScope.Global>(change.Scope);
-        Assert.Equal(CacheInvalidationAspect.Coverage, change.Aspects);
+    [Fact]
+    public async Task SaveEditorAsync_marks_display_only_change_as_outside_speech_profile()
+    {
+        var service = CreateService(new FakeRepository([]));
+        RegexReplacementRulesChangedEventArgs? change = null;
+        service.Changed += (_, args) => change = args;
+
+        await service.SaveEditorAsync(
+            new RegexReplacementRuleEditorModel(null, "显示规则", "正文", "替换", RegexReplacementScope.Display),
+            CancellationToken.None);
+
+        Assert.NotNull(change);
+        Assert.False(change!.AffectsSpeechProfile);
+    }
+
+    [Fact]
+    public async Task Disabled_speech_rule_change_and_noop_enable_do_not_affect_speech_profile()
+    {
+        var id = Guid.NewGuid();
+        var repository = new FakeRepository([Rule(id, 10) with { IsEnabled = false }]);
+        var service = CreateService(repository);
+        var changes = new List<RegexReplacementRulesChangedEventArgs>();
+        service.Changed += (_, args) => changes.Add(args);
+
+        await service.SaveEditorAsync(
+            new RegexReplacementRuleEditorModel(id, "禁用规则", "changed", "替换", RegexReplacementScope.Speech),
+            CancellationToken.None);
+        await service.SetRuleEnabledAsync(id, false, CancellationToken.None);
+
+        Assert.Single(changes);
+        Assert.All(changes, change => Assert.False(change.AffectsSpeechProfile));
     }
 
     [Fact]

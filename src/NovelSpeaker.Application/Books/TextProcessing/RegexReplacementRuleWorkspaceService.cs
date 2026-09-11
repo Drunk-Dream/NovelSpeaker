@@ -1,6 +1,5 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
-using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Application.Books.RuleEditing;
 
@@ -14,18 +13,16 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
     private readonly IRegexReplacementRuleRepository _repository;
     private readonly IRegexReplacementRuleErrorStore _errorStore;
     private readonly TimeProvider _timeProvider;
-    private readonly ICacheInvalidationCoordinator? _invalidationCoordinator;
+    public event EventHandler<RegexReplacementRulesChangedEventArgs>? Changed;
 
     public RegexReplacementRuleWorkspaceService(
         IRegexReplacementRuleRepository repository,
         IRegexReplacementRuleErrorStore errorStore,
-        TimeProvider timeProvider,
-        ICacheInvalidationCoordinator? invalidationCoordinator = null)
+        TimeProvider timeProvider)
     {
         _repository = repository;
         _errorStore = errorStore;
         _timeProvider = timeProvider;
-        _invalidationCoordinator = invalidationCoordinator;
     }
 
     public async Task<IReadOnlyList<RegexReplacementRuleListItem>> GetRulesAsync(
@@ -83,14 +80,24 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
             existing?.CreatedAt ?? now,
             now);
         await _repository.SaveAsync(saved, cancellationToken);
-        PublishCoverageInvalidation();
+        Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+            RegexReplacementRulesChangeKind.Saved,
+            ChangesSpeechProfile(existing, saved)));
         return MapEditor(saved);
     }
 
     public async Task SetRuleEnabledAsync(Guid ruleId, bool isEnabled, CancellationToken cancellationToken)
     {
+        var existing = (await _repository.GetAllAsync(cancellationToken))
+            .FirstOrDefault(rule => rule.Id == ruleId);
+        var updated = existing is null ? null : existing with { IsEnabled = isEnabled };
         await _repository.UpdateEnabledAsync(ruleId, isEnabled, cancellationToken);
-        PublishCoverageInvalidation();
+        if (existing is not null && ChangesSpeechProfile(existing, updated))
+        {
+            Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+                RegexReplacementRulesChangeKind.EnabledChanged,
+                true));
+        }
     }
 
     public async Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken)
@@ -130,7 +137,9 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
                 now);
             await _repository.SaveAsync(rule, cancellationToken);
             existing.Add(rule);
-            PublishCoverageInvalidation();
+            Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+                RegexReplacementRulesChangeKind.Imported,
+                ChangesSpeechProfile(null, rule)));
             imported++;
         }
 
@@ -153,19 +162,33 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
         var order = orderedRuleIds
             .Select((id, index) => (RuleId: id, SortOrder: (index + 1) * SortOrderStep))
             .ToArray();
+        var updatedRules = rules
+            .Select(rule => rule with
+            {
+                SortOrder = order.First(item => item.RuleId == rule.Id).SortOrder
+            })
+            .ToArray();
         await _repository.SaveOrderAsync(order, cancellationToken);
-        PublishCoverageInvalidation();
+        if (rules.Zip(updatedRules).Any(pair => ChangesSpeechProfile(pair.First, pair.Second)))
+        {
+            Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+                RegexReplacementRulesChangeKind.Reordered,
+                true));
+        }
     }
 
     public async Task DeleteRuleAsync(Guid ruleId, CancellationToken cancellationToken)
     {
+        var existing = (await _repository.GetAllAsync(cancellationToken))
+            .FirstOrDefault(rule => rule.Id == ruleId);
         await _repository.DeleteAsync(ruleId, cancellationToken);
-        PublishCoverageInvalidation();
+        if (existing is not null && ChangesSpeechProfile(existing, null))
+        {
+            Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+                RegexReplacementRulesChangeKind.Deleted,
+                true));
+        }
     }
-
-    private void PublishCoverageInvalidation() =>
-        _invalidationCoordinator?.Publish(
-            CacheInvalidation.ForGlobal(CacheInvalidationAspect.Coverage));
 
     private string? GetError(RegexReplacementRule rule)
     {
@@ -191,6 +214,32 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
     {
         return rules.Count == 0 ? SortOrderStep : rules.Max(item => item.SortOrder) + SortOrderStep;
     }
+
+    private static bool ChangesSpeechProfile(
+        RegexReplacementRule? previous,
+        RegexReplacementRule? current)
+    {
+        var previousIsEffective = IsEffectiveSpeechRule(previous);
+        var currentIsEffective = IsEffectiveSpeechRule(current);
+        if (!previousIsEffective && !currentIsEffective)
+        {
+            return false;
+        }
+
+        if (previousIsEffective != currentIsEffective || previous is null || current is null)
+        {
+            return true;
+        }
+
+        return previous.Id != current.Id ||
+               previous.SortOrder != current.SortOrder ||
+               previous.Scope != current.Scope ||
+               !string.Equals(previous.Pattern, current.Pattern, StringComparison.Ordinal) ||
+               !string.Equals(previous.Replacement, current.Replacement, StringComparison.Ordinal);
+    }
+
+    private static bool IsEffectiveSpeechRule(RegexReplacementRule? rule) =>
+        rule is { IsEnabled: true, Scope: RegexReplacementScope.Speech or RegexReplacementScope.Both };
 
     private static IReadOnlyList<PortableRegexReplacementRule> ParsePortableRules(string json)
     {

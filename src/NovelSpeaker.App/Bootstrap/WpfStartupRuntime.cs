@@ -143,6 +143,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         services.AddNovelSpeakerDesktop();
 
         _serviceProvider = BuildValidatedServiceProvider(services);
+        _serviceProvider.GetRequiredService<ICacheInvalidationCoordinator>();
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
     }

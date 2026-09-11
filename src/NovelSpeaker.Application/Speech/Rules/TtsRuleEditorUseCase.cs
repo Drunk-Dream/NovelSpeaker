@@ -1,5 +1,3 @@
-using NovelSpeaker.Application.Cache;
-using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Speech;
 
@@ -8,13 +6,11 @@ namespace NovelSpeaker.Application.Speech.Rules;
 internal sealed class TtsRuleEditorUseCase(
     ITtsRuleRepository repository,
     TimeProvider timeProvider,
-    IAppSettingsService? settingsService = null,
-    ITtsRuleNormalizer? ruleNormalizer = null,
-    ICacheInvalidationCoordinator? invalidationCoordinator = null) : ITtsRuleEditorUseCase
+    ITtsRuleNormalizer? ruleNormalizer = null) : ITtsRuleEditorUseCase
 {
-    private readonly IAppSettingsService? _settingsService = settingsService;
     private readonly ITtsRuleNormalizer _ruleNormalizer = ruleNormalizer ?? new TtsRuleNormalizer();
-    private readonly ICacheInvalidationCoordinator? _invalidationCoordinator = invalidationCoordinator;
+
+    public event EventHandler<TtsRuleChangedEventArgs>? Changed;
 
     public async Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)
     {
@@ -49,9 +45,10 @@ internal sealed class TtsRuleEditorUseCase(
         rule = TtsRuleModelMapper.EnsureUniqueName(rule, await repository.GetAllAsync(cancellationToken), existing?.Id);
         var id = await repository.SaveAsync(rule, cancellationToken);
         var persisted = rule with { Id = id };
-        if (existing is not null)
+        if (existing is null || !TtsRuleFingerprint.Create(_ruleNormalizer.Normalize(existing))
+                .Equals(TtsRuleFingerprint.Create(_ruleNormalizer.Normalize(persisted))))
         {
-            PublishCoverageInvalidationIfSelected(existing, persisted);
+            Changed?.Invoke(this, new TtsRuleChangedEventArgs(persisted.Id));
         }
 
         return await repository.GetByIdAsync(id, cancellationToken).ConfigureAwait(false) ?? persisted;
@@ -66,9 +63,9 @@ internal sealed class TtsRuleEditorUseCase(
             ?? throw new InvalidOperationException("未找到要更新的规则。");
         var updated = rule with { IsEnabled = isEnabled, UpdatedAt = timeProvider.GetUtcNow() };
         await repository.SaveAsync(updated, cancellationToken);
-        if (rule.IsEnabled != isEnabled && _settingsService?.Current.SelectedTtsRuleId == ruleId)
+        if (rule.IsEnabled != isEnabled)
         {
-            PublishCoverageInvalidation();
+            Changed?.Invoke(this, new TtsRuleChangedEventArgs(ruleId));
         }
     }
 
@@ -105,19 +102,4 @@ internal sealed class TtsRuleEditorUseCase(
         return TtsRuleJsonSerializer.Serialize(TtsRuleModelMapper.BuildRule(validation.NormalizedModel, existing, timeProvider.GetUtcNow()));
     }
 
-    private void PublishCoverageInvalidationIfSelected(HttpTtsRule previous, HttpTtsRule next)
-    {
-        if (_settingsService?.Current.SelectedTtsRuleId != next.Id ||
-            TtsRuleFingerprint.Create(_ruleNormalizer.Normalize(previous))
-                .Equals(TtsRuleFingerprint.Create(_ruleNormalizer.Normalize(next))))
-        {
-            return;
-        }
-
-        PublishCoverageInvalidation();
-    }
-
-    private void PublishCoverageInvalidation() =>
-        _invalidationCoordinator?.Publish(
-            CacheInvalidation.ForGlobal(CacheInvalidationAspect.Coverage));
 }

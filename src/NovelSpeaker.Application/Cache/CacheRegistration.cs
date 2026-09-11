@@ -3,7 +3,9 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Cache.Export;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Rules;
 
 namespace NovelSpeaker.Application.Cache;
 
@@ -16,7 +18,21 @@ public static class CacheRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<ICacheInvalidationCoordinator, CacheInvalidationCoordinator>();
+        services.TryAddSingleton<ICacheInvalidationCoordinator>(provider =>
+        {
+            var regexWorkspace = provider.GetService<IRegexReplacementRuleRepository>() is null
+                ? null
+                : provider.GetRequiredService<IRegexReplacementRuleWorkspaceService>();
+            var coordinator = new CacheInvalidationCoordinator(
+                provider.GetRequiredService<TimeProvider>());
+            coordinator.AttachConfigurationChangeObserver(
+                new CacheConfigurationChangeObserver(
+                    provider.GetRequiredService<IAppSettingsService>(),
+                    provider.GetRequiredService<ITtsRuleEditorUseCase>(),
+                    regexWorkspace,
+                    coordinator.Publish));
+            return coordinator;
+        });
         services.TryAddSingleton<ICacheCatalog, CacheCatalog>();
         services.TryAddSingleton<ICacheCoverageQuery, CacheCoverageQuery>();
         services.TryAddSingleton<IChapterSpeechPlanService, ChapterSpeechPlanService>();

@@ -5,6 +5,8 @@ namespace NovelSpeaker.Application.Speech.Rules;
 /// <summary>Owns TTS rule editing copies, validation, persistence, and draft export.</summary>
 public interface ITtsRuleEditorUseCase
 {
+    event EventHandler<TtsRuleChangedEventArgs>? Changed;
+
     Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken);
 
     Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken);
