@@ -197,7 +197,7 @@
 
 # Phase D：有限职责收窄
 
-## [ ] T004（P1）：只对明确过宽的 orchestration 做局部收敛
+## [x] T004（P1）：只对明确过宽的 orchestration 做局部收敛
 
 依赖：T003。
 
@@ -235,6 +235,8 @@
 - state owner 数量不增加；
 - 页面/Playback 生命周期语义不变；
 - ArchitectureTests 和相关 focused tests 通过。
+
+完成成果：审计 `CacheManagementViewModel` 后仅将具有独立导出准备、目录选择、取消、进程导出状态订阅和 UI 投影生命周期的 orchestration 收敛到 Feature-local `CacheManagementExportController`；目录、选择、缓存 decoration 与 live refresh 仍由页面 ViewModel 统一拥有。`PlaybackCoordinator` 未拆分，保留 session truth/command orchestration，未发现可在不转移播放状态 owner 的前提下足够独立的局部职责。验证：Release build、CacheManagementViewModelTests 3/3、CacheManagementPageLifecycleTests 2/2、ArchitectureTests/ArchitectureRuleContractTests 46/46；静态复审 PASS。WSL 测试宿主启动需要沙箱外执行，未改变测试结果。
 
 ---
 
