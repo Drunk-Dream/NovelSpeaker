@@ -1,0 +1,14 @@
+namespace NovelSpeaker.Application.Cache;
+
+/// <summary>
+/// Explains why a chapter's current-configuration cache coverage is or is not available.
+/// </summary>
+public enum ChapterCacheStatusKind
+{
+    Available,
+    PlanMissing,
+    PlanStale,
+    PlanUnavailable,
+    NoPlayableContent,
+    ConfigurationUnavailable
+}

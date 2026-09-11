@@ -1,7 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Settings;
@@ -24,7 +23,6 @@ public static class SettingsRegistration
                 normalizedStartupSnapshot,
                 provider.GetService<ICacheInvalidationCoordinator>()));
         services.TryAddSingleton<IAppSettingsService>(provider => provider.GetRequiredService<AppSettingsService>());
-        services.TryAddSingleton<IAudioCacheLimitProvider>(provider => provider.GetRequiredService<AppSettingsService>());
         services.TryAddSingleton<IBookFileNameTemplateProvider>(provider => provider.GetRequiredService<AppSettingsService>());
         services.TryAddSingleton<ITextSegmentationOptionsProvider>(provider => provider.GetRequiredService<AppSettingsService>());
         return services;

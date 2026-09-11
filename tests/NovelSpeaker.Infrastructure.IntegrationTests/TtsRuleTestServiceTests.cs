@@ -87,7 +87,7 @@ public sealed class TtsRuleTestServiceTests
             editor,
             compiler,
             httpClient,
-            new FakeAudioPlayerFactory(new FakeAudioPlayer()));
+            new FakeTtsRulePreviewAudioPlayer(new FakeAudioPlayer()));
 
         var result = await service.TestAsync(input, CancellationToken.None);
 
@@ -102,7 +102,7 @@ public sealed class TtsRuleTestServiceTests
     {
         var input = CreateInput("fixture-token", "fixture-body", "fixture-text");
         var player = new FakeAudioPlayer();
-        var factory = new FakeAudioPlayerFactory(player);
+        var factory = new FakeTtsRulePreviewAudioPlayer(player);
         var service = new TtsRuleTestService(
             new FakeRuleEditorUseCase(input.Editor),
             new SuccessfulCompiler(),
@@ -126,7 +126,7 @@ public sealed class TtsRuleTestServiceTests
             new FakeRuleEditorUseCase(input.Editor),
             new SuccessfulCompiler(),
             httpClient,
-            new FakeAudioPlayerFactory(new FakeAudioPlayer
+            new FakeTtsRulePreviewAudioPlayer(new FakeAudioPlayer
             {
                 LoadException = new InvalidOperationException("load failed")
             }));
@@ -148,7 +148,7 @@ public sealed class TtsRuleTestServiceTests
             new FakeRuleEditorUseCase(input.Editor),
             new SuccessfulCompiler(),
             httpClient,
-            new FakeAudioPlayerFactory(new FakeAudioPlayer()));
+            new FakeTtsRulePreviewAudioPlayer(new FakeAudioPlayer()));
 
         Assert.True((await service.TestAsync(input, CancellationToken.None)).IsSuccess);
         Assert.True((await service.TestAsync(input, CancellationToken.None)).IsSuccess);
@@ -171,7 +171,7 @@ public sealed class TtsRuleTestServiceTests
             new FakeRuleEditorUseCase(editor),
             new SuccessfulCompiler(),
             new SuccessfulHttpClient(),
-            new FakeAudioPlayerFactory(player ?? new FakeAudioPlayer()),
+            new FakeTtsRulePreviewAudioPlayer(player ?? new FakeAudioPlayer()),
             normalizer,
             failureReporter: new TtsRuleTestFailureReporter(logger));
     }
@@ -274,15 +274,35 @@ public sealed class TtsRuleTestServiceTests
         }
     }
 
-    private sealed class FakeAudioPlayerFactory(FakeAudioPlayer player) : IAudioPlayerFactory
+    private sealed class FakeTtsRulePreviewAudioPlayer(FakeAudioPlayer player) : ITtsRulePreviewAudioPlayer
     {
-        public int CreateCallCount { get; private set; }
+        public int CreateCallCount { get; } = 1;
 
-        public IAudioPlayer Create()
+        public async Task<TtsRulePreviewPlaybackResult> PlayAsync(
+            string filePath,
+            CancellationToken cancellationToken)
         {
-            CreateCallCount++;
-            return player;
+            try
+            {
+                player.Stop();
+                await player.LoadAsync(filePath, cancellationToken);
+                player.Play();
+                return new TtsRulePreviewPlaybackResult(true, null);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                return new TtsRulePreviewPlaybackResult(
+                    false,
+                    NovelSpeaker.Application.Playback.Audio.PlaybackErrorMapper.Map(exception).Message,
+                    exception);
+            }
         }
+
+        public ValueTask DisposeAsync() => player.DisposeAsync();
     }
 
     private sealed class FakeAudioPlayer : IAudioPlayer

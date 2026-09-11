@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.TestKit.Common;
 using Xunit;
@@ -18,7 +18,7 @@ public sealed class AppSettingsServiceTests
 
         Assert.Equal(AppSettings.MaxSpeakSpeed, service.Current.DefaultSpeakSpeed);
         Assert.Equal(0, store.LoadCount);
-        Assert.Equal(AppSettings.DefaultCacheLimitBytes, service.GetCurrentLimitBytes());
+        Assert.Equal(AppSettings.DefaultCacheLimitBytes, service.Current.CacheLimitBytes);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class AppSettingsServiceTests
             CancellationToken.None);
 
         Assert.Equal(AppSettings.MinCacheLimitBytes, settings.CacheLimitBytes);
-        Assert.Equal(AppSettings.MinCacheLimitBytes, service.GetCurrentLimitBytes());
+        Assert.Equal(AppSettings.MinCacheLimitBytes, service.Current.CacheLimitBytes);
     }
 
     [Fact]

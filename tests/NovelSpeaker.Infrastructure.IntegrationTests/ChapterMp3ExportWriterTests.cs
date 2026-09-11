@@ -1,13 +1,14 @@
 using NAudio.Wave;
-using NovelSpeaker.Application.Playback.Cache;
-using NovelSpeaker.Application.Playback.Export;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
-using NovelSpeaker.Infrastructure.Persistence.Playback;
+using NovelSpeaker.Infrastructure.Persistence.Cache;
 using NovelSpeaker.Infrastructure.Playback;
-using NovelSpeaker.Infrastructure.Playback.Export;
+using NovelSpeaker.Infrastructure.Cache.Export;
+using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using Xunit;
 

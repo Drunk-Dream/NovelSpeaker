@@ -1,4 +1,4 @@
-using NovelSpeaker.Application.Playback.Export;
+using NovelSpeaker.Application.Cache.Export;
 using Xunit;
 
 namespace NovelSpeaker.Application.UnitTests;

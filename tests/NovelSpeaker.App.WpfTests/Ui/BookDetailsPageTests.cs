@@ -8,7 +8,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Books.Library;

@@ -3,10 +3,10 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.ActiveCache;
-using NovelSpeaker.Application.Playback.Cache;
-using NovelSpeaker.Application.Playback.Export;
-using NovelSpeaker.Application.Playback.Audio;
+using NovelSpeaker.Application.Cache.ActiveCache;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Export;
+using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
@@ -14,6 +14,7 @@ using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.App;
+using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.App.Desktop.Lifecycle;
 using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Features.Diagnostics;
@@ -157,14 +158,14 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<IMediaControlPlatform>());
                 Assert.IsType<PlaybackContentResolver>(provider.GetRequiredService<IBookPlaybackContentService>());
                 Assert.IsType<SelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
-                Assert.IsAssignableFrom<IPlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
-                Assert.IsType<PlaybackAudioProvider>(provider.GetRequiredService<IPlaybackAudioProvider>());
+                Assert.IsAssignableFrom<IAudioGenerationProvider>(provider.GetRequiredService<IAudioGenerationProvider>());
+                Assert.IsType<CacheAudioGenerationProvider>(provider.GetRequiredService<IAudioGenerationProvider>());
                 Assert.IsType<ActiveCacheCoordinator>(provider.GetRequiredService<IActiveCacheCoordinator>());
                 Assert.IsType<ChapterExportCoordinator>(provider.GetRequiredService<IChapterExportCoordinator>());
                 Assert.IsType<ShellChapterExportController>(provider.GetRequiredService<ShellChapterExportController>());
                 Assert.IsType<PlaybackSegmentRunner>(provider.GetRequiredService<PlaybackSegmentRunner>());
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
-                Assert.IsType<PlaybackAudioFailureReporter>(provider.GetRequiredService<IPlaybackAudioFailureReporter>());
+                Assert.IsType<AudioGenerationFailureReporter>(provider.GetRequiredService<IAudioGenerationFailureReporter>());
                 Assert.IsAssignableFrom<ITtsRateLimiter>(provider.GetRequiredService<ITtsRateLimiter>());
                 Assert.IsType<TtsRuleTestService>(provider.GetRequiredService<ITtsRuleTestService>());
                 Assert.IsType<TtsRuleTestFailureReporter>(provider.GetRequiredService<ITtsRuleTestFailureReporter>());
@@ -202,9 +203,9 @@ public sealed class ServiceCollectionExtensionsTests
                 var processSettings = provider.GetRequiredService<IAppSettingsService>();
                 Assert.Same(processSettings, provider.GetRequiredService<IAppSettingsService>());
                 Assert.Same(processSettings, provider.GetRequiredService<AppSettingsService>());
-                Assert.Same(
-                    provider.GetRequiredService<IAppSettingsService>(),
-                    provider.GetRequiredService<IAudioCacheLimitProvider>());
+                Assert.Equal(
+                    provider.GetRequiredService<IAppSettingsService>().Current.CacheLimitBytes,
+                    provider.GetRequiredService<IAudioCacheLimitProvider>().GetCurrentLimitBytes());
                 Assert.Same(
                     provider.GetRequiredService<IAppSettingsService>(),
                     provider.GetRequiredService<IBookFileNameTemplateProvider>());
@@ -375,7 +376,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(ICacheInvalidationCoordinator),
             typeof(ISpeechPlanRepairCoordinator),
             typeof(ICachePlanRepairRequestor),
-            typeof(IPlaybackAudioProvider),
+            typeof(IAudioGenerationProvider),
             typeof(IActiveCacheCoordinator),
             typeof(IChapterExportCoordinator),
             typeof(ILocalAudioPlaybackCoordinator),

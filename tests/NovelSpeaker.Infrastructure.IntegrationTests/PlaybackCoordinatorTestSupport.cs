@@ -1,10 +1,15 @@
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Execution;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
@@ -16,7 +21,7 @@ public sealed partial class PlaybackCoordinatorTests
         FakeLocalAudioPlaybackCoordinator localCoordinator,
         FakeBookPlaybackContentService? bookContentService = null,
         FakeSelectedTtsRuleProvider? selectedRuleProvider = null,
-        FakePlaybackAudioProvider? audioProvider = null,
+        FakeAudioGenerationProvider? audioProvider = null,
         PlaybackBookContent? book = null,
         FakeReadingProgressStore? readingProgressStore = null,
         FakePrefetchScheduler? prefetchScheduler = null,
@@ -28,7 +33,7 @@ public sealed partial class PlaybackCoordinatorTests
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
             selectedRuleProvider ?? new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则")),
             new PlaybackSegmentRunner(
-                audioProvider ?? new FakePlaybackAudioProvider(),
+                audioProvider ?? new FakeAudioGenerationProvider(),
                 audioController),
             new PlaybackRecoveryPolicy(),
             new AudioCacheProtectionRegistry(),
@@ -159,7 +164,7 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     private static async Task WaitForAsync(
-        FakePlaybackAudioProvider audioProvider,
+        FakeAudioGenerationProvider audioProvider,
         Func<bool> condition)
     {
         if (condition())
@@ -264,11 +269,11 @@ public sealed partial class PlaybackCoordinatorTests
         }
     }
 
-    private sealed class FakePlaybackAudioProvider : IPlaybackAudioProvider
+    private sealed class FakeAudioGenerationProvider : IAudioGenerationProvider
     {
-        private readonly Queue<Func<Task<PlaybackAudioResult>>> _results = [];
+        private readonly Queue<Func<Task<AudioGenerationResult>>> _results = [];
 
-        public List<PlaybackAudioRequest> Requests { get; } = [];
+        public List<AudioGenerationRequest> Requests { get; } = [];
 
         public event EventHandler? ActivityChanged;
 
@@ -276,7 +281,7 @@ public sealed partial class PlaybackCoordinatorTests
 
         public void EnqueueFailure(TtsErrorKind kind, string message)
         {
-            _results.Enqueue(() => Task.FromResult(new PlaybackAudioResult(
+            _results.Enqueue(() => Task.FromResult(new AudioGenerationResult(
                 null,
                 false,
                 new TtsExecutionFailure(kind, message, null, null, null, null))));
@@ -284,25 +289,25 @@ public sealed partial class PlaybackCoordinatorTests
 
         public void EnqueueSuccess(string filePath)
         {
-            _results.Enqueue(() => Task.FromResult(new PlaybackAudioResult(filePath, false, null)));
+            _results.Enqueue(() => Task.FromResult(new AudioGenerationResult(filePath, false, null)));
         }
 
         public void EnqueueCachedSuccess(string filePath)
         {
-            _results.Enqueue(() => Task.FromResult(new PlaybackAudioResult(filePath, true, null)));
+            _results.Enqueue(() => Task.FromResult(new AudioGenerationResult(filePath, true, null)));
         }
 
         public PendingAudioResult EnqueuePendingSuccess(string filePath)
         {
-            var completionSource = new TaskCompletionSource<PlaybackAudioResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var completionSource = new TaskCompletionSource<AudioGenerationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             _results.Enqueue(() => completionSource.Task);
             return new PendingAudioResult(completionSource, filePath);
         }
 
-        public Task<PlaybackAudioResult> GetAudioAsync(
-            PlaybackAudioRequest request,
-            PlaybackAudioPriority priority,
-            Action<PlaybackAudioProgress>? progressCallback,
+        public Task<AudioGenerationResult> GetAudioAsync(
+            AudioGenerationRequest request,
+            AudioGenerationPriority priority,
+            Action<AudioGenerationProgress>? progressCallback,
             CancellationToken cancellationToken)
         {
             Requests.Add(request);
@@ -312,10 +317,10 @@ public sealed partial class PlaybackCoordinatorTests
                 return _results.Dequeue().Invoke();
             }
 
-            return Task.FromResult(new PlaybackAudioResult($"audio-{Requests.Count}.mp3", false, null));
+            return Task.FromResult(new AudioGenerationResult($"audio-{Requests.Count}.mp3", false, null));
         }
 
-        public Task InvalidateAsync(PlaybackAudioRequest request, CancellationToken cancellationToken)
+        public Task InvalidateAsync(AudioGenerationRequest request, CancellationToken cancellationToken)
         {
             InvalidateCallCount++;
             ActivityChanged?.Invoke(this, EventArgs.Empty);
@@ -324,10 +329,10 @@ public sealed partial class PlaybackCoordinatorTests
 
         public sealed class PendingAudioResult
         {
-            private readonly TaskCompletionSource<PlaybackAudioResult> _completionSource;
+            private readonly TaskCompletionSource<AudioGenerationResult> _completionSource;
             private readonly string _filePath;
 
-            public PendingAudioResult(TaskCompletionSource<PlaybackAudioResult> completionSource, string filePath)
+            public PendingAudioResult(TaskCompletionSource<AudioGenerationResult> completionSource, string filePath)
             {
                 _completionSource = completionSource;
                 _filePath = filePath;
@@ -335,7 +340,7 @@ public sealed partial class PlaybackCoordinatorTests
 
             public void CompleteSuccess()
             {
-                _completionSource.TrySetResult(new PlaybackAudioResult(_filePath, false, null));
+                _completionSource.TrySetResult(new AudioGenerationResult(_filePath, false, null));
             }
         }
     }
@@ -539,7 +544,7 @@ public sealed partial class PlaybackCoordinatorTests
 
     private sealed class FakePrefetchScheduler : IPlaybackPrefetchController
     {
-        public List<(Guid SessionId, IReadOnlyList<PlaybackAudioRequest> Requests)> ScheduleCalls { get; } = [];
+        public List<(Guid SessionId, IReadOnlyList<AudioGenerationRequest> Requests)> ScheduleCalls { get; } = [];
 
         public List<Guid> CancelledSessions { get; } = [];
 

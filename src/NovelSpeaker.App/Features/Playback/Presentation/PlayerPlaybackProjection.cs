@@ -1,6 +1,8 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Settings;
 
+using NovelSpeaker.Application.Books;
+
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
 internal sealed class PlayerPlaybackProjection

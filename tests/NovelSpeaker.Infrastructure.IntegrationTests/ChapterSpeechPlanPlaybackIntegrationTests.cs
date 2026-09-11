@@ -1,14 +1,14 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
-using NovelSpeaker.Infrastructure.Persistence.Playback;
+using NovelSpeaker.Infrastructure.Persistence.Cache;
 using Xunit;
 
 namespace NovelSpeaker.Infrastructure.IntegrationTests;

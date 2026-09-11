@@ -300,7 +300,7 @@ public sealed class ArchitectureTests
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.LocalAudioPlaybackCoordinator).Assembly);
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackContentResolver).Assembly);
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackPrefetchCoordinator).Assembly);
-        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.SelectedTtsRuleProvider).Assembly);
+        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Speech.Rules.SelectedTtsRuleProvider).Assembly);
 
         var infrastructurePlaybackFiles = Repository.ReadProductSourceFiles()
             .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Infrastructure" &&
@@ -343,8 +343,10 @@ public sealed class ArchitectureTests
             "src/NovelSpeaker.App/Shell/Navigation/AppNavigationPageProvider.cs",
             "src/NovelSpeaker.App/Shell/ShellServiceCollectionExtensions.cs",
             "src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs",
+            "src/NovelSpeaker.Application/Cache/CacheRegistration.cs",
             "src/NovelSpeaker.Application/Settings/SettingsRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/AudioRegistration.cs",
+            "src/NovelSpeaker.Infrastructure/DependencyInjection/CacheRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/SettingsRegistration.cs"
         };
 

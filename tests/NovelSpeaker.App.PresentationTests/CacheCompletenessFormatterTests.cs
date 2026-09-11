@@ -1,4 +1,4 @@
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.App.Features.Cache;
 using Xunit;
 

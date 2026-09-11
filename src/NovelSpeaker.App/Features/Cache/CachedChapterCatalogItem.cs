@@ -1,4 +1,4 @@
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 
 namespace NovelSpeaker.App.Features.Cache;
 

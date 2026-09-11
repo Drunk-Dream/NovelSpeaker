@@ -1,11 +1,11 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Cache;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
-using NovelSpeaker.Infrastructure.Persistence.Playback;
+using NovelSpeaker.Infrastructure.Persistence.Cache;
 using Xunit;
 
 namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;

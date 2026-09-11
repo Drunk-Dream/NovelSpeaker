@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.TestKit.Speech;
 using Xunit;
@@ -24,7 +25,7 @@ public sealed class PlaybackPrefetchCoordinatorTests
         await controller.CancelAsync(sessionId, CancellationToken.None);
 
         Assert.Equal([1, 2], provider.Calls.Select(call => call.Request.SegmentIndex));
-        Assert.All(provider.Calls, call => Assert.Equal(PlaybackAudioPriority.Prefetch, call.Priority));
+        Assert.All(provider.Calls, call => Assert.Equal(AudioGenerationPriority.Prefetch, call.Priority));
         Assert.All(provider.Calls, call => Assert.False(call.CancellationToken.IsCancellationRequested));
     }
 
@@ -77,7 +78,7 @@ public sealed class PlaybackPrefetchCoordinatorTests
         await controller.CancelAsync(newSessionId, CancellationToken.None);
     }
 
-    private static PlaybackAudioRequest CreateRequest(Guid sessionId, int segmentIndex)
+    private static AudioGenerationRequest CreateRequest(Guid sessionId, int segmentIndex)
     {
         var rule = TestHttpTtsRules.Create(
             1,
@@ -93,7 +94,7 @@ public sealed class PlaybackPrefetchCoordinatorTests
             "2026-07-20T00:00:00.0000000Z",
             "2026-07-20T00:00:00.0000000Z");
 
-        return new PlaybackAudioRequest(
+        return new AudioGenerationRequest(
             "book-1",
             0,
             segmentIndex,
@@ -109,17 +110,17 @@ public sealed class PlaybackPrefetchCoordinatorTests
         };
     }
 
-    private sealed class ControlledAudioProvider : IPlaybackAudioProvider
+    private sealed class ControlledAudioProvider : IAudioGenerationProvider
     {
         private readonly object _syncRoot = new();
-        private readonly Queue<Func<CancellationToken, Task<PlaybackAudioResult>>> _responses = [];
+        private readonly Queue<Func<CancellationToken, Task<AudioGenerationResult>>> _responses = [];
         private TaskCompletionSource<bool> _callSignal = CreateSignal();
 
         public List<Call> Calls { get; } = [];
 
         public PendingResponse EnqueuePending()
         {
-            var completion = new TaskCompletionSource<PlaybackAudioResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var completion = new TaskCompletionSource<AudioGenerationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             var cancellationObserved = CreateSignal();
             _responses.Enqueue(async cancellationToken =>
             {
@@ -139,15 +140,15 @@ public sealed class PlaybackPrefetchCoordinatorTests
 
         public LateResponse EnqueueLateResult()
         {
-            var completion = new TaskCompletionSource<PlaybackAudioResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            var completion = new TaskCompletionSource<AudioGenerationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
             _responses.Enqueue(_ => completion.Task);
             return new LateResponse(completion);
         }
 
-        public Task<PlaybackAudioResult> GetAudioAsync(
-            PlaybackAudioRequest request,
-            PlaybackAudioPriority priority,
-            Action<PlaybackAudioProgress>? progressCallback,
+        public Task<AudioGenerationResult> GetAudioAsync(
+            AudioGenerationRequest request,
+            AudioGenerationPriority priority,
+            Action<AudioGenerationProgress>? progressCallback,
             CancellationToken cancellationToken)
         {
             TaskCompletionSource<bool> signal;
@@ -159,18 +160,18 @@ public sealed class PlaybackPrefetchCoordinatorTests
             }
 
             signal.TrySetResult(true);
-            Func<CancellationToken, Task<PlaybackAudioResult>> response;
+            Func<CancellationToken, Task<AudioGenerationResult>> response;
             lock (_syncRoot)
             {
                 response = _responses.Count > 0
                     ? _responses.Dequeue()
-                    : static _ => Task.FromResult(new PlaybackAudioResult("prefetch.mp3", false, null));
+                    : static _ => Task.FromResult(new AudioGenerationResult("prefetch.mp3", false, null));
             }
 
             return response(cancellationToken);
         }
 
-        public Task InvalidateAsync(PlaybackAudioRequest request, CancellationToken cancellationToken) =>
+        public Task InvalidateAsync(AudioGenerationRequest request, CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
         public async Task WaitForCallCountAsync(int count)
@@ -196,22 +197,22 @@ public sealed class PlaybackPrefetchCoordinatorTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public sealed record Call(
-            PlaybackAudioRequest Request,
-            PlaybackAudioPriority Priority,
+            AudioGenerationRequest Request,
+            AudioGenerationPriority Priority,
             CancellationToken CancellationToken);
 
         public sealed record PendingResponse(Task CancellationObserved);
 
         public sealed class LateResponse
         {
-            private readonly TaskCompletionSource<PlaybackAudioResult> _completion;
+            private readonly TaskCompletionSource<AudioGenerationResult> _completion;
 
-            public LateResponse(TaskCompletionSource<PlaybackAudioResult> completion)
+            public LateResponse(TaskCompletionSource<AudioGenerationResult> completion)
             {
                 _completion = completion;
             }
 
-            public void Complete() => _completion.TrySetResult(new PlaybackAudioResult("late.mp3", false, null));
+            public void Complete() => _completion.TrySetResult(new AudioGenerationResult("late.mp3", false, null));
         }
     }
 }

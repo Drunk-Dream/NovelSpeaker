@@ -1,12 +1,13 @@
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
-using NovelSpeaker.Application.Playback.Audio;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Infrastructure.Playback;
+using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.TestKit.Common;
 using Microsoft.Extensions.Logging;
@@ -15,7 +16,7 @@ using Xunit;
 
 namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
-public sealed class PlaybackAudioProviderTests
+public sealed class CacheAudioGenerationProviderTests
 {
     [Fact]
     public async Task GetAudioAsync_returns_cached_file_without_calling_tts_pipeline()
@@ -28,11 +29,11 @@ public sealed class PlaybackAudioProviderTests
         var compiler = new FakeTtsRequestCompiler();
         var httpClient = new FakeHttpTtsClient();
         var rateLimiter = new CountingRateLimiter();
-        var provider = new PlaybackAudioProvider(compiler, httpClient, cache, rateLimiter);
+        var provider = new CacheAudioGenerationProvider(compiler, httpClient, cache, rateLimiter);
 
         var result = await provider.GetAudioAsync(
             request,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -54,7 +55,7 @@ public sealed class PlaybackAudioProviderTests
         };
         var httpClient = new FakeHttpTtsClient();
         var pending = httpClient.EnqueuePendingSuccess();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             compiler,
             httpClient,
             new FakeAudioCache(),
@@ -62,14 +63,14 @@ public sealed class PlaybackAudioProviderTests
 
         var prefetchTask = provider.GetAudioAsync(
             request,
-            PlaybackAudioPriority.Prefetch,
+            AudioGenerationPriority.Prefetch,
             null,
             CancellationToken.None);
         await pending.ExecutionStarted.WaitAsync(TimeSpan.FromSeconds(5));
 
         var currentTask = provider.GetAudioAsync(
             request,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -91,7 +92,7 @@ public sealed class PlaybackAudioProviderTests
         var httpClient = new FakeHttpTtsClient();
         var cancelledExecution = httpClient.EnqueuePendingSuccess();
         httpClient.EnqueueSuccess();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             httpClient,
             new FakeAudioCache(),
@@ -99,14 +100,14 @@ public sealed class PlaybackAudioProviderTests
 
         var prefetchTask = provider.GetAudioAsync(
             firstRequest,
-            PlaybackAudioPriority.Prefetch,
+            AudioGenerationPriority.Prefetch,
             null,
             CancellationToken.None);
         await cancelledExecution.ExecutionStarted.WaitAsync(TimeSpan.FromSeconds(5));
 
         var currentTask = provider.GetAudioAsync(
             secondRequest,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -128,7 +129,7 @@ public sealed class PlaybackAudioProviderTests
         var httpClient = new FakeHttpTtsClient();
         var cancelledExecution = httpClient.EnqueuePendingSuccess();
         httpClient.EnqueueSuccess();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             httpClient,
             new FakeAudioCache(),
@@ -136,14 +137,14 @@ public sealed class PlaybackAudioProviderTests
 
         var activeTask = provider.GetAudioAsync(
             activeRequest,
-            PlaybackAudioPriority.ActiveCache,
+            AudioGenerationPriority.ActiveCache,
             null,
             CancellationToken.None);
         await cancelledExecution.ExecutionStarted;
 
         var prefetchTask = provider.GetAudioAsync(
             prefetchRequest,
-            PlaybackAudioPriority.Prefetch,
+            AudioGenerationPriority.Prefetch,
             null,
             CancellationToken.None);
 
@@ -164,7 +165,7 @@ public sealed class PlaybackAudioProviderTests
         var httpClient = new FakeHttpTtsClient();
         httpClient.EnqueueRateLimited(TimeSpan.FromSeconds(2));
         httpClient.EnqueueSuccess();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             httpClient,
             new FakeAudioCache(),
@@ -173,7 +174,7 @@ public sealed class PlaybackAudioProviderTests
 
         var resultTask = provider.GetAudioAsync(
             request,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             progress => progressMessages.Add(progress.Message),
             CancellationToken.None);
 
@@ -192,7 +193,7 @@ public sealed class PlaybackAudioProviderTests
     public async Task GetAudioAsync_returns_invalid_rule_when_concurrent_rate_is_invalid()
     {
         var rule = CreateRule(concurrentRate: "not-a-rate");
-        var request = new PlaybackAudioRequest(
+        var request = new AudioGenerationRequest(
             "book-1",
             0,
             0,
@@ -207,7 +208,7 @@ public sealed class PlaybackAudioProviderTests
             StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1)
         };
         var httpClient = new FakeHttpTtsClient();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             httpClient,
             new FakeAudioCache(),
@@ -215,7 +216,7 @@ public sealed class PlaybackAudioProviderTests
 
         var result = await provider.GetAudioAsync(
             request,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -229,7 +230,7 @@ public sealed class PlaybackAudioProviderTests
     {
         var request = CreatePlaybackRequest();
         var cache = new FakeAudioCache();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler(),
             new FakeHttpTtsClient(),
             cache,
@@ -244,7 +245,7 @@ public sealed class PlaybackAudioProviderTests
     public async Task GetAudioAsync_passes_source_rule_into_request_context()
     {
         var rule = CreateRule();
-        var request = new PlaybackAudioRequest(
+        var request = new AudioGenerationRequest(
             "book-1",
             0,
             0,
@@ -262,7 +263,7 @@ public sealed class PlaybackAudioProviderTests
         {
             CompilationResult = CreateSuccessfulCompilationResult()
         };
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             compiler,
             new FakeHttpTtsClient(),
             new FakeAudioCache(),
@@ -270,7 +271,7 @@ public sealed class PlaybackAudioProviderTests
 
         await provider.GetAudioAsync(
             request,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -282,9 +283,9 @@ public sealed class PlaybackAudioProviderTests
     {
         foreach (var (playbackPriority, expectedAdmissionPriority) in new[]
         {
-            (PlaybackAudioPriority.Current, TtsAdmissionPriority.CurrentPlayback),
-            (PlaybackAudioPriority.Prefetch, TtsAdmissionPriority.Prefetch),
-            (PlaybackAudioPriority.ActiveCache, TtsAdmissionPriority.ActiveCache)
+            (AudioGenerationPriority.Current, TtsAdmissionPriority.CurrentPlayback),
+            (AudioGenerationPriority.Prefetch, TtsAdmissionPriority.Prefetch),
+            (AudioGenerationPriority.ActiveCache, TtsAdmissionPriority.ActiveCache)
         })
         {
             await GetAudioAsync_maps_playback_priority_to_shared_admission_for_priority(
@@ -294,11 +295,11 @@ public sealed class PlaybackAudioProviderTests
     }
 
     private async Task GetAudioAsync_maps_playback_priority_to_shared_admission_for_priority(
-        PlaybackAudioPriority playbackPriority,
+        AudioGenerationPriority playbackPriority,
         TtsAdmissionPriority expectedAdmissionPriority)
     {
         var limiter = new CountingRateLimiter();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             new FakeHttpTtsClient(),
             new FakeAudioCache(),
@@ -324,7 +325,7 @@ public sealed class PlaybackAudioProviderTests
             "100",
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             new FakeHttpTtsClient(),
             new FakeAudioCache(),
@@ -332,17 +333,17 @@ public sealed class PlaybackAudioProviderTests
 
         var activeCache = provider.GetAudioAsync(
             CreatePlaybackRequest(0, "主动缓存", "100"),
-            PlaybackAudioPriority.ActiveCache,
+            AudioGenerationPriority.ActiveCache,
             null,
             CancellationToken.None);
         var prefetch = provider.GetAudioAsync(
             CreatePlaybackRequest(1, "预取", "100"),
-            PlaybackAudioPriority.Prefetch,
+            AudioGenerationPriority.Prefetch,
             null,
             CancellationToken.None);
         var current = provider.GetAudioAsync(
             CreatePlaybackRequest(2, "当前播放", "100"),
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -368,7 +369,7 @@ public sealed class PlaybackAudioProviderTests
         var httpClient = new FakeHttpTtsClient();
         var firstExecution = httpClient.EnqueuePendingSuccess();
         httpClient.EnqueueSuccess();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             httpClient,
             new FakeAudioCache(),
@@ -376,13 +377,13 @@ public sealed class PlaybackAudioProviderTests
 
         var first = provider.GetAudioAsync(
             CreatePlaybackRequest(0, "第一段"),
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
         await firstExecution.ExecutionStarted;
         var second = provider.GetAudioAsync(
             CreatePlaybackRequest(1, "第二段"),
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -407,7 +408,7 @@ public sealed class PlaybackAudioProviderTests
             null,
             null));
         httpClient.EnqueueSuccess();
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             httpClient,
             new FakeAudioCache(),
@@ -415,12 +416,12 @@ public sealed class PlaybackAudioProviderTests
 
         var failed = await provider.GetAudioAsync(
             CreatePlaybackRequest(0, "失败段"),
-            PlaybackAudioPriority.ActiveCache,
+            AudioGenerationPriority.ActiveCache,
             null,
             CancellationToken.None);
         var next = await provider.GetAudioAsync(
             CreatePlaybackRequest(1, "后续段"),
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -439,7 +440,7 @@ public sealed class PlaybackAudioProviderTests
             Url = $"https://example.com/tts?token={token}",
             Headers = new Dictionary<string, string> { ["Authorization"] = $"Bearer {token}" }
         };
-        var request = new PlaybackAudioRequest(
+        var request = new AudioGenerationRequest(
             "book-1",
             0,
             0,
@@ -453,8 +454,8 @@ public sealed class PlaybackAudioProviderTests
             ChapterId = "book-1/chapter/0",
             StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1)
         };
-        var logger = new CapturingLogger<PlaybackAudioFailureReporter>();
-        var provider = new PlaybackAudioProvider(
+        var logger = new CapturingLogger<AudioGenerationFailureReporter>();
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler
             {
                 ExceptionToThrow = new InvalidOperationException(
@@ -463,11 +464,11 @@ public sealed class PlaybackAudioProviderTests
             new FakeHttpTtsClient(),
             new FakeAudioCache(),
             new CountingRateLimiter(),
-            new PlaybackAudioFailureReporter(logger));
+            new AudioGenerationFailureReporter(logger));
 
         var result = await provider.GetAudioAsync(
             request,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -488,8 +489,8 @@ public sealed class PlaybackAudioProviderTests
     {
         const string novelText = "fixture-novel-text-2195";
         var request = CreatePlaybackRequest(speechText: novelText);
-        var logger = new CapturingLogger<PlaybackAudioFailureReporter>();
-        var provider = new PlaybackAudioProvider(
+        var logger = new CapturingLogger<AudioGenerationFailureReporter>();
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler(),
             new FakeHttpTtsClient(),
             new FakeAudioCache
@@ -497,11 +498,11 @@ public sealed class PlaybackAudioProviderTests
                 LookupException = new IOException($"cache path contains {novelText}")
             },
             new CountingRateLimiter(),
-            new PlaybackAudioFailureReporter(logger));
+            new AudioGenerationFailureReporter(logger));
 
         var result = await provider.GetAudioAsync(
             request,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -524,7 +525,7 @@ public sealed class PlaybackAudioProviderTests
             "audio/mpeg",
             "mp3",
             owner));
-        var provider = new PlaybackAudioProvider(
+        var provider = new CacheAudioGenerationProvider(
             new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
             httpClient,
             new FakeAudioCache { StoreException = new IOException("cache write failed") },
@@ -532,7 +533,7 @@ public sealed class PlaybackAudioProviderTests
 
         var result = await provider.GetAudioAsync(
             CreatePlaybackRequest(),
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             null,
             CancellationToken.None);
 
@@ -541,13 +542,13 @@ public sealed class PlaybackAudioProviderTests
         Assert.False(File.Exists(temporaryPath));
     }
 
-    private static PlaybackAudioRequest CreatePlaybackRequest(
+    private static AudioGenerationRequest CreatePlaybackRequest(
         int segmentIndex = 0,
         string speechText = "第一段",
         string? concurrentRate = null)
     {
         var rule = CreateRule(concurrentRate);
-        return new PlaybackAudioRequest(
+        return new AudioGenerationRequest(
             "book-1",
             0,
             segmentIndex,

@@ -1,5 +1,8 @@
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Cache.Audio;
+using NovelSpeaker.Application.Cache.ActiveCache;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Books;
@@ -45,7 +48,7 @@ public sealed class ActiveCacheCoordinatorTests
                 call.Request.SpeechText)));
         Assert.All(audio.Calls, call => Assert.Equal(7, call.Request.RuleId));
         Assert.All(audio.Calls, call => Assert.Equal(12, call.Request.SpeakSpeed));
-        Assert.All(audio.Calls, call => Assert.Equal(PlaybackAudioPriority.ActiveCache, call.Priority));
+        Assert.All(audio.Calls, call => Assert.Equal(AudioGenerationPriority.ActiveCache, call.Priority));
         var activeIdentity = audio.Calls[0].Request;
         var playbackIdentity = activeIdentity with
         {
@@ -244,14 +247,14 @@ public sealed class ActiveCacheCoordinatorTests
             GetSelectedRuleAsync(cancellationToken);
     }
 
-    private sealed class ControlledAudioProvider : IPlaybackAudioProvider
+    private sealed class ControlledAudioProvider : IAudioGenerationProvider
     {
-        private readonly Queue<Func<Call, Task<PlaybackAudioResult>>> _responses = [];
+        private readonly Queue<Func<Call, Task<AudioGenerationResult>>> _responses = [];
 
         public List<Call> Calls { get; } = [];
 
         public void EnqueueSuccess() =>
-            _responses.Enqueue(static _ => Task.FromResult(new PlaybackAudioResult("cached.mp3", true, null)));
+            _responses.Enqueue(static _ => Task.FromResult(new AudioGenerationResult("cached.mp3", true, null)));
 
         public PendingCall EnqueuePending()
         {
@@ -261,47 +264,47 @@ public sealed class ActiveCacheCoordinatorTests
         }
 
         public void EnqueueFailure(TtsExecutionFailure failure) =>
-            _responses.Enqueue(_ => Task.FromResult(new PlaybackAudioResult(null, false, failure)));
+            _responses.Enqueue(_ => Task.FromResult(new AudioGenerationResult(null, false, failure)));
 
-        public Task<PlaybackAudioResult> GetAudioAsync(
-            PlaybackAudioRequest request,
-            PlaybackAudioPriority priority,
-            Action<PlaybackAudioProgress>? progressCallback,
+        public Task<AudioGenerationResult> GetAudioAsync(
+            AudioGenerationRequest request,
+            AudioGenerationPriority priority,
+            Action<AudioGenerationProgress>? progressCallback,
             CancellationToken cancellationToken)
         {
             var call = new Call(request, priority, cancellationToken);
             Calls.Add(call);
             var response = _responses.Count > 0
                 ? _responses.Dequeue()
-                : static (Call _) => Task.FromResult(new PlaybackAudioResult("generated.mp3", false, null));
+                : static (Call _) => Task.FromResult(new AudioGenerationResult("generated.mp3", false, null));
             return response(call);
         }
 
-        public Task InvalidateAsync(PlaybackAudioRequest request, CancellationToken cancellationToken) =>
+        public Task InvalidateAsync(AudioGenerationRequest request, CancellationToken cancellationToken) =>
             Task.CompletedTask;
     }
 
     private sealed record Call(
-        PlaybackAudioRequest Request,
-        PlaybackAudioPriority Priority,
+        AudioGenerationRequest Request,
+        AudioGenerationPriority Priority,
         CancellationToken CancellationToken);
 
     private sealed class PendingCall
     {
-        private readonly TaskCompletionSource<PlaybackAudioResult> _completion =
+        private readonly TaskCompletionSource<AudioGenerationResult> _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> _started =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task Started => _started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        public async Task<PlaybackAudioResult> RunAsync(Call call)
+        public async Task<AudioGenerationResult> RunAsync(Call call)
         {
             _started.TrySetResult(true);
             return await _completion.Task.WaitAsync(call.CancellationToken);
         }
 
         public void CompleteUsingCache() =>
-            _completion.TrySetResult(new PlaybackAudioResult("cached.mp3", true, null));
+            _completion.TrySetResult(new AudioGenerationResult("cached.mp3", true, null));
     }
 }

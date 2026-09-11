@@ -1,3 +1,5 @@
+using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Playback;

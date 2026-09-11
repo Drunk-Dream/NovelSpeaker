@@ -1,7 +1,8 @@
 using System.Collections.Specialized;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.ActiveCache;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache.ActiveCache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;

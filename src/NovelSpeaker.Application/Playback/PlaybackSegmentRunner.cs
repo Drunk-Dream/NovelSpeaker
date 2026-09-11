@@ -1,10 +1,12 @@
+using NovelSpeaker.Application.Cache.Audio;
+
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
 /// Describes the inputs needed to prepare and play one current segment.
 /// </summary>
 internal sealed record PlaybackSegmentRunRequest(
-    PlaybackAudioRequest AudioRequest,
+    AudioGenerationRequest AudioRequest,
     string DisplayTitle,
     long ResumePositionMilliseconds,
     bool ForceInvalidate);
@@ -13,7 +15,7 @@ internal sealed record PlaybackSegmentRunRequest(
 /// Captures the result of one segment execution without owning playback state or publishing events.
 /// </summary>
 internal sealed record PlaybackSegmentRunResult(
-    PlaybackAudioResult Audio,
+    AudioGenerationResult Audio,
     LocalAudioPlaybackSnapshot LocalSnapshot);
 
 /// <summary>
@@ -22,11 +24,11 @@ internal sealed record PlaybackSegmentRunResult(
 /// </summary>
 internal sealed class PlaybackSegmentRunner
 {
-    private readonly IPlaybackAudioProvider _audioProvider;
+    private readonly IAudioGenerationProvider _audioProvider;
     private readonly PlaybackAudioController _audioController;
 
     public PlaybackSegmentRunner(
-        IPlaybackAudioProvider audioProvider,
+        IAudioGenerationProvider audioProvider,
         PlaybackAudioController audioController)
     {
         _audioProvider = audioProvider;
@@ -35,7 +37,7 @@ internal sealed class PlaybackSegmentRunner
 
     public async Task<PlaybackSegmentRunResult> RunAsync(
         PlaybackSegmentRunRequest request,
-        Action<PlaybackAudioProgress>? progressCallback,
+        Action<AudioGenerationProgress>? progressCallback,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -49,7 +51,7 @@ internal sealed class PlaybackSegmentRunner
 
         var audio = await _audioProvider.GetAudioAsync(
             request.AudioRequest,
-            PlaybackAudioPriority.Current,
+            AudioGenerationPriority.Current,
             progressCallback,
             cancellationToken).ConfigureAwait(false);
         if (!audio.IsSuccess)

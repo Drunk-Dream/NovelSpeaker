@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.App.Features.Books.Shared;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Cache;

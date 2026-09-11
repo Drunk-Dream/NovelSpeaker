@@ -1,5 +1,5 @@
-using NovelSpeaker.Application.Playback.ActiveCache;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache.ActiveCache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Cache;

@@ -1,5 +1,8 @@
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Audio;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Speech.Execution;
+using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
@@ -1228,7 +1231,7 @@ public sealed class PlaybackCoordinator :
         }
 
         var segment = chapter.Segments[session.SegmentIndex];
-        var audioRequest = new PlaybackAudioRequest(
+        var audioRequest = new AudioGenerationRequest(
             _currentBook.BookId,
             chapter.ChapterIndex,
             session.SegmentIndex,
@@ -1442,12 +1445,12 @@ public sealed class PlaybackCoordinator :
         if (prefetchCount <= 0)
         {
             await _prefetchController.SubmitAsync(
-                new PlaybackPrefetchWindow(session.SessionId, Array.Empty<PlaybackAudioRequest>()),
+                new PlaybackPrefetchWindow(session.SessionId, Array.Empty<AudioGenerationRequest>()),
                 cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        var requests = new List<PlaybackAudioRequest>();
+        var requests = new List<AudioGenerationRequest>();
         var book = _currentBook;
         var chapterIndex = session.ChapterIndex;
         var segmentIndex = session.SegmentIndex;
@@ -1482,7 +1485,7 @@ public sealed class PlaybackCoordinator :
 
     private void AddPrefetchRequest(
         PlaybackBookContent book,
-        List<PlaybackAudioRequest> requests,
+        List<AudioGenerationRequest> requests,
         PlaybackSessionState session,
         int chapterIndex,
         int segmentIndex)
@@ -1504,7 +1507,7 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        requests.Add(new PlaybackAudioRequest(
+        requests.Add(new AudioGenerationRequest(
             book.BookId,
             chapterIndex,
             segmentIndex,

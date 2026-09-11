@@ -1,5 +1,3 @@
-using NovelSpeaker.Application.Cache;
-
 namespace NovelSpeaker.Application.Speech.Compilation;
 
 /// <summary>

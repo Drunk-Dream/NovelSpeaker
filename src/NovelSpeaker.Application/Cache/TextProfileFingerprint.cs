@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Application.Cache;

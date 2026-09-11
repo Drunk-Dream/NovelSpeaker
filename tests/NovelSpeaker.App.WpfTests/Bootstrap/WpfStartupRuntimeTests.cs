@@ -1,7 +1,7 @@
 using System.IO;
 using System.Windows.Threading;
-using NovelSpeaker.Application.Playback.Cache;
-using NovelSpeaker.Application.Playback.Export;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.App.Bootstrap;
 using NovelSpeaker.Infrastructure.FileSystem;
 using Xunit;

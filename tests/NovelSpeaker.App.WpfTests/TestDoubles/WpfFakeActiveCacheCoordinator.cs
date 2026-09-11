@@ -1,4 +1,4 @@
-using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Cache.ActiveCache;
 
 namespace NovelSpeaker.App.WpfTests.TestDoubles;
 

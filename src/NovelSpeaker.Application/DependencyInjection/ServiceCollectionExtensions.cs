@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Desktop;
+using NovelSpeaker.Application.Cache;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -23,6 +24,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton(TimeProvider.System);
         services.AddNovelSpeakerBooksApplication();
         services.AddNovelSpeakerSpeechApplication();
+        services.AddNovelSpeakerCacheApplication();
         services.AddNovelSpeakerPlaybackApplication();
         services.AddNovelSpeakerDesktopApplication();
         services.AddNovelSpeakerSettingsApplication(startupSettings);

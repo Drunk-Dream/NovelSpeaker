@@ -95,7 +95,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task PreviousSegmentAsync_double_tap_while_playing_stops_intermediate_segment_before_buffering()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider,
@@ -122,7 +122,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task PreviousSegmentAsync_after_pausing_keeps_paused_context_without_rebuffering()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider,
@@ -147,7 +147,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task OpenPausedAsync_restores_saved_progress_without_requesting_audio_until_resume()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         var readingProgressStore = new FakeReadingProgressStore
         {
             StoredProgress = new ReadingProgressEntry("book-1", 0, 1, 6, 333, DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
@@ -203,7 +203,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task JumpToSegmentAsync_while_paused_updates_position_without_immediate_audio_request()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         var readingProgressStore = new FakeReadingProgressStore
         {
             StoredProgress = new ReadingProgressEntry(
@@ -426,7 +426,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task JumpToSegmentAsync_while_playing_keeps_playing_and_requests_new_audio()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider,
@@ -444,7 +444,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task StartAsync_can_surface_cached_audio_usage_in_snapshot()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueCachedSuccess("audio-cached.mp3");
         await using var coordinator = CreateCoordinator(
             localCoordinator,
@@ -537,7 +537,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task Duplicate_playback_completed_events_advance_only_once()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider,
@@ -605,7 +605,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task Rapid_jump_commands_finish_at_the_latest_requested_segment()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         var initialAudio = audioProvider.EnqueuePendingSuccess("delayed-initial.mp3");
         await using var coordinator = CreateCoordinator(
             localCoordinator,
@@ -634,7 +634,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task Repeated_audio_decode_failure_invalidates_only_once_and_enters_faulted_state()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueCachedSuccess("cached-corrupt.mp3");
         audioProvider.EnqueueFailure(TtsErrorKind.AudioDecode, "重新生成的音频仍然损坏。");
         await using var coordinator = CreateCoordinator(localCoordinator, audioProvider: audioProvider);

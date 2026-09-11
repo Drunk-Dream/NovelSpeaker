@@ -1,6 +1,6 @@
 using System.Text;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 

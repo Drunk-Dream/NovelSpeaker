@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 
 namespace NovelSpeaker.App.Shared.Feedback;
 

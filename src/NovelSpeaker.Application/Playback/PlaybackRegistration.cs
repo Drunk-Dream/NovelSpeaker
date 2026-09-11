@@ -1,10 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using NovelSpeaker.Application.Playback.ActiveCache;
-using NovelSpeaker.Application.Playback.Audio;
-using NovelSpeaker.Application.Playback.Cache;
-using NovelSpeaker.Application.Playback.Export;
+using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Testing;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -17,16 +18,7 @@ public static class PlaybackRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, PlaybackContentResolver>();
-        services.TryAddSingleton<ICacheInvalidationCoordinator, CacheInvalidationCoordinator>();
-        services.TryAddSingleton<ICacheCatalog, CacheCatalog>();
-        services.TryAddSingleton<ICacheCoverageQuery, CacheCoverageQuery>();
-        services.TryAddSingleton<ISpeechPlanRepairCoordinator, SpeechPlanRepairCoordinator>();
-        services.TryAddSingleton<ICachePlanRepairRequestor, SpeechPlanRepairRequestor>();
-        services.TryAddSingleton<ExportFileNameSanitizer>();
-        services.TryAddSingleton<IExportChaptersService, ExportChaptersService>();
-        services.TryAddSingleton<IChapterExportCoordinator, ChapterExportCoordinator>();
-        services.TryAddSingleton<IPlaybackAudioProvider, PlaybackAudioProvider>();
-        services.TryAddSingleton<IActiveCacheCoordinator, ActiveCacheCoordinator>();
+        services.TryAddSingleton<ITtsRulePreviewAudioPlayer, TtsRulePreviewAudioPlayer>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
         services.TryAddSingleton<PlaybackAudioController>(serviceProvider =>
             new PlaybackAudioController(serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>()));
@@ -56,7 +48,6 @@ public static class PlaybackRegistration
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackRegexReplacementRefresher>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
-        services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         return services;
     }
 }

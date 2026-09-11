@@ -1,4 +1,4 @@
-using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;

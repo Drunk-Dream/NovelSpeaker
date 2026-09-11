@@ -1,5 +1,4 @@
-using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 
@@ -10,7 +9,6 @@ namespace NovelSpeaker.Application.Settings;
 /// </summary>
 public sealed class AppSettingsService :
     IAppSettingsService,
-    IAudioCacheLimitProvider,
     IBookFileNameTemplateProvider,
     ITextSegmentationOptionsProvider,
     IDisposable
@@ -33,8 +31,6 @@ public sealed class AppSettingsService :
     public AppSettings Current => Volatile.Read(ref _current);
 
     public event EventHandler<AppSettingsChangedEventArgs>? Changed;
-
-    public long GetCurrentLimitBytes() => Current.CacheLimitBytes;
 
     public TextSegmentationOptions GetCurrent() => Current.ToTextSegmentationOptions();
 

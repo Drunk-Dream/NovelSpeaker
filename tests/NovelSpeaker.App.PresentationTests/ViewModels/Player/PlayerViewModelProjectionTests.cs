@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;

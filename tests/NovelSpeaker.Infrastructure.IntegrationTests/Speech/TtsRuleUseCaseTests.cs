@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.DependencyInjection;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;

@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.App.PresentationTests.TestDoubles;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Dialogs;

@@ -1,13 +1,14 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
+using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
-using NovelSpeaker.Infrastructure.Persistence.Playback;
+using NovelSpeaker.Infrastructure.Persistence.Cache;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.IntegrationTests;

@@ -1,5 +1,6 @@
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.ActiveCache;
+using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.Domain.Books;
 using Xunit;
 

@@ -1,5 +1,6 @@
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Books;
 using Xunit;
 
 namespace NovelSpeaker.Application.UnitTests;

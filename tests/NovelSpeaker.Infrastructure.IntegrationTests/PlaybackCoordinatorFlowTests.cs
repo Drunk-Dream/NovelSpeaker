@@ -66,7 +66,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task StartAsync_with_selected_rule_and_audio_result_enters_playing_state()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider);

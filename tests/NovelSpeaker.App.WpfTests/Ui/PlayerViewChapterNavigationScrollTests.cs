@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Rules;

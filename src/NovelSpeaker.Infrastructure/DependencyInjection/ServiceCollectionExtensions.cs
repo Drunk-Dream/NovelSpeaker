@@ -16,6 +16,7 @@ public static class ServiceCollectionExtensions
         services.AddNovelSpeakerBooksAdapters();
         services.AddNovelSpeakerSpeechAdapters();
         services.AddNovelSpeakerAudioAdapters();
+        services.AddNovelSpeakerCacheAdapters();
         services.AddNovelSpeakerSettingsAdapters();
         services.AddNovelSpeakerDiagnosticsAdapters();
 

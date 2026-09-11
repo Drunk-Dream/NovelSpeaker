@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Audio;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -8,10 +9,10 @@ namespace NovelSpeaker.Application.Playback;
 /// </summary>
 internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
 {
-    private readonly IPlaybackAudioProvider _audioProvider;
+    private readonly IAudioGenerationProvider _audioProvider;
     private readonly ConcurrentDictionary<Guid, SessionState> _sessions = new();
 
-    public PlaybackPrefetchCoordinator(IPlaybackAudioProvider audioProvider)
+    public PlaybackPrefetchCoordinator(IAudioGenerationProvider audioProvider)
     {
         _audioProvider = audioProvider;
     }
@@ -74,7 +75,7 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
             {
                 await _audioProvider.GetAudioAsync(
                     next,
-                    PlaybackAudioPriority.Prefetch,
+                    AudioGenerationPriority.Prefetch,
                     progressCallback: null,
                     state.ActiveRequestToken).ConfigureAwait(false);
             }
@@ -93,7 +94,7 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
     {
         private readonly object _syncRoot = new();
         private readonly CancellationTokenSource _sessionCts = new();
-        private List<PlaybackAudioRequest> _pendingRequests = [];
+        private List<AudioGenerationRequest> _pendingRequests = [];
         private Task? _workerTask;
         private AudioCacheKey? _activeKey;
         private CancellationTokenSource? _activeRequestCts;
@@ -121,7 +122,7 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
             }
         }
 
-        public void ReplacePending(IReadOnlyList<PlaybackAudioRequest> requests)
+        public void ReplacePending(IReadOnlyList<AudioGenerationRequest> requests)
         {
             lock (_syncRoot)
             {
@@ -157,7 +158,7 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
             }
         }
 
-        public PlaybackAudioRequest? TryDequeueNext()
+        public AudioGenerationRequest? TryDequeueNext()
         {
             lock (_syncRoot)
             {
@@ -223,10 +224,10 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
             _sessionCts.Dispose();
         }
 
-        private static List<PlaybackAudioRequest> Deduplicate(IReadOnlyList<PlaybackAudioRequest> requests)
+        private static List<AudioGenerationRequest> Deduplicate(IReadOnlyList<AudioGenerationRequest> requests)
         {
             var seen = new HashSet<AudioCacheKey>();
-            var result = new List<PlaybackAudioRequest>(requests.Count);
+            var result = new List<AudioGenerationRequest>(requests.Count);
             foreach (var request in requests)
             {
                 if (seen.Add(request.ToCacheKey()))

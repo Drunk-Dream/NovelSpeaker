@@ -1,13 +1,14 @@
 using System.Text;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
+using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
-using NovelSpeaker.Infrastructure.Persistence.Playback;
+using NovelSpeaker.Infrastructure.Persistence.Cache;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.TestKit.Common;

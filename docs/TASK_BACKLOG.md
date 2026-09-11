@@ -99,7 +99,7 @@
 
 # Phase B：Cache 一级模块收敛
 
-## [ ] T002（P0）：将 Cache 提升为一级 Application 模块并重组 owner/DI
+## [x] T002（P0）：将 Cache 提升为一级 Application 模块并重组 owner/DI
 
 依赖：T001。
 
@@ -141,6 +141,8 @@
 - ActiveCache/Export lifecycle tests；
 - DI tests；
 - ArchitectureTests。
+
+完成成果：Cache 的 Application/Infrastructure 类型、ActiveCache、ChapterSpeechPlan、Export、audio generation 与物理存储已迁入一级 Cache 边界；新增 Cache Application/Infrastructure registration，Playback 仅保留 session owner，并通过 Books contract、Speech rule/preview role 消除旧反向 owner。删除旧 `Application.Playback.Cache/ActiveCache/Export` 路径、alias 和重复 registration；更新测试与 Architecture baseline。验证：Application build、Unit 167/167、Infrastructure Integration 342/342、Architecture 46/46、WPF DI/navigation 18/18；静态复审 PASS。WSL 测试宿主启动需要沙箱外执行，未改变测试结果。
 
 ---
 

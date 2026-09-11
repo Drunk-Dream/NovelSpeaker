@@ -1,6 +1,7 @@
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Application.Playback.ActiveCache;
-using NovelSpeaker.Application.Playback.Cache;
+using NovelSpeaker.Application.Cache.ActiveCache;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;

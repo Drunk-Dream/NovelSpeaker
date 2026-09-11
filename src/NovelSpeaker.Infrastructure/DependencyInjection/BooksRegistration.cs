@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
-using NovelSpeaker.Application.Playback;
 
 namespace NovelSpeaker.Infrastructure.DependencyInjection;
 

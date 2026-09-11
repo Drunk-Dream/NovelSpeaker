@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Speech;
@@ -13,7 +14,7 @@ public sealed class PlaybackSegmentRunnerTests
     public async Task RunAsync_starts_local_playback_for_a_cache_hit()
     {
         var audioProvider = new RecordingAudioProvider();
-        audioProvider.Enqueue(new PlaybackAudioResult("cached.mp3", true, null));
+        audioProvider.Enqueue(new AudioGenerationResult("cached.mp3", true, null));
         var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
         await using var audioController = new PlaybackAudioController(localCoordinator);
         var runner = new PlaybackSegmentRunner(audioProvider, audioController);
@@ -33,7 +34,7 @@ public sealed class PlaybackSegmentRunnerTests
     public async Task RunAsync_invalidates_before_generating_and_playing_when_requested()
     {
         var audioProvider = new RecordingAudioProvider();
-        audioProvider.Enqueue(new PlaybackAudioResult("generated.mp3", false, null));
+        audioProvider.Enqueue(new AudioGenerationResult("generated.mp3", false, null));
         var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
         await using var audioController = new PlaybackAudioController(localCoordinator);
         var runner = new PlaybackSegmentRunner(audioProvider, audioController);
@@ -58,7 +59,7 @@ public sealed class PlaybackSegmentRunnerTests
             null,
             null,
             null);
-        audioProvider.Enqueue(new PlaybackAudioResult(null, false, failure));
+        audioProvider.Enqueue(new AudioGenerationResult(null, false, failure));
         var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
         await using var audioController = new PlaybackAudioController(localCoordinator);
         var runner = new PlaybackSegmentRunner(audioProvider, audioController);
@@ -91,7 +92,7 @@ public sealed class PlaybackSegmentRunnerTests
             cancellation.Token));
     }
 
-    private static PlaybackAudioRequest CreateRequest()
+    private static AudioGenerationRequest CreateRequest()
     {
         var rule = TestHttpTtsRules.Create(
             1,
@@ -106,7 +107,7 @@ public sealed class PlaybackSegmentRunnerTests
             null,
             "2026-06-24T00:00:00.0000000Z",
             "2026-06-24T00:00:00.0000000Z");
-        return new PlaybackAudioRequest(
+        return new AudioGenerationRequest(
             "book-1",
             0,
             0,
@@ -122,9 +123,9 @@ public sealed class PlaybackSegmentRunnerTests
         };
     }
 
-    private sealed class RecordingAudioProvider : IPlaybackAudioProvider
+    private sealed class RecordingAudioProvider : IAudioGenerationProvider
     {
-        private readonly Queue<PlaybackAudioResult> _results = [];
+        private readonly Queue<AudioGenerationResult> _results = [];
 
         public List<string> Calls { get; } = [];
 
@@ -132,15 +133,15 @@ public sealed class PlaybackSegmentRunnerTests
 
         public Exception? ExceptionToThrow { get; init; }
 
-        public void Enqueue(PlaybackAudioResult result)
+        public void Enqueue(AudioGenerationResult result)
         {
             _results.Enqueue(result);
         }
 
-        public Task<PlaybackAudioResult> GetAudioAsync(
-            PlaybackAudioRequest request,
-            PlaybackAudioPriority priority,
-            Action<PlaybackAudioProgress>? progressCallback,
+        public Task<AudioGenerationResult> GetAudioAsync(
+            AudioGenerationRequest request,
+            AudioGenerationPriority priority,
+            Action<AudioGenerationProgress>? progressCallback,
             CancellationToken cancellationToken)
         {
             Calls.Add("get");
@@ -150,11 +151,11 @@ public sealed class PlaybackSegmentRunnerTests
             }
 
             return Task.FromResult(_results.Count == 0
-                ? new PlaybackAudioResult("generated.mp3", false, null)
+                ? new AudioGenerationResult("generated.mp3", false, null)
                 : _results.Dequeue());
         }
 
-        public Task InvalidateAsync(PlaybackAudioRequest request, CancellationToken cancellationToken)
+        public Task InvalidateAsync(AudioGenerationRequest request, CancellationToken cancellationToken)
         {
             Calls.Add("invalidate");
             Invalidated = true;

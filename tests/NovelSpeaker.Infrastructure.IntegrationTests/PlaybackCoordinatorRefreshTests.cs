@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Execution;
@@ -16,7 +17,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task Empty_audio_response_skips_one_segment_and_continues_playback()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         var readingProgressStore = new FakeReadingProgressStore();
         audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "服务返回了空响应，无法生成音频。");
         audioProvider.EnqueueSuccess("second-segment.mp3");
@@ -40,7 +41,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task Empty_audio_response_on_the_last_segment_ends_playback_cleanly()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "服务返回了空响应，无法生成音频。");
         await using var coordinator = CreateCoordinator(
             localCoordinator,
@@ -60,7 +61,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task Consecutive_empty_audio_responses_stop_automatic_skipping()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "第一个空响应。");
         audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "第二个空响应。");
         await using var coordinator = CreateCoordinator(
@@ -82,7 +83,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task RetryCurrentSegment_replays_failed_segment()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueFailure(TtsErrorKind.Network, "网络失败。");
         audioProvider.EnqueueSuccess("audio-retry.mp3");
         await using var coordinator = CreateCoordinator(
@@ -103,7 +104,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task Repeated_current_segment_failures_reach_the_recovery_pause_threshold()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。 ");
         audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。 ");
         await using var coordinator = CreateCoordinator(
@@ -141,7 +142,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task AudioDecode_failure_invalidates_and_regenerates_current_segment_once()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider);
@@ -203,7 +204,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task RefreshRegexReplacementAsync_restarts_playback_when_mapped_speech_changes()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         var content = new FakeBookPlaybackContentService(CreateBook());
         await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: content, audioProvider: audioProvider);
 
@@ -225,7 +226,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task RefreshRegexReplacementAsync_keeps_current_audio_when_only_display_changes()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         var content = new FakeBookPlaybackContentService(CreateBook());
         await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: content, audioProvider: audioProvider);
 
@@ -246,7 +247,7 @@ public sealed partial class PlaybackCoordinatorTests
     public async Task StartAsync_skips_consecutive_empty_speech_segments_without_requesting_tts()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakePlaybackAudioProvider();
+        var audioProvider = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider,

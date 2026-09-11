@@ -1,5 +1,5 @@
-using NovelSpeaker.Application.Playback.Cache;
-using NovelSpeaker.Application.Playback.Export;
+using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;

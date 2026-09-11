@@ -1,3 +1,5 @@
+using NovelSpeaker.Application.Cache.Audio;
+
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
@@ -5,9 +7,9 @@ namespace NovelSpeaker.Application.Playback;
 /// </summary>
 public sealed record PlaybackPrefetchWindow(
     Guid SessionId,
-    IReadOnlyList<PlaybackAudioRequest> Requests)
+    IReadOnlyList<AudioGenerationRequest> Requests)
 {
-    public PlaybackPrefetchWindow(Guid sessionId, IEnumerable<PlaybackAudioRequest> requests)
+    public PlaybackPrefetchWindow(Guid sessionId, IEnumerable<AudioGenerationRequest> requests)
         : this(sessionId, requests.ToArray())
     {
     }
