@@ -9,9 +9,9 @@
 | 当前活动播放位置 | PlaybackSnapshot |
 | 可恢复阅读进度 | SQLite ReadingProgress |
 | 规则/设置 | SQLite/settings store |
-| speech plan | SQLite 派生数据 |
-| 音频缓存 | 应用内部可重建文件 + SQLite index |
-| active cache/export 运行态 | Process coordinator snapshot |
+| speech plan | Cache 模块管理的 SQLite 派生数据 |
+| 音频缓存 | Cache 模块管理的可重建文件 + SQLite index |
+| active cache/export 运行态 | Cache process coordinator snapshot |
 
 外部 TXT 永不由应用写回。
 
@@ -29,6 +29,7 @@
 - 不为代码整理修改、合并、删除、重编号已发布 migration。
 - schema 变化必须有升级测试。
 - 内部架构重构不得把“兼容旧内部 API”与“兼容已发布数据”混为一谈。
+- Cache namespace/模块迁移不改变已发布数据格式；为内部类型搬迁不得新建无意义 schema migration。
 
 ## 4. ReadingProgress
 
@@ -107,6 +108,8 @@ chapter source text
 → AudioCacheKey
 ```
 
+Speech Plan 属于 Cache 当前配置完整度/缓存身份链路的派生数据。文本分段和 Regex 规则本身仍由 Books/Text Processing 提供语义；Cache 只消费其稳定结果/变化合同。
+
 每章只保存当前有效 speech plan，不保存无意义历史版本和完整 `SpeechText` 副本。
 
 ## 9. 缓存身份
@@ -117,15 +120,17 @@ chapter source text
 
 TextProfileFingerprint 用于判断 speech plan 是否需要重建，不直接等价于音频缓存键。
 
-## 10. CacheStore 与 CacheCatalog
+## 10. Cache 模块、CacheStore 与 CacheCatalog
 
-目标区分物理事实、失效通知和逻辑完整度：
+Cache 是一级 Application 模块，不是 Playback persistence 的附属层。目标区分物理事实、失效通知、逻辑完整度和后台作业：
 
 - **CacheStore**：物理 cache/index/file 的唯一事实；负责原子写入、删除、lease/protection、验证和廉价物理聚合。
 - **CacheCatalog**：基于 CacheStore 提供 global/book/chapter 的 immutable 物理缓存 read model，不计算当前配置完整度。
-- **CacheInvalidationCoordinator**：接收 Cache 域内 mutation/config/repair 失效信号，按范围和受影响方面短窗口合并。
+- **CacheInvalidationCoordinator**：接收 Cache 域内 mutation/repair/configuration-derived 失效信号，按范围和受影响方面短窗口合并。
+- **CacheConfigurationChangeObserver**（或等价窄职责组件）：消费 Settings/TTS/Regex 等源模块的 typed semantic change，并映射为 Cache Coverage 失效。
 - **CacheCoverageQuery**：组合当前配置、speech plan 与物理 cache，回答指定章节的当前配置完整度。
 - **SpeechPlanRepairCoordinator**：唯一拥有缺失/过期 speech plan 后台补建生命周期。
+- **ActiveCacheCoordinator / ChapterExportCoordinator**：Cache 相关 process background owner，不属于 Playback session。
 
 页面不直接组合 index、文件、speech plan 多个低层接口。
 
@@ -147,7 +152,8 @@ CachedChapterCatalog
 - 已知多章集合时保留 chapter indices，不无条件降级为 book-wide；
 - invalidation 只表达“哪里/哪类数据需要重读”，不携带作为第二真值的派生统计；
 - 高频 mutation 可在短窗口内合并，目标是用户感知实时而非逐 cache entry 严格实时；
-- 全局统计、书籍统计、章节统计和 Coverage 允许采用不同查询粒度，但 active UI 最终应自动追上 CacheStore 真值。
+- 全局统计、书籍统计、章节统计和 Coverage 允许采用不同查询粒度，但 active UI 最终应自动追上 CacheStore 真值；
+- Settings/TTS/Regex 等源模块不得直接调用 Cache invalidation；它们发布自己的变化语义，由 Cache-owned integration 决定是否及如何失效 Coverage。
 
 ## 11. 缓存写入
 
@@ -217,11 +223,13 @@ Percentage
 
 ## 14. 主动缓存
 
-Active cache batch 的运行态不持久化为长期历史任务中心。已生成 cache 正常保留。
+Active cache batch 属于 Cache 模块的 Process background job，运行态不持久化为长期历史任务中心。已生成 cache 正常保留。
 
-页面只提交不可变批次参数并订阅 coordinator snapshot。
+页面只提交不可变批次参数并订阅 coordinator snapshot。Active Cache 不拥有或复制 Playback session state；需要共用 TTS/audio 生成能力时使用稳定的窄角色合同。
 
 ## 15. MP3 导出
+
+Export 属于 Cache 相关的独立 Process background job，不属于 Playback session。
 
 - 只导出可验证完整的章节。
 - 每章一个 MP3。
@@ -235,6 +243,7 @@ Active cache batch 的运行态不持久化为长期历史任务中心。已生�
 - 设置持久化使用原子写入。
 - 规则顺序、启用状态和请求语义必须具有稳定持久化表示。
 - 配置指纹使用版本化规范序列化，避免字段顺序、默认值或大小写导致错误 cache identity。
+- Settings/Rules 的持久化或 mutation 服务只描述自身变化，不承担 Cache Coverage invalidation 副作用。
 
 ## 17. 删除与恢复
 

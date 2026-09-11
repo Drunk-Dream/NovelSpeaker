@@ -1,19 +1,30 @@
 # 已确认决策与风险
 
-## 1. 架构优化阶段决策
+## 1. 架构决策
 
 ### 顶层结构
 
 - 保留 Domain / Application / Infrastructure / App 四层。
 - 不继续按 Feature 拆程序集。
-- 允许大幅内部破坏性重构。
+- 允许内部破坏性重构。
 - 内部兼容性不是目标；旧实现、wrapper、adapter 和无价值 abstraction 应直接删除。
+- 已发布用户数据、SQLite migration、持久化格式与明确外部合同仍必须兼容。
 
-### Feature
+### App Feature
 
 - App 按 Books / Playback / Cache / Rules / Settings / Diagnostics 收敛。
 - 禁止 Feature 双向依赖。
 - Shared 只承载真实跨业务域能力。
+
+### Application 模块
+
+- Application 按 Books / Speech / Cache / Playback / Settings / Desktop 等稳定业务能力组织。
+- Cache 是一级 Application 模块，不是 Playback 的子目录语义。
+- Books、Speech、Settings 不依赖 Cache-specific invalidation/Coverage/storage API。
+- Playback 可以消费 Cache；Cache 不依赖 Playback session state。
+- ActiveCache、Speech Plan repair 和 Cache-backed Export 的 process owner 归 Cache 边界。
+- 如果 Cache 相关后台作业当前依赖 Playback 中的非 session 通用能力，应把该能力迁到真实 owner 或提取窄角色合同，禁止形成 Cache ↔ Playback 循环。
+- Application 模块依赖图由 Architecture Fitness Tests 长期守护。
 
 ### 生命周期
 
@@ -24,6 +35,8 @@
 ### 状态通信
 
 - 保留 typed snapshot / typed event / typed port。
+- 源模块只发布自身变化语义；派生消费者在自己的边界解释影响。
+- Settings/TTS/Regex 等配置源不得直接调用 Cache invalidation。
 - 不引入通用 EventBus/Messenger。
 
 ### Interface
@@ -53,7 +66,7 @@
 - Row 使用 WPF 标准 `VirtualizingStackPanel` 做 recycling virtualization。
 - Row 内少量 Card 不建立第二套 virtualization。
 - scroll state 使用逻辑 `BookId` anchor + row lookup + 标准 ScrollIntoView/BringIntoView。
-- 删除/避免自定义 container generation、realized-range、extent/viewport/offset 状态机。
+- 避免自定义 container generation、realized-range、extent/viewport/offset 状态机。
 
 ### Query
 
@@ -70,6 +83,7 @@
 - `PlaybackCoordinator` 保持唯一 session owner/facade。
 - 内部拆 SessionState、Command、Audio、Content、Prefetch、Progress、Timer。
 - 不拆出多个 current-state owner。
+- 后续只抽离有独立变化原因且不拥有 session truth 的 orchestration；不以减小文件为目标机械拆类。
 
 ### Player
 
@@ -84,28 +98,31 @@
 - cache invalidation 只表达最窄已知范围与失效方面，不携带第二套统计真值。
 - 高频 cache mutation 使用 Cache-local 短窗口合并，实现用户感知实时而非逐 entry 严格实时。
 - 页面 selection 与 catalog/physical/Coverage decoration 独立；cache 刷新不得无条件清空选择。
+- 配置源变化由 Cache-owned integration 转换成 Coverage invalidation。
 - 不建立大一统 CacheManager、通用 EventBus/Messenger 或通用 BackgroundTaskManager。
 
 ### Rules
 
 - 三类 Rules 共享编辑生命周期。
 - 不建立复杂泛型 Rule Framework。
+- 规则 mutation 只发布规则自身变化，不嵌入 Cache-specific side effect。
 
 ### Settings
 
 - process Settings snapshot + transient Settings VM。
+- Settings owner 只负责 snapshot/persistence/typed settings change，不主动协调其它模块内部状态。
 
 ### 测试
 
-- 允许架构重构后测试数量减少。
 - 以风险/行为合同覆盖为目标。
-- 建立长期 Architecture Fitness Tests。
+- Architecture Fitness Tests 同时守护四层边界、App Feature 边界和 Application 模块依赖边界。
+- 不以测试数量本身为目标。
 
 ### 文档
 
 - 文档是架构收敛的一部分。
 - 一条稳定规则一个 owner 文档。
-- 任务过程和诊断不进入长期编号文档。
+- 任务过程和临时诊断不进入长期编号文档。
 
 ## 2. 产品/数据稳定决策
 
@@ -137,9 +154,17 @@
 
 ## 5. 主要架构风险
 
+### Application 模块概念循环
+
+同一 assembly 不会阻止 `Books ↔ Cache`、`Speech ↔ Cache`、`Settings ↔ Cache` 等概念循环。必须通过模块 namespace/依赖 Architecture Tests 守护，而不能只依赖项目引用方向。
+
 ### Playback owner 过宽
 
-拆职责时必须保持 session owner 唯一，避免“拆类”变成“拆状态”。
+拆职责时必须保持 session owner 唯一，避免“拆类”变成“拆状态”。只抽离独立变化原因且不拥有 canonical session truth 的职责。
+
+### Cache presentation orchestration 过宽
+
+CacheManagement 可以组合多个页面职责，但 catalog reconciliation、live refresh、coverage decoration、export interaction 等不同生命周期不得继续无限堆入单个 VM。出现明确维护压力时优先使用 Feature-local concrete controller 收敛，不建立新的 Application façade。
 
 ### 大列表
 
@@ -151,11 +176,15 @@ Feature 自行接管 WPF container generation、recycling、scroll extent/offset
 
 ### Page activation
 
-从 singleton VM 迁移 transient 时，必须把真正长期状态提升到正确 owner，而不是丢失状态或另建 cache。
+真正长期状态必须提升到正确 owner，而不是依赖页面实例或另建 cache。
 
 ### Cache 边界
 
-物理 Store/Catalog、Coverage、Speech Plan repair、Active batch、Export 和页面 selection 生命周期不同；迁移时必须保持 owner/query/command/invalidation 清晰。尤其禁止通过全量重载把 cache mutation、Coverage 更新和用户选择重新耦合。
+物理 Store/Catalog、Coverage、Speech Plan repair、Active batch、Export 和页面 selection 生命周期不同；必须保持 owner/query/command/invalidation 清晰。禁止通过全量重载把 cache mutation、Coverage 更新和用户选择重新耦合。
+
+### 迁移遗留
+
+namespace/模块迁移完成时必须同时删除旧 namespace、compat wrapper、alias interface、重复 DTO/controller、orphan DI、旧测试 fake 和临时架构白名单。不得把内部迁移兼容层长期化。
 
 ### Interface 清理
 
@@ -169,8 +198,8 @@ Feature 自行接管 WPF container generation、recycling、scroll extent/offset
 
 Codex 执行代码任务时不得顺手建立新的架构解释；若实现发现当前目标设计不成立，应在任务完成成果中记录阻塞，交由新的规划阶段调整 owner 文档。
 
-## 6. 3000+ 章节卡顿
+## 6. 性能回归
 
-此前 Player → Back → BookDetails 的 3000+ 章节返回卡顿已确认解决，不再作为待修复问题，也不追加专项 workaround。
+此前 Player → Back → BookDetails 的 3000+ 章节返回卡顿已确认解决。
 
-后续在 180/1000/3000+/10000 真实规模中保留该场景作为性能回归；只有能够稳定复现退化时，再基于 Dispatcher/CPU/memory/SQL profiling 进入新的性能诊断。
+180/1000/3200/10000 章节规模架构验收已经完成。后续保留这些规模作为性能回归基线；只有稳定复现退化时才基于 Dispatcher/CPU/memory/SQL profiling 进入新的性能诊断，不预设专项 workaround。

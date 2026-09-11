@@ -30,11 +30,11 @@ NovelSpeaker.App
 职责：
 
 - **Domain**：纯业务值、规则和不依赖技术实现的模型。
-- **Application**：用例、端口、DTO/read model、播放/缓存/规则编排。
+- **Application**：按业务模块组织的用例、端口、DTO/read model、状态 owner 与编排。
 - **Infrastructure**：SQLite、文件、HTTP、Jint、NAudio、设置存储和日志适配。
 - **App**：WPF Shell、Page/ViewModel、平台桥接、主题与组合根。
 
-不再新增 Books/Playback/Cache 等独立程序集。当前架构压力应通过层内 Feature 和职责重构解决，而不是增加 assembly 数量。
+不再新增 Books/Playback/Cache 等独立程序集。架构压力通过层内模块、Feature 和职责重构解决，而不是增加 assembly 数量。
 
 ## 3. App Feature 结构
 
@@ -70,15 +70,52 @@ Shared/
 - `Shared` 不依赖 Feature。
 - Feature-local controller 默认留在 Feature 内。
 
-Application/Infrastructure 按相同业务概念组织，但不要求目录机械镜像 App。
+## 3.1 Application 模块边界
+
+四层结构之内，Application 进一步按稳定业务能力划分模块。目标概念结构为：
+
+```text
+Application/
+├─ Books/
+├─ Speech/
+├─ Cache/
+│  ├─ Plans/
+│  ├─ ActiveCache/
+│  └─ Export/
+├─ Playback/
+├─ Settings/
+└─ Desktop/
+```
+
+目录可以按实际类型数量做轻量调整，但 namespace、DI registration 和依赖方向必须体现相同边界。
+
+核心规则：
+
+- **Cache 是一级 Application 模块，不是 Playback 的子系统。**
+- Books、Speech、Settings 只表达自身状态、查询和变更语义，不依赖 Cache 的 invalidation、Coverage 或物理存储概念。
+- Cache 可以消费 Books、Speech、Settings 提供的稳定 query/role/change contract，并把这些变化解释为自己的 Coverage/plan/cache 失效。
+- Playback 可以消费 Books、Speech、Settings 和 Cache，但 Cache 不依赖 Playback session state。
+- 如果 ActiveCache/Export 需要当前位于 Playback 的非 session 能力，应把该能力移到其真实业务 owner 或提取窄角色合同；不得为了目录迁移形成 Cache ↔ Playback 循环。
+- Desktop 只消费需要的稳定 Application role interface，不拥有 Playback/Cache 真值。
+- Application 模块不得形成依赖环；跨模块依赖必须可以解释为稳定的单向业务关系。
+
+配置变化与 Cache 的关系采用明确的 typed source change：
+
+```text
+Settings change ─────────────┐
+TTS rule semantic change ───┼─→ Cache-owned integration → Coverage invalidation
+Regex/text-profile change ──┘
+```
+
+源模块发布“自身发生了什么变化”，不发布“Cache 应该如何失效”。Cache-owned integration 负责把这些变化映射为 Cache 域内 typed invalidation。禁止为此引入通用 EventBus/Messenger。
 
 ## 4. 接口和抽象原则
 
 只在存在真实边界时创建 interface。主要理由：
 
 1. Infrastructure 技术实现边界；
-2. process/session owner 的稳定角色视图；
-3. 跨 Feature 合同；
+2. process/session/background owner 的稳定角色视图；
+3. 跨模块/跨 Feature 合同；
 4. 外部副作用与测试隔离。
 
 Feature-local projector、mapper、controller、editor session 默认使用：
@@ -95,7 +132,7 @@ internal sealed class
 - Service Locator；
 - 万能 `Manager/Helper/Utils`；
 - 长期兼容 wrapper；
-- 通过 Shared 隐藏 Feature 循环依赖。
+- 通过 Shared 隐藏 Feature 或 Application 模块循环依赖。
 
 ### 4.1 成熟能力优先
 
@@ -139,8 +176,11 @@ NovelSpeaker 默认不重新实现平台、框架或成熟库已经稳定提供�
 | ReadingProgress checkpoint | Application progress controller + persistence port | Persistent |
 | 当前应用设置 snapshot | Settings process service | Process |
 | 当前路由 | Shell navigation owner | Process |
+| 物理缓存/index/file | CacheStore | Persistent/rebuildable |
+| Cache Coverage/目录投影 | Cache query + active Page projection | Query/Page activation |
 | 主动缓存批次 | `ActiveCacheCoordinator` | Background job |
 | 章节导出批次 | `ChapterExportCoordinator` | Background job |
+| Speech Plan 补建 | `SpeechPlanRepairCoordinator` | Background job |
 | 页面 draft/filter/selection | 当前 Page/ViewModel | Page activation |
 | 当前规则编辑草稿 | 当前 Rules editor session | Page activation |
 
@@ -156,7 +196,7 @@ ViewModel 不复制 process/session owner 的可变状态。跨页面展示通�
 
 - Playback owner；
 - Settings owner；
-- ActiveCache / Export coordinator；
+- Cache invalidation/repair/active-cache/export coordinator；
 - Shell navigation；
 - desktop lifecycle。
 
@@ -184,6 +224,8 @@ PlaybackCoordinator
 - Audio callback 转为内部命令，不直接修改页面状态。
 - Progress controller 负责 checkpoint 和 stale-session 防护。
 - `PlaybackSnapshot` 仍由同一个 owner 发布。
+- Playback 可以使用 Cache，但不拥有 CacheCatalog、Coverage、Speech Plan repair、ActiveCache 或 Export 的生命周期。
+- 对 `PlaybackCoordinator` 的进一步拆分只能抽离不拥有 session truth、且存在独立变化原因的职责；不得为了减小文件而拆出第二套 session state。
 
 ## 8. Player Presentation
 
@@ -209,28 +251,27 @@ PlayerViewModel 主要负责：
 
 ## 9. Cache 架构
 
-不建立大一统 `CacheManager`。物理缓存事实、当前配置完整度、后台任务和页面交互状态必须分开。
+Cache 是一级 Application 模块。不建立大一统 `CacheManager`；物理缓存事实、当前配置完整度、Speech Plan、后台任务和页面交互状态必须分开。
 
 目标职责：
 
 ```text
-CacheStore                    物理 cache/index/file 唯一事实与原子操作
-CacheCatalog                  物理缓存 overview/book/chapter read model
-CacheInvalidationCoordinator  Cache-local typed invalidation + 短窗口合并
-CacheCoverageQuery            当前配置下的缓存完整度只读查询
-SpeechPlanRepairCoordinator   缺失/过期 plan 的 process 后台补建 owner
-ActiveCacheCoordinator        主动缓存 batch owner
-ChapterExportCoordinator      导出 batch owner
-CacheManagement VM            transient filter/selection/live projection
+CacheStore                         物理 cache/index/file 唯一事实与原子操作
+CacheCatalog                       物理缓存 overview/book/chapter read model
+CacheInvalidationCoordinator       Cache-local typed invalidation + 短窗口合并
+CacheConfigurationChangeObserver   把外部配置源变化映射为 Cache Coverage 失效
+CacheCoverageQuery                 当前配置下的缓存完整度只读查询
+SpeechPlanRepairCoordinator        缺失/过期 plan 的 process 后台补建 owner
+ActiveCacheCoordinator             主动缓存 batch owner
+ChapterExportCoordinator           导出 batch owner
+CacheManagement VM                 transient filter/selection/live projection
 ```
-
-`CacheWorkspaceService` 等过宽 abstraction 应在迁移中拆解或删除。页面工作区不与 process 后台任务共用 owner。
 
 Cache invalidation 是“数据已失效”的通知，不是另一份统计真值：
 
 - 物理 cache mutation 由实际提交变更的一层报告最窄已知范围：Global、Book 或明确 Chapter 集合；
 - 多章清理等已知具体章节的操作不得无必要退化为整本书失效；
-- invalidation 区分物理统计/目录结构/当前配置 Coverage 等受影响方面；
+- invalidation 区分物理统计、目录结构、当前配置 Coverage 等受影响方面；
 - `CacheInvalidationCoordinator` 只在 Cache 域内使用，不演化为通用 EventBus/Messenger；
 - 高频连续 mutation 在短窗口内合并为 immutable batch；具体毫秒数属于实现/性能调优，不是产品合同；
 - consumer 收到 invalidation 后重新读取最小 read model，事件本身不携带可长期依赖的总大小、百分比等派生统计。
@@ -241,7 +282,7 @@ Cache invalidation 是“数据已失效”的通知，不是另一份统计真�
 Physical cache
   → CacheStore / CacheCatalog
 
-Current configuration
+Books/Speech/Settings current configuration
   + ChapterSpeechPlan
   + Physical cache
   → CacheCoverageQuery
@@ -249,7 +290,7 @@ Current configuration
 
 `CacheCoverageQuery` 不负责后台补建。读取发现 `PlanMissing`/`PlanStale` 时，由明确的 use case/controller 向 `SpeechPlanRepairCoordinator` 登记补建；补建提交完成后发布对应 Coverage invalidation。
 
-设置、TTS 规则、正文处理规则等改变时可以使 Coverage 全局失效，但不得因此立即遍历全部书籍/章节重算完整度。active 页面只重新计算 current/viewport/明确需要的 decoration。
+设置、TTS 规则、正文处理规则等改变时，由 Cache-owned configuration observer 根据源模块的 typed change 判断 Coverage 失效范围。源模块不得直接调用 Cache invalidation API。配置失效不得触发立即遍历全部书籍/章节重算，active 页面只重新计算 current/viewport/明确需要的 decoration。
 
 页面 selection 属于 Page activation state。cache/catalog/coverage 刷新不得无条件重置 selection；目录结构变化只移除已经不存在的选择项。
 
@@ -261,13 +302,15 @@ Current configuration
 
 ```text
 Rules/Shared
-├─ RuleEditorSession<TDraft>
+├─ EditorSession
 ├─ RuleSelectionController
 ├─ RuleReorderController
-└─ common import interaction
+└─ RuleImportSession
 ```
 
-不建立复杂泛型 Rule Framework。
+validation、default、preview/test、persistence DTO 和规则语义留在各自 Feature/Application 模块。不建立复杂泛型 Rule Framework。
+
+规则修改如果会影响其它模块，只发布规则自身的 typed semantic change；不得嵌入 Cache-specific side effect。
 
 ### Settings
 
@@ -277,7 +320,9 @@ Process Settings State
 Transient Settings Page/ViewModel
 ```
 
-即时设置页面投影 process snapshot；需要保存的设置使用 transient draft。
+`AppSettingsService` 是 process settings snapshot 的唯一 owner。即时设置页面投影 process snapshot；需要保存的设置使用 transient draft。
+
+Settings change event 只描述 settings snapshot 变化。Cache、Theme、Playback 等消费者各自在自己的边界解释其影响，Settings 不主动调用这些消费者的内部协调器。
 
 ## 11. CQRS-style Query Model
 
@@ -390,7 +435,8 @@ Critical
 - 真实 process owner 使用 Singleton。
 - Page/ViewModel/Feature-local controller 默认 Transient。
 - Singleton 不捕获 Page、Window 或短生命周期 UI 对象。
-- 注册按模块集中声明，并由 Architecture/DI tests 守护。
+- Application/Infrastructure 注册按业务模块集中声明；Cache 与 Playback 使用独立 registration，不由 Playback registration 顺带拥有 Cache 生命周期。
+- 注册边界和模块依赖由 Architecture/DI tests 守护。
 
 ## 15. 导航架构
 
@@ -427,10 +473,26 @@ Architecture Fitness Tests 至少长期验证：
 - ViewModel/Feature controller 不依赖 `IServiceProvider`；
 - 不新增通用 EventBus/Messenger；
 - Application 不引用 WPF；
-- 页面不直接写 ReadingProgress；
+- Application 业务模块不形成循环依赖；
+- Books/Speech/Settings 不引用 Cache-specific invalidation/Coverage/storage API；
 - Playback mutable session state 只由指定 owner 修改；
+- 页面不直接写 ReadingProgress；
 - 大列表 helper 不重新引入首屏 `Clear + N × Add` 模式；
 - Library 不重新引入 Feature-owned `ItemContainerGenerator`/`IScrollInfo` 虚拟化状态机；
 - 兼容 wrapper/Obsolete bridge 不长期存在。
 
 不把代码行数、构造参数数量或绝对毫秒性能作为机械架构门槛。
+
+## 18. 迁移与遗留代码清理
+
+模块/namespace/owner 迁移的完成标准不仅是新路径可用，还必须在同一轮清理迁移遗留：
+
+- 旧 namespace 和空目录；
+- forwarding/compatibility wrapper、alias interface、Obsolete bridge；
+- 重复 DTO/read model/projector/controller；
+- orphan DI registration 和仅为旧架构存在的 factory；
+- 旧事件、旧 mutation/invalidation 入口；
+- 测试中的旧 fake/stub/helper 与临时白名单；
+- 一次性 migration instrumentation、trace、dump、脚本。
+
+内部 API 不为迁移便利长期保留兼容层。唯一例外是已发布用户数据、SQLite migration、持久化格式和明确的外部兼容合同；这些兼容需求不得与内部代码兼容混为一谈。

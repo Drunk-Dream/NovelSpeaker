@@ -4,13 +4,13 @@
 
 | 层级 | 示例 | Owner |
 |---|---|---|
-| Process | Shell、Settings、导航、托盘、后台协调器 | Process service/coordinator |
+| Process | Shell、Settings、导航、托盘、Cache invalidation 等进程服务 | Process service/coordinator |
 | Playback session | 当前书/章/段、音频、prefetch、snapshot | Playback Session Core |
 | Page activation | 页面加载、draft、filter、selection、locator | Transient Page/ViewModel |
-| Background job | 主动缓存、章节导出、speech-plan 补建、维护 | 对应 coordinator |
+| Background job | 主动缓存、章节导出、speech-plan 补建、维护 | 对应 Cache/background coordinator |
 | Operation | 导入、试听、清理、选择目录、保存 | 发起 use case/controller |
 
-状态不能跨层级复制 owner。
+状态不能跨层级复制 owner。模块归属与生命周期是两个不同维度：例如 ActiveCache 属于 Cache 模块，但其运行态是 process background job；Playback Prefetch 属于 Playback session。
 
 ## 2. 启动顺序
 
@@ -20,7 +20,7 @@ configure logging
 → build DI container
 → initialize/migrate database
 → recover unfinished operations
-→ initialize playback/background/desktop coordinators
+→ initialize cache/playback/background/desktop coordinators
 → create Shell
 → apply theme/close behavior
 → show main window or tray
@@ -102,7 +102,7 @@ ReadingProgress(SQLite) = checkpoint / 非活动与重启基线
 
 ## 7. Audio 生命周期
 
-PlaybackAudioController 唯一拥有本地音频输出、reader/stream 和 NAudio 资源。
+PlaybackAudioController 唯一拥有本地播放资源与 callback bridge；底层 NAudio 资源由 Infrastructure audio adapter 持有。
 
 会话替换顺序由 Playback owner 明确控制：
 
@@ -127,7 +127,9 @@ Current playback > Playback prefetch > Active cache
 
 同一规则共用 admission/limiter，主动缓存不建立绕过限制的并发路径。
 
-Prefetch 属于 Playback session；Active cache 属于 Process background job。
+- Playback Prefetch 属于 Playback session。
+- Active Cache 属于 Cache 模块和 Process background job。
+- 二者可以复用同一窄的音频获取/TTS admission 能力，但不得通过相互依赖的 owner 实现复用。
 
 ## 9. 主动缓存后台任务
 
@@ -138,9 +140,11 @@ Prefetch 属于 Playback session；Active cache 属于 Process background job。
 - 取消停止未开始工作，已完成缓存保留。
 - 任务完成/取消/失败后释放 active slot。
 
+`ActiveCacheCoordinator` 属于 Cache 模块；不依赖 Playback session mutable state。
+
 ## 10. 章节 MP3 导出
 
-导出是独立 Process background job：
+导出是 Cache 相关的独立 Process background job：
 
 - 全应用最多一个导出批次；
 - 提交时冻结书籍、章节集合和目标目录；
@@ -187,7 +191,16 @@ active 页面只根据 batch 重新读取自己当前可见/需要的最小 read
 
 物理缓存变化会使对应章节 Coverage 可能变化。
 
-Selected TTS Rule、默认语速、是否朗读章节标题、正文分段/Regex 等影响 speech plan 或 synthesis profile 的配置变化，可以把 Coverage 视为全局失效，但只表示旧 projection 不再可信：
+Settings、TTS rule、Regex/text profile 等源模块只发布自身的 typed semantic change，不直接调用 Cache invalidation API。由 Cache-owned integration 订阅/消费这些稳定 change source，并判断是否映射为 Coverage 失效：
+
+```text
+source module change
+→ Cache configuration-change integration
+→ CacheInvalidation(Coverage)
+→ active consumers re-query
+```
+
+配置变化可以使 Coverage 全局失效，但只表示旧 projection 不再可信：
 
 - 不立即重算所有书籍/章节；
 - BookDetails/Player/CacheManagement 只重算 current/viewport/明确受影响章节；
@@ -203,7 +216,7 @@ Selected TTS Rule、默认语速、是否朗读章节标题、正文分段/Regex
 - 有限并发；
 - 页面只取消自己的等待/订阅；
 - 计划在内存完整构建后短事务提交；
-- 普通目录不为从未建立计划的普通章节无条件建立新计划。
+- 普通目录不为从未建立计划的普通章节无条件建立新计划；
 - 补建完成后发布最窄章节级 Coverage invalidation；仍处于 active 状态且正在显示该章节的页面自行重读。
 
 ## 12. Settings
@@ -215,6 +228,8 @@ Settings Page/ViewModel transient：
 - 即时设置直接投影/更新 process snapshot；
 - 需要确认保存的设置持有 transient draft；
 - 页面销毁不销毁设置本身。
+
+Settings owner 只发布 previous/current 等设置自身语义，不直接协调 Cache、Theme、Playback 等消费者的内部状态。各消费者在自身边界解释设置变化。
 
 ## 13. Staged Loading 生命周期
 
