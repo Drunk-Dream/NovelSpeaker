@@ -19,23 +19,11 @@ internal sealed record ApplicationModuleDependency(
     string TargetNamespace,
     string TargetType)
 {
-    public string Identity => CreateIdentity(
-        SourcePath,
-        SourceModule,
-        TargetModule,
-        TargetNamespace,
-        TargetType);
+    public string Identity =>
+        $"{SourcePath}|{SourceModule}|{TargetModule}|{TargetNamespace}|{TargetType}";
 
     public string Display =>
         $"{SourcePath}: {SourceModule} -> {TargetModule} ({TargetNamespace}.{TargetType})";
-
-    public static string CreateIdentity(
-        string sourcePath,
-        ApplicationModule sourceModule,
-        ApplicationModule targetModule,
-        string targetNamespace,
-        string targetType) =>
-        $"{sourcePath}|{sourceModule}|{targetModule}|{targetNamespace}|{targetType}";
 }
 
 internal sealed record ApplicationGlobalUsing(
@@ -93,27 +81,19 @@ internal static partial class ArchitectureRules
         };
 
     public static IReadOnlyList<string> FindApplicationModuleDependencyViolations(
-        IEnumerable<SourceFileDescriptor> files,
-        IReadOnlyCollection<string> temporaryBaselineIdentities)
+        IEnumerable<SourceFileDescriptor> files)
     {
-        var baseline = temporaryBaselineIdentities.ToHashSet(StringComparer.Ordinal);
-
         return FindApplicationModuleDependencies(files)
             .Where(dependency => IsForbiddenApplicationModuleDependency(dependency))
-            .Where(dependency => !baseline.Contains(dependency.Identity))
             .Select(dependency => dependency.Display)
             .Order(StringComparer.Ordinal)
             .ToArray();
     }
 
     public static IReadOnlyList<string> FindApplicationModuleDependencyCycles(
-        IEnumerable<SourceFileDescriptor> files,
-        IReadOnlyCollection<string> temporaryBaselineIdentities)
+        IEnumerable<SourceFileDescriptor> files)
     {
-        var baseline = temporaryBaselineIdentities.ToHashSet(StringComparer.Ordinal);
-        var dependencies = FindApplicationModuleDependencies(files)
-            .Where(dependency => !baseline.Contains(dependency.Identity))
-            .ToArray();
+        var dependencies = FindApplicationModuleDependencies(files).ToArray();
         var graph = dependencies
             .GroupBy(dependency => dependency.SourceModule)
             .ToDictionary(
@@ -897,13 +877,6 @@ internal static partial class ArchitectureRules
             !ApplicationModules.Contains(module))
         {
             return false;
-        }
-
-        if (module == ApplicationModule.Playback &&
-            segments.Length > 1 &&
-            segments[1] is "Cache" or "ActiveCache" or "Export")
-        {
-            module = ApplicationModule.Cache;
         }
 
         return true;

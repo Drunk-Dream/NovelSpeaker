@@ -20,13 +20,10 @@ internal static class KnownArchitectureBaseline
     public static readonly IReadOnlySet<string> FeatureDependencyCycles =
         new HashSet<string>(StringComparer.Ordinal);
 
-    // T002 converted ordinary Feature ViewModels to transient registrations.
     public static readonly IReadOnlySet<string> FeaturePageOrViewModelSingletonRegistrations =
         new HashSet<string>(StringComparer.Ordinal);
 
     public static readonly IReadOnlySet<string> LargeListClearThenAddViolations =
         new HashSet<string>(StringComparer.Ordinal);
 
-    public static readonly IReadOnlyDictionary<string, string> ApplicationModuleDependencyDebts =
-        new Dictionary<string, string>(StringComparer.Ordinal);
 }

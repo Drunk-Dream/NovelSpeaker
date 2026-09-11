@@ -15,7 +15,7 @@ public sealed class ArchitectureRuleContractTests
                 "src/NovelSpeaker.Application",
                 "using NovelSpeaker.Application.Cache; namespace NovelSpeaker.Application.Books; public sealed class BooksService(IChapterSpeechPlanService service);"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/IChapterSpeechPlanService.cs",
+                "src/NovelSpeaker.Application/Cache/IChapterSpeechPlanService.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public interface IChapterSpeechPlanService;")
         };
@@ -30,7 +30,7 @@ public sealed class ArchitectureRuleContractTests
             ],
             dependencies);
 
-        var violations = ArchitectureRules.FindApplicationModuleDependencyViolations(files, []);
+        var violations = ArchitectureRules.FindApplicationModuleDependencyViolations(files);
 
         Assert.Equal(
             [
@@ -54,7 +54,7 @@ public sealed class ArchitectureRuleContractTests
                 "namespace NovelSpeaker.Application.Cache; public sealed class Fingerprint;")
         };
 
-        Assert.Empty(ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+        Assert.Empty(ArchitectureRules.FindApplicationModuleDependencyViolations(files));
     }
 
     [Fact]
@@ -63,7 +63,7 @@ public sealed class ArchitectureRuleContractTests
         var files = new[]
         {
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs",
+                "src/NovelSpeaker.Application/Cache/CacheService.cs",
                 "src/NovelSpeaker.Application",
                 "using NovelSpeaker.Application.Playback; namespace NovelSpeaker.Application.Cache; public sealed class CacheService(IPlaybackSession session);"),
             Source(
@@ -74,9 +74,9 @@ public sealed class ArchitectureRuleContractTests
 
         Assert.Equal(
             [
-                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
+                "src/NovelSpeaker.Application/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
             ],
-            ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+            ArchitectureRules.FindApplicationModuleDependencyViolations(files));
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class ArchitectureRuleContractTests
         var files = new[]
         {
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs",
+                "src/NovelSpeaker.Application/Cache/CacheService.cs",
                 "src/NovelSpeaker.Application",
                 "using Session = NovelSpeaker.Application.Playback.IPlaybackSession; namespace NovelSpeaker.Application.Cache; public sealed class CacheService(Session session);"),
             Source(
@@ -97,7 +97,7 @@ public sealed class ArchitectureRuleContractTests
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Playback; public interface IPlaybackSession;"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidation.cs",
+                "src/NovelSpeaker.Application/Cache/CacheInvalidation.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public static class CacheInvalidation { public static void ForGlobal() { } }")
         };
@@ -105,9 +105,9 @@ public sealed class ArchitectureRuleContractTests
         Assert.Equal(
             [
                 "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.CacheInvalidation)",
-                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
+                "src/NovelSpeaker.Application/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
             ],
-            ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+            ArchitectureRules.FindApplicationModuleDependencyViolations(files));
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class ArchitectureRuleContractTests
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Books; public sealed class BooksService { public void Save(ICacheInvalidationCoordinator coordinator) { ForGlobal(); ForGeneric<int>(); _ = Second; _ = Coverage; _ = Default; _ = Secondary; _ = new Global(); _ = new Scope(); _ = Marker; } }"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs",
+                "src/NovelSpeaker.Application/Cache/CacheService.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public sealed class CacheService(Session session);"),
             Source(
@@ -132,23 +132,23 @@ public sealed class ArchitectureRuleContractTests
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Playback; public interface IPlaybackSession;"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidation.cs",
+                "src/NovelSpeaker.Application/Cache/CacheInvalidation.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public static class CacheInvalidation { public static readonly int First = 1, Second = 2; public static void ForGlobal() { } public static void ForGeneric<T>() { } }"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/ICacheInvalidationCoordinator.cs",
+                "src/NovelSpeaker.Application/Cache/ICacheInvalidationCoordinator.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public interface ICacheInvalidationCoordinator;"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidationAspect.cs",
+                "src/NovelSpeaker.Application/Cache/CacheInvalidationAspect.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public enum CacheInvalidationAspect { None, Coverage }"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheOptions.cs",
+                "src/NovelSpeaker.Application/Cache/CacheOptions.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public static class CacheOptions { public const int Default = 1, Secondary = 2; }"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidationScope.cs",
+                "src/NovelSpeaker.Application/Cache/CacheInvalidationScope.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public abstract record CacheInvalidationScope { public sealed record Global : CacheInvalidationScope { public static int Marker => 1; } }"),
         };
@@ -161,9 +161,9 @@ public sealed class ArchitectureRuleContractTests
                 "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.CacheInvalidationScope.Global)",
                 "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.CacheOptions)",
                 "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.ICacheInvalidationCoordinator)",
-                "src/NovelSpeaker.Application/Playback/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
+                "src/NovelSpeaker.Application/Cache/CacheService.cs: Cache -> Playback (NovelSpeaker.Application.Playback.IPlaybackSession)"
             ],
-            ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+            ArchitectureRules.FindApplicationModuleDependencyViolations(files));
     }
 
     [Fact]
@@ -180,16 +180,16 @@ public sealed class ArchitectureRuleContractTests
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Books; public sealed class BooksService { public void Save() { Marker(); _ = Local; } }"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/CacheInvalidationScope.cs",
+                "src/NovelSpeaker.Application/Cache/CacheInvalidationScope.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public abstract record CacheInvalidationScope { public static void Outer() { static void Marker() { } const int Local = 1; } }")
         };
 
-        Assert.Empty(ArchitectureRules.FindApplicationModuleDependencyViolations(files, []));
+        Assert.Empty(ArchitectureRules.FindApplicationModuleDependencyViolations(files));
     }
 
     [Fact]
-    public void ApplicationModuleRuleFindsCyclesAndAllowsOnlyTheExactDebtEdge()
+    public void ApplicationModuleRuleFindsAllApplicationModuleCycles()
     {
         var files = new[]
         {
@@ -207,25 +207,13 @@ public sealed class ArchitectureRuleContractTests
                 "namespace NovelSpeaker.Application.Books; public interface IBookLibraryQuery;")
         };
 
-        var dependencies = ArchitectureRules.FindApplicationModuleDependencies(files);
-        var debt = dependencies
-            .Single(dependency => dependency.TargetType == "ICacheCatalog")
-            .Identity;
-
         Assert.Equal(
             [
                 "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.ICacheCatalog)",
                 "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.ICacheCatalogV2)",
                 "src/NovelSpeaker.Application/Cache/ICacheCatalog.cs: Cache -> Books (NovelSpeaker.Application.Books.IBookLibraryQuery)"
             ],
-            ArchitectureRules.FindApplicationModuleDependencyCycles(files, []));
-        Assert.Equal(
-            [
-                "src/NovelSpeaker.Application/Books/BooksService.cs: Books -> Cache (NovelSpeaker.Application.Cache.ICacheCatalogV2)",
-                "src/NovelSpeaker.Application/Cache/ICacheCatalog.cs: Cache -> Books (NovelSpeaker.Application.Books.IBookLibraryQuery)"
-            ],
-            ArchitectureRules.FindApplicationModuleDependencyCycles(files, [debt]));
-        Assert.Empty(ArchitectureRules.FindApplicationModuleDependencyCycles(files, dependencies.Select(dependency => dependency.Identity).ToArray()));
+            ArchitectureRules.FindApplicationModuleDependencyCycles(files));
     }
 
     [Fact]
@@ -242,7 +230,7 @@ public sealed class ArchitectureRuleContractTests
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Playback; public sealed class PlaybackCoordinator; public sealed class PlaybackCommandProcessor;"),
             Source(
-                "src/NovelSpeaker.Application/Playback/Cache/SpeechPlanRepairCoordinator.cs",
+                "src/NovelSpeaker.Application/Cache/SpeechPlanRepairCoordinator.cs",
                 "src/NovelSpeaker.Application",
                 "namespace NovelSpeaker.Application.Cache; public sealed class SpeechPlanRepairCoordinator;")
         };

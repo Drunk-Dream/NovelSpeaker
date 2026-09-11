@@ -242,7 +242,7 @@
 
 # Phase E：遗留清理与最终收口
 
-## [ ] T005（P0）：清除本轮迁移遗留并执行完整质量门禁
+## [x] T005（P0）：清除本轮迁移遗留并执行完整质量门禁
 
 依赖：T004。
 
@@ -289,3 +289,5 @@ dotnet test -c Release --no-build
 - 完整测试结果；
 - 适合下一轮日志/性能遥测/诊断系统接入的稳定边界；
 - 仍存在但不阻塞下一轮的风险。
+
+完成成果：审计确认 Application 仅保留 `Books`、`Speech`、`Cache`、`Playback`、`Settings`、`Desktop` 六个模块；允许方向为 `Cache → Books/Speech/Settings`、`Playback → Books/Speech/Cache/Settings`、`Speech → Settings`、`Desktop → Playback`，无模块环。删除 Application module Architecture debt 的临时白名单参数、baseline 属性、任务注释和旧 Cache 路径测试夹具；旧 `Application.Playback.Cache/ActiveCache/Export` 与 Infrastructure 旧 Cache 路径、alias、compat/forwarding abstraction 均无生产或测试引用。Cache 继续唯一拥有 physical cache、Coverage、repair、ActiveCache、Export；Playback 继续唯一拥有 mutable session truth；Settings 继续唯一拥有 process snapshot。本任务未新增或预埋日志、性能遥测、诊断会话/导出基础设施。未对 CacheManagement/Playback 继续拆分：T004 的有限拆分已形成稳定边界，Playback session orchestration 不存在可安全转移的独立 owner。验证：locked restore、format、solution Release build（0 warning/0 error）、全量 Release test 955/955、ArchitectureRuleContractTests/ArchitectureTests 46/46 均通过；首次全量测试出现一次临时 `app.db` fixture 锁竞争，单测复跑及完整套件复跑均通过。WSL 测试宿主启动需在沙箱外执行。下一轮可从 Cache process/background owner、Playback session owner、Settings typed snapshot/change source 和 Desktop stable role contract 接入日志/性能遥测/诊断；剩余风险仅为测试环境的 WSL socket/fixture 并发波动，不阻塞下一轮。
