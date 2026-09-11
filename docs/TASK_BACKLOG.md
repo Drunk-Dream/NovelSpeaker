@@ -79,7 +79,7 @@
 
 # Phase A：探索与清理基线
 
-## [ ] T001（P0）：审计生产代码与测试体系，建立可执行清理清单
+## [x] T001（P0）：审计生产代码与测试体系，建立可执行清理清单
 
 目标：先基于当前真实代码和 955 个测试形成“保留 / 合并 / 删除 / 需要进一步确认”的证据化清单，避免边看边删造成误判。
 
@@ -132,6 +132,14 @@
 - 没有仅凭名称/行数判断“无用”的候选；
 - ArchitectureTests 通过；
 - 若修改生产/测试代码，相应 focused tests 通过。
+
+完成成果：
+
+- 生产代码未发现可凭静态证据直接删除的高置信 dead code、孤立 DI registration 或 forwarding wrapper。`AppStoragePathMigrationService`、`AudioCacheFormatResetService`、legacy path handling 和 `TtsRuleCompatibilityChecker` 均有活动调用方，分别保护启动迁移、缓存格式 reset、数据根安全和导入兼容性，列为保留合同。
+- Domain/Application 测试保留 Playback session/checkpoint、Cache identity/invalidation、ActiveCache/Export 生命周期、Settings/Rules、导入恢复、文本处理和 TTS 安全合同；可执行候选为：无变化输入的 cache identity 测试、三项重复 filename fallback、误称 list identity 的断言、progress object-identity 断言、两个 stop-timer range 测试，以及重复的 typed source-change 测试。后续应合并/重写并保留实际行为保护。
+- Infrastructure 测试保留 SQLite schema/migration/query、cache index/file 原子性、路径与外部 TXT 安全、JSON persistence、HTTP TTS、Jint sandbox、NAudio/MP3 和 export 边界。`AppDataDirectoryProviderTests` 的纯路径投影断言可与目录创建合同合并；PlaybackCoordinator 三组测试是有价值的 Application 编排测试，但当前错置在 Infrastructure，后续优先重定位/拆分而非删除。
+- Presentation/WPF 审计确认 current-item locator、auto-scroll、大列表、navigation 和 WPF isolation/resource/theme 测试分属不同技术边界，不作为 T003 删除项；主要后续低风险候选是成对的 active-cache/export/mini-player/stop-timer test doubles 耦合，属于 T004 范围，不在本次用户请求内处理。
+- ArchitectureTests + BehaviorDebtBaselineTests 基线通过：18/18（Release，沙箱外）；命令因 WSL socket 初始化错误先在沙箱内失败，随后完成沙箱外验证。基线测试总量保持 Backlog 所记 955，未因审计删除测试。
 
 ---
 
