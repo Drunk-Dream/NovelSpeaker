@@ -10,12 +10,10 @@ internal static class CacheManagementCompletenessFormatter
 
         switch (status.Kind)
         {
-            case ChapterCacheStatusKind.PlanMissing:
+            case ChapterCacheStatusKind.PlanMissing or ChapterCacheStatusKind.PlanUnavailable:
                 return "完整度：计划计算中";
             case ChapterCacheStatusKind.PlanStale:
                 return "完整度：计划更新中";
-            case ChapterCacheStatusKind.PlanUnavailable:
-                return "完整度：计划计算中";
             case ChapterCacheStatusKind.NoPlayableContent:
                 return "完整度：无可播放内容";
             case ChapterCacheStatusKind.ConfigurationUnavailable:

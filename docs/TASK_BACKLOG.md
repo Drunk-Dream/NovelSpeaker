@@ -145,7 +145,7 @@
 
 # Phase B：生产代码收敛
 
-## [ ] T002（P1）：清理生产代码中的 dead / legacy / duplicate 实现
+## [x] T002（P1）：清理生产代码中的 dead / legacy / duplicate 实现
 
 依赖：T001。
 
@@ -189,6 +189,13 @@
 - ArchitectureTests 通过；
 - 因 production 删除而失去意义的测试可同步删除，但不得提前做大范围测试瘦身；
 - 完成成果记录主要删除项、保留的高风险候选及理由。
+
+完成成果：
+
+- 合并 `CacheManagementCompletenessFormatter` 中对 `PlanMissing` 与 `PlanUnavailable` 的重复分支，保留相同的“计划计算中”用户可见结果；没有新增 abstraction 或改变 Cache/Playback owner。
+- 生产审计确认没有可凭调用图删除的 dead class、orphan registration、旧 namespace 或 forwarding wrapper。`AppStoragePathMigrationService`、`AudioCacheFormatResetService`、legacy path safety 和 TTS compatibility 都仍由启动/数据/导入路径使用，因此保留。
+- 保留 `IAudioCache`/`IAudioCacheStore`、两类 cache formatter、`IHttpTtsClient`/`TtsExecutionService` 等看似相近但拥有不同消费者或技术边界的实现，未进行未经证实的合并。
+- 验证通过：`CacheCompletenessFormatterTests`、`ArchitectureTests`、`BehaviorDebtBaselineTests` 合计 21/21（Release，沙箱外）。
 
 ---
 
