@@ -71,13 +71,59 @@ public sealed class DiagnosticToolViewModelTests
         Assert.Equal(DiagnosticToolState.Completed, viewModel.State);
     }
 
+    [Fact]
+    public async Task Hard_cap_refresh_disables_optional_capture_actions_but_keeps_end_available()
+    {
+        var sessions = new FakeSessionService();
+        var viewModel = CreateViewModel(sessions);
+        await viewModel.StartCommand.ExecuteAsync(null);
+
+        sessions.StopCapture();
+        viewModel.RefreshDuration();
+
+        Assert.True(viewModel.IsCaptureStopped);
+        Assert.Contains("容量上限", viewModel.StateText, StringComparison.Ordinal);
+        Assert.False(viewModel.MarkProblemCommand.CanExecute(null));
+        Assert.False(viewModel.CaptureWindowCommand.CanExecute(null));
+        Assert.True(viewModel.EndCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Window_capture_failure_is_reported_without_ending_the_session()
+    {
+        var sessions = new FakeSessionService();
+        var viewModel = CreateViewModel(sessions, windowCapture: new FaultingWindowCapture());
+        await viewModel.StartCommand.ExecuteAsync(null);
+
+        await viewModel.CaptureWindowCommand.ExecuteAsync(null);
+
+        Assert.Equal(DiagnosticToolState.Capturing, viewModel.State);
+        Assert.NotEmpty(viewModel.ErrorText);
+        Assert.NotNull(sessions.Current);
+    }
+
+    [Fact]
+    public async Task Marker_failure_is_reported_without_incrementing_the_displayed_count()
+    {
+        var sessions = new FakeSessionService { MarkerResult = false };
+        var viewModel = CreateViewModel(sessions);
+        await viewModel.StartCommand.ExecuteAsync(null);
+
+        await viewModel.MarkProblemCommand.ExecuteAsync(null);
+
+        Assert.Equal(0, viewModel.MarkerCount);
+        Assert.NotEmpty(viewModel.ErrorText);
+        Assert.Equal(DiagnosticToolState.Capturing, viewModel.State);
+    }
+
     private static DiagnosticToolViewModel CreateViewModel(
         FakeSessionService sessions,
-        FakeExportService? exports = null) =>
+        FakeExportService? exports = null,
+        IDiagnosticWindowCapture? windowCapture = null) =>
         new(
             sessions,
             exports ?? new FakeExportService { DestinationPath = "problem.zip" },
-            new FakeWindowCapture(),
+            windowCapture ?? new FakeWindowCapture(),
             new FakeFileDialogs { SavePath = "problem.zip" },
             new FixedTimeProvider());
 
@@ -91,6 +137,21 @@ public sealed class DiagnosticToolViewModelTests
         public int EndCount { get; private set; }
         public int MarkerCount { get; private set; }
         public int AttachmentCount { get; private set; }
+        public bool MarkerResult { get; init; } = true;
+
+        public void StopCapture()
+        {
+            if (Current is not { } current)
+            {
+                return;
+            }
+
+            Current = current with
+            {
+                CaptureStopped = true,
+                CaptureStoppedReason = "hard-cap"
+            };
+        }
 
         public Task<DiagnosticSessionSnapshot> StartAsync(
             DiagnosticSessionStartOptions options,
@@ -135,7 +196,16 @@ public sealed class DiagnosticToolViewModelTests
             return Task.CompletedTask;
         }
 
-        public void RecordProblemMarker() => MarkerCount++;
+        public Task<bool> RecordProblemMarkerAsync(CancellationToken cancellationToken)
+        {
+            if (!MarkerResult)
+            {
+                return Task.FromResult(false);
+            }
+
+            MarkerCount++;
+            return Task.FromResult(true);
+        }
 
         public string GetOrCreateAnonymousObjectToken(string objectType, string objectIdentity) => "book-1";
 
@@ -163,6 +233,12 @@ public sealed class DiagnosticToolViewModelTests
     {
         public Task<DiagnosticAttachment> CaptureCurrentWindowAsync(CancellationToken cancellationToken) =>
             Task.FromResult(new DiagnosticAttachment("capture-one", DateTimeOffset.UtcNow, "image/png", 1, 1, [1]));
+    }
+
+    private sealed class FaultingWindowCapture : IDiagnosticWindowCapture
+    {
+        public Task<DiagnosticAttachment> CaptureCurrentWindowAsync(CancellationToken cancellationToken) =>
+            throw new IOException("capture unavailable");
     }
 
     private sealed class FakeFileDialogs : IPresentationFileDialogService

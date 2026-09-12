@@ -11,6 +11,11 @@ internal sealed class WpfDiagnosticWindowCapture : IDiagnosticWindowCapture
     private readonly Func<Window?> _windowProvider;
     private readonly TimeProvider _timeProvider;
 
+    public WpfDiagnosticWindowCapture(TimeProvider timeProvider)
+        : this(() => System.Windows.Application.Current?.MainWindow, timeProvider)
+    {
+    }
+
     public WpfDiagnosticWindowCapture(Func<Window?> windowProvider, TimeProvider timeProvider)
     {
         _windowProvider = windowProvider ?? throw new ArgumentNullException(nameof(windowProvider));

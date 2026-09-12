@@ -17,6 +17,7 @@ public partial class DiagnosticToolWindow : System.Windows.Window
         };
         _durationTimer.Tick += OnDurationTimerTick;
         _durationTimer.Start();
+        ViewModel.CloseRequested += OnCloseRequested;
         Closing += OnClosing;
     }
 
@@ -26,11 +27,14 @@ public partial class DiagnosticToolWindow : System.Windows.Window
     {
         _durationTimer.Stop();
         _durationTimer.Tick -= OnDurationTimerTick;
+        ViewModel.CloseRequested -= OnCloseRequested;
         Closing -= OnClosing;
         base.OnClosed(e);
     }
 
     private void OnDurationTimerTick(object? sender, EventArgs e) => ViewModel.RefreshDuration();
+
+    private void OnCloseRequested(object? sender, EventArgs e) => Close();
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {

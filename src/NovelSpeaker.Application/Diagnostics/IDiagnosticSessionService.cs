@@ -24,7 +24,7 @@ public interface IDiagnosticSessionService
 
     Task AddAttachmentAsync(DiagnosticAttachment attachment, CancellationToken cancellationToken);
 
-    void RecordProblemMarker();
+    Task<bool> RecordProblemMarkerAsync(CancellationToken cancellationToken);
 
     string GetOrCreateAnonymousObjectToken(string objectType, string objectIdentity);
 

@@ -121,7 +121,7 @@ public sealed class SqliteDiagnosticSessionStoreTests
             operation.Complete(OperationResult.Succeeded());
         }
 
-        store.RecordProblemMarker();
+        Assert.True(await store.RecordProblemMarkerAsync(CancellationToken.None));
         await store.FlushAsync(CancellationToken.None);
         await store.EndAsync(CancellationToken.None);
 
@@ -191,7 +191,7 @@ public sealed class SqliteDiagnosticSessionStoreTests
 
         for (var index = 0; index < 2000; index++)
         {
-            store.RecordProblemMarker();
+            await store.RecordProblemMarkerAsync(CancellationToken.None);
         }
 
         await store.FlushAsync(CancellationToken.None);
@@ -230,6 +230,24 @@ public sealed class SqliteDiagnosticSessionStoreTests
         Assert.Equal(OperationOutcome.Succeeded, recordingConsumer.Completed!.Result.Outcome);
         blocker.Dispose();
         Assert.Equal(before, fixture.ReadBytes(sessionPath));
+    }
+
+    [Fact]
+    public async Task Marker_writer_failure_returns_not_recorded_without_throwing()
+    {
+        var fixture = new Fixture("process-one");
+        await using var store = fixture.CreateStore();
+        var started = await store.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
+        using var blocker = new FileStream(
+            fixture.SessionPath(started.SessionId),
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+
+        var recorded = await store.RecordProblemMarkerAsync(CancellationToken.None);
+
+        Assert.False(recorded);
+        Assert.True(store.IsDegraded);
     }
 
     private sealed class RecordingConsumer : IObservabilityConsumer

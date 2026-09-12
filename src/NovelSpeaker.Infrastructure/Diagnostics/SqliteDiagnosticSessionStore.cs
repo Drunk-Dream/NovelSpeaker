@@ -471,19 +471,19 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         {
             ActiveSession active;
             TaskCompletionSource<bool> completion;
-                lock (_gate)
+            lock (_gate)
+            {
+                active = _active ?? throw new InvalidOperationException("只有活动诊断会话可以保存附件。");
+                if (!active.AcceptingWrites)
                 {
-                    active = _active ?? throw new InvalidOperationException("只有活动诊断会话可以保存附件。");
-                    if (!active.AcceptingWrites)
-                    {
-                        throw new InvalidOperationException("诊断会话正在结束，无法保存附件。");
-                    }
+                    throw new InvalidOperationException("诊断会话正在结束，无法保存附件。");
+                }
 
-                    var estimate = content.LongLength + 512;
-                    if (active.CaptureStopped || !CanAccept(active, estimate))
-                    {
-                        MarkCaptureStoppedLocked(active, "hard-cap");
-                        throw new InvalidOperationException("诊断会话已达到容量上限。");
+                var estimate = content.LongLength + 512;
+                if (active.CaptureStopped || !CanAccept(active, estimate))
+                {
+                    MarkCaptureStoppedLocked(active, "hard-cap");
+                    throw new InvalidOperationException("诊断会话已达到容量上限。");
                 }
 
                 active.RecordedBytes = Math.Min(active.HardCapBytes, active.RecordedBytes + estimate);
@@ -519,11 +519,39 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         }
     }
 
-    public void RecordProblemMarker()
+    public async Task<bool> RecordProblemMarkerAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var definition = _registry.Get(new DiagnosticDefinitionId("diagnostics.problem_marker"));
         var source = definition.Fields.Single(field => field.Name == "source");
-        Record(definition, definition.CreateFields(DiagnosticFieldValue.Enum(source, "user")));
+        var marker = new DiagnosticEvent(
+            definition,
+            definition.CreateFields(DiagnosticFieldValue.Enum(source, "user")),
+            _contextAccessor.Current,
+            _timeProvider.GetUtcNow());
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (!TryEnqueueDiagnosticEvent(marker, force: false, completion: completion))
+        {
+            return false;
+        }
+
+        bool markerRecorded;
+        try
+        {
+            markerRecorded = await completion.Task
+                .WaitAsync(TimeSpan.FromSeconds(2), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            Volatile.Write(ref _degraded, 1);
+            return false;
+        }
+
+        if (!markerRecorded)
+        {
+            return false;
+        }
 
         var snapshotDefinition = _registry.Get(new DiagnosticDefinitionId("diagnostics.active_activities"));
         var countField = snapshotDefinition.Fields.Single(field => field.Name == "activeActivityCount");
@@ -537,6 +565,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             snapshotDefinition,
             snapshotDefinition.CreateFields(DiagnosticFieldValue.Integer(countField, activeCount)));
         EnqueueResourceSample("problem-marker");
+        return true;
     }
 
     public string GetOrCreateAnonymousObjectToken(string objectType, string objectIdentity)
@@ -692,10 +721,21 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
 
     public void OnDiagnosticEvent(DiagnosticEvent diagnosticEvent)
     {
+        TryEnqueueDiagnosticEvent(
+            diagnosticEvent,
+            force: diagnosticEvent.Definition.Id.Value == "diagnostics.capture_stopped");
+    }
+
+    private bool TryEnqueueDiagnosticEvent(
+        DiagnosticEvent diagnosticEvent,
+        bool force,
+        TaskCompletionSource<bool>? completion = null)
+    {
         ArgumentNullException.ThrowIfNull(diagnosticEvent);
         if (!IsRegisteredDefinition(diagnosticEvent.Definition, diagnosticEvent.Fields))
         {
-            return;
+            completion?.TrySetResult(false);
+            return false;
         }
 
         ActiveSession? active;
@@ -706,12 +746,13 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
 
         if (active is null || !IsSessionContext(active, diagnosticEvent.Context))
         {
-            return;
+            completion?.TrySetResult(false);
+            return false;
         }
 
         var payload = SerializeFields(diagnosticEvent.Fields);
         var estimate = EstimateBytes(diagnosticEvent.Definition.Id.Value, payload);
-        EnqueueRecord(
+        return EnqueueRecord(
             active,
             estimate,
             (connection, transaction) =>
@@ -725,7 +766,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                     InsertEvent(connection, transaction, diagnosticEvent, payload);
                 }
             },
-            force: diagnosticEvent.Definition.Id.Value == "diagnostics.capture_stopped");
+            force,
+            completion);
     }
 
     internal Task FlushAsync(CancellationToken cancellationToken) =>
@@ -910,11 +952,12 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         }
     }
 
-    private void EnqueueRecord(
+    private bool EnqueueRecord(
         ActiveSession active,
         long estimatedBytes,
         Action<SqliteConnection, SqliteTransaction> apply,
-        bool force)
+        bool force,
+        TaskCompletionSource<bool>? completion = null)
     {
         lock (_gate)
         {
@@ -922,13 +965,15 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 !active.AcceptingWrites ||
                 Volatile.Read(ref _disposed) != 0)
             {
-                return;
+                completion?.TrySetResult(false);
+                return false;
             }
 
             if (!force && (active.CaptureStopped || !CanAccept(active, estimatedBytes)))
             {
                 MarkCaptureStoppedLocked(active, "hard-cap");
-                return;
+                completion?.TrySetResult(false);
+                return false;
             }
 
             active.RecordedBytes = Math.Min(long.MaxValue - estimatedBytes, active.RecordedBytes + estimatedBytes);
@@ -940,7 +985,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                     apply(connection, transaction);
                     UpdateSessionMetadata(connection, transaction, active.SessionId, recordedBytes, active.CaptureStopped, active.CaptureStoppedReason);
                 },
-                null,
+                completion,
                 false);
             if (!_queue.Writer.TryWrite(request))
             {
@@ -948,7 +993,11 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 active.CaptureStopped = true;
                 active.CaptureStoppedReason = "storage-failure";
                 Volatile.Write(ref _degraded, 1);
+                completion?.TrySetResult(false);
+                return false;
             }
+
+            return true;
         }
     }
 

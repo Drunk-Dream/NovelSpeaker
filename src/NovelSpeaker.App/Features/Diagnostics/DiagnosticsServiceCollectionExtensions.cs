@@ -9,14 +9,7 @@ public static class DiagnosticsServiceCollectionExtensions
     {
         services.TryAddSingleton<IAppDiagnosticsService, AppDiagnosticsService>();
         services.TryAddSingleton<IDiagnosticToolLauncher, DiagnosticToolLauncher>();
-        services.TryAddSingleton<IDiagnosticWindowCapture>(provider =>
-            new WpfDiagnosticWindowCapture(
-                () => System.Windows.Application.Current?.MainWindow,
-                provider.GetRequiredService<TimeProvider>()));
-        services.TryAddSingleton<Func<DiagnosticToolViewModel>>(provider =>
-            () => provider.GetRequiredService<DiagnosticToolViewModel>());
-        services.TryAddTransient<DiagnosticToolViewModel>();
-        services.TryAddTransient<DiagnosticToolWindow>();
+        services.TryAddSingleton<IDiagnosticWindowCapture, WpfDiagnosticWindowCapture>();
         services.TryAddTransient<DiagnosticsAboutViewModel>();
         services.TryAddTransient<DiagnosticsAboutPage>();
         return services;

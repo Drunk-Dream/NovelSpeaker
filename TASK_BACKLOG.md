@@ -118,7 +118,7 @@
 
 # Phase E：系统收口
 
-## [ ] T006（P0）：完成隐私、失败隔离、集成验收与遗留清理
+## [x] T006（P0）：完成隐私、失败隔离、集成验收与遗留清理
 
 依赖：T001–T005。
 
@@ -126,4 +126,4 @@
 
 目标：对 Logging / Telemetry / Diagnostic Session 做跨模块审计，确保隐私边界、失败降级、容量/retention、Architecture Fitness Tests、WPF 隔离、导出和全量 Release 门禁全部稳定；删除本轮兼容/实验/一次性产物，不增加下一阶段功能。
 
-完成成果：待填写。
+完成成果：完成 Logging、Telemetry、Diagnostic Session 的隐私白名单与失败隔离审计，补齐截图/Marker 写入失败及 hard-cap UI 回归；清理诊断 Feature 的 Service Locator/孤立注册，修复悬浮工具主题样式与关闭生命周期。通过 restore、format、Release build 和全量 1001 项测试，WPF 测试保持隔离 Desktop/fail closed。

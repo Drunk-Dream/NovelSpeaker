@@ -36,7 +36,7 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
                 1,
                 [1, 2, 3, 4]),
             CancellationToken.None);
-        store.RecordProblemMarker();
+        Assert.True(await store.RecordProblemMarkerAsync(CancellationToken.None));
         await store.EndAsync(CancellationToken.None);
 
         var exporter = new SqliteDiagnosticSessionExportService(store, directories);

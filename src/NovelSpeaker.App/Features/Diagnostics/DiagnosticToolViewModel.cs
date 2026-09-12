@@ -159,14 +159,18 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
     }
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanCapture))]
-    private Task MarkProblemAsync(CancellationToken cancellationToken)
+    private async Task MarkProblemAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        _sessions.RecordProblemMarker();
+        var recorded = await _sessions.RecordProblemMarkerAsync(cancellationToken);
+        RefreshFromSession();
+        if (!recorded)
+        {
+            ErrorText = "问题标记未能写入诊断会话。";
+            return;
+        }
+
         MarkerCount++;
         OnPropertyChanged(nameof(CaptureCountText));
-        RefreshFromSession();
-        return Task.CompletedTask;
     }
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanExport))]
