@@ -25,6 +25,7 @@ public static class DiagnosticsRegistration
         services.TryAddSingleton<SqliteDiagnosticSessionStore>();
         services.TryAddSingleton<IDiagnosticSessionService>(provider =>
             provider.GetRequiredService<SqliteDiagnosticSessionStore>());
+        services.TryAddSingleton<IDiagnosticSessionExportService, SqliteDiagnosticSessionExportService>();
         services.TryAddEnumerable(
             ServiceDescriptor.Singleton<IObservabilityConsumer, DiagnosticSessionConsumer>());
         return services;

@@ -121,6 +121,44 @@
                     </StackPanel>
                 </settingsControls:AppSettingsRow>
 
+                <settingsControls:AppSettingsRow x:Name="ProblemDiagnosticsRow"
+                                                 Title="问题诊断"
+                                                 Description="打开悬浮诊断工具，主动记录一次可复现问题；不会自动截图或上传。"
+                                                 AutomationProperties.Name="问题诊断">
+                    <StackPanel HorizontalAlignment="Right">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <ui:Button x:Name="OpenDiagnosticToolButton"
+                                       Style="{StaticResource App.Button.Icon}"
+                                       Command="{Binding OpenDiagnosticToolCommand}"
+                                       ToolTip="打开问题诊断工具"
+                                       AutomationProperties.Name="打开问题诊断工具"
+                                       Icon="{ui:SymbolIcon Symbol=DeveloperBoard24}" />
+                            <ui:Button x:Name="ExportProblemDiagnosticsButton"
+                                       Margin="8,0,0,0"
+                                       Style="{StaticResource App.Button.Icon}"
+                                       Command="{Binding ExportProblemDiagnosticsCommand}"
+                                       ToolTip="导出问题诊断包"
+                                       AutomationProperties.Name="导出问题诊断包"
+                                       Icon="{ui:SymbolIcon Symbol=ArrowDownload24}" />
+                            <ui:Button x:Name="OpenDiagnosticsDirectoryButton"
+                                       Margin="8,0,0,0"
+                                       Style="{StaticResource App.Button.Icon}"
+                                       Command="{Binding OpenDiagnosticsDirectoryCommand}"
+                                       ToolTip="打开诊断目录"
+                                       AutomationProperties.Name="打开诊断目录"
+                                       Icon="{ui:SymbolIcon Symbol=FolderOpen24}" />
+                        </StackPanel>
+                        <TextBlock x:Name="DiagnosticsDirectoryValue"
+                                   Margin="0,8,0,0"
+                                   MaxWidth="520"
+                                   Style="{StaticResource App.Typography.Secondary}"
+                                   Text="{Binding DiagnosticsDirectoryPath}"
+                                   TextAlignment="Right"
+                                   TextWrapping="Wrap"
+                                   AutomationProperties.Name="诊断目录：" />
+                    </StackPanel>
+                </settingsControls:AppSettingsRow>
+
                 <settingsControls:AppSettingsRow x:Name="LogLevelRow"
                                                  Title="日志级别"
                                                  Description="控制写入日志的最低详细程度。"

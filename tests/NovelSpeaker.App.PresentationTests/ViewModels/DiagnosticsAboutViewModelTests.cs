@@ -82,7 +82,8 @@ public sealed class DiagnosticsAboutViewModelTests
                 "Windows 10/11 桌面小说听书应用。",
                 4,
                 @"C:\Data",
-                @"C:\Logs"));
+                @"C:\Logs",
+                @"C:\Diagnostics"));
         }
 
         public Task OpenLogsDirectoryAsync(CancellationToken cancellationToken)
@@ -94,6 +95,10 @@ public sealed class DiagnosticsAboutViewModelTests
 
             return Task.CompletedTask;
         }
+
+        public Task OpenDiagnosticsDirectoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task OpenDiagnosticToolAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken) => Task.FromResult("诊断摘要");
 
@@ -121,6 +126,11 @@ public sealed class DiagnosticsAboutViewModelTests
         public Task ClearTelemetryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ExportDiagnosticsAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ExportLastDiagnosticSessionAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ExportDiagnosticSessionAsync(string sessionFilePath, string destinationPath, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public void SetTelemetryCollectionEnabled(bool enabled)
         {

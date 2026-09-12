@@ -1,6 +1,8 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.Application.Diagnostics;
+using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
@@ -37,7 +39,9 @@ public sealed class AppDiagnosticsServiceTests
             new SqliteDatabaseSchemaVersionProvider(new SqliteConnectionFactory(directories)),
             new FakeAppSettingsService(AppSettings.Default with { Theme = "Dark", LogLevel = "Warning" }),
             new FakeLauncher(),
-            new FakeTelemetryService());
+            new FakeTelemetryService(),
+            new FakeSessionExportService(),
+            new FakeDiagnosticToolLauncher());
 
         var snapshot = await service.GetSnapshotAsync(CancellationToken.None);
 
@@ -77,5 +81,19 @@ public sealed class AppDiagnosticsServiceTests
         }
         public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ExportAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeSessionExportService : IDiagnosticSessionExportService
+    {
+        public Task ExportLastEndedAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ExportAsync(string sessionFilePath, string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeDiagnosticToolLauncher : IDiagnosticToolLauncher
+    {
+        public void Open()
+        {
+        }
     }
 }

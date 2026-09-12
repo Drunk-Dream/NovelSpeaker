@@ -6,4 +6,5 @@ public sealed record AppDiagnosticsSnapshot(
     string Description,
     int DatabaseSchemaVersion,
     string AppDataDirectoryPath,
-    string LogsDirectoryPath);
+    string LogsDirectoryPath,
+    string DiagnosticsDirectoryPath);

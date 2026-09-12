@@ -57,6 +57,9 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
     private string logsDirectoryPath = string.Empty;
 
     [ObservableProperty]
+    private string diagnosticsDirectoryPath = string.Empty;
+
+    [ObservableProperty]
     private string selectedLogLevel = AppSettings.DefaultLogLevel;
 
     [ObservableProperty]
@@ -78,6 +81,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
             DatabaseSchemaVersionText = snapshot.DatabaseSchemaVersion.ToString();
             AppDataDirectoryPath = snapshot.AppDataDirectoryPath;
             LogsDirectoryPath = snapshot.LogsDirectoryPath;
+            DiagnosticsDirectoryPath = snapshot.DiagnosticsDirectoryPath;
             SelectedLogLevel = settings.LogLevel;
             IsPerformanceTelemetryEnabled = settings.EnablePerformanceTelemetry;
         }
@@ -119,6 +123,38 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         catch (Exception exception)
         {
             ShowSaveFailure("打开日志目录失败", exception);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task OpenDiagnosticToolAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _diagnosticsService.OpenDiagnosticToolAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowSaveFailure("打开问题诊断工具失败", exception);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task OpenDiagnosticsDirectoryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _diagnosticsService.OpenDiagnosticsDirectoryAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowSaveFailure("打开诊断目录失败", exception);
         }
     }
 
@@ -198,6 +234,45 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         catch (Exception exception)
         {
             ShowSaveFailure("导出诊断信息失败", exception);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task ExportProblemDiagnosticsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var sourcePath = await _fileDialogs.PickOpenFileAsync(
+                new PresentationFileDialogOptions("NovelSpeaker diagnostic (*.nsdiag)|*.nsdiag"),
+                cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(sourcePath))
+            {
+                return;
+            }
+
+            var destinationPath = await _fileDialogs.PickSaveFileAsync(
+                new PresentationFileDialogOptions(
+                    "ZIP files (*.zip)|*.zip",
+                    "NovelSpeaker-Problem-Diagnostics.zip"),
+                cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(destinationPath))
+            {
+                return;
+            }
+
+            await _diagnosticsService.ExportDiagnosticSessionAsync(
+                    sourcePath,
+                    destinationPath,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            ShowSuccess("问题诊断包已导出", "已导出选中的诊断会话；应用不会自动上传这些内容。");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowSaveFailure("导出问题诊断失败", exception);
         }
     }
 

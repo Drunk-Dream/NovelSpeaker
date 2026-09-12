@@ -1,0 +1,92 @@
+<Window x:Class="NovelSpeaker.App.Features.Diagnostics.DiagnosticToolWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="问题诊断"
+        Width="420"
+        SizeToContent="Height"
+        ShowInTaskbar="False"
+        Topmost="True"
+        ResizeMode="NoResize"
+        WindowStyle="ToolWindow"
+        AutomationProperties.Name="问题诊断工具">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
+    <Border Padding="20">
+        <StackPanel>
+            <TextBlock Text="问题诊断"
+                       FontSize="18"
+                       FontWeight="SemiBold" />
+            <TextBlock Margin="0,8,0,0"
+                       Text="{Binding StateText}"
+                       TextWrapping="Wrap" />
+            <TextBlock Margin="0,12,0,0"
+                       Text="{Binding ErrorText}"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+
+            <StackPanel Margin="0,16,0,0"
+                        Visibility="{Binding IsPreparing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="容量上限" />
+                <ComboBox Margin="0,6,0,12"
+                          ItemsSource="{Binding CapacityOptions}"
+                          SelectedItem="{Binding SelectedHardCapBytes, Mode=TwoWay}"
+                          AutomationProperties.Name="诊断容量上限" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button Content="开始诊断"
+                               Command="{Binding StartCommand}"
+                               AutomationProperties.Name="开始诊断" />
+                    <ui:Button Margin="8,0,0,0"
+                               Content="关闭"
+                               Command="{Binding CloseCommand}"
+                               AutomationProperties.Name="关闭诊断工具" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Margin="0,16,0,0"
+                        Visibility="{Binding IsCapturing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="● 诊断中"
+                           FontWeight="SemiBold" />
+                <TextBlock Margin="0,4,0,0"
+                           Text="{Binding DurationText}"
+                           AutomationProperties.Name="诊断持续时间" />
+                <TextBlock Margin="0,4,0,0"
+                           Text="{Binding CaptureCountText}"
+                           AutomationProperties.Name="诊断采集计数" />
+                <StackPanel Margin="0,12,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button Content="标记问题"
+                               Command="{Binding MarkProblemCommand}"
+                               AutomationProperties.Name="标记问题" />
+                    <ui:Button Margin="8,0,0,0"
+                               Content="截取当前窗口"
+                               Command="{Binding CaptureWindowCommand}"
+                               AutomationProperties.Name="截取当前窗口" />
+                    <ui:Button Margin="8,0,0,0"
+                               Content="结束"
+                               Command="{Binding EndCommand}"
+                               AutomationProperties.Name="结束诊断" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Margin="0,16,0,0"
+                        Visibility="{Binding IsCompleted, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TextBlock Text="✓ 诊断已保存"
+                           FontWeight="SemiBold" />
+                <StackPanel Margin="0,12,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <ui:Button Content="重新开始"
+                               Command="{Binding RestartCommand}"
+                               AutomationProperties.Name="重新开始诊断" />
+                    <ui:Button Margin="8,0,0,0"
+                               Content="导出"
+                               Command="{Binding ExportCommand}"
+                               AutomationProperties.Name="导出问题诊断" />
+                    <ui:Button Margin="8,0,0,0"
+                               Content="完成"
+                               Command="{Binding CloseCommand}"
+                               AutomationProperties.Name="完成诊断" />
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

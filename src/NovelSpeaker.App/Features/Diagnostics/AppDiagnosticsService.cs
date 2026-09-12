@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Observability;
+using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using BootstrapApp = NovelSpeaker.App.Bootstrap.App;
 
@@ -18,19 +19,25 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
     private readonly IAppSettingsService _settingsService;
     private readonly IPresentationLauncher _launcher;
     private readonly IPerformanceTelemetryService _telemetry;
+    private readonly IDiagnosticSessionExportService _sessionExport;
+    private readonly IDiagnosticToolLauncher _toolLauncher;
 
     public AppDiagnosticsService(
         IAppDataDirectoryProvider directories,
         IDatabaseSchemaVersionProvider schemaVersionProvider,
         IAppSettingsService settingsService,
         IPresentationLauncher launcher,
-        IPerformanceTelemetryService telemetry)
+        IPerformanceTelemetryService telemetry,
+        IDiagnosticSessionExportService sessionExport,
+        IDiagnosticToolLauncher toolLauncher)
     {
-        _directories = directories;
-        _schemaVersionProvider = schemaVersionProvider;
-        _settingsService = settingsService;
-        _launcher = launcher;
-        _telemetry = telemetry;
+        _directories = directories ?? throw new ArgumentNullException(nameof(directories));
+        _schemaVersionProvider = schemaVersionProvider ?? throw new ArgumentNullException(nameof(schemaVersionProvider));
+        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
+        _telemetry = telemetry ?? throw new ArgumentNullException(nameof(telemetry));
+        _sessionExport = sessionExport ?? throw new ArgumentNullException(nameof(sessionExport));
+        _toolLauncher = toolLauncher ?? throw new ArgumentNullException(nameof(toolLauncher));
     }
 
     public async Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
@@ -45,12 +52,25 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
             Description,
             schemaVersion,
             _directories.RootDirectoryPath,
-            _directories.LogsDirectoryPath);
+            _directories.LogsDirectoryPath,
+            _directories.DiagnosticsDirectoryPath);
     }
 
     public Task OpenLogsDirectoryAsync(CancellationToken cancellationToken)
     {
         return _launcher.OpenAsync(_directories.LogsDirectoryPath, cancellationToken);
+    }
+
+    public Task OpenDiagnosticsDirectoryAsync(CancellationToken cancellationToken)
+    {
+        return _launcher.OpenAsync(_directories.DiagnosticsDirectoryPath, cancellationToken);
+    }
+
+    public Task OpenDiagnosticToolAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        _toolLauncher.Open();
+        return Task.CompletedTask;
     }
 
     public async Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken)
@@ -94,6 +114,15 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
 
     public Task ExportDiagnosticsAsync(string destinationPath, CancellationToken cancellationToken) =>
         _telemetry.ExportAsync(destinationPath, cancellationToken);
+
+    public Task ExportLastDiagnosticSessionAsync(string destinationPath, CancellationToken cancellationToken) =>
+        _sessionExport.ExportLastEndedAsync(destinationPath, cancellationToken);
+
+    public Task ExportDiagnosticSessionAsync(
+        string sessionFilePath,
+        string destinationPath,
+        CancellationToken cancellationToken) =>
+        _sessionExport.ExportAsync(sessionFilePath, destinationPath, cancellationToken);
 
     public void SetTelemetryCollectionEnabled(bool enabled) =>
         _telemetry.SetCollectionEnabled(enabled);

@@ -304,6 +304,10 @@ public sealed class CacheAndDataViewModelTests
         public Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task OpenLogsDirectoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task OpenDiagnosticsDirectoryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task OpenDiagnosticToolAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
         public Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken) => Task.FromResult("诊断摘要");
 
         public Task OpenThirdPartyNoticesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -311,6 +315,11 @@ public sealed class CacheAndDataViewModelTests
         public Task ClearTelemetryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ExportDiagnosticsAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ExportLastDiagnosticSessionAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ExportDiagnosticSessionAsync(string sessionFilePath, string destinationPath, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public void SetTelemetryCollectionEnabled(bool enabled)
         {

@@ -32,11 +32,11 @@ public sealed class DiagnosticsAboutPageTests
 
                     host.MeasureArrange(new Size(520, 900));
                     var rows = VisualTreeTestHelper.FindDescendants<AppSettingsRow>(page).ToArray();
-                    Assert.Equal(10, rows.Length);
+                    Assert.Equal(11, rows.Length);
                     Assert.All(rows, row => Assert.True(row.IsNarrowLayout));
                     var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
                     Assert.Equal("诊断与关于", AutomationProperties.GetName(settingsList));
-                    Assert.Equal(10, settingsList.Items.Count);
+                    Assert.Equal(11, settingsList.Items.Count);
                     foreach (var (index, name, title) in new[]
                              {
                              (0, "AppNameRow", "应用名称"),
@@ -45,10 +45,11 @@ public sealed class DiagnosticsAboutPageTests
                              (3, "DatabaseSchemaVersionRow", "数据库版本"),
                              (4, "AppDataDirectoryRow", "应用数据目录"),
                              (5, "LogsDirectoryRow", "日志目录"),
-                             (6, "LogLevelRow", "日志级别设置"),
-                             (7, "PerformanceTelemetryRow", "性能遥测设置"),
-                             (8, "DiagnosticsSummaryRow", "脱敏诊断摘要"),
-                             (9, "ThirdPartyNoticesRow", "第三方许可证")
+                             (6, "ProblemDiagnosticsRow", "问题诊断"),
+                             (7, "LogLevelRow", "日志级别设置"),
+                             (8, "PerformanceTelemetryRow", "性能遥测设置"),
+                             (9, "DiagnosticsSummaryRow", "脱敏诊断摘要"),
+                             (10, "ThirdPartyNoticesRow", "第三方许可证")
                          })
                     {
                         var row = Assert.IsType<AppSettingsRow>(page.FindName(name));
@@ -107,6 +108,9 @@ public sealed class DiagnosticsAboutPageTests
                              {
                              "OpenAppDataDirectoryButton",
                              "OpenLogsDirectoryButton",
+                             "OpenDiagnosticToolButton",
+                             "ExportProblemDiagnosticsButton",
+                             "OpenDiagnosticsDirectoryButton",
                              "ClearTelemetryButton",
                              "ExportDiagnosticsButton",
                              "CopyRedactedSummaryButton",
@@ -123,6 +127,9 @@ public sealed class DiagnosticsAboutPageTests
                              {
                              ("OpenAppDataDirectoryButton", "打开应用数据目录", "OpenAppDataDirectoryCommand", SymbolRegular.FolderOpen24),
                              ("OpenLogsDirectoryButton", "打开日志目录", "OpenLogsDirectoryCommand", SymbolRegular.FolderOpen24),
+                             ("OpenDiagnosticToolButton", "打开问题诊断工具", "OpenDiagnosticToolCommand", SymbolRegular.DeveloperBoard24),
+                             ("ExportProblemDiagnosticsButton", "导出问题诊断包", "ExportProblemDiagnosticsCommand", SymbolRegular.ArrowDownload24),
+                             ("OpenDiagnosticsDirectoryButton", "打开诊断目录", "OpenDiagnosticsDirectoryCommand", SymbolRegular.FolderOpen24),
                              ("ClearTelemetryButton", "清除性能遥测历史", "ClearTelemetryCommand", SymbolRegular.Delete24),
                              ("ExportDiagnosticsButton", "导出诊断信息", "ExportDiagnosticsCommand", SymbolRegular.ArrowDownload24),
                              ("CopyRedactedSummaryButton", "复制脱敏诊断摘要", "CopyRedactedSummaryCommand", SymbolRegular.DocumentCopy24),
