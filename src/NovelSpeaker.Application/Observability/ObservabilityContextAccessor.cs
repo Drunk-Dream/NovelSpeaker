@@ -9,6 +9,7 @@ public sealed class ObservabilityContextAccessor : IObservabilityContextAccessor
 {
     private readonly AsyncLocal<ScopeFrame?> _current = new();
     private readonly CorrelationContext _processContext;
+    private string? _diagnosticSessionId;
 
     public ObservabilityContextAccessor(string? processInstanceId = null)
     {
@@ -17,6 +18,16 @@ public sealed class ObservabilityContextAccessor : IObservabilityContextAccessor
     }
 
     public CorrelationContext Current => GetEffectiveContext(_current.Value);
+
+    public void SetDiagnosticSession(string? diagnosticSessionId)
+    {
+        if (diagnosticSessionId is not null)
+        {
+            _ = new CorrelationContext(_processContext.ProcessInstanceId, diagnosticSessionId);
+        }
+
+        Volatile.Write(ref _diagnosticSessionId, diagnosticSessionId);
+    }
 
     public IDisposable Push(CorrelationContext context)
     {
@@ -37,13 +48,22 @@ public sealed class ObservabilityContextAccessor : IObservabilityContextAccessor
         {
             if (!frame.IsDisposed)
             {
-                return frame.Context;
+                var diagnosticSessionId = frame.Context.DiagnosticSessionId ?? Volatile.Read(ref _diagnosticSessionId);
+                return diagnosticSessionId is null ||
+                       string.Equals(diagnosticSessionId, frame.Context.DiagnosticSessionId, StringComparison.Ordinal)
+                    ? frame.Context
+                    : new CorrelationContext(
+                        frame.Context.ProcessInstanceId,
+                        diagnosticSessionId,
+                        frame.Context.ActivityId);
             }
 
             frame = frame.Parent;
         }
 
-        return _processContext;
+        return new CorrelationContext(
+            _processContext.ProcessInstanceId,
+            Volatile.Read(ref _diagnosticSessionId));
     }
 
     private sealed class ScopeFrame

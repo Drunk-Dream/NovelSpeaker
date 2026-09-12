@@ -133,6 +133,21 @@ public sealed class ObservabilityContractTests
     }
 
     [Fact]
+    public void Existing_unscoped_correlation_inherits_a_new_diagnostic_session()
+    {
+        var context = new ObservabilityContextAccessor("process-1");
+        using var scope = context.Push(new CorrelationContext("process-1", activityId: "activity-1"));
+
+        context.SetDiagnosticSession("session-1");
+
+        Assert.Equal("session-1", context.Current.DiagnosticSessionId);
+        Assert.Equal("activity-1", context.Current.ActivityId);
+
+        context.SetDiagnosticSession(null);
+        Assert.Null(context.Current.DiagnosticSessionId);
+    }
+
+    [Fact]
     public void Unbounded_string_fields_are_not_valid_structured_contracts()
     {
         Assert.Throws<ArgumentException>(() => new DiagnosticFieldDefinition(

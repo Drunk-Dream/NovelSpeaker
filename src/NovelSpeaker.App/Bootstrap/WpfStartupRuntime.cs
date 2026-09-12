@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Desktop.MediaControls;
@@ -179,10 +180,32 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         });
     }
 
-    public Task InitializeDatabaseAsync(CancellationToken cancellationToken) =>
-        RequireServices()
+    public async Task InitializeDatabaseAsync(CancellationToken cancellationToken)
+    {
+        await RequireServices()
             .GetRequiredService<IDatabaseInitializer>()
-            .InitializeAsync(cancellationToken);
+            .InitializeAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        try
+        {
+            await RequireServices()
+                .GetRequiredService<IDiagnosticSessionService>()
+                .RecoverAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            RecordLifecycleFailure(
+                "diagnostic-session-recovery",
+                "恢复诊断会话失败，将继续启动。",
+                exception);
+        }
+    }
 
     public Task ApplyThemeAsync(CancellationToken cancellationToken) =>
         RequireServices()
@@ -448,6 +471,21 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         _shutdownOperation?.Complete(OperationResult.Succeeded());
         if (_serviceProvider is not null)
         {
+            try
+            {
+                await _serviceProvider
+                    .GetRequiredService<IDiagnosticSessionService>()
+                    .NotifyProcessShutdownAsync(CancellationToken.None)
+                    .ConfigureAwait(false);
+            }
+            catch (Exception exception)
+            {
+                RecordLifecycleFailure(
+                    "diagnostic-session-shutdown",
+                    "保存诊断进程退出状态失败，将继续关闭。",
+                    exception);
+            }
+
             await _serviceProvider.DisposeAsync().ConfigureAwait(false);
             _serviceProvider = null;
         }

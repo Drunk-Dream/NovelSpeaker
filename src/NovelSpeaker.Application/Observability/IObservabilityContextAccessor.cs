@@ -8,4 +8,6 @@ public interface IObservabilityContextAccessor
     CorrelationContext Current { get; }
 
     IDisposable Push(CorrelationContext context);
+
+    void SetDiagnosticSession(string? diagnosticSessionId);
 }

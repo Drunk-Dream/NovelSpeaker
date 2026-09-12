@@ -6,4 +6,7 @@ namespace NovelSpeaker.Application.Observability;
 public sealed record OperationStarted(
     OperationDefinition Operation,
     CorrelationContext Context,
-    DateTimeOffset TimestampUtc);
+    DateTimeOffset TimestampUtc)
+{
+    public string? ParentActivityId { get; init; }
+}

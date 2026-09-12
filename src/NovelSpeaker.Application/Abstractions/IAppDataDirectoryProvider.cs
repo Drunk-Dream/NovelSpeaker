@@ -12,6 +12,8 @@ public interface IAppDataDirectoryProvider
     string CacheDirectoryPath { get; }
     string LogsDirectoryPath { get; }
     string OperationsDirectoryPath { get; }
+    string DiagnosticsDirectoryPath { get; }
+    string ActiveDiagnosticSessionMarkerPath { get; }
 
     Task EnsureCreatedAsync(CancellationToken cancellationToken);
 }

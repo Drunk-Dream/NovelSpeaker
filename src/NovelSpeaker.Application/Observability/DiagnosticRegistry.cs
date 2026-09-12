@@ -53,6 +53,23 @@ public sealed class DiagnosticRegistry
             DiagnosticFieldType.Integer,
             DiagnosticPrivacyClass.Technical,
             "Number of retries already attempted.");
+        var markerSource = new DiagnosticFieldDefinition(
+            "source",
+            DiagnosticFieldType.Enum,
+            DiagnosticPrivacyClass.LowCardinality,
+            "The stable source of the marker.",
+            ["user"]);
+        var activeActivityCount = new DiagnosticFieldDefinition(
+            "activeActivityCount",
+            DiagnosticFieldType.Integer,
+            DiagnosticPrivacyClass.Technical,
+            "Number of active stable operations at the snapshot time.");
+        var stoppedReason = new DiagnosticFieldDefinition(
+            "reason",
+            DiagnosticFieldType.Enum,
+            DiagnosticPrivacyClass.LowCardinality,
+            "Why collection stopped.",
+            ["hard-cap", "storage-failure"]);
 
         return new DiagnosticRegistry(
         [
@@ -76,7 +93,25 @@ public sealed class DiagnosticRegistry
                 "speech",
                 "A text-to-speech operation was retried.",
                 [retryCount],
-                OperationCatalog.TtsRetry)
+                OperationCatalog.TtsRetry),
+            new DiagnosticDefinition(
+                new DiagnosticDefinitionId("diagnostics.problem_marker"),
+                DiagnosticDefinitionKind.Event,
+                "diagnostics",
+                "The user marked the approximate time of a problem.",
+                [markerSource]),
+            new DiagnosticDefinition(
+                new DiagnosticDefinitionId("diagnostics.active_activities"),
+                DiagnosticDefinitionKind.Snapshot,
+                "diagnostics",
+                "A bounded summary of active stable operations.",
+                [activeActivityCount]),
+            new DiagnosticDefinition(
+                new DiagnosticDefinitionId("diagnostics.capture_stopped"),
+                DiagnosticDefinitionKind.Event,
+                "diagnostics",
+                "Diagnostic collection stopped before the session ended.",
+                [stoppedReason])
         ]);
     }
 }

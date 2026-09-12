@@ -40,7 +40,10 @@ public sealed class ObservabilityHub : IObservability
             currentContext.DiagnosticSessionId,
             Guid.NewGuid().ToString("N"));
         var correlationScope = _contextAccessor.Push(context);
-        var started = new OperationStarted(operation, context, startedAt);
+        var started = new OperationStarted(operation, context, startedAt)
+        {
+            ParentActivityId = currentContext.ActivityId
+        };
         Notify(consumer => consumer.OnOperationStarted(started));
         return new ActiveOperationScope(this, operation, context, startedAt, correlationScope);
     }
