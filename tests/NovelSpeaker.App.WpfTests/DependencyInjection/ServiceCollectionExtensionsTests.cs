@@ -412,7 +412,13 @@ public sealed class ServiceCollectionExtensionsTests
             services,
             descriptor =>
                 descriptor.ServiceType == typeof(Microsoft.Extensions.Logging.ILoggerProvider) &&
-                descriptor.ImplementationType == typeof(RollingFileLoggerProvider));
+                descriptor.ImplementationFactory is not null);
+        Assert.Single(
+            services,
+            descriptor => descriptor.ServiceType == typeof(Microsoft.Extensions.Logging.ILoggerProvider));
+        Assert.Single(
+            services,
+            descriptor => descriptor.ServiceType == typeof(RollingFileLoggerProvider));
     }
 
     private static Assembly GetImplementationAssembly(ServiceDescriptor descriptor)

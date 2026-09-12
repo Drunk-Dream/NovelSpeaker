@@ -215,7 +215,7 @@ public sealed class DesktopLifecycleCoordinatorTests
         fixture.Platform.Raise(DesktopLifecycleCommand.ShowMainWindow);
         var entry = await logger.Entry.Task;
 
-        Assert.Null(entry.Exception);
+        Assert.IsType<InvalidOperationException>(entry.Exception);
         Assert.Contains(nameof(DesktopLifecycleCommand.ShowMainWindow), entry.Message);
         Assert.Contains(nameof(InvalidOperationException), entry.Message);
         Assert.DoesNotContain("secret-url-and-body", entry.Message);

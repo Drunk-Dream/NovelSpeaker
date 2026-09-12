@@ -248,6 +248,7 @@ internal sealed class DesktopLifecycleCoordinator :
                 catch (Exception exception)
                 {
                     _logger.LogError(
+                        exception,
                         "Desktop lifecycle command {Command} failed with {FailureType}.",
                         command,
                         exception.GetType().Name);
@@ -427,6 +428,7 @@ internal sealed class DesktopLifecycleCoordinator :
         catch (Exception exception)
         {
             _logger.LogError(
+                exception,
                 "Tray exit command failed with {FailureType}.",
                 exception.GetType().Name);
         }

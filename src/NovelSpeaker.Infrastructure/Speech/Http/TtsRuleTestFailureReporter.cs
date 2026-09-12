@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Testing;
+using NovelSpeaker.Infrastructure.Diagnostics;
 
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
@@ -17,7 +18,7 @@ public sealed class TtsRuleTestFailureReporter : ITtsRuleTestFailureReporter
     {
         SensitiveFailureLogger.LogError(
             _logger,
-            operation,
+            LogEventRegistry.TtsRuleTestFailed,
             exception,
             [
                 input.SpeakText,

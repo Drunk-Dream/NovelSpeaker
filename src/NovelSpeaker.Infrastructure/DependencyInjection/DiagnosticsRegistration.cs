@@ -11,8 +11,10 @@ public static class DiagnosticsRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<ILoggerProvider, RollingFileLoggerProvider>());
+        services.TryAddSingleton<RollingFileLoggerProvider>();
+        services.TryAddSingleton<ILoggerProvider>(
+            static provider => new LoggerProviderRegistrationAdapter(
+                provider.GetRequiredService<RollingFileLoggerProvider>()));
         return services;
     }
 }

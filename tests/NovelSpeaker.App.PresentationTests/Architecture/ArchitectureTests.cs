@@ -365,6 +365,7 @@ public sealed class ArchitectureTests
             "src/NovelSpeaker.Application/Observability/DependencyInjection/ObservabilityRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/AudioRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/CacheRegistration.cs",
+            "src/NovelSpeaker.Infrastructure/DependencyInjection/DiagnosticsRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/SettingsRegistration.cs"
         };
 

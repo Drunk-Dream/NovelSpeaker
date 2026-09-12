@@ -66,7 +66,7 @@
 
 # Phase B：生产日志
 
-## [ ] T002（P0）：实现本地结构化生产日志
+## [x] T002（P0）：实现本地结构化生产日志
 
 依赖：T001。
 
@@ -74,7 +74,7 @@
 
 目标：建立默认开启、低开销、JSONL、可轮转的生产日志，覆盖异常、失败、恢复与少量生命周期；日志失败不得影响业务，并可在诊断会话 active 时附加 correlation。
 
-完成成果：待填写。
+完成成果：收敛为单一默认开启的 JSONL 生产日志路径，建立稳定 LogEvent Registry、结构化异常与隐私脱敏；实现高低优先级 bounded queue、后台批量 writer、日期/大小轮转、retention/总容量保护、flush/degraded 生命周期和诊断 correlation；补充 startup/error-boundary、真实失败 reporter、队列溢出、异常树、轮转与隐私回归测试。
 
 ---
 

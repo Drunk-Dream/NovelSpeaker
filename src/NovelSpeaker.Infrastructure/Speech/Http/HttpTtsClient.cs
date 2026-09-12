@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
+using NovelSpeaker.Infrastructure.Diagnostics;
 
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
@@ -83,12 +84,12 @@ public sealed class HttpTtsClient : ITtsHttpTransport, IDisposable
         }
         catch (HttpRequestException exception)
         {
-            LogFailure(request, exception, "HTTP TTS network request");
+            LogFailure(request, exception);
             return new TtsTransportResult(null, TtsTransportFailureKind.Network);
         }
         catch (Exception exception)
         {
-            LogFailure(request, exception, "HTTP TTS transport");
+            LogFailure(request, exception);
             return new TtsTransportResult(null, TtsTransportFailureKind.Unknown);
         }
         finally
@@ -119,8 +120,12 @@ public sealed class HttpTtsClient : ITtsHttpTransport, IDisposable
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
     };
 
-    private void LogFailure(ParsedTtsRequest request, Exception exception, string operation) =>
-        SensitiveFailureLogger.LogError(_logger, operation, exception, TtsRequestKnownSecrets.Enumerate(request));
+    private void LogFailure(ParsedTtsRequest request, Exception exception) =>
+        SensitiveFailureLogger.LogError(
+            _logger,
+            LogEventRegistry.TtsRequestFailed,
+            exception,
+            TtsRequestKnownSecrets.Enumerate(request));
 
     private static HttpRequestMessage CreateRequestMessage(ParsedTtsRequest request)
     {

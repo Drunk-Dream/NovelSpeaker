@@ -5,6 +5,7 @@ using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Security;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Infrastructure.Diagnostics;
 
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
@@ -43,7 +44,7 @@ public sealed class TtsResponseValidator : ITtsResponseValidator
         {
             SensitiveFailureLogger.LogError(
                 _logger,
-                "HTTP TTS response validation",
+                LogEventRegistry.TtsResponseValidationFailed,
                 exception,
                 TtsRequestKnownSecrets.Enumerate(request));
             return Failure(

@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Infrastructure.Diagnostics;
+using NovelSpeaker.Infrastructure.Speech;
 
 namespace NovelSpeaker.Infrastructure.Cache;
 
 /// <summary>
-/// Records unavailable cache-completeness results using only a stable operation and exception type.
+/// Records unavailable cache-completeness results with stable event semantics and redacted exception details.
 /// </summary>
 public sealed class CacheCompletenessFailureReporter : ICacheCompletenessFailureReporter
 {
@@ -18,8 +20,10 @@ public sealed class CacheCompletenessFailureReporter : ICacheCompletenessFailure
     public void ReportCompletenessUnavailable(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
-        _logger.LogWarning(
-            "Cache chapter completeness unavailable for the current configuration. ExceptionType={ExceptionType}",
-            exception.GetType().Name);
+        SensitiveFailureLogger.LogWarning(
+            _logger,
+            LogEventRegistry.CacheCompletenessUnavailable,
+            exception,
+            []);
     }
 }

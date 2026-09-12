@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Cache.Audio;
+using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.Speech;
 
 namespace NovelSpeaker.Infrastructure.Cache;
@@ -17,7 +18,7 @@ public sealed class AudioGenerationFailureReporter : IAudioGenerationFailureRepo
     {
         SensitiveFailureLogger.LogError(
             _logger,
-            operation,
+            LogEventRegistry.CacheOperationFailed,
             exception,
             [
                 request.SpeechText,

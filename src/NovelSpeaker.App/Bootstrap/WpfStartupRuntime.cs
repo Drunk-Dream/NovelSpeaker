@@ -10,11 +10,13 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.App.Desktop.Lifecycle;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Observability;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.DependencyInjection;
+using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
 
@@ -48,6 +50,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     private AppDataDirectoryProvider? _directories;
     private JsonAppSettingsStore? _settingsStore;
     private StartupDiagnosticsRecorder? _diagnostics;
+    private RollingFileLoggerProvider? _loggerProvider;
+    private ObservabilityContextAccessor? _observabilityContextAccessor;
     private ServiceProvider? _serviceProvider;
 
     public WpfStartupRuntime(Dispatcher dispatcher, Action<MainWindow> setMainWindow)
@@ -117,7 +121,12 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     public Task InitializeLoggingAsync(AppSettings settings, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        _diagnostics = new StartupDiagnosticsRecorder(RequireDirectories());
+        _observabilityContextAccessor = new ObservabilityContextAccessor();
+        _loggerProvider = new RollingFileLoggerProvider(
+            RequireDirectories(),
+            _observabilityContextAccessor);
+        _diagnostics = new StartupDiagnosticsRecorder(
+            _loggerProvider.CreateLogger("StartupDiagnosticsRecorder"));
         return Task.CompletedTask;
     }
 
@@ -128,13 +137,19 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         var directories = RequireDirectories();
         var settingsStore = _settingsStore
             ?? throw new InvalidOperationException("启动设置存储尚未初始化。");
+        var loggerProvider = _loggerProvider
+            ?? throw new InvalidOperationException("生产日志尚未初始化。");
+        var observabilityContextAccessor = _observabilityContextAccessor
+            ?? throw new InvalidOperationException("Observability context 尚未初始化。");
         var services = new ServiceCollection();
+        services.AddSingleton(loggerProvider);
         services.AddLogging(builder =>
         {
             builder.SetMinimumLevel(ParseLogLevel(settings.LogLevel));
             builder.AddDebug();
         });
         services.AddSingleton<IAppDataDirectoryProvider>(directories);
+        services.AddSingleton(observabilityContextAccessor);
         services.AddSingleton(settingsStore);
         services.AddSingleton<IAppSettingsStore>(settingsStore);
         services.AddSingleton<IProcessShutdownGate>(_shutdownGate);
@@ -359,9 +374,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     public Task FlushAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        // Settings updates are atomically persisted before publication and the current
-        // rolling logger writes synchronously, so neither collaborator has buffered state.
-        return Task.CompletedTask;
+        return _loggerProvider?.FlushAsync(cancellationToken) ?? Task.CompletedTask;
     }
 
     public void RecordFailure(StartupStage stage, string safeMessage, Exception exception)
@@ -410,6 +423,12 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         {
             await _serviceProvider.DisposeAsync().ConfigureAwait(false);
             _serviceProvider = null;
+        }
+
+        if (_loggerProvider is not null)
+        {
+            await _loggerProvider.DisposeAsync().ConfigureAwait(false);
+            _loggerProvider = null;
         }
 
         _shutdownGate.Dispose();

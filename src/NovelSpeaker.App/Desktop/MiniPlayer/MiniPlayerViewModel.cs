@@ -310,6 +310,7 @@ public sealed partial class MiniPlayerViewModel :
         _ownedTasks.Register(
             _uiScheduler.InvokeAsync(() => ApplySnapshot(snapshot), _lifetimeCancellation.Token),
             exception => _logger.LogError(
+                exception,
                 "Mini-player snapshot projection failed with {FailureType}.",
                 exception.GetType().Name));
     }
@@ -409,6 +410,7 @@ public sealed partial class MiniPlayerViewModel :
         _ownedTasks.Register(
             saveTask,
             exception => _logger.LogError(
+                exception,
                 "Mini-player placement save failed with {FailureType}.",
                 exception.GetType().Name));
     }

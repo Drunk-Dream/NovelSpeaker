@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Infrastructure.Diagnostics;
+using NovelSpeaker.Infrastructure.Speech;
 
 namespace NovelSpeaker.Infrastructure.Playback;
 
 /// <summary>
-/// Records chapter read failures using only stable operation and exception-type details.
+/// Records chapter read failures with stable event semantics and redacted exception details.
 /// </summary>
 public sealed class BookPlaybackContentFailureReporter : IBookPlaybackContentFailureReporter
 {
@@ -18,8 +20,10 @@ public sealed class BookPlaybackContentFailureReporter : IBookPlaybackContentFai
     public void ReportChapterReadFailure(Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
-        _logger.LogWarning(
-            "Chapter content read unavailable. ExceptionType={ExceptionType}",
-            exception.GetType().Name);
+        SensitiveFailureLogger.LogWarning(
+            _logger,
+            LogEventRegistry.PlaybackContentUnavailable,
+            exception,
+            []);
     }
 }

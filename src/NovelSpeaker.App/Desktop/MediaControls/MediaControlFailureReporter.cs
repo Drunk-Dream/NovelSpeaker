@@ -15,6 +15,7 @@ internal sealed class MediaControlFailureReporter : IMediaControlFailureReporter
     public void ReportCommandFailure(MediaControlCommand command, Exception exception)
     {
         _logger.LogWarning(
+            exception,
             "System media command {Command} failed with {FailureType}.",
             command,
             exception.GetType().Name);
@@ -23,6 +24,7 @@ internal sealed class MediaControlFailureReporter : IMediaControlFailureReporter
     public void ReportMetadataFailure(Exception exception)
     {
         _logger.LogWarning(
+            exception,
             "Updating system media metadata failed with {FailureType}.",
             exception.GetType().Name);
     }

@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using NovelSpeaker.Application.Speech.Security;
+using NovelSpeaker.Infrastructure.Diagnostics;
 
 namespace NovelSpeaker.Infrastructure.Speech;
 
@@ -11,20 +12,45 @@ internal static class SensitiveFailureLogger
 {
     public static void LogError(
         ILogger logger,
-        string operation,
+        LogEventDefinition eventDefinition,
         Exception exception,
         IEnumerable<string?> knownSecrets)
     {
-        var summary = SensitiveDataRedactor.RedactKnownSecrets(
-            exception.Message,
-            ExpandKnownSecrets(knownSecrets));
-        summary = SensitiveDataRedactor.RedactPlainText(summary ?? string.Empty);
+        Log(LogLevel.Error, logger, eventDefinition, exception, knownSecrets);
+    }
 
-        logger.LogError(
-            "{Operation} failed with {ExceptionType}: {ExceptionSummary}",
-            operation,
-            exception.GetType().Name,
-            summary);
+    public static void LogWarning(
+        ILogger logger,
+        LogEventDefinition eventDefinition,
+        Exception exception,
+        IEnumerable<string?> knownSecrets)
+    {
+        Log(LogLevel.Warning, logger, eventDefinition, exception, knownSecrets);
+    }
+
+    private static void Log(
+        LogLevel level,
+        ILogger logger,
+        LogEventDefinition eventDefinition,
+        Exception exception,
+        IEnumerable<string?> knownSecrets)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(eventDefinition);
+        ArgumentNullException.ThrowIfNull(exception);
+        ArgumentNullException.ThrowIfNull(knownSecrets);
+        var expandedSecrets = ExpandKnownSecrets(knownSecrets).ToArray();
+        var summary = LogTextSanitizer.Sanitize(exception.Message, expandedSecrets);
+
+        var state = new SensitiveFailureLogState(
+            $"{eventDefinition.EventName} failed with {exception.GetType().Name}: {summary}",
+            SanitizedExceptionDetails.Create(exception, expandedSecrets));
+        logger.Log(
+            level,
+            eventDefinition.EventId,
+            state,
+            exception: null,
+            static (current, _) => current.Message);
     }
 
     private static IEnumerable<string> ExpandKnownSecrets(IEnumerable<string?> knownSecrets)
@@ -124,4 +150,8 @@ internal static class SensitiveFailureLogger
             }
         }
     }
+
+    private sealed record SensitiveFailureLogState(
+        string Message,
+        SanitizedExceptionDetails ExceptionDetails) : IStructuredExceptionLogState;
 }
