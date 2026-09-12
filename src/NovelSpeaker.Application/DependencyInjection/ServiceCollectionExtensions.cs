@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Application.Observability.DependencyInjection;
 
 namespace NovelSpeaker.Application.DependencyInjection;
 
@@ -28,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.AddNovelSpeakerPlaybackApplication();
         services.AddNovelSpeakerDesktopApplication();
         services.AddNovelSpeakerSettingsApplication(startupSettings);
+        services.AddNovelSpeakerObservability();
 
         return services;
     }

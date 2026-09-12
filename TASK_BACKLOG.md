@@ -52,7 +52,7 @@
 
 # Phase A：共享 Observability 基础
 
-## [ ] T001（P0）：建立薄 Observability API 与稳定诊断合同
+## [x] T001（P0）：建立薄 Observability API 与稳定诊断合同
 
 依赖：无。
 
@@ -60,7 +60,7 @@
 
 目标：建立业务只打一次稳定操作点、性能遥测与诊断会话可分别消费的最小基础，同时建立 Operation/Diagnostic Registry、隐私约束和 Architecture Tests；本任务不实现生产日志文件、遥测落盘或 `.nsdiag`。
 
-完成成果：待填写。
+完成成果：在 Application 建立强类型 Observability 合同、稳定 Operation/Diagnostic Registry、隐私字段白名单、AsyncLocal correlation scope 与隔离 consumer fan-out；补充 contract/architecture tests，未引入任何持久化 writer。
 
 ---
 

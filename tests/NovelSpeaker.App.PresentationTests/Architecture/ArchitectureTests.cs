@@ -267,6 +267,23 @@ public sealed class ArchitectureTests
         Assert.Empty(actual);
     }
 
+    private void ObservabilityApplicationApiDoesNotExposeInfrastructureTypes()
+    {
+        var observabilityFiles = Repository.ReadProductSourceFiles()
+            .Where(file => file.RelativePath.StartsWith(
+                "src/NovelSpeaker.Application/Observability/",
+                StringComparison.Ordinal));
+
+        Assert.Empty(ArchitectureRules.FindForbiddenSourceDependencies(
+            observabilityFiles,
+            [
+                "Microsoft.Data.Sqlite",
+                "Microsoft.Extensions.Logging",
+                "NovelSpeaker.Infrastructure",
+                "System.IO.Compression"
+            ]));
+    }
+
     private void InfrastructureDoesNotDependOnAppOrWpf()
     {
         var project = Repository.ReadProject("src/NovelSpeaker.Infrastructure/NovelSpeaker.Infrastructure.csproj");
@@ -345,6 +362,7 @@ public sealed class ArchitectureTests
             "src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs",
             "src/NovelSpeaker.Application/Cache/CacheRegistration.cs",
             "src/NovelSpeaker.Application/Settings/SettingsRegistration.cs",
+            "src/NovelSpeaker.Application/Observability/DependencyInjection/ObservabilityRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/AudioRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/CacheRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/SettingsRegistration.cs"
@@ -705,6 +723,7 @@ public sealed class ArchitectureTests
         DomainContainsOnlyStableSpeechTypesAndNoTransportOrPersistenceModels();
         ApplicationOnlyHasDomainAndDocumentedDependencies();
         InfrastructureDoesNotDependOnAppOrWpf();
+        ObservabilityApplicationApiDoesNotExposeInfrastructureTypes();
         Playback_business_implementations_are_owned_by_Application();
         AppOnlyUsesInfrastructureFromStartupCompositionBoundary();
         ServiceProviderUsageStaysInsideCompositionAndFrameworkBridges();
