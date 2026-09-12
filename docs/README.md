@@ -1,43 +1,52 @@
-# NovelSpeaker 文档索引
+# NovelSpeaker 长期文档索引
 
-本目录只保存长期有效的产品、架构和工程合同。任务过程、诊断过程、临时测量和迁移步骤不进入编号文档；当前执行计划统一写在 `TASK_BACKLOG.md`，历史由 Git 保存。
+`docs/` 只描述 NovelSpeaker 的长期最终形态：产品行为、稳定架构、数据兼容、视觉系统、诊断能力和质量合同。任务过程、迁移步骤、一次性调试信息和当前实现计划不进入编号文档。
 
-## 阅读顺序
+## 文档分层
 
-常规开发先阅读：
-
-1. `00_PRODUCT_AND_SCOPE.md`：产品边界、已支持能力和非目标。
-2. `01_ARCHITECTURE.md`：四层依赖、Feature 边界、状态所有权、查询与大列表架构。
-3. 按任务选择专项文档。
-4. `08_TESTING_AND_QUALITY.md`、`09_ENGINEERING_CONVENTIONS.md`：测试与工程约束。
-5. `10_DECISIONS.md`：已经确认、不得在实现中自行改变的决策。
-6. `TASK_BACKLOG.md`：当前唯一任务计划。
-
-## 文档职责
+### 编号文档
 
 | 文件 | 唯一职责 |
 |---|---|
-| `00_PRODUCT_AND_SCOPE.md` | 产品定义、功能范围、非目标、用户可观察行为 |
-| `01_ARCHITECTURE.md` | 项目分层、Feature、DI、状态 owner、read model、大列表和架构约束 |
-| `02_RUNTIME_AND_STATE.md` | 启动、Page activation、Playback session、后台任务、关闭与线程生命周期 |
-| `03_DATA_AND_PERSISTENCE.md` | SQLite、书籍/规则/进度/缓存/文件、迁移和数据兼容 |
-| `04_UI_NAVIGATION_AND_PERFORMANCE.md` | 页面信息架构、导航、页面交互、大列表、staged loading 与 UI 性能合同 |
-| `05_HTTP_TTS_COMPATIBILITY.md` | HTTP TTS 规则格式、编译、脚本安全、限流和请求兼容 |
-| `06_REGEX_REPLACEMENT_PIPELINE.md` | 正则替换模型、流水线、错误、缓存关系和编辑器语义 |
-| `07_VISUAL_DESIGN_SYSTEM.md` | 主题、资源所有权、Token、Surface、共享控件和视觉禁止项 |
-| `08_TESTING_AND_QUALITY.md` | 测试分层、WPF 隔离、Architecture Fitness Tests 和质量门禁 |
-| `09_ENGINEERING_CONVENTIONS.md` | 代码、异步、命名、依赖、文档和 Git 工程规范 |
-| `10_DECISIONS.md` | 已确认架构/产品决策和仍需证据驱动处理的风险 |
-| `TASK_BACKLOG.md` | 当前任务、依赖、实施方向、验收和完成成果 |
+| `00_PRODUCT_AND_SCOPE.md` | 产品定位、核心能力、用户可观察行为、非目标 |
+| `01_SYSTEM_ARCHITECTURE.md` | 四层架构、Application 模块、App Feature、依赖方向、状态 owner 与长期架构原则 |
+| `02_RUNTIME_AND_NAVIGATION.md` | Process/Page/Playback/Background 生命周期、启动关闭、导航和桌面生命周期 |
+| `03_BOOKS_PLAYBACK_AND_PROGRESS.md` | Books → Text → Speech → Playback → ReadingProgress 的核心听书链路 |
+| `04_CACHE_AND_BACKGROUND_WORK.md` | 物理缓存、Coverage、Speech Plan、Prefetch、Active Cache、Export 与后台 owner |
+| `05_DATA_AND_COMPATIBILITY.md` | 持久化数据、数据根、SQLite migration、用户数据保护与兼容边界 |
+| `06_UI_AND_VISUAL_SYSTEM.md` | 页面/列表/UI 性能、导航呈现、主题、资源、Surface、视觉与交互合同 |
+| `07_OBSERVABILITY_AND_DIAGNOSTICS.md` | 生产日志、普通性能遥测、诊断会话、隐私与诊断导出 |
+| `08_QUALITY_AND_TESTING.md` | 测试分层、Architecture Fitness Tests、WPF 隔离、性能回归与质量门禁 |
 
-## 专项规范
+### 长期专项规范
 
-`05_HTTP_TTS_COMPATIBILITY.md` 与 `06_REGEX_REPLACEMENT_PIPELINE.md` 是协议/流水线专项规范，允许比其它编号文档更详细。`07_VISUAL_DESIGN_SYSTEM.md` 只保留长期视觉合同，不保存逐任务截图、临时页面调整过程或 Gallery 调试过程。
+`docs/specs/` 只保存必须精确定义、不能用简要架构文档替代的协议/流水线合同：
 
-## 文档维护规则
+- `specs/HTTP_TTS.md`
+- `specs/REGEX_REPLACEMENT.md`
 
-- 一条稳定规则只在一个编号文档中定义，其它文档使用链接或简短引用，不复制整段规则。
-- 数字编号文档描述目标终态，不记录“本轮”“Txxx”“此前诊断”等任务过程。
-- `TASK_BACKLOG.md` 在新的规划阶段可以直接重写；已完成历史依赖 Git，不建立任务归档文档。
-- 诊断报告、性能 trace、视觉验收截图和一次性规划文件不是长期文档，任务结束后按需要删除或留在工作区，不加入索引。
-- 行为与文档冲突时先核对代码和自动测试；确认目标行为后修正文档，不再新增第二套解释。
+不要因为某个模块实现复杂就新增专项规范；只有存在长期协议兼容、执行语义或数据合同需要精确定义时才使用 `specs/`。
+
+## Agent 开发入口
+
+Agent 不应把 `docs/` 当成每次任务都要全文阅读的需求集合。
+
+实际开发入口为：
+
+1. 根目录 `AGENTS.md`
+2. 根目录 `TASK_BACKLOG.md` 中的当前任务
+3. 当前任务对应的 `tasks/Txxx_*.md`
+4. 任务规格明确引用的少量长期文档
+
+`tasks/` 中的实施规格是临时文件，任务完成并通过自动验收后删除；历史由 Git 保存。
+
+## 长期文档维护规则
+
+- 一条稳定规则只在一个 owner 文档中定义，其它文档只做链接或简短引用。
+- 编号文档只写当前目标终态，不记录 `Txxx`、Phase、本轮迁移、临时 workaround 或 Codex 执行步骤。
+- 具体毫秒数、队列容量、SQL 索引、内部类名等可调实现参数通常不属于长期产品合同。
+- 已确认决策直接成为对应 owner 文档中的当前事实，不另建长期 `DECISIONS.md` 复制一份。
+- 工程执行规则放在 `AGENTS.md`，不在 `docs/` 再维护一份 Engineering Conventions。
+- 当前任务和完成历史放在根目录 `TASK_BACKLOG.md`；不建立 `docs/archive/`。
+- 一次性截图、trace、性能采样、诊断报告和临时迁移文档在任务完成后删除。
+- 若实现证明长期目标存在根本冲突，Agent 应记录证据并停止相关扩张，由新的规划阶段修改 owner 文档。

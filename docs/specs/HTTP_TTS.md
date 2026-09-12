@@ -31,11 +31,11 @@ NovelSpeaker 直接请求用户规则声明的 HTTP TTS 后端，兼容常见 Le
 
 ```text
 JSON source
-  → Infrastructure typed parser
-  → Application import/validation
-  → HttpTtsRule
-  → normalized/compiled request
-  → Infrastructure HTTP transport
+→ Infrastructure typed parser
+→ Application import/validation
+→ HttpTtsRule
+→ normalized/compiled request
+→ Infrastructure HTTP transport
 ```
 
 - JSON DOM、`HttpClient`、`HttpRequestMessage`、Jint Engine 不进入 Application 公共合同。
@@ -87,39 +87,35 @@ java.base64Encode / java.md5Encode / java.sha256Encode
 
 对于外部规则中当前运行时没有实现的状态型 API，兼容验证必须给出安全失败；不把它们写入产品功能承诺。
 
-## 6. 请求编译
+## 6. 请求编译与规则指纹
 
 Application 将规则和文本上下文编译为传输中立请求：
 
 ```text
 Rule + SpeakText + SpeakSpeed
-  → template evaluation
-  → method/url/headers/body
-  → ParsedTtsRequest
+→ template evaluation
+→ method/url/headers/body
+→ ParsedTtsRequest
 ```
 
 URL、method、Header 与 Body 的兼容解析集中在 Speech 模块，播放层不得自行拆字符串。
 
-Header 名和值都必须经过校验，禁止换行注入。应用默认 Header 与规则 Header 的覆盖规则必须稳定并有测试。
+Header 名和值必须校验，禁止换行注入。应用默认 Header 与规则 Header 的覆盖规则必须稳定并有测试。
 
-### 6.1 TTS 规则指纹
+缓存系统不使用稳定 `RuleId` 直接代表音频生成语义。规范化执行合同生成版本化 `TtsRuleFingerprint`，至少考虑：
 
-缓存系统不使用稳定 `RuleId` 直接代表音频生成语义。每次保存或使用规则时，从规范化后的执行合同计算版本化 `TtsRuleFingerprint`：
-
-- URL 模板。
-- 请求方法。
-- 按 Header 名稳定排序的名称和模板值。
-- Body 模板及 JSON 结构标记。
-- 声明 Content-Type。
+- URL 模板；
+- 请求方法；
+- 按 Header 名稳定排序的名称和模板值；
+- Body 模板及 JSON 结构标记；
+- 声明 Content-Type；
 - 模板/请求执行合同版本。
 
-规则名称、启用状态、并发/速率限制、最近使用时间和更新时间不进入指纹，因为它们不改变单次音频结果。指纹只保存哈希，不在缓存索引中复制完整 URL、Header、Body 或凭据。
-
-编辑现有规则的请求语义时，即使 `RuleId` 不变，规则指纹和音频合成配置指纹也必须变化，防止错误复用旧缓存。只修改名称或并发限制时不得无理由使音频缓存失效。
+规则名称、启用状态、并发/速率限制、最近使用时间和更新时间不进入指纹，因为它们不改变单次音频结果。指纹只保存哈希，不在缓存索引复制完整 URL、Header、Body 或凭据。
 
 ## 7. 规则级限流
 
-同一个规则的所有 TTS 请求共享同一个异步 admission/rate limiter：
+同一规则的所有 TTS 请求共享同一个异步 admission/rate limiter：
 
 ```text
 当前播放请求
@@ -129,17 +125,17 @@ Header 名和值都必须经过校验，禁止换行注入。应用默认 Header
 主动缓存
 ```
 
-- 不能为不同调用场景创建彼此独立的限流器。
-- 等待限流必须异步且可取消，不能使用同步 `Mutex.Wait` 阻塞线程。
+- 不为不同调用场景创建彼此独立的限流器。
+- 等待限流异步且可取消，不用同步 Mutex.Wait 阻塞线程。
 - 取消等待不消耗配额。
-- 规则切换只影响新请求；已启动主动缓存使用批次快照对应的规则实例。
+- 规则切换只影响新请求；已启动主动缓存使用批次冻结的规则快照。
 
 ## 8. HTTP 执行与重试
 
 - 进程级复用 `HttpClient`/handler。
-- 每次调用都有明确超时与 `CancellationToken`。
+- 每次调用有明确超时与 `CancellationToken`。
 - 网络瞬断、超时和有限 5xx 可按策略重试。
-- 服务端显式限流按响应信息和规则 limiter 处理，不做无界重试。
+- 服务端显式限流按响应信息和规则 limiter 处理，不无界重试。
 - 非成功状态只生成有限长度、脱敏错误摘要。
 - 取消稳定映射为 Cancelled，不记录为 Error。
 
@@ -155,26 +151,24 @@ Header 名和值都必须经过校验，禁止换行注入。应用默认 Header
 
 HTML、JSON 错误页或损坏音频不能作为正常缓存写入。
 
-成功状态下的零字节响应必须与普通 `InvalidResponse` 分开分类。当前播放可以按播放恢复策略跳过单个零字节结果，但试听、预取和主动缓存不得把它伪装成成功或写入缓存；连续零字节结果必须停止自动推进，避免异常服务使阅读进度快速越过大量正文。
+成功状态下零字节响应与普通 InvalidResponse 分开分类。当前播放可以按恢复策略跳过单个零字节结果，但试听、预取和主动缓存不得把它伪装成成功或写入缓存；连续零字节结果必须停止自动推进，避免异常服务使阅读进度快速越过大量正文。
 
-## 10. 资源所有权
+## 10. 资源所有权与隐私
 
 - transport 拥有 response/stream，直到显式转交。
 - 临时音频由 TemporaryAudioStore 管理。
-- 所有 response、stream、临时文件在成功、失败和取消路径上都必须确定性释放。
-- 技术异常只记录脱敏摘要，不把完整 URL、Header、Body、正文或凭据投影到 UI。
+- 所有 response、stream、临时文件在成功、失败和取消路径确定性释放。
+- 技术异常只记录脱敏摘要，不把完整 URL、Header、Body、正文或凭据投影到 UI、日志或诊断数据。
 
 ## 11. 规则管理 UI 合同
 
-TTS 规则工作台最终采用：
+- `AppPageHeader.Actions` 提供新建、从文件导入、从剪切板导入和帮助，不提供页面级导出。
+- 左侧规则卡片显示名称和请求摘要，右侧 ToggleSwitch 即时控制启用状态。
+- 卡片不显示“当前规则”“设为当前”或冗余更多按钮；右键菜单提供单规则导出、复制、删除等动作，右键不切换当前编辑对象。
+- 右侧编辑器提供规则字段、试听、取消、保存。
+- 页面进入时不自动打开规则；导入完成后也不自动打开导入项。
+- 启用状态不属于编辑草稿，ToggleSwitch 立即持久化，不触发 Dirty State，也不能被随后保存的旧草稿覆盖。
+- 编辑器打开后“取消”始终可用；“保存”只在草稿修改且校验通过时可用。
+- 播放页只显示已启用规则；当前规则被禁用或删除时清空选择且不自动回退，新建/导入/重新启用也不自动成为当前规则。
 
-- `AppPageHeader.Actions` 提供新建、从文件导入、从剪切板导入和规则帮助入口，不提供页面级导出。
-- 左侧规则卡片采用左右布局：左侧名称和请求摘要，右侧 ToggleSwitch 独立即时控制启用状态。
-- 卡片不显示“当前规则”“设为当前”或“更多”按钮；右键菜单提供“导出到文件”“复制到剪切板”和删除等单规则操作，右键不切换当前编辑对象。
-- 右侧：规则字段、试听、取消、保存。
-- 页面进入时不自动选中或打开规则；单击卡片后才打开右侧编辑器，导入完成后也不自动打开导入项。
-- 启用状态不属于编辑草稿；切换 ToggleSwitch 立即持久化，不触发 Dirty State，也不能在随后保存草稿时被旧值覆盖。
-- 右侧编辑器打开后“取消”始终可用并直接丢弃草稿、关闭编辑器；“保存”只在草稿修改且校验通过时可用。切换规则或离开页面时继续复用统一未保存保护。
-- TTS 规则页不负责当前规则选择。播放页只显示已启用规则；当前规则被禁用或删除时清空选择且不自动回退，导入、新建或重新启用规则也不自动成为当前规则。
-
-规则兼容行为改变时必须增加 parser/compiler/execution fixture，不以真实第三方服务作为自动测试前提。
+规则兼容行为变化必须增加 parser/compiler/execution fixture，不以真实第三方服务作为自动测试前提。
