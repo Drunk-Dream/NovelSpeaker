@@ -21,7 +21,8 @@ public sealed record AppSettings(
     double? MiniPlayerTop = null,
     bool MiniPlayerTopmost = false,
     bool ReadChapterTitle = false,
-    double PlaybackVolume = 1d)
+    double PlaybackVolume = 1d,
+    bool EnablePerformanceTelemetry = false)
 {
     public const int MinSpeakSpeed = 1;
     public const int MaxSpeakSpeed = 20;
@@ -57,7 +58,8 @@ public sealed record AppSettings(
             null,
             false,
             false,
-            DefaultPlaybackVolumeValue);
+            DefaultPlaybackVolumeValue,
+            false);
 
     public TextSegmentationOptions ToTextSegmentationOptions()
     {

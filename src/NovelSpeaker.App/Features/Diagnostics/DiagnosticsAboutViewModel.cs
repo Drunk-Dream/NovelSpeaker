@@ -15,20 +15,25 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
     private readonly IAppDiagnosticsService _diagnosticsService;
     private readonly IAppSettingsService _settingsService;
     private readonly IPresentationClipboard _clipboard;
+    private readonly IPresentationFileDialogService _fileDialogs;
     private bool _isLoading;
     private int _logLevelVersion;
+    private int _telemetryVersion;
+    private readonly object _telemetryStateGate = new();
 
     public DiagnosticsAboutViewModel(
         IAppDiagnosticsService diagnosticsService,
         IAppSettingsService settingsService,
         IPresentationClipboard clipboard,
         IAppNavigator navigator,
-        IAppFeedbackService feedbackService)
+        IAppFeedbackService feedbackService,
+        IPresentationFileDialogService fileDialogs)
         : base(navigator, feedbackService)
     {
         _diagnosticsService = diagnosticsService;
         _settingsService = settingsService;
         _clipboard = clipboard;
+        _fileDialogs = fileDialogs;
     }
 
     public IReadOnlyList<string> AvailableLogLevels => AppSettings.SupportedLogLevels;
@@ -54,6 +59,9 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
     [ObservableProperty]
     private string selectedLogLevel = AppSettings.DefaultLogLevel;
 
+    [ObservableProperty]
+    private bool isPerformanceTelemetryEnabled;
+
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
@@ -71,6 +79,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
             AppDataDirectoryPath = snapshot.AppDataDirectoryPath;
             LogsDirectoryPath = snapshot.LogsDirectoryPath;
             SelectedLogLevel = settings.LogLevel;
+            IsPerformanceTelemetryEnabled = settings.EnablePerformanceTelemetry;
         }
         finally
         {
@@ -147,6 +156,51 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         }
     }
 
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task ClearTelemetryAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _diagnosticsService.ClearTelemetryAsync(cancellationToken).ConfigureAwait(false);
+            ShowSuccess("性能遥测已清除", "本地性能遥测历史已清除，日志不受影响。");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowSaveFailure("清除性能遥测失败", exception);
+        }
+    }
+
+    [RelayCommand(AllowConcurrentExecutions = false)]
+    private async Task ExportDiagnosticsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var destinationPath = await _fileDialogs.PickSaveFileAsync(
+                new PresentationFileDialogOptions(
+                    "ZIP files (*.zip)|*.zip",
+                    "NovelSpeaker-Diagnostics.zip"),
+                cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(destinationPath))
+            {
+                return;
+            }
+
+            await _diagnosticsService.ExportDiagnosticsAsync(destinationPath, cancellationToken)
+                .ConfigureAwait(false);
+            ShowSuccess("诊断信息已导出", "已导出本地诊断信息；应用不会自动上传这些内容。");
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception)
+        {
+            ShowSaveFailure("导出诊断信息失败", exception);
+        }
+    }
+
     partial void OnSelectedLogLevelChanged(string value)
     {
         if (_isLoading)
@@ -158,6 +212,91 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         RunPageOperation(
             "保存日志级别失败",
             cancellationToken => SaveLogLevelAsync(value, version, cancellationToken));
+    }
+
+    partial void OnIsPerformanceTelemetryEnabledChanged(bool value)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+
+        int version;
+        lock (_telemetryStateGate)
+        {
+            version = Interlocked.Increment(ref _telemetryVersion);
+            _diagnosticsService.SetTelemetryCollectionEnabled(value);
+        }
+
+        RunPageOperation(
+            "保存性能遥测设置失败",
+            cancellationToken => SaveTelemetrySettingAsync(value, version, cancellationToken));
+    }
+
+    private async Task SaveTelemetrySettingAsync(bool value, int version, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var settings = await _settingsService.UpdateAsync(
+                new AppSettingsUpdate { EnablePerformanceTelemetry = value },
+                cancellationToken).ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            lock (_telemetryStateGate)
+            {
+                if (!IsCurrentActivation(cancellationToken) ||
+                    version != Volatile.Read(ref _telemetryVersion))
+                {
+                    return;
+                }
+
+                if (IsPerformanceTelemetryEnabled != settings.EnablePerformanceTelemetry)
+                {
+                    IsPerformanceTelemetryEnabled = settings.EnablePerformanceTelemetry;
+                }
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            RestoreTelemetrySetting(version);
+        }
+        catch (Exception exception)
+        {
+            RestoreTelemetrySetting(version);
+            if (IsCurrentActivation(cancellationToken) &&
+                version == Volatile.Read(ref _telemetryVersion))
+            {
+                ShowSaveFailure("保存性能遥测设置失败", exception);
+            }
+        }
+    }
+
+    private void RestoreTelemetrySetting(int version)
+    {
+        lock (_telemetryStateGate)
+        {
+            if (version != Volatile.Read(ref _telemetryVersion))
+            {
+                return;
+            }
+
+            var persistedValue = _settingsService.Current.EnablePerformanceTelemetry;
+            _diagnosticsService.SetTelemetryCollectionEnabled(persistedValue);
+            if (IsPerformanceTelemetryEnabled == persistedValue)
+            {
+                return;
+            }
+
+            _isLoading = true;
+            try
+            {
+                IsPerformanceTelemetryEnabled = persistedValue;
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
     }
 
     private async Task SaveLogLevelAsync(

@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Testing;
+using NovelSpeaker.Application.Observability;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -37,7 +38,8 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<PlaybackProgressController>(),
                 serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
                 serviceProvider.GetRequiredService<IAppSettingsService>(),
-                serviceProvider.GetRequiredService<TimeProvider>()));
+                serviceProvider.GetRequiredService<TimeProvider>(),
+                serviceProvider.GetRequiredService<IObservability>()));
         services.TryAddSingleton<IPlaybackSnapshotSource>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackSession>(serviceProvider =>

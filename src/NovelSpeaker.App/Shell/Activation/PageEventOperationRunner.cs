@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.Application.Observability;
 
 namespace NovelSpeaker.App.Shell.Activation;
 
@@ -9,25 +10,35 @@ namespace NovelSpeaker.App.Shell.Activation;
 public sealed class PageEventOperationRunner
 {
     private readonly Action<string, Exception> _reportFailure;
+    private readonly IObservability _observability;
 
     internal static PageEventOperationRunner DesignTime { get; } = new(
         static (title, exception) => Trace.TraceError(
             "{0}: unhandled design-time page event ({1}).",
             title,
-            exception.GetType().Name));
+            exception.GetType().Name),
+        null);
 
-    public PageEventOperationRunner(IAppFeedbackService feedbackService)
-        : this((title, exception) => feedbackService.ShowProjectedNotification(
-            title,
-            feedbackService.Project(exception)))
+    public PageEventOperationRunner(
+        IAppFeedbackService feedbackService,
+        IObservability? observability = null)
+        : this(
+            (title, exception) => feedbackService.ShowProjectedNotification(
+                title,
+                feedbackService.Project(exception)),
+            observability)
     {
         ArgumentNullException.ThrowIfNull(feedbackService);
     }
 
-    private PageEventOperationRunner(Action<string, Exception> reportFailure)
+    private PageEventOperationRunner(Action<string, Exception> reportFailure, IObservability? observability)
     {
         _reportFailure = reportFailure;
+        _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
     }
+
+    public IOperationScope StartCriticalLoad() =>
+        _observability.StartOperation(OperationCatalog.UiPageCriticalLoad);
 
     public async Task RunAsync(
         PageActivationController activationController,

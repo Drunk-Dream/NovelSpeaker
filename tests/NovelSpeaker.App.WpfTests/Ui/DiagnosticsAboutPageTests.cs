@@ -8,6 +8,7 @@ using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
 using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
+using ToggleSwitch = Wpf.Ui.Controls.ToggleSwitch;
 using Xunit;
 
 namespace NovelSpeaker.App.WpfTests.Ui;
@@ -31,11 +32,11 @@ public sealed class DiagnosticsAboutPageTests
 
                     host.MeasureArrange(new Size(520, 900));
                     var rows = VisualTreeTestHelper.FindDescendants<AppSettingsRow>(page).ToArray();
-                    Assert.Equal(9, rows.Length);
+                    Assert.Equal(10, rows.Length);
                     Assert.All(rows, row => Assert.True(row.IsNarrowLayout));
                     var settingsList = Assert.IsType<AppSettingsList>(page.FindName("SettingsList"));
                     Assert.Equal("诊断与关于", AutomationProperties.GetName(settingsList));
-                    Assert.Equal(9, settingsList.Items.Count);
+                    Assert.Equal(10, settingsList.Items.Count);
                     foreach (var (index, name, title) in new[]
                              {
                              (0, "AppNameRow", "应用名称"),
@@ -45,8 +46,9 @@ public sealed class DiagnosticsAboutPageTests
                              (4, "AppDataDirectoryRow", "应用数据目录"),
                              (5, "LogsDirectoryRow", "日志目录"),
                              (6, "LogLevelRow", "日志级别设置"),
-                             (7, "DiagnosticsSummaryRow", "脱敏诊断摘要"),
-                             (8, "ThirdPartyNoticesRow", "第三方许可证")
+                             (7, "PerformanceTelemetryRow", "性能遥测设置"),
+                             (8, "DiagnosticsSummaryRow", "脱敏诊断摘要"),
+                             (9, "ThirdPartyNoticesRow", "第三方许可证")
                          })
                     {
                         var row = Assert.IsType<AppSettingsRow>(page.FindName(name));
@@ -66,6 +68,13 @@ public sealed class DiagnosticsAboutPageTests
                         Assert.IsType<Binding>(BindingOperations.GetBinding(
                             logLevel,
                             Selector.SelectedItemProperty)).Path.Path);
+
+                    var telemetryToggle = Assert.IsType<ToggleSwitch>(page.FindName("PerformanceTelemetryToggleSwitch"));
+                    Assert.Equal(
+                        nameof(DiagnosticsAboutViewModel.IsPerformanceTelemetryEnabled),
+                        Assert.IsType<Binding>(BindingOperations.GetBinding(
+                            telemetryToggle,
+                            ToggleSwitch.IsCheckedProperty)).Path.Path);
 
                     foreach (var (valueName, propertyName, expectedText, automationPrefix) in new[]
                              {
@@ -98,6 +107,8 @@ public sealed class DiagnosticsAboutPageTests
                              {
                              "OpenAppDataDirectoryButton",
                              "OpenLogsDirectoryButton",
+                             "ClearTelemetryButton",
+                             "ExportDiagnosticsButton",
                              "CopyRedactedSummaryButton",
                              "OpenThirdPartyNoticesButton"
                          })
@@ -112,6 +123,8 @@ public sealed class DiagnosticsAboutPageTests
                              {
                              ("OpenAppDataDirectoryButton", "打开应用数据目录", "OpenAppDataDirectoryCommand", SymbolRegular.FolderOpen24),
                              ("OpenLogsDirectoryButton", "打开日志目录", "OpenLogsDirectoryCommand", SymbolRegular.FolderOpen24),
+                             ("ClearTelemetryButton", "清除性能遥测历史", "ClearTelemetryCommand", SymbolRegular.Delete24),
+                             ("ExportDiagnosticsButton", "导出诊断信息", "ExportDiagnosticsCommand", SymbolRegular.ArrowDownload24),
                              ("CopyRedactedSummaryButton", "复制脱敏诊断摘要", "CopyRedactedSummaryCommand", SymbolRegular.DocumentCopy24),
                              ("OpenThirdPartyNoticesButton", "打开第三方许可证", "OpenThirdPartyNoticesCommand", SymbolRegular.DocumentText24)
                          })

@@ -307,6 +307,14 @@ public sealed class CacheAndDataViewModelTests
         public Task<string> GetRedactedSummaryAsync(CancellationToken cancellationToken) => Task.FromResult("诊断摘要");
 
         public Task OpenThirdPartyNoticesAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ClearTelemetryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ExportDiagnosticsAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void SetTelemetryCollectionEnabled(bool enabled)
+        {
+        }
     }
 
     private sealed class FakeAppDialogService : IAppDialogService

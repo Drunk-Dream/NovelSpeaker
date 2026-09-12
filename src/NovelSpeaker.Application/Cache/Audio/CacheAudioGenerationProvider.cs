@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
+using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Application.Cache.Audio;
@@ -17,6 +18,7 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
     private readonly IAudioCache _audioCache;
     private readonly ITtsRateLimiter _rateLimiter;
     private readonly IAudioGenerationFailureReporter? _failureReporter;
+    private readonly IObservability _observability;
     private readonly ConcurrentDictionary<AudioCacheKey, InFlightOperation> _inFlight = new();
     private readonly ConcurrentDictionary<long, RuleExecutionState> _ruleExecutions = new();
 
@@ -25,16 +27,48 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
         IHttpTtsClient httpTtsClient,
         IAudioCache audioCache,
         ITtsRateLimiter rateLimiter,
-        IAudioGenerationFailureReporter? failureReporter = null)
+        IAudioGenerationFailureReporter? failureReporter = null,
+        IObservability? observability = null)
     {
         _requestCompiler = requestCompiler;
         _httpTtsClient = httpTtsClient;
         _audioCache = audioCache;
         _rateLimiter = rateLimiter;
         _failureReporter = failureReporter;
+        _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
     }
 
     public async Task<AudioGenerationResult> GetAudioAsync(
+        AudioGenerationRequest request,
+        AudioGenerationPriority priority,
+        Action<AudioGenerationProgress>? progressCallback,
+        CancellationToken cancellationToken)
+    {
+        using var operation = _observability.StartOperation(OperationCatalog.CacheOperation);
+        try
+        {
+            var result = await GetAudioCoreAsync(request, priority, progressCallback, cancellationToken)
+                .ConfigureAwait(false);
+            operation.Complete(result.IsSuccess
+                ? OperationResult.Succeeded()
+                : result.Failure?.Kind == TtsErrorKind.Cancelled
+                    ? OperationResult.Cancelled()
+                    : OperationResult.Failed("cache-failed"));
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            operation.Complete(OperationResult.Cancelled());
+            throw;
+        }
+        catch
+        {
+            operation.Complete(OperationResult.Failed("cache-failed"));
+            throw;
+        }
+    }
+
+    private async Task<AudioGenerationResult> GetAudioCoreAsync(
         AudioGenerationRequest request,
         AudioGenerationPriority priority,
         Action<AudioGenerationProgress>? progressCallback,

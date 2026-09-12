@@ -15,6 +15,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 {
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
+    private readonly PageEventOperationRunner _eventOperations;
     private readonly CurrentItemLocatorInteraction _chapterLocator;
     private ScrollViewer? _chapterScrollViewer;
     private bool _isPageLoaded;
@@ -26,10 +27,12 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     public BookDetailsPage(
         BookDetailsViewModel viewModel,
-        INavigationGuardService navigationGuardService)
+        INavigationGuardService navigationGuardService,
+        PageEventOperationRunner? eventOperations = null)
     {
         ViewModel = viewModel;
         _navigationGuardService = navigationGuardService;
+        _eventOperations = eventOperations ?? PageEventOperationRunner.DesignTime;
         InitializeComponent();
         RootViewport.DataContext = ViewModel;
         _chapterLocator = new CurrentItemLocatorInteraction(
@@ -49,6 +52,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     public async Task OnNavigatedToAsync()
     {
+        using var operation = _eventOperations.StartCriticalLoad();
         var activation = _activation.Activate();
         var initialLocatorVersion = ++_initialLocatorVersion;
         _initialLocatorPending = true;
@@ -61,6 +65,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
         var request = DataContext as BookDetailsRoute;
         if (request is null)
         {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Failed("page-load-failed"));
             return;
         }
 
@@ -71,9 +76,16 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
             {
                 QueueStagedLoading(initialLocatorVersion);
             }
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
         {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Cancelled());
+        }
+        catch
+        {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Failed("page-load-failed"));
+            throw;
         }
     }
 

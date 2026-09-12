@@ -12,11 +12,15 @@ namespace NovelSpeaker.App.Features.Cache;
 public partial class CacheManagementPage : System.Windows.Controls.Page, INavigationAware, INavigableView<CacheManagementViewModel>
 {
     private readonly PageActivationController _activation = new();
+    private readonly PageEventOperationRunner _eventOperations;
     private ScrollViewer? _chapterScrollViewer;
 
-    public CacheManagementPage(CacheManagementViewModel viewModel)
+    public CacheManagementPage(
+        CacheManagementViewModel viewModel,
+        PageEventOperationRunner? eventOperations = null)
     {
         ViewModel = viewModel;
+        _eventOperations = eventOperations ?? PageEventOperationRunner.DesignTime;
         DataContext = ViewModel;
         InitializeComponent();
         ChaptersListBox.Loaded += ChaptersListBox_OnLoaded;
@@ -27,14 +31,22 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
 
     public async Task OnNavigatedToAsync()
     {
+        using var operation = _eventOperations.StartCriticalLoad();
         var activation = _activation.Activate();
         activation.Register(ViewModel.HandleNavigatedFrom);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
         {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Cancelled());
+        }
+        catch
+        {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Failed("page-load-failed"));
+            throw;
         }
     }
 

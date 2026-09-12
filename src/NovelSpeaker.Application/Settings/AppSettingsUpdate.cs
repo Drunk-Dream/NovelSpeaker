@@ -35,6 +35,8 @@ public sealed record AppSettingsUpdate
 
     public double? PlaybackVolume { get; init; }
 
+    public bool? EnablePerformanceTelemetry { get; init; }
+
     public double? MiniPlayerLeft { get; init; }
 
     public bool ClearMiniPlayerLeft { get; init; }

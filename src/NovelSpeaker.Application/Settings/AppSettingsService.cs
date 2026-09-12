@@ -72,6 +72,7 @@ public sealed class AppSettingsService :
             BookFileNameTemplate = update.BookFileNameTemplate ?? current.BookFileNameTemplate,
             CacheLimitBytes = update.CacheLimitBytes ?? current.CacheLimitBytes,
             PlaybackVolume = update.PlaybackVolume ?? current.PlaybackVolume,
+            EnablePerformanceTelemetry = update.EnablePerformanceTelemetry ?? current.EnablePerformanceTelemetry,
             SelectedTtsRuleId = update.ClearSelectedTtsRuleId ? null : update.SelectedTtsRuleId ?? current.SelectedTtsRuleId,
             MainWindowCloseBehavior = update.MainWindowCloseBehavior ?? current.MainWindowCloseBehavior,
             StartMinimizedToTray = update.StartMinimizedToTray ?? current.StartMinimizedToTray,

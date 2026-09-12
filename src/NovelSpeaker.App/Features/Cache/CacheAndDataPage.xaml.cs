@@ -24,15 +24,23 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
 
     public async Task OnNavigatedToAsync()
     {
+        using var operation = _eventOperations.StartCriticalLoad();
         var activation = _activation.Activate();
         ViewModel.Activate(activation);
         activation.Register(ViewModel.Deactivate);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
         {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Cancelled());
+        }
+        catch
+        {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Failed("page-load-failed"));
+            throw;
         }
     }
 

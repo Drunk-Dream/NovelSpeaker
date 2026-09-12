@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Infrastructure.Diagnostics;
 
 namespace NovelSpeaker.Infrastructure.DependencyInjection;
@@ -15,6 +16,11 @@ public static class DiagnosticsRegistration
         services.TryAddSingleton<ILoggerProvider>(
             static provider => new LoggerProviderRegistrationAdapter(
                 provider.GetRequiredService<RollingFileLoggerProvider>()));
+        services.TryAddSingleton<LocalPerformanceTelemetryStore>();
+        services.TryAddSingleton<IPerformanceTelemetryService>(
+            static provider => provider.GetRequiredService<LocalPerformanceTelemetryStore>());
+        services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IObservabilityConsumer, PerformanceTelemetryConsumer>());
         return services;
     }
 }

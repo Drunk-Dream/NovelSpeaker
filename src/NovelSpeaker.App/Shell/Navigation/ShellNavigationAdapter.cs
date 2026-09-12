@@ -13,6 +13,7 @@ using NovelSpeaker.App.Features.PlaybackSettings;
 using NovelSpeaker.App.Features.Rules.Regex;
 using NovelSpeaker.App.Features.Settings;
 using NovelSpeaker.App.Features.Rules.Tts;
+using NovelSpeaker.Application.Observability;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
@@ -42,6 +43,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
 
     private readonly INavigationGuardService _guardService;
     private readonly INavigationService _navigationService;
+    private readonly IObservability _observability;
     private int _bypassDepth;
     private INavigationView? _navigationView;
     private NavigationViewItem? _libraryItem;
@@ -55,10 +57,12 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
 
     public ShellNavigationAdapter(
         INavigationGuardService guardService,
-        INavigationService navigationService)
+        INavigationService navigationService,
+        IObservability? observability = null)
     {
         _guardService = guardService;
         _navigationService = navigationService;
+        _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
     }
 
     public bool IsBypassingGuard => Volatile.Read(ref _bypassDepth) > 0;
@@ -108,30 +112,47 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
         ArgumentNullException.ThrowIfNull(route);
         ValidateRoute(route);
         cancellationToken.ThrowIfCancellationRequested();
+        using var operation = _observability.StartOperation(OperationCatalog.UiNavigation);
 
-        if (!bypassGuard &&
-            !await _guardService.ConfirmNavigationAsync(cancellationToken).ConfigureAwait(true))
+        try
         {
-            return false;
-        }
+            if (!bypassGuard &&
+                !await _guardService.ConfirmNavigationAsync(cancellationToken).ConfigureAwait(true))
+            {
+                operation.Complete(OperationResult.Failed("navigation-rejected"));
+                return false;
+            }
 
-        cancellationToken.ThrowIfCancellationRequested();
-        using var _ = BeginBypass();
-        var navigated = _navigationService.NavigateWithHierarchy(
-            PageTypes[route.Id],
-            ToNavigationData(route));
-        if (navigated)
-        {
-            CurrentRoute = route;
-            IsPlayerPageActive = route.Id == AppRouteId.Player;
-            ApplySelection(route.Id);
-        }
-        else
-        {
-            IsPlayerPageActive = CurrentRoute.Id == AppRouteId.Player;
-        }
+            cancellationToken.ThrowIfCancellationRequested();
+            using var _ = BeginBypass();
+            var navigated = _navigationService.NavigateWithHierarchy(
+                PageTypes[route.Id],
+                ToNavigationData(route));
+            if (navigated)
+            {
+                CurrentRoute = route;
+                IsPlayerPageActive = route.Id == AppRouteId.Player;
+                ApplySelection(route.Id);
+                operation.Complete(OperationResult.Succeeded());
+            }
+            else
+            {
+                IsPlayerPageActive = CurrentRoute.Id == AppRouteId.Player;
+                operation.Complete(OperationResult.Failed("navigation-rejected"));
+            }
 
-        return navigated;
+            return navigated;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            operation.Complete(OperationResult.Cancelled());
+            throw;
+        }
+        catch
+        {
+            operation.Complete(OperationResult.Failed("navigation-failed"));
+            throw;
+        }
     }
 
     public async Task<bool> NavigateFromShellAsync(

@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
@@ -33,6 +34,7 @@ public sealed class PlaybackCoordinator :
     private readonly IPlaybackPrefetchController _prefetchController;
     private readonly IAppSettingsService _appSettingsService;
     private readonly TimeProvider _timeProvider;
+    private readonly IObservability _observability;
     private readonly PlaybackStopTimer _stopTimer;
     private readonly PlaybackCommandProcessor _commandProcessor;
     private readonly object _disposeGate = new();
@@ -80,7 +82,8 @@ public sealed class PlaybackCoordinator :
         PlaybackProgressController progressController,
         IPlaybackPrefetchController prefetchController,
         IAppSettingsService appSettingsService,
-        TimeProvider timeProvider)
+        TimeProvider timeProvider,
+        IObservability? observability = null)
     {
         _bookContentService = bookContentService;
         _selectedRuleProvider = selectedRuleProvider;
@@ -92,6 +95,7 @@ public sealed class PlaybackCoordinator :
         _prefetchController = prefetchController;
         _appSettingsService = appSettingsService;
         _timeProvider = timeProvider;
+        _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
         _commandProcessor = new PlaybackCommandProcessor(
             ProcessEventCommandAsync,
             PublishEventCommandFailureSafely);
@@ -124,10 +128,25 @@ public sealed class PlaybackCoordinator :
 
     void IPlaybackStopTimer.Cancel() => _stopTimer.Cancel();
 
-    public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
+    public async Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return RunSerializedAsync(ct => StartCoreAsync(request, ct), cancellationToken);
+        using var operation = _observability.StartOperation(OperationCatalog.PlaybackStart);
+        try
+        {
+            await RunSerializedAsync(ct => StartCoreAsync(request, ct), cancellationToken).ConfigureAwait(false);
+            operation.Complete(OperationResult.Succeeded());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            operation.Complete(OperationResult.Cancelled());
+            throw;
+        }
+        catch
+        {
+            operation.Complete(OperationResult.Failed("playback-start-failed"));
+            throw;
+        }
     }
 
     public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken)
@@ -788,6 +807,26 @@ public sealed class PlaybackCoordinator :
     }
 
     private async Task MoveChapterCoreAsync(int delta, CancellationToken cancellationToken)
+    {
+        using var operation = _observability.StartOperation(OperationCatalog.PlaybackChapterSwitch);
+        try
+        {
+            await MoveChapterCoreWithoutTelemetryAsync(delta, cancellationToken).ConfigureAwait(false);
+            operation.Complete(OperationResult.Succeeded());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            operation.Complete(OperationResult.Cancelled());
+            throw;
+        }
+        catch
+        {
+            operation.Complete(OperationResult.Failed("chapter-switch-failed"));
+            throw;
+        }
+    }
+
+    private async Task MoveChapterCoreWithoutTelemetryAsync(int delta, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
         if (_currentBook is null)

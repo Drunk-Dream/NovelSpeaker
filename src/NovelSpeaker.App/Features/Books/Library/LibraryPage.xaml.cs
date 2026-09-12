@@ -49,6 +49,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
 
     public async Task OnNavigatedToAsync()
     {
+        using var operation = _eventOperations.StartCriticalLoad();
         var activation = _activation.Activate();
         ViewModel.HandleNavigatedTo();
         activation.Register(ViewModel.HandleNavigatedFrom);
@@ -58,6 +59,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
         }
         if (_hasLoaded && !_catalogInvalidationState.IsInvalidated)
         {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
             return;
         }
 
@@ -67,9 +69,16 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
             {
                 activation.TryCommit(() => _hasLoaded = true);
             }
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
         {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Cancelled());
+        }
+        catch
+        {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Failed("page-load-failed"));
+            throw;
         }
     }
 

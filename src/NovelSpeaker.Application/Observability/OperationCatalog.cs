@@ -25,6 +25,11 @@ public static class OperationCatalog
         "Critical page load",
         "A page reaches its first useful interactive state.");
 
+    public static OperationDefinition UiDispatcherStall { get; } = Create(
+        "ui.dispatcher-stall",
+        "UI dispatcher work",
+        "A UI dispatcher callback waits or runs before returning to the message loop.");
+
     public static OperationDefinition PlaybackStart { get; } = Create(
         "playback.start",
         "Playback start",
@@ -61,6 +66,7 @@ public static class OperationCatalog
         AppShutdown,
         UiNavigation,
         UiPageCriticalLoad,
+        UiDispatcherStall,
         PlaybackStart,
         PlaybackChapterSwitch,
         TtsRequest,

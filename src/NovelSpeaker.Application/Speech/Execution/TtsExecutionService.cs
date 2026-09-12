@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Application.Speech.Execution;
@@ -9,18 +10,56 @@ public sealed class TtsExecutionService : IHttpTtsClient
     private readonly ITtsHttpTransport _transport;
     private readonly ITtsRetryPolicy _retryPolicy;
     private readonly ITtsResponseValidator _responseValidator;
+    private readonly IObservability _observability;
 
     public TtsExecutionService(
         ITtsHttpTransport transport,
         ITtsRetryPolicy retryPolicy,
-        ITtsResponseValidator responseValidator)
+        ITtsResponseValidator responseValidator,
+        IObservability? observability = null)
     {
         _transport = transport;
         _retryPolicy = retryPolicy;
         _responseValidator = responseValidator;
+        _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
     }
 
     public async Task<TtsHttpExecutionResult> ExecuteAsync(
+        ParsedTtsRequest request,
+        CancellationToken cancellationToken)
+    {
+        using var operation = _observability.StartOperation(OperationCatalog.TtsRequest);
+        try
+        {
+            var result = await ExecuteCoreAsync(request, cancellationToken).ConfigureAwait(false);
+            if (result.IsSuccess)
+            {
+                operation.Complete(OperationResult.Succeeded());
+            }
+            else if (result.Failure?.Kind == TtsErrorKind.Cancelled)
+            {
+                operation.Complete(OperationResult.Cancelled());
+            }
+            else
+            {
+                operation.Complete(OperationResult.Failed("tts-failed"));
+            }
+
+            return result;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            operation.Complete(OperationResult.Cancelled());
+            throw;
+        }
+        catch
+        {
+            operation.Complete(OperationResult.Failed("tts-failed"));
+            throw;
+        }
+    }
+
+    private async Task<TtsHttpExecutionResult> ExecuteCoreAsync(
         ParsedTtsRequest request,
         CancellationToken cancellationToken)
     {
@@ -56,6 +95,8 @@ public sealed class TtsExecutionService : IHttpTtsClient
                 if (_retryPolicy.ShouldRetry(completedRetries, transportResult.FailureKind, null))
                 {
                     completedRetries++;
+                    using var retryOperation = _observability.StartOperation(OperationCatalog.TtsRetry);
+                    retryOperation.Complete(OperationResult.Succeeded());
                     continue;
                 }
 
@@ -75,6 +116,8 @@ public sealed class TtsExecutionService : IHttpTtsClient
                     if (_retryPolicy.ShouldRetry(completedRetries, null, response.StatusCode))
                     {
                         completedRetries++;
+                        using var retryOperation = _observability.StartOperation(OperationCatalog.TtsRetry);
+                        retryOperation.Complete(OperationResult.Succeeded());
                         continue;
                     }
 

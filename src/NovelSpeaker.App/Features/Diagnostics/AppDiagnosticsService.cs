@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Observability;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using BootstrapApp = NovelSpeaker.App.Bootstrap.App;
 
@@ -16,17 +17,20 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
     private readonly IDatabaseSchemaVersionProvider _schemaVersionProvider;
     private readonly IAppSettingsService _settingsService;
     private readonly IPresentationLauncher _launcher;
+    private readonly IPerformanceTelemetryService _telemetry;
 
     public AppDiagnosticsService(
         IAppDataDirectoryProvider directories,
         IDatabaseSchemaVersionProvider schemaVersionProvider,
         IAppSettingsService settingsService,
-        IPresentationLauncher launcher)
+        IPresentationLauncher launcher,
+        IPerformanceTelemetryService telemetry)
     {
         _directories = directories;
         _schemaVersionProvider = schemaVersionProvider;
         _settingsService = settingsService;
         _launcher = launcher;
+        _telemetry = telemetry;
     }
 
     public async Task<AppDiagnosticsSnapshot> GetSnapshotAsync(CancellationToken cancellationToken)
@@ -84,6 +88,15 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
 
         return _launcher.OpenAsync(noticesPath, cancellationToken);
     }
+
+    public Task ClearTelemetryAsync(CancellationToken cancellationToken) =>
+        _telemetry.ClearAsync(cancellationToken);
+
+    public Task ExportDiagnosticsAsync(string destinationPath, CancellationToken cancellationToken) =>
+        _telemetry.ExportAsync(destinationPath, cancellationToken);
+
+    public void SetTelemetryCollectionEnabled(bool enabled) =>
+        _telemetry.SetCollectionEnabled(enabled);
 
     private static string ResolveVersion()
     {

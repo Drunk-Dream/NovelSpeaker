@@ -52,6 +52,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     private StartupDiagnosticsRecorder? _diagnostics;
     private RollingFileLoggerProvider? _loggerProvider;
     private ObservabilityContextAccessor? _observabilityContextAccessor;
+    private IOperationScope? _startupOperation;
+    private IOperationScope? _shutdownOperation;
     private ServiceProvider? _serviceProvider;
 
     public WpfStartupRuntime(Dispatcher dispatcher, Action<MainWindow> setMainWindow)
@@ -158,6 +160,9 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         services.AddNovelSpeakerDesktop();
 
         _serviceProvider = BuildValidatedServiceProvider(services);
+        _startupOperation = _serviceProvider
+            .GetRequiredService<IObservability>()
+            .StartOperation(OperationCatalog.AppStartup);
         _serviceProvider.GetRequiredService<ICacheInvalidationCoordinator>();
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
@@ -206,12 +211,26 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
             desktopLifecycle.RequestMainWindowCloseAsync,
             () => desktopLifecycle.IsExitApproved);
         _setMainWindow(window);
-        await CompleteShellStartupAsync(
-            RunStartupCacheMaintenanceAsync,
-            desktopLifecycle.StartAsync,
-            RequireServices().GetRequiredService<IMediaControlCoordinator>().StartAsync,
-            CloseStartupStatus,
-            cancellationToken).ConfigureAwait(true);
+        try
+        {
+            await CompleteShellStartupAsync(
+                RunStartupCacheMaintenanceAsync,
+                desktopLifecycle.StartAsync,
+                RequireServices().GetRequiredService<IMediaControlCoordinator>().StartAsync,
+                CloseStartupStatus,
+                cancellationToken).ConfigureAwait(true);
+            _startupOperation?.Complete(OperationResult.Succeeded());
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            _startupOperation?.Complete(OperationResult.Cancelled());
+            throw;
+        }
+        catch
+        {
+            _startupOperation?.Complete(OperationResult.Failed("startup-shell-failed"));
+            throw;
+        }
     }
 
     internal static async Task CompleteShellStartupAsync(
@@ -236,6 +255,12 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     {
         _shutdownGate.TryBeginShutdown();
         _backgroundTasks.StopAccepting();
+        if (_serviceProvider is not null && _shutdownOperation is null)
+        {
+            _shutdownOperation = _serviceProvider
+                .GetRequiredService<IObservability>()
+                .StartOperation(OperationCatalog.AppShutdown);
+        }
     }
 
     public async Task StopDesktopLifecycleAsync(CancellationToken cancellationToken)
@@ -419,6 +444,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     public async ValueTask DisposeAsync()
     {
         CloseStartupStatus();
+        _startupOperation?.Complete(OperationResult.Cancelled());
+        _shutdownOperation?.Complete(OperationResult.Succeeded());
         if (_serviceProvider is not null)
         {
             await _serviceProvider.DisposeAsync().ConfigureAwait(false);

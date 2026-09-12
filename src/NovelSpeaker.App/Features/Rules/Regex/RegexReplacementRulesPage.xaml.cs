@@ -35,15 +35,23 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
 
     public async Task OnNavigatedToAsync()
     {
+        using var operation = _eventOperations.StartCriticalLoad();
         var activation = _activation.Activate();
         activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
         {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Cancelled());
+        }
+        catch
+        {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Failed("page-load-failed"));
+            throw;
         }
     }
 

@@ -65,7 +65,8 @@ public sealed class DiagnosticsAboutViewModelTests
             settingsService,
             clipboardService ?? new FakeClipboardService(),
             new FakeNavigationService(),
-            feedbackService ?? new FakeFeedbackService());
+            feedbackService ?? new FakeFeedbackService(),
+            new FakeFileDialogService());
     }
 
     private sealed class FakeDiagnosticsService : IAppDiagnosticsService
@@ -116,6 +117,14 @@ public sealed class DiagnosticsAboutViewModelTests
             AppDataDirectoryOpened = true;
             return Task.CompletedTask;
         }
+
+        public Task ClearTelemetryAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task ExportDiagnosticsAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void SetTelemetryCollectionEnabled(bool enabled)
+        {
+        }
     }
 
     private sealed class FakeClipboardService : IPresentationClipboard
@@ -146,10 +155,23 @@ public sealed class DiagnosticsAboutViewModelTests
         {
             CurrentSettings = (CurrentSettings with
             {
-                LogLevel = update.LogLevel ?? CurrentSettings.LogLevel
+                LogLevel = update.LogLevel ?? CurrentSettings.LogLevel,
+                EnablePerformanceTelemetry = update.EnablePerformanceTelemetry ?? CurrentSettings.EnablePerformanceTelemetry
             }).Normalize();
             return Task.FromResult(CurrentSettings);
         }
+    }
+
+    private sealed class FakeFileDialogService : IPresentationFileDialogService
+    {
+        public Task<string?> PickOpenFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
+
+        public Task<string?> PickSaveFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
+
+        public Task<string?> PickFolderAsync(PresentationFolderDialogOptions options, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
     }
 
     private sealed class FakeFeedbackService : IAppFeedbackService

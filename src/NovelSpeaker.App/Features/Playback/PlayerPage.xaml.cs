@@ -10,13 +10,16 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
 {
     private readonly PageActivationController _activation = new();
     private readonly IKeyboardShortcutTargetRegistry? _shortcutTargets;
+    private readonly PageEventOperationRunner _eventOperations;
 
     public PlayerPage(
         PlayerViewModel viewModel,
-        IKeyboardShortcutTargetRegistry? shortcutTargets = null)
+        IKeyboardShortcutTargetRegistry? shortcutTargets = null,
+        PageEventOperationRunner? eventOperations = null)
     {
         ViewModel = viewModel;
         _shortcutTargets = shortcutTargets;
+        _eventOperations = eventOperations ?? PageEventOperationRunner.DesignTime;
         InitializeComponent();
         PlayerView.DataContext = ViewModel;
     }
@@ -25,6 +28,7 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
 
     public async Task OnNavigatedToAsync()
     {
+        using var operation = _eventOperations.StartCriticalLoad();
         var activation = _activation.Activate();
         PlayerView.ActivationToken = activation.CancellationToken;
         ViewModel.OnPageNavigatedTo(activation.CancellationToken);
@@ -42,9 +46,16 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
             {
                 await ViewModel.HandleNavigationAsync(request, activation.CancellationToken);
             }
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)
         {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Cancelled());
+        }
+        catch
+        {
+            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Failed("page-load-failed"));
+            throw;
         }
     }
 

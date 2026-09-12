@@ -36,7 +36,8 @@ public sealed class AppDiagnosticsServiceTests
             directories,
             new SqliteDatabaseSchemaVersionProvider(new SqliteConnectionFactory(directories)),
             new FakeAppSettingsService(AppSettings.Default with { Theme = "Dark", LogLevel = "Warning" }),
-            new FakeLauncher());
+            new FakeLauncher(),
+            new FakeTelemetryService());
 
         var snapshot = await service.GetSnapshotAsync(CancellationToken.None);
 
@@ -66,5 +67,15 @@ public sealed class AppDiagnosticsServiceTests
     private sealed class FakeLauncher : IPresentationLauncher
     {
         public Task OpenAsync(string path, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class FakeTelemetryService : NovelSpeaker.Application.Observability.IPerformanceTelemetryService
+    {
+        public bool IsEnabled => false;
+        public void SetCollectionEnabled(bool enabled)
+        {
+        }
+        public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ExportAsync(string destinationPath, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }
