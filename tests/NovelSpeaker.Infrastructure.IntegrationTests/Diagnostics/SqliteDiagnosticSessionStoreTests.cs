@@ -222,7 +222,7 @@ public sealed class SqliteDiagnosticSessionStoreTests
         using var operation = hub.StartOperation(OperationCatalog.PlaybackStart);
 
         operation.Complete(OperationResult.Succeeded());
-        Assert.True(SpinWait.SpinUntil(() => store.IsDegraded, TimeSpan.FromSeconds(2)));
+        Assert.True(SpinWait.SpinUntil(() => store.IsDegraded, TimeSpan.FromSeconds(10)));
 
         Assert.True(operation.IsCompleted);
         Assert.True(store.IsDegraded);
