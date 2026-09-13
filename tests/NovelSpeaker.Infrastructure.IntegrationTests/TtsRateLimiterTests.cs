@@ -149,18 +149,18 @@ public sealed class TtsRateLimiterTests
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
 
-        Assert.Equal(1, timeProvider.PendingTimerCount);
+        await timeProvider.WaitForPendingTimerCountAsync(1);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await current;
         Assert.False(prefetch.IsCompleted);
         Assert.False(activeCache.IsCompleted);
 
-        Assert.Equal(1, timeProvider.PendingTimerCount);
+        await timeProvider.WaitForPendingTimerCountAsync(1);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await prefetch;
         Assert.False(activeCache.IsCompleted);
 
-        Assert.Equal(1, timeProvider.PendingTimerCount);
+        await timeProvider.WaitForPendingTimerCountAsync(1);
         timeProvider.Advance(TimeSpan.FromMilliseconds(100));
         await activeCache;
     }
