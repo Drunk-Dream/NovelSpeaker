@@ -10,6 +10,7 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.Infrastructure.Diagnostics;
@@ -1738,29 +1739,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         return ContainsReparsePoint(path) ? null : path;
     }
 
-    private static bool ContainsReparsePoint(string path)
-    {
-        var current = Path.GetFullPath(path);
-        while (true)
-        {
-            if ((File.Exists(current) || Directory.Exists(current)) &&
-                (File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-            {
-                return true;
-            }
-
-            var parent = Directory.GetParent(current)?.FullName;
-            if (parent is null || string.Equals(parent, current, GetPathComparison()))
-            {
-                return false;
-            }
-
-            current = parent;
-        }
-    }
-
-    private static StringComparison GetPathComparison() =>
-        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private bool ContainsReparsePoint(string path) =>
+        ReparsePointPathGuard.ContainsReparsePoint(path, _directories.RootDirectoryPath);
 
     private async Task WriteMarkerAsync(string fileName, CancellationToken cancellationToken)
     {

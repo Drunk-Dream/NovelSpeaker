@@ -6,6 +6,32 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.FileSystem;
 public sealed class AppStoragePathResolverTests
 {
     [Fact]
+    public void ResolvePath_allows_reparse_points_above_the_data_root()
+    {
+        var installationRoot = Path.Combine(Path.GetTempPath(), "NovelSpeaker-Scoop-" + Path.GetRandomFileName());
+        var versionDirectory = Path.Combine(installationRoot, "1.0.0");
+        var currentDirectory = Path.Combine(installationRoot, "current");
+        Directory.CreateDirectory(versionDirectory);
+        try
+        {
+            Directory.CreateSymbolicLink(currentDirectory, versionDirectory);
+        }
+        catch (Exception exception) when (
+            exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var directories = new AppDataDirectoryProvider(Path.Combine(currentDirectory, "Data"));
+        Directory.CreateDirectory(directories.RootDirectoryPath);
+        var resolver = new AppStoragePathResolver(directories);
+
+        Assert.Equal(
+            Path.Combine(directories.BooksDirectoryPath, "book-1", "content.txt"),
+            resolver.ResolvePath("Books/book-1/content.txt"));
+    }
+
+    [Fact]
     public void ResolvePath_accepts_storage_key_and_legacy_path_under_root()
     {
         var directories = CreateDirectories();

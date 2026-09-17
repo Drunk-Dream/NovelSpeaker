@@ -21,6 +21,27 @@ public sealed class AppDataDirectoryProviderTests
     }
 
     [Fact]
+    public async Task EnsureCreatedAsync_rejects_reparse_point_inside_data_root()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var provider = new AppDataDirectoryProvider(root);
+        var outside = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(outside);
+        Directory.CreateDirectory(root);
+        try
+        {
+            Directory.CreateSymbolicLink(provider.DiagnosticsDirectoryPath, outside);
+        }
+        catch (Exception exception) when (
+            exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        await Assert.ThrowsAsync<IOException>(() => provider.EnsureCreatedAsync(CancellationToken.None));
+    }
+
+    [Fact]
     public void Constructor_exposes_all_paths_under_the_injected_root()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

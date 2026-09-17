@@ -69,22 +69,9 @@ public sealed class AppStoragePathResolver : IAppStoragePathResolver
 
     private void EnsureNoReparsePoint(string candidate)
     {
-        var relative = Path.GetRelativePath(_rootPath, candidate);
-        var current = _rootPath;
-        foreach (var segment in relative.Split(
-                     [Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar],
-                     StringSplitOptions.RemoveEmptyEntries))
+        if (ReparsePointPathGuard.ContainsReparsePoint(candidate, _rootPath, includeRoot: true))
         {
-            current = Path.Combine(current, segment);
-            if (!File.Exists(current) && !Directory.Exists(current))
-            {
-                continue;
-            }
-
-            if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
-            {
-                throw new InvalidDataException("持久化路径不能经过 reparse point。");
-            }
+            throw new InvalidDataException("持久化路径不能经过 reparse point。");
         }
     }
 }

@@ -12,6 +12,36 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Diagnostics;
 public sealed class SqliteDiagnosticSessionStoreTests
 {
     [Fact]
+    public async Task Start_and_recover_allow_reparse_points_above_the_data_root()
+    {
+        var installationRoot = Path.Combine(Path.GetTempPath(), "NovelSpeaker-Scoop-" + Path.GetRandomFileName());
+        var versionDirectory = Path.Combine(installationRoot, "1.0.0");
+        var currentDirectory = Path.Combine(installationRoot, "current");
+        Directory.CreateDirectory(versionDirectory);
+        try
+        {
+            Directory.CreateSymbolicLink(currentDirectory, versionDirectory);
+        }
+        catch (Exception exception) when (
+            exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
+        {
+            return;
+        }
+
+        var fixture = new Fixture("process-one", Path.Combine(currentDirectory, "Data"));
+        var first = fixture.CreateStore();
+        var started = await first.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
+        await first.NotifyProcessShutdownAsync(CancellationToken.None);
+        await first.DisposeAsync();
+
+        await using var second = fixture.CreateStore("process-two");
+        var recovered = await second.RecoverAsync(CancellationToken.None);
+
+        Assert.NotNull(recovered);
+        Assert.Equal(started.SessionId, recovered!.SessionId);
+    }
+
+    [Fact]
     public async Task Start_is_the_only_operation_that_creates_a_session_file()
     {
         var fixture = new Fixture("process-one");
@@ -267,9 +297,9 @@ public sealed class SqliteDiagnosticSessionStoreTests
 
     private sealed class Fixture
     {
-        public Fixture(string processInstanceId)
+        public Fixture(string processInstanceId, string? root = null)
         {
-            Root = Path.Combine(Path.GetTempPath(), "NovelSpeaker-Diagnostic-" + Path.GetRandomFileName());
+            Root = root ?? Path.Combine(Path.GetTempPath(), "NovelSpeaker-Diagnostic-" + Path.GetRandomFileName());
             Directories = new AppDataDirectoryProvider(Root);
             Directories.EnsureCreatedAsync(CancellationToken.None).GetAwaiter().GetResult();
             Clock = new ManualTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
