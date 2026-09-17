@@ -14,6 +14,7 @@ public static class DiagnosticsRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<RollingFileLoggerProvider>();
+        services.TryAddSingleton<IDiagnosticFailureReporter, DiagnosticFailureReporter>();
         services.TryAddSingleton<ILoggerProvider>(
             static provider => new LoggerProviderRegistrationAdapter(
                 provider.GetRequiredService<RollingFileLoggerProvider>()));

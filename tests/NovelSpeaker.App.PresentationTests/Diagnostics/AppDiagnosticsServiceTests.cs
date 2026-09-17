@@ -54,6 +54,8 @@ public sealed class AppDiagnosticsServiceTests
         Assert.Contains("主题：Dark", summary);
         Assert.Contains("日志级别：Warning", summary);
         Assert.DoesNotContain("Authorization", summary, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(root, summary, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(snapshot.LogsDirectoryPath, summary, StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

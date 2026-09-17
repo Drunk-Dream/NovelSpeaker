@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Text.Json;
+using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
@@ -62,6 +63,116 @@ public sealed class LocalPerformanceTelemetryStoreTests
         Assert.Equal(1, telemetry.GetProperty("windowCount").GetInt32());
         Assert.Equal(5, telemetry.GetProperty("metrics").GetArrayLength());
         Assert.False(settings.Current.EnablePerformanceTelemetry);
+    }
+
+    [Fact]
+    public async Task Export_to_an_external_directory_overwrites_an_existing_complete_target()
+    {
+        var fixture = new Fixture(AppSettings.Default with { EnablePerformanceTelemetry = true });
+        await using var store = fixture.CreateStore();
+        RecordOperation(fixture, store, TimeSpan.FromMilliseconds(10));
+        var exportDirectory = Path.Combine(Path.GetTempPath(), "NovelSpeaker-External-Export-" + Path.GetRandomFileName());
+        Directory.CreateDirectory(exportDirectory);
+        var exportPath = Path.Combine(exportDirectory, "diagnostics.zip");
+        await File.WriteAllTextAsync(exportPath, "previous export");
+
+        await store.ExportAsync(exportPath, CancellationToken.None);
+
+        using var archive = ZipFile.OpenRead(exportPath);
+        Assert.Contains(archive.Entries, entry => entry.FullName == "telemetry.json");
+        Assert.Empty(Directory.EnumerateFiles(exportDirectory, ".diagnostics.zip.*.tmp"));
+    }
+
+    [Fact]
+    public async Task Export_succeeds_while_production_logs_are_being_written_and_rotated()
+    {
+        var fixture = new Fixture(AppSettings.Default with { EnablePerformanceTelemetry = true });
+        await using var store = fixture.CreateStore();
+        var outputDirectory = Path.Combine(Path.GetTempPath(), "NovelSpeaker-Concurrent-Export-" + Path.GetRandomFileName());
+        Directory.CreateDirectory(outputDirectory);
+        var outputPath = Path.Combine(outputDirectory, "diagnostics.zip");
+        await using var provider = new RollingFileLoggerProvider(
+            fixture.Directories,
+            maxFileBytes: 1024,
+            maxTotalBytes: 32 * 1024,
+            timeProvider: fixture.Clock);
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(provider));
+        var logger = factory.CreateLogger("ConcurrentDiagnosticExportTests");
+        logger.LogWarning("prime the active production log file");
+        await provider.FlushAsync();
+
+        var loggingTask = Task.Run(() =>
+        {
+            for (var index = 0; index < 5_000; index++)
+            {
+                logger.LogWarning("rotating diagnostic log record {Record}", index);
+            }
+        });
+        await store.ExportAsync(outputPath, CancellationToken.None);
+        await loggingTask;
+        await provider.FlushAsync();
+
+        using var archive = ZipFile.OpenRead(outputPath);
+        Assert.Contains(archive.Entries, entry => entry.FullName == "logs.jsonl");
+        Assert.NotEmpty(Directory.EnumerateFiles(fixture.Directories.LogsDirectoryPath, "novelspeaker-*.jsonl"));
+    }
+
+    [Fact]
+    public async Task Malformed_and_unreadable_logs_are_skipped_without_failing_export()
+    {
+        var fixture = new Fixture(AppSettings.Default);
+        Directory.CreateDirectory(fixture.Directories.LogsDirectoryPath);
+        await File.WriteAllTextAsync(
+            Path.Combine(fixture.Directories.LogsDirectoryPath, "malformed.jsonl"),
+            "not json\n");
+        await File.WriteAllTextAsync(
+            Path.Combine(fixture.Directories.LogsDirectoryPath, "healthy.jsonl"),
+            "{\"timestampUtc\":\"2026-01-01T00:00:00+00:00\",\"level\":\"Warning\",\"eventName\":\"app.test\"}\n");
+        var unreadablePath = Path.Combine(fixture.Directories.LogsDirectoryPath, "locked.jsonl");
+        await File.WriteAllTextAsync(unreadablePath, "{}\n");
+        await using var exclusiveLock = new FileStream(unreadablePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        await using var store = fixture.CreateStore();
+        var exportPath = Path.Combine(fixture.Root, "best-effort.zip");
+
+        await store.ExportAsync(exportPath, CancellationToken.None);
+
+        using var archive = ZipFile.OpenRead(exportPath);
+        var logs = await ReadTextAsync(archive, "logs.jsonl");
+        Assert.Contains("app.test", logs, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Failed_export_writes_a_redacted_structured_failure_event()
+    {
+        var fixture = new Fixture(AppSettings.Default with { EnablePerformanceTelemetry = true });
+        await using var provider = new RollingFileLoggerProvider(fixture.Directories);
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(provider));
+        var reporter = new DiagnosticFailureReporter(factory.CreateLogger<DiagnosticFailureReporter>());
+        await using var store = new LocalPerformanceTelemetryStore(
+            fixture.Directories,
+            fixture.Settings,
+            fixture.Clock,
+            failureReporter: reporter);
+        RecordOperation(fixture, store, TimeSpan.FromMilliseconds(10));
+        var destination = Path.Combine(fixture.Root, "directory-target.zip");
+        Directory.CreateDirectory(destination);
+
+        await Assert.ThrowsAnyAsync<UnauthorizedAccessException>(() => store.ExportAsync(destination, CancellationToken.None));
+        await provider.FlushAsync();
+        factory.Dispose();
+        await provider.DisposeAsync();
+
+        var line = Assert.Single(
+            Directory.EnumerateFiles(fixture.Directories.LogsDirectoryPath, "novelspeaker-*.jsonl")
+                .SelectMany(File.ReadLines));
+        using var document = JsonDocument.Parse(line);
+        var record = document.RootElement;
+        Assert.Equal("diagnostics.operation.failed", record.GetProperty("eventName").GetString());
+        Assert.Equal("diagnostics-export", record.GetProperty("properties").GetProperty("DiagnosticOperation").GetString());
+        Assert.Equal("commit-bundle", record.GetProperty("properties").GetProperty("Stage").GetString());
+        Assert.True(record.GetProperty("exception").GetProperty("hResult").GetInt32() != 0);
+        Assert.DoesNotContain(destination, line, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(Directory.EnumerateFiles(fixture.Root, ".directory-target.zip.*.tmp", SearchOption.AllDirectories));
     }
 
     [Fact]
@@ -133,6 +244,13 @@ public sealed class LocalPerformanceTelemetryStoreTests
         await using var stream = archive.GetEntry(entryName)!.Open();
         using var document = await JsonDocument.ParseAsync(stream);
         return document.RootElement.Clone();
+    }
+
+    private static async Task<string> ReadTextAsync(ZipArchive archive, string entryName)
+    {
+        await using var stream = archive.GetEntry(entryName)!.Open();
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync();
     }
 
     private sealed class Fixture

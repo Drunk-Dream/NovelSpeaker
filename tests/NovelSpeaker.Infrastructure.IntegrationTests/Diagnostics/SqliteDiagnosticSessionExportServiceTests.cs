@@ -41,8 +41,11 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
         await store.EndAsync(CancellationToken.None);
 
         var exporter = new SqliteDiagnosticSessionExportService(store, directories);
-        var immediatePath = Path.Combine(root, "immediate.zip");
-        var selectedPath = Path.Combine(root, "selected.zip");
+        var externalDirectory = root + "-external-exports";
+        Directory.CreateDirectory(externalDirectory);
+        var immediatePath = Path.Combine(externalDirectory, "immediate.zip");
+        var selectedPath = Path.Combine(externalDirectory, "selected.zip");
+        await File.WriteAllTextAsync(selectedPath, "previous problem export");
         await exporter.ExportLastEndedAsync(immediatePath, CancellationToken.None);
         await exporter.ExportAsync(
             Path.Combine(directories.DiagnosticsDirectoryPath, $"session-{started.SessionId}.nsdiag"),

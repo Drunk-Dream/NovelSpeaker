@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Infrastructure.FileSystem;
@@ -29,6 +30,8 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
     private readonly IAppSettingsService _settings;
     private readonly TimeProvider _timeProvider;
     private readonly PerformanceMetricRegistry _registry;
+    private readonly IDiagnosticFailureReporter? _failureReporter;
+    private readonly DiagnosticBundleWriter _bundleWriter = new();
     private readonly object _gate = new();
     private readonly Channel<WriterItem> _writerQueue = Channel.CreateBounded<WriterItem>(
         new BoundedChannelOptions(QueueCapacity)
@@ -55,13 +58,15 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         IAppSettingsService settings,
         TimeProvider timeProvider,
         PerformanceMetricRegistry? registry = null,
-        IAppStoragePathResolver? pathResolver = null)
+        IAppStoragePathResolver? pathResolver = null,
+        IDiagnosticFailureReporter? failureReporter = null)
     {
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
         _pathResolver = pathResolver ?? new AppStoragePathResolver(_directories);
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _registry = registry ?? PerformanceMetricRegistry.Default;
+        _failureReporter = failureReporter;
         _lastCpuSample = CaptureCpuSample(_timeProvider.GetUtcNow());
         _collectionEnabled = _settings.Current.EnablePerformanceTelemetry ? 1 : 0;
         _writerTask = Task.Run(WriterLoopAsync);
@@ -162,67 +167,72 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
         cancellationToken.ThrowIfCancellationRequested();
-        await FlushAsync(cancellationToken).ConfigureAwait(false);
-
-        var now = _timeProvider.GetUtcNow();
-        var rangeStart = now - ExportRange;
-        TryApplyRetention(now);
-        var windows = ReadWindows(rangeStart, cancellationToken);
-        var metrics = MergeMetrics(windows);
-        var logLines = ReadRelevantLogs(rangeStart, cancellationToken);
-        var appVersion = ResolveVersion();
-        var fullPath = Path.GetFullPath(destinationPath);
-
-        var telemetryJson = JsonSerializer.Serialize(
-            new
-            {
-                schemaVersion = SchemaVersion,
-                generatedAtUtc = now,
-                rangeStartUtc = rangeStart,
-                rangeEndUtc = now,
-                windowCount = windows.Count,
-                droppedWindowCount = DroppedWindowCount,
-                metrics
-            },
-            _jsonOptions);
-        var environmentJson = JsonSerializer.Serialize(
-            new
-            {
-                schemaVersion = SchemaVersion,
-                appVersion,
-                osDescription = Environment.OSVersion.VersionString,
-                frameworkDescription = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
-                processArchitecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
-                is64BitOperatingSystem = Environment.Is64BitOperatingSystem,
-                processorCount = Environment.ProcessorCount,
-                gcServer = System.Runtime.GCSettings.IsServerGC
-            },
-            _jsonOptions);
-        var summary = BuildSummary(now, rangeStart, windows.Count, metrics.Count, logLines.Count, appVersion);
-
+        var stage = DiagnosticFailureStage.PrepareBundle;
         try
         {
-            var parent = Path.GetDirectoryName(fullPath);
-            if (!string.IsNullOrWhiteSpace(parent))
-            {
-                Directory.CreateDirectory(parent);
-            }
+            await FlushAsync(cancellationToken).ConfigureAwait(false);
 
-            await using var stream = new FileStream(
-                fullPath,
-                FileMode.Create,
-                FileAccess.ReadWrite,
-                FileShare.None,
-                64 * 1024,
-                FileOptions.SequentialScan);
-            using var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: false);
-            WriteEntry(archive, "summary.md", summary);
-            WriteEntry(archive, "telemetry.json", telemetryJson);
-            WriteEntry(archive, "logs.jsonl", string.Join("\n", logLines) + (logLines.Count == 0 ? string.Empty : "\n"));
-            WriteEntry(archive, "environment.json", environmentJson);
+            var now = _timeProvider.GetUtcNow();
+            var rangeStart = now - ExportRange;
+            TryApplyRetention(now);
+            stage = DiagnosticFailureStage.ReadTelemetry;
+            var windows = ReadWindows(rangeStart, cancellationToken);
+            var metrics = MergeMetrics(windows);
+            stage = DiagnosticFailureStage.ReadLogs;
+            var logLines = ReadRelevantLogs(rangeStart, cancellationToken);
+            var appVersion = ResolveVersion();
+
+            var telemetryJson = JsonSerializer.Serialize(
+                new
+                {
+                    schemaVersion = SchemaVersion,
+                    generatedAtUtc = now,
+                    rangeStartUtc = rangeStart,
+                    rangeEndUtc = now,
+                    windowCount = windows.Count,
+                    droppedWindowCount = DroppedWindowCount,
+                    metrics
+                },
+                _jsonOptions);
+            var environmentJson = JsonSerializer.Serialize(
+                new
+                {
+                    schemaVersion = SchemaVersion,
+                    appVersion,
+                    osDescription = Environment.OSVersion.VersionString,
+                    frameworkDescription = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+                    processArchitecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+                    is64BitOperatingSystem = Environment.Is64BitOperatingSystem,
+                    processorCount = Environment.ProcessorCount,
+                    gcServer = System.Runtime.GCSettings.IsServerGC
+                },
+                _jsonOptions);
+            var summary = BuildSummary(now, rangeStart, windows.Count, metrics.Count, logLines.Count, appVersion);
+
+            stage = DiagnosticFailureStage.BuildBundle;
+            await _bundleWriter.WriteAsync(
+                destinationPath,
+                (archive, _) =>
+                {
+                    WriteEntry(archive, "summary.md", summary);
+                    WriteEntry(archive, "telemetry.json", telemetryJson);
+                    WriteEntry(archive, "logs.jsonl", string.Join("\n", logLines) + (logLines.Count == 0 ? string.Empty : "\n"));
+                    WriteEntry(archive, "environment.json", environmentJson);
+                    return Task.CompletedTask;
+                },
+                cancellationToken,
+                () => stage = DiagnosticFailureStage.CommitBundle).ConfigureAwait(false);
         }
-        catch
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _failureReporter?.ReportFailure(
+                DiagnosticFailureOperation.DiagnosticsExport,
+                stage,
+                exception);
             throw;
         }
     }
@@ -445,30 +455,54 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
             return records;
         }
 
-        foreach (var path in Directory.EnumerateFiles(directory, "novelspeaker-telemetry-*.jsonl")
-                     .Select(_pathResolver.ResolvePath)
-                     .OrderBy(path => path, StringComparer.Ordinal))
+        string[] paths;
+        try
+        {
+            paths = Directory.EnumerateFiles(directory, "novelspeaker-telemetry-*.jsonl")
+                .Select(_pathResolver.ResolvePath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+        catch
+        {
+            Volatile.Write(ref _degraded, true);
+            return records;
+        }
+
+        foreach (var path in paths)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var line in File.ReadLines(path))
+            try
             {
-                if (string.IsNullOrWhiteSpace(line))
+                foreach (var line in File.ReadLines(path))
                 {
-                    continue;
-                }
-
-                try
-                {
-                    var record = JsonSerializer.Deserialize<TelemetryWindowRecord>(line, _jsonOptions);
-                    if (record is not null && record.WindowEndUtc >= rangeStart)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (string.IsNullOrWhiteSpace(line))
                     {
-                        records.Add(record);
+                        continue;
+                    }
+
+                    try
+                    {
+                        var record = JsonSerializer.Deserialize<TelemetryWindowRecord>(line, _jsonOptions);
+                        if (record is not null && record.WindowEndUtc >= rangeStart)
+                        {
+                            records.Add(record);
+                        }
+                    }
+                    catch (JsonException)
+                    {
+                        Volatile.Write(ref _degraded, true);
                     }
                 }
-                catch (JsonException)
-                {
-                    Volatile.Write(ref _degraded, true);
-                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                Volatile.Write(ref _degraded, true);
             }
         }
 
@@ -520,34 +554,58 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
             return result;
         }
 
-        foreach (var path in Directory.EnumerateFiles(_directories.LogsDirectoryPath, "*.jsonl")
-                     .Select(_pathResolver.ResolvePath)
-                     .OrderBy(path => path, StringComparer.Ordinal))
+        string[] paths;
+        try
+        {
+            paths = Directory.EnumerateFiles(_directories.LogsDirectoryPath, "*.jsonl")
+                .Select(_pathResolver.ResolvePath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .ToArray();
+        }
+        catch
+        {
+            Volatile.Write(ref _degraded, true);
+            return result;
+        }
+
+        foreach (var path in paths)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var line in File.ReadLines(path))
+            try
             {
-                try
+                foreach (var line in File.ReadLines(path))
                 {
-                    using var document = JsonDocument.Parse(line);
-                    var root = document.RootElement;
-                    if (!root.TryGetProperty("timestampUtc", out var timestampElement) ||
-                        !timestampElement.TryGetDateTimeOffset(out var timestamp) || timestamp < rangeStart)
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try
                     {
-                        continue;
-                    }
+                        using var document = JsonDocument.Parse(line);
+                        var root = document.RootElement;
+                        if (!root.TryGetProperty("timestampUtc", out var timestampElement) ||
+                            !timestampElement.TryGetDateTimeOffset(out var timestamp) || timestamp < rangeStart)
+                        {
+                            continue;
+                        }
 
-                    var level = root.TryGetProperty("level", out var levelElement) ? levelElement.GetString() : null;
-                    var eventName = root.TryGetProperty("eventName", out var eventElement) ? eventElement.GetString() : null;
-                    if (level is "Warning" or "Error" or "Critical" || eventName?.StartsWith("app.", StringComparison.Ordinal) == true)
+                        var level = root.TryGetProperty("level", out var levelElement) ? levelElement.GetString() : null;
+                        var eventName = root.TryGetProperty("eventName", out var eventElement) ? eventElement.GetString() : null;
+                        if (level is "Warning" or "Error" or "Critical" || eventName?.StartsWith("app.", StringComparison.Ordinal) == true)
+                        {
+                            result.Add(line);
+                        }
+                    }
+                    catch (JsonException)
                     {
-                        result.Add(line);
+                        Volatile.Write(ref _degraded, true);
                     }
                 }
-                catch (JsonException)
-                {
-                    Volatile.Write(ref _degraded, true);
-                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch
+            {
+                Volatile.Write(ref _degraded, true);
             }
         }
 

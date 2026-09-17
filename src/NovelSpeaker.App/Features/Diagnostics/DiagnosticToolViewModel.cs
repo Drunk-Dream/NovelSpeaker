@@ -133,7 +133,7 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
             var destinationPath = await _fileDialogs.PickSaveFileAsync(
                 new PresentationFileDialogOptions(
                     "ZIP files (*.zip)|*.zip",
-                    "NovelSpeaker-Problem-Diagnostics.zip"),
+                    DiagnosticExportFileNames.ProblemDiagnostics(_timeProvider)),
                 cancellationToken);
             if (string.IsNullOrWhiteSpace(destinationPath))
             {

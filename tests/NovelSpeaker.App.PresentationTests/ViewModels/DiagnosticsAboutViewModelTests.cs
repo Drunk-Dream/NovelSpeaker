@@ -54,11 +54,28 @@ public sealed class DiagnosticsAboutViewModelTests
         Assert.Equal("诊断摘要已复制", feedback.LastTitle);
     }
 
+    [Fact]
+    public async Task Diagnostics_export_suggests_filename_using_local_time()
+    {
+        var fileDialogs = new FakeFileDialogService { SavePath = "diagnostics.zip" };
+        var viewModel = CreateViewModel(
+            new FakeDiagnosticsService(),
+            new FakeAppSettingsService(AppSettings.Default),
+            fileDialogs: fileDialogs,
+            timeProvider: new FixedLocalTimeProvider());
+
+        await viewModel.ExportDiagnosticsCommand.ExecuteAsync(null);
+
+        Assert.Equal("NovelSpeaker-Diagnostics-20260102-110405.zip", fileDialogs.SuggestedFileName);
+    }
+
     private static DiagnosticsAboutViewModel CreateViewModel(
         FakeDiagnosticsService diagnosticsService,
         FakeAppSettingsService settingsService,
         FakeFeedbackService? feedbackService = null,
-        FakeClipboardService? clipboardService = null)
+        FakeClipboardService? clipboardService = null,
+        FakeFileDialogService? fileDialogs = null,
+        TimeProvider? timeProvider = null)
     {
         return new DiagnosticsAboutViewModel(
             diagnosticsService,
@@ -66,7 +83,8 @@ public sealed class DiagnosticsAboutViewModelTests
             clipboardService ?? new FakeClipboardService(),
             new FakeNavigationService(),
             feedbackService ?? new FakeFeedbackService(),
-            new FakeFileDialogService());
+            fileDialogs ?? new FakeFileDialogService(),
+            timeProvider);
     }
 
     private sealed class FakeDiagnosticsService : IAppDiagnosticsService
@@ -174,14 +192,31 @@ public sealed class DiagnosticsAboutViewModelTests
 
     private sealed class FakeFileDialogService : IPresentationFileDialogService
     {
+        public string? SavePath { get; init; }
+        public string? SuggestedFileName { get; private set; }
+
         public Task<string?> PickOpenFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(null);
 
-        public Task<string?> PickSaveFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
-            Task.FromResult<string?>(null);
+        public Task<string?> PickSaveFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken)
+        {
+            SuggestedFileName = options.SuggestedFileName;
+            return Task.FromResult(SavePath);
+        }
 
         public Task<string?> PickFolderAsync(PresentationFolderDialogOptions options, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(null);
+    }
+
+    private sealed class FixedLocalTimeProvider : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(2026, 1, 2, 3, 4, 5, TimeSpan.Zero);
+
+        public override TimeZoneInfo LocalTimeZone { get; } = TimeZoneInfo.CreateCustomTimeZone(
+            "NovelSpeakerTestLocal",
+            TimeSpan.FromHours(8),
+            "NovelSpeaker test local time",
+            "NovelSpeaker test local time");
     }
 
     private sealed class FakeFeedbackService : IAppFeedbackService

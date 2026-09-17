@@ -93,6 +93,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IPresentationLauncher>(
                     provider.GetRequiredService<IPresentationLauncher>());
                 Assert.IsAssignableFrom<IAppDiagnosticsService>(provider.GetRequiredService<IAppDiagnosticsService>());
+                Assert.IsType<DiagnosticFailureReporter>(
+                    provider.GetRequiredService<NovelSpeaker.Application.Diagnostics.IDiagnosticFailureReporter>());
                 Assert.IsAssignableFrom<IEncodingSelectionDialogService>(provider.GetRequiredService<IEncodingSelectionDialogService>());
                 Assert.IsAssignableFrom<IImportProgressDialogService>(provider.GetRequiredService<IImportProgressDialogService>());
                 Assert.IsAssignableFrom<IBookDeleteDialogService>(provider.GetRequiredService<IBookDeleteDialogService>());

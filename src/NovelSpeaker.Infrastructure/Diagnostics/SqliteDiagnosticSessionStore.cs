@@ -40,6 +40,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
     private readonly IAppSettingsService _settings;
     private readonly TimeProvider _timeProvider;
     private readonly DiagnosticRegistry _registry;
+    private readonly IDiagnosticFailureReporter? _failureReporter;
     private readonly Channel<WriteRequest> _queue;
     private readonly int _ordinaryQueueLimit;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
@@ -57,8 +58,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         TimeProvider timeProvider,
         IAppSettingsService settings,
         IAppStoragePathResolver pathResolver,
-        DiagnosticRegistry? registry = null)
-        : this(directories, contextAccessor, timeProvider, settings, pathResolver, registry, QueueCapacity)
+        DiagnosticRegistry? registry = null,
+        IDiagnosticFailureReporter? failureReporter = null)
+        : this(directories, contextAccessor, timeProvider, settings, pathResolver, registry, QueueCapacity, failureReporter)
     {
     }
 
@@ -69,7 +71,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         IAppSettingsService settings,
         IAppStoragePathResolver pathResolver,
         DiagnosticRegistry? registry,
-        int queueCapacity)
+        int queueCapacity,
+        IDiagnosticFailureReporter? failureReporter = null)
     {
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
@@ -77,6 +80,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _registry = registry ?? DiagnosticRegistry.Default;
+        _failureReporter = failureReporter;
         if (queueCapacity <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(queueCapacity));
@@ -179,6 +183,15 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             _contextAccessor.SetDiagnosticSession(sessionId);
             return active.ToSnapshot();
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ReportFailure(DiagnosticFailureOperation.SessionStart, DiagnosticFailureStage.CreateSession, exception);
+            throw;
+        }
         finally
         {
             _lifecycleGate.Release();
@@ -204,8 +217,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             {
                 fileName = ReadMarkerFileName();
             }
-            catch
+            catch (Exception exception)
             {
+                ReportFailure(DiagnosticFailureOperation.SessionRecover, DiagnosticFailureStage.ReadSessionMarker, exception);
                 TryDeleteTrustedFile(_directories.ActiveDiagnosticSessionMarkerPath);
                 return null;
             }
@@ -218,6 +232,10 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             var path = ResolveDiagnosticFile(fileName);
             if (path is null || !File.Exists(path))
             {
+                ReportFailure(
+                    DiagnosticFailureOperation.SessionRecover,
+                    DiagnosticFailureStage.ReadSessionMarker,
+                    new InvalidDataException("诊断会话标记指向不可用的会话文件。"));
                 TryDeleteTrustedFile(_directories.ActiveDiagnosticSessionMarkerPath);
                 return null;
             }
@@ -237,10 +255,11 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                     {
                         throw;
                     }
-                    catch
+                    catch (Exception exception)
                     {
                         // Keep the marker so the next process can retry making the ended file self-contained.
                         Volatile.Write(ref _degraded, 1);
+                        ReportFailure(DiagnosticFailureOperation.SessionRecover, DiagnosticFailureStage.RecoverSession, exception);
                         return null;
                     }
 
@@ -305,10 +324,11 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             {
                 throw;
             }
-            catch
+            catch (Exception exception)
             {
                 // A damaged marker or session must never prevent the main application from starting.
                 Volatile.Write(ref _degraded, 1);
+                ReportFailure(DiagnosticFailureOperation.SessionRecover, DiagnosticFailureStage.RecoverSession, exception);
                 return null;
             }
         }
@@ -387,6 +407,15 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             TryDeleteMarker(active.Path);
             return result;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ReportFailure(DiagnosticFailureOperation.SessionEnd, DiagnosticFailureStage.EndSession, exception);
+            throw;
+        }
         finally
         {
             _lifecycleGate.Release();
@@ -452,6 +481,15 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
 
                 _contextAccessor.SetDiagnosticSession(null);
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ReportFailure(DiagnosticFailureOperation.SessionEnd, DiagnosticFailureStage.EndSession, exception);
+            throw;
         }
         finally
         {
@@ -525,6 +563,15 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 throw new IOException("诊断附件未能写入会话文件。");
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ReportFailure(DiagnosticFailureOperation.WindowCapture, DiagnosticFailureStage.SaveAttachment, exception);
+            throw;
+        }
         finally
         {
             _lifecycleGate.Release();
@@ -534,6 +581,23 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
     public async Task<bool> RecordProblemMarkerAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await RecordProblemMarkerCoreAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            ReportFailure(DiagnosticFailureOperation.ProblemMarker, DiagnosticFailureStage.RecordMarker, exception);
+            throw;
+        }
+    }
+
+    private async Task<bool> RecordProblemMarkerCoreAsync(CancellationToken cancellationToken)
+    {
         var definition = _registry.Get(new DiagnosticDefinitionId("diagnostics.problem_marker"));
         var source = definition.Fields.Single(field => field.Name == "source");
         var marker = new DiagnosticEvent(
@@ -544,6 +608,10 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         if (!TryEnqueueDiagnosticEvent(marker, force: false, completion: completion))
         {
+            ReportFailure(
+                DiagnosticFailureOperation.ProblemMarker,
+                DiagnosticFailureStage.RecordMarker,
+                new IOException("问题标记未能加入诊断会话。"));
             return false;
         }
 
@@ -556,11 +624,19 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         }
         catch (TimeoutException)
         {
+            ReportFailure(
+                DiagnosticFailureOperation.ProblemMarker,
+                DiagnosticFailureStage.RecordMarker,
+                new TimeoutException("问题标记写入诊断会话超时。"));
             return false;
         }
 
         if (!markerRecorded)
         {
+            ReportFailure(
+                DiagnosticFailureOperation.ProblemMarker,
+                DiagnosticFailureStage.RecordMarker,
+                new IOException("问题标记未能写入诊断会话。"));
             return false;
         }
 
@@ -795,8 +871,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         {
             await NotifyProcessShutdownAsync(CancellationToken.None).ConfigureAwait(false);
         }
-        catch
+        catch (Exception exception)
         {
+            ReportFailure(DiagnosticFailureOperation.SessionEnd, DiagnosticFailureStage.EndSession, exception);
             Volatile.Write(ref _degraded, 1);
         }
 
@@ -875,8 +952,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 await WriteBatchAsync(batch).ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception exception)
         {
+            ReportFailure(DiagnosticFailureOperation.SessionWrite, DiagnosticFailureStage.WriteSession, exception);
             Volatile.Write(ref _degraded, 1);
             while (_queue.Reader.TryRead(out var item))
             {
@@ -918,8 +996,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             }
             EnforcePhysicalCap(path);
         }
-        catch
+        catch (Exception exception)
         {
+            ReportFailure(DiagnosticFailureOperation.SessionWrite, DiagnosticFailureStage.WriteSession, exception);
             Volatile.Write(ref _degraded, 1);
             lock (_gate)
             {
@@ -1789,11 +1868,18 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 File.Delete(_pathResolver.ResolvePath(_directories.ActiveDiagnosticSessionMarkerPath));
             }
         }
-        catch
+        catch (Exception exception)
         {
             Volatile.Write(ref _degraded, 1);
+            ReportFailure(DiagnosticFailureOperation.SessionEnd, DiagnosticFailureStage.EndSession, exception);
         }
     }
+
+    private void ReportFailure(
+        DiagnosticFailureOperation operation,
+        DiagnosticFailureStage stage,
+        Exception exception) =>
+        _failureReporter?.ReportFailure(operation, stage, exception);
 
     private void TryDeleteTrustedFile(string path)
     {

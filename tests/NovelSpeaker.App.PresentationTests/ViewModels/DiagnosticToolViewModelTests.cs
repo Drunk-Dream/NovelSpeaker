@@ -71,6 +71,20 @@ public sealed class DiagnosticToolViewModelTests
     }
 
     [Fact]
+    public async Task Problem_export_suggests_filename_using_local_time()
+    {
+        var sessions = new FakeSessionService();
+        var fileDialogs = new FakeFileDialogs { SavePath = "problem.zip" };
+        var viewModel = CreateViewModel(sessions, fileDialogs: fileDialogs);
+        await viewModel.StartCommand.ExecuteAsync(null);
+        await viewModel.EndCommand.ExecuteAsync(null);
+
+        await viewModel.ExportCommand.ExecuteAsync(null);
+
+        Assert.Equal("NovelSpeaker-Problem-Diagnostics-20260101-080000.zip", fileDialogs.SuggestedFileName);
+    }
+
+    [Fact]
     public async Task Hard_cap_refresh_disables_optional_capture_actions_but_keeps_end_available()
     {
         var sessions = new FakeSessionService();
@@ -184,12 +198,13 @@ public sealed class DiagnosticToolViewModelTests
         FakeSessionService sessions,
         FakeExportService? exports = null,
         IDiagnosticWindowCapture? windowCapture = null,
-        DiagnosticRecordingController? recording = null) =>
+        DiagnosticRecordingController? recording = null,
+        FakeFileDialogs? fileDialogs = null) =>
         new(
             recording ?? new DiagnosticRecordingController(sessions),
             exports ?? new FakeExportService { DestinationPath = "problem.zip" },
             windowCapture ?? new FakeWindowCapture(),
-            new FakeFileDialogs { SavePath = "problem.zip" },
+            fileDialogs ?? new FakeFileDialogs { SavePath = "problem.zip" },
             new FixedTimeProvider());
 
     private sealed class FakeSessionService : IDiagnosticSessionService
@@ -319,12 +334,16 @@ public sealed class DiagnosticToolViewModelTests
     private sealed class FakeFileDialogs : IPresentationFileDialogService
     {
         public string? SavePath { get; init; }
+        public string? SuggestedFileName { get; private set; }
 
         public Task<string?> PickOpenFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(null);
 
-        public Task<string?> PickSaveFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
-            Task.FromResult(SavePath);
+        public Task<string?> PickSaveFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken)
+        {
+            SuggestedFileName = options.SuggestedFileName;
+            return Task.FromResult(SavePath);
+        }
 
         public Task<string?> PickFolderAsync(PresentationFolderDialogOptions options, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(null);
@@ -333,5 +352,11 @@ public sealed class DiagnosticToolViewModelTests
     private sealed class FixedTimeProvider : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        public override TimeZoneInfo LocalTimeZone { get; } = TimeZoneInfo.CreateCustomTimeZone(
+            "NovelSpeakerTestLocal",
+            TimeSpan.FromHours(8),
+            "NovelSpeaker test local time",
+            "NovelSpeaker test local time");
     }
 }

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.IO;
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
@@ -157,6 +158,47 @@ public sealed class RollingFileLoggerProviderTests
         var inner = rootElement.GetProperty("exception").GetProperty("children")[0];
         Assert.Equal("System.ComponentModel.Win32Exception", inner.GetProperty("type").GetString());
         Assert.True(inner.GetProperty("hResult").GetInt32() != 0);
+    }
+
+    [Fact]
+    public async Task Diagnostic_failure_report_is_structured_without_exception_paths_urls_or_user_text()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        await using (var provider = new RollingFileLoggerProvider(directories))
+        {
+            using var factory = LoggerFactory.Create(builder => builder.AddProvider(provider));
+            var reporter = new DiagnosticFailureReporter(factory.CreateLogger<DiagnosticFailureReporter>());
+            var exception = new IOException(
+                "Read failed at C:\\Users\\private\\NovelSpeaker\\secret.log and https://example.invalid/export?token=top-secret novel-title-secret",
+                new InvalidOperationException("Inner failure at /home/private/secret novel-body-secret"));
+
+            reporter.ReportFailure(
+                NovelSpeaker.Application.Diagnostics.DiagnosticFailureOperation.ProblemDiagnosticsExport,
+                NovelSpeaker.Application.Diagnostics.DiagnosticFailureStage.CommitBundle,
+                exception);
+            await provider.FlushAsync();
+        }
+
+        var line = Assert.Single(
+            Directory.EnumerateFiles(directories.LogsDirectoryPath, "novelspeaker-*.jsonl")
+                .SelectMany(File.ReadLines));
+        using var document = JsonDocument.Parse(line);
+        var record = document.RootElement;
+        Assert.Equal("diagnostics.operation.failed", record.GetProperty("eventName").GetString());
+        Assert.Equal("diagnostics.action", record.GetProperty("operation").GetString());
+        Assert.Equal("problem-diagnostics-export", record.GetProperty("properties").GetProperty("DiagnosticOperation").GetString());
+        Assert.Equal("commit-bundle", record.GetProperty("properties").GetProperty("Stage").GetString());
+        var details = record.GetProperty("exception");
+        Assert.Equal(typeof(IOException).FullName, details.GetProperty("type").GetString());
+        Assert.Equal(new IOException().HResult, details.GetProperty("hResult").GetInt32());
+        Assert.DoesNotContain("C:\\Users\\private", line, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("secret.log", line, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("top-secret", line, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/home/private", line, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("novel-title-secret", line, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("novel-body-secret", line, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

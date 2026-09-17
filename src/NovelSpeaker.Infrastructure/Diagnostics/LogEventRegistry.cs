@@ -112,6 +112,14 @@ public static class LogEventRegistry
         LogLevel.Warning,
         "The UI appearance adapter fell back to default behavior.");
 
+    public static LogEventDefinition DiagnosticsOperationFailed { get; } = Define(
+        1501,
+        "diagnostics.operation.failed",
+        "diagnostics",
+        OperationCatalog.DiagnosticsAction,
+        LogLevel.Error,
+        "A user-visible diagnostic operation failed.");
+
     public static IReadOnlyList<LogEventDefinition> All { get; } = Array.AsReadOnly(
     [
         Unclassified,
@@ -126,7 +134,8 @@ public static class LogEventRegistry
         CacheCompletenessUnavailable,
         PlaybackContentUnavailable,
         UiNavigationFailure,
-        UiAppearanceFallback
+        UiAppearanceFallback,
+        DiagnosticsOperationFailed
     ]);
 
     private static readonly IReadOnlyDictionary<int, LogEventDefinition> ById =

@@ -27,23 +27,36 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
     private readonly IAppDataDirectoryProvider _directories;
     private readonly IAppStoragePathResolver _pathResolver;
     private readonly DiagnosticRegistry _registry;
+    private readonly IDiagnosticFailureReporter? _failureReporter;
+    private readonly DiagnosticBundleWriter _bundleWriter = new();
 
     public SqliteDiagnosticSessionExportService(
         SqliteDiagnosticSessionStore store,
         IAppDataDirectoryProvider directories,
         DiagnosticRegistry? registry = null,
-        IAppStoragePathResolver? pathResolver = null)
+        IAppStoragePathResolver? pathResolver = null,
+        IDiagnosticFailureReporter? failureReporter = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
         _pathResolver = pathResolver ?? new AppStoragePathResolver(_directories);
         _registry = registry ?? DiagnosticRegistry.Default;
+        _failureReporter = failureReporter;
     }
 
     public Task ExportLastEndedAsync(string destinationPath, CancellationToken cancellationToken)
     {
-        var path = _store.LastEndedPath
-            ?? throw new FileNotFoundException("当前进程没有刚结束的诊断会话。");
+        var path = _store.LastEndedPath;
+        if (path is null)
+        {
+            var exception = new FileNotFoundException("当前进程没有刚结束的诊断会话。");
+            _failureReporter?.ReportFailure(
+                DiagnosticFailureOperation.ProblemDiagnosticsExport,
+                DiagnosticFailureStage.PrepareBundle,
+                exception);
+            throw exception;
+        }
+
         return ExportAsync(path, destinationPath, cancellationToken);
     }
 
@@ -56,57 +69,57 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationPath);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var sourcePath = Path.GetFullPath(sessionFilePath);
-        var outputPath = Path.GetFullPath(destinationPath);
-        if (!File.Exists(sourcePath))
-        {
-            throw new FileNotFoundException("未找到诊断会话文件。", sourcePath);
-        }
-
-        if (string.Equals(sourcePath, outputPath, GetPathComparison()))
-        {
-            throw new InvalidOperationException("诊断导出文件不能覆盖源会话文件。");
-        }
-
-        var data = await ReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
-        var logLines = ReadRelatedLogLines(data.Session.SessionId);
-        var temporaryPath = outputPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        var stage = DiagnosticFailureStage.PrepareBundle;
         try
         {
-            var parent = Path.GetDirectoryName(outputPath);
-            if (!string.IsNullOrWhiteSpace(parent))
+            var sourcePath = Path.GetFullPath(sessionFilePath);
+            var outputPath = Path.GetFullPath(destinationPath);
+            if (!File.Exists(sourcePath))
             {
-                Directory.CreateDirectory(parent);
+                throw new FileNotFoundException("未找到诊断会话文件。", sourcePath);
             }
 
-            await using (var stream = new FileStream(
-                             temporaryPath,
-                             FileMode.CreateNew,
-                             FileAccess.ReadWrite,
-                             FileShare.None,
-                             64 * 1024,
-                             FileOptions.SequentialScan))
+            if (string.Equals(sourcePath, outputPath, GetPathComparison()))
             {
-                using var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: false);
-                WriteEntry(archive, "summary.md", BuildSummary(data));
-                WriteEntry(archive, "timeline.md", BuildTimeline(data));
-                WriteEntry(archive, "logs.jsonl", BuildLogs(logLines));
-                WriteEntry(archive, "environment.json", JsonSerializer.Serialize(data.Environment, JsonOptions));
-                WriteEntry(archive, "diagnostics-schema.json", BuildSchema(data));
-                await CopyEntryAsync(archive, "session.nsdiag", sourcePath, cancellationToken).ConfigureAwait(false);
-                archive.CreateEntry("attachments/");
+                throw new InvalidOperationException("诊断导出文件不能覆盖源会话文件。");
+            }
 
-                foreach (var attachment in data.Attachments)
+            stage = DiagnosticFailureStage.ReadSession;
+            var data = await ReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
+            stage = DiagnosticFailureStage.ReadLogs;
+            var logLines = ReadRelatedLogLines(data.Session.SessionId, cancellationToken);
+
+            stage = DiagnosticFailureStage.BuildBundle;
+            await _bundleWriter.WriteAsync(
+                outputPath,
+                async (archive, token) =>
                 {
-                    await WriteAttachmentAsync(archive, attachment, cancellationToken).ConfigureAwait(false);
-                }
-            }
+                    WriteEntry(archive, "summary.md", BuildSummary(data));
+                    WriteEntry(archive, "timeline.md", BuildTimeline(data));
+                    WriteEntry(archive, "logs.jsonl", BuildLogs(logLines));
+                    WriteEntry(archive, "environment.json", JsonSerializer.Serialize(data.Environment, JsonOptions));
+                    WriteEntry(archive, "diagnostics-schema.json", BuildSchema(data));
+                    await CopyEntryAsync(archive, "session.nsdiag", sourcePath, token).ConfigureAwait(false);
+                    archive.CreateEntry("attachments/");
 
-            File.Move(temporaryPath, outputPath, true);
+                    foreach (var attachment in data.Attachments)
+                    {
+                        await WriteAttachmentAsync(archive, attachment, token).ConfigureAwait(false);
+                    }
+                },
+                cancellationToken,
+                () => stage = DiagnosticFailureStage.CommitBundle).ConfigureAwait(false);
         }
-        catch
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            TryDelete(temporaryPath);
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _failureReporter?.ReportFailure(
+                DiagnosticFailureOperation.ProblemDiagnosticsExport,
+                stage,
+                exception);
             throw;
         }
     }
@@ -395,7 +408,7 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
     private static string BuildLogs(IReadOnlyList<string> lines) =>
         lines.Count == 0 ? string.Empty : string.Join('\n', lines) + "\n";
 
-    private IReadOnlyList<string> ReadRelatedLogLines(string sessionId)
+    private IReadOnlyList<string> ReadRelatedLogLines(string sessionId, CancellationToken cancellationToken)
     {
         var lines = new List<string>();
         try
@@ -407,10 +420,12 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
 
             foreach (var path in Directory.EnumerateFiles(_directories.LogsDirectoryPath, "novelspeaker-*.jsonl"))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
                     foreach (var line in File.ReadLines(_pathResolver.ResolvePath(path)))
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         if (string.IsNullOrWhiteSpace(line))
                         {
                             continue;
@@ -424,11 +439,19 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
                         }
                     }
                 }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
                 catch
                 {
                     // A missing or malformed log file must not prevent session export.
                 }
             }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {

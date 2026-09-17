@@ -81,13 +81,15 @@ Observability、生产日志、性能遥测与诊断系统的第一版已经完�
 
 完成成果：普通记录在固定优先级队列压力下丢弃并通过 snapshot/悬浮条显示本进程计数；lifecycle、Marker 与 capture-stopped 共享预留容量；普通 Dispatcher 调用不再记为 stall，真实 SQLite 写失败仍会进入 storage-failure/degraded。队列压力、真实故障、ViewModel、WPF 调度器及 Observability 合同定向测试通过。
 
-## [ ] T010（P0）：统一诊断导出与可观测失败边界
+## [x] T010（P0）：统一诊断导出与可观测失败边界
 
 依赖：T007、T009。
 
 实施规格：`tasks/T010_diagnostics_export_reliability.md`
 
 目标：让普通诊断信息和问题诊断共享 Bundle/atomic-output 基础设施；Windows 保存文件对话框只选择最终 ZIP 目标；文件名使用本地时间戳；日志轮转/损坏文件 best effort；导出、恢复、截图、Marker 等诊断系统自身失败写入脱敏生产日志。当前“性能监测导出失败”若在基础设施重构后仍可复现，再根据新增日志单独建立后续修复任务，不在本任务中基于猜测增加特例。
+
+完成成果：普通诊断和问题诊断共用同目录临时 ZIP 与原子替换；建议文件名采用可测试的本地时间戳；日志读取支持轮转、锁定及坏行降级；导出、Session、Marker、截图失败写入含 operation/stage 与脱敏异常链的结构化日志，复制摘要不再包含完整目录路径。基础设施定向 27 项、Presentation/Architecture 定向 29 项、WPF DI 1 项、完整 Release 构建及格式验证通过。
 
 ---
 
