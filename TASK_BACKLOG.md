@@ -2,35 +2,26 @@
 
 ## 1. 阶段定位
 
-当前进入 **Observability、生产日志、性能遥测与诊断系统建设阶段**。
+Observability、生产日志、性能遥测与诊断系统的第一版已经完成，当前进入 **稳定化与职责收敛阶段**。
 
-规划代码基线：`33431ddcb2f998168b989516fefabb0131c675d9`（`dev`，`refactor(architecture): remove migration debt baseline`）。
+当前代码基线：`5b9889e3175ee653ed6c4c7eb60050489ac7cde0`（`dev`，`fix(diagnostics): bound reparse checks to data root`）。
 
-上一轮已经完成 Application 模块边界收敛，当前稳定事实包括：
+本轮不增加新的诊断产品范围，目标是从架构层解决第一版暴露出的稳定性问题：
 
-- Application 主要模块为 Books / Speech / Cache / Playback / Settings / Desktop；
-- Cache 是一级模块；
-- Playback 继续唯一拥有 mutable session truth；
-- Settings 继续唯一拥有 process snapshot；
-- Architecture Fitness Tests 已清除上一轮 migration debt baseline；
-- 全量 Release tests 在上一轮收口时通过。
-
-本轮目标是在这些稳定边界上建立：
-
-1. 薄的 Observability 基础合同与稳定 Operation/Registry；
-2. 默认开启的本地结构化生产日志；
-3. 用户主动开启的本地普通性能遥测；
-4. 面向任何可复现问题的诊断会话；
-5. 诊断悬浮控制条、Problem Marker、主动窗口截图与导出；
-6. 完整隐私约束、失败降级与自动质量门禁。
+1. 建立唯一的存储信任边界，正确支持 Scoop 等 Data-root Junction；
+2. 收敛诊断会话运行态 owner，并实现真正的紧凑悬浮录制控制条；
+3. 修复高频 instrumentation 与诊断 writer 压力策略，避免诊断系统自身制造故障；
+4. 统一普通诊断/问题诊断导出基础设施，增加原子输出、自诊断日志和时间戳命名；
+5. 补齐真实安装布局、跨重启、并发导出和压力场景的自动回归。
 
 长期目标见：
 
 - `docs/01_SYSTEM_ARCHITECTURE.md`
+- `docs/05_DATA_AND_COMPATIBILITY.md`
 - `docs/07_OBSERVABILITY_AND_DIAGNOSTICS.md`
 - `docs/08_QUALITY_AND_TESTING.md`
 
-每个任务的详细实施合同位于 `tasks/Txxx_*.md`。Agent 不应只根据本 Backlog 的简述自行补全实现。
+每个任务详细实施合同位于 `tasks/Txxx_*.md`。Agent 不应只根据本 Backlog 简述自行补全实现。
 
 ## 2. 状态
 
@@ -50,80 +41,58 @@
 
 ---
 
-# Phase A：共享 Observability 基础
+# 已完成：Observability 第一版
 
-## [x] T001（P0）：建立薄 Observability API 与稳定诊断合同
+## [x] T001–T006
 
-依赖：无。
+第一版已完成薄 Observability API、生产日志、普通性能遥测、诊断会话、诊断 UI/导出与首轮质量收口。
 
-实施规格：`tasks/T001_observability_foundation.md`
-
-目标：建立业务只打一次稳定操作点、性能遥测与诊断会话可分别消费的最小基础，同时建立 Operation/Diagnostic Registry、隐私约束和 Architecture Tests；本任务不实现生产日志文件、遥测落盘或 `.nsdiag`。
-
-完成成果：在 Application 建立强类型 Observability 合同、稳定 Operation/Diagnostic Registry、隐私字段白名单、AsyncLocal correlation scope 与隔离 consumer fan-out；补充 contract/architecture tests，未引入任何持久化 writer。
+当前稳定化工作不回退这些能力，而是修正第一版暴露出的边界不一致和真实运行风险。
 
 ---
 
-# Phase B：生产日志
+# Phase F：存储与诊断基础设施稳定化
 
-## [x] T002（P0）：实现本地结构化生产日志
+## [ ] T007（P0）：统一应用存储信任边界并修复 Data-root reparse point
 
-依赖：T001。
+依赖：T001–T006。
 
-实施规格：`tasks/T002_production_logging.md`
+实施规格：`tasks/T007_storage_trust_boundary.md`
 
-目标：建立默认开启、低开销、JSONL、可轮转的生产日志，覆盖异常、失败、恢复与少量生命周期；日志失败不得影响业务，并可在诊断会话 active 时附加 correlation。
+目标：从架构层统一 reparse-point 与数据根归属规则。最终选定的数据根作为可信锚点，允许 Data root 自身或其祖先为 Junction/Symlink；严格拒绝数据根内部链接逃逸。覆盖真实 Scoop `current\Data -> persist\novelspeaker\Data` 布局，并删除 Diagnostics/Storage 中重复或冲突的路径判断。
 
-完成成果：收敛为单一默认开启的 JSONL 生产日志路径，建立稳定 LogEvent Registry、结构化异常与隐私脱敏；实现高低优先级 bounded queue、后台批量 writer、日期/大小轮转、retention/总容量保护、flush/degraded 生命周期和诊断 correlation；补充 startup/error-boundary、真实失败 reporter、队列溢出、异常树、轮转与隐私回归测试。
+## [ ] T008（P0）：重构诊断录制运行态与悬浮控制条
 
----
+依赖：T007。
 
-# Phase C：普通性能遥测
+实施规格：`tasks/T008_diagnostic_recording_controller.md`
 
-## [x] T003（P0）：实现本地普通性能遥测与诊断信息导出
+目标：将 Session 运行态从窗口/ViewModel 中抽离为明确 owner/controller；把当前页面式 ToolWindow 重构为真正紧凑的悬浮录制控制条。Active Session 跨重启恢复后自动恢复可见控制条，并从持久化 snapshot 恢复容量、停止状态和可恢复统计；容量 UI 使用 MB 等人类可读显示。
 
-依赖：T001、T002。
+## [ ] T009（P0）：收敛诊断采集压力策略与 instrumentation 语义
 
-实施规格：`tasks/T003_performance_telemetry.md`
+依赖：T008。
 
-目标：实现默认关闭的普通性能遥测、长期低开销聚合、本地 retention、设置入口、清除数据和“诊断信息”导出；不保存原始高频事件，不自动上传。
+实施规格：`tasks/T009_diagnostic_pressure_and_instrumentation.md`
 
-完成成果：实现默认关闭、用户可切换的本地性能遥测，覆盖操作、页面关键加载、调度器、播放、TTS、缓存、存储与进程资源；采用低基数窗口聚合、JSONL retention/轮转与失败隔离；新增诊断页清除/导出入口，生成稳定 ZIP（summary、telemetry、logs、environment）且不保存原始事件或上传。
+目标：修正 `UiDispatcherStall` 等过宽采集语义；将诊断 writer 的瞬时 queue pressure 与真实 storage failure 分离。低价值高频记录可丢弃/聚合并计数，关键 Session/Marker 状态优先保留，避免一次 `TryWrite` 失败永久停止整次诊断。
 
----
+## [ ] T010（P0）：统一诊断导出与可观测失败边界
 
-# Phase D：诊断会话
+依赖：T007、T009。
 
-## [x] T004（P0）：实现诊断会话核心、跨进程恢复与 `.nsdiag`
+实施规格：`tasks/T010_diagnostics_export_reliability.md`
 
-依赖：T001、T002。
-
-实施规格：`tasks/T004_diagnostic_session_core.md`
-
-目标：实现用户显式开始/结束的诊断会话、Activity/Event/Snapshot/Resource Sample、Session 内匿名对象关联、硬容量上限、跨 Process/重启继续和 SQLite `.nsdiag` 权威存储；不实现最终悬浮 UI 和截图。
-
-完成成果：实现显式诊断会话、跨进程/重启恢复、匿名对象关联、持续批量 SQLite writer、硬容量与 WAL 自包含收口、reparse-point 防护、失败隔离及启动/退出生命周期接入。
-
-## [x] T005（P0）：实现诊断悬浮控制条、主动截图与问题诊断导出
-
-依赖：T004、T003。
-
-实施规格：`tasks/T005_diagnostics_ui_export.md`
-
-目标：实现从 Settings 打开诊断工具、开始诊断、标记问题、主动截取 NovelSpeaker 当前窗口、结束、重新开始、立即/以后导出，以及供 AI 和人预览的问题诊断包；不建设 Session 列表页面。
-
-完成成果：新增 Settings 问题诊断入口、独立悬浮控制条、显式当前窗口截图与 Marker；接入 hard-cap 状态刷新、采集中防误关闭和跨进程恢复；统一立即/选择 `.nsdiag` 导出为包含摘要、时间线、日志、环境、Schema 与附件的 ZIP，并验证源文件不被改写。
+目标：让普通诊断信息和问题诊断共享 Bundle/atomic-output 基础设施；Windows 保存文件对话框只选择最终 ZIP 目标；文件名使用本地时间戳；日志轮转/损坏文件 best effort；导出、恢复、截图、Marker 等诊断系统自身失败写入脱敏生产日志。当前“性能监测导出失败”若在基础设施重构后仍可复现，再根据新增日志单独建立后续修复任务，不在本任务中基于猜测增加特例。
 
 ---
 
-# Phase E：系统收口
+# Phase G：稳定化收口
 
-## [x] T006（P0）：完成隐私、失败隔离、集成验收与遗留清理
+## [ ] T011（P0）：完成真实环境回归与全量质量门禁
 
-依赖：T001–T005。
+依赖：T007–T010。
 
-实施规格：`tasks/T006_observability_quality_closure.md`
+实施规格：`tasks/T011_diagnostics_stabilization_closure.md`
 
-目标：对 Logging / Telemetry / Diagnostic Session 做跨模块审计，确保隐私边界、失败降级、容量/retention、Architecture Fitness Tests、WPF 隔离、导出和全量 Release 门禁全部稳定；删除本轮兼容/实验/一次性产物，不增加下一阶段功能。
-
-完成成果：完成 Logging、Telemetry、Diagnostic Session 的隐私白名单与失败隔离审计，补齐截图/Marker 写入失败及 hard-cap UI 回归；清理诊断 Feature 的 Service Locator/孤立注册，修复悬浮工具主题样式与关闭生命周期。通过 restore、format、Release build 和全量 1001 项测试，WPF 测试保持隔离 Desktop/fail closed。
+目标：对存储信任边界、Scoop Junction、跨重启悬浮控制条、writer 压力、并发日志导出、原子 ZIP、隐私和诊断自记录进行系统回归；清理稳定化过程产生的重复实现和一次性产物，执行完整 Release 质量门禁。
