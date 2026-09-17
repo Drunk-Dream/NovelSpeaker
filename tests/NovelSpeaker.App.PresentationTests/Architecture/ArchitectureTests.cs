@@ -761,6 +761,16 @@ public sealed class ArchitectureTests
         AppKeepsOnlyReusableOrBehaviorOwningUserControlViews();
     }
 
+    [Fact]
+    public void Wpf_ui_scheduler_does_not_report_ordinary_dispatch_as_a_stall()
+    {
+        var scheduler = Repository.ReadProductSourceFiles().Single(file =>
+            file.RelativePath == "src/NovelSpeaker.App/Shared/Presentation/Platform/WpfUiScheduler.cs");
+
+        Assert.DoesNotContain("IObservability", scheduler.Content, StringComparison.Ordinal);
+        Assert.DoesNotContain("UiDispatcherStall", scheduler.Content, StringComparison.Ordinal);
+    }
+
     private static void AssertEqualSet(IEnumerable<string> expected, IEnumerable<string> actual)
     {
         var expectedArray = expected.Order(StringComparer.Ordinal).ToArray();

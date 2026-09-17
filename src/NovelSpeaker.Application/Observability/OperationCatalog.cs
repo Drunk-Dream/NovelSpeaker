@@ -27,8 +27,8 @@ public static class OperationCatalog
 
     public static OperationDefinition UiDispatcherStall { get; } = Create(
         "ui.dispatcher-stall",
-        "UI dispatcher work",
-        "A UI dispatcher callback waits or runs before returning to the message loop.");
+        "UI dispatcher stall",
+        "An explicitly detected dispatcher wait that exceeds the observer's abnormal-wait threshold; ordinary dispatch is excluded.");
 
     public static OperationDefinition PlaybackStart { get; } = Create(
         "playback.start",

@@ -128,7 +128,8 @@ public sealed class DiagnosticToolViewModelTests
             true,
             true,
             "process",
-            "storage-failure"));
+            "storage-failure",
+            12));
         var recording = new DiagnosticRecordingController(sessions);
 
         await recording.RecoverAsync(CancellationToken.None);
@@ -136,6 +137,7 @@ public sealed class DiagnosticToolViewModelTests
 
         Assert.Equal(DiagnosticToolState.Capturing, viewModel.State);
         Assert.Equal("2 MB / 256 MB", viewModel.SessionStorageText);
+        Assert.Equal("本进程队列已跳过 12 条记录", viewModel.DroppedRecordText);
         Assert.Contains("存储", viewModel.StateText, StringComparison.Ordinal);
         Assert.True(viewModel.IsCaptureStopped);
         Assert.False(viewModel.CaptureWindowCommand.CanExecute(null));

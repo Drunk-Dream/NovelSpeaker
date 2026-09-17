@@ -64,6 +64,10 @@
                                Style="{StaticResource App.Typography.Secondary}"
                                AutomationProperties.Name="诊断容量使用情况" />
                     <TextBlock Margin="0,2,0,0"
+                               Text="{Binding DroppedRecordText}"
+                               Style="{StaticResource App.Typography.Secondary}"
+                               AutomationProperties.Name="诊断跳过记录数" />
+                    <TextBlock Margin="0,2,0,0"
                                Text="{Binding StateText}"
                                Style="{StaticResource App.Typography.Secondary}"
                                TextTrimming="CharacterEllipsis"
@@ -98,6 +102,10 @@
                     <TextBlock Margin="0,2,0,0"
                                Text="{Binding SessionStorageText}"
                                Style="{StaticResource App.Typography.Secondary}" />
+                    <TextBlock Margin="0,2,0,0"
+                               Text="{Binding DroppedRecordText}"
+                               Style="{StaticResource App.Typography.Secondary}"
+                               AutomationProperties.Name="诊断跳过记录数" />
                 </StackPanel>
                 <Button Content="重新开始"
                         Height="34"

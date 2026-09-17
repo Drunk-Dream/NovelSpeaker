@@ -46,6 +46,21 @@ public sealed class WpfUiSchedulerTests
     }
 
     [Fact]
+    public async Task InvokeAsync_posts_ordinary_work_to_the_dispatcher()
+    {
+        var dispatcherThreadId = 0;
+
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            var scheduler = new WpfUiScheduler(Dispatcher.CurrentDispatcher);
+            await Task.Run(() => scheduler.InvokeAsync(
+                () => dispatcherThreadId = Environment.CurrentManagedThreadId));
+
+            Assert.Equal(Environment.CurrentManagedThreadId, dispatcherThreadId);
+        });
+    }
+
+    [Fact]
     public async Task Staged_catalog_reconciliation_notifies_realized_wpf_rows_after_interleaved_updates()
     {
         await WpfTestHost.RunInStaAsync(async () =>

@@ -302,6 +302,85 @@ public sealed class SqliteDiagnosticSessionStoreTests
         Assert.True(store.IsDegraded);
     }
 
+    [Fact]
+    public async Task Queue_pressure_drops_ordinary_records_but_retains_lifecycle_and_marker_records()
+    {
+        var fixture = new Fixture("process-one");
+        await using var store = fixture.CreateStore(queueCapacity: 12);
+        var started = await store.StartAsync(
+            new DiagnosticSessionStartOptions(DiagnosticSessionCapacityPresets.MinimumSupportedBytes),
+            CancellationToken.None);
+        var sessionPath = fixture.SessionPath(started.SessionId);
+        await using var blocker = new SqliteConnection($"Data Source={sessionPath};Mode=ReadWrite;Pooling=False");
+        await blocker.OpenAsync();
+        await using (var beginWrite = blocker.CreateCommand())
+        {
+            beginWrite.CommandText = "BEGIN IMMEDIATE;";
+            await beginWrite.ExecuteNonQueryAsync();
+        }
+
+        var ordinaryDefinition = DiagnosticRegistry.Default.Get(new DiagnosticDefinitionId("tts.retry"));
+        var retryCountField = ordinaryDefinition.Fields.Single(field => field.Name == "retryCount");
+        var ordinaryEvent = new DiagnosticEvent(
+            ordinaryDefinition,
+            ordinaryDefinition.CreateFields(DiagnosticFieldValue.Integer(retryCountField, 1)),
+            fixture.Context.Current,
+            fixture.Clock.GetUtcNow());
+        Parallel.For(0, 8, _ =>
+        {
+            for (var index = 0; index < 256; index++)
+            {
+                store.OnDiagnosticEvent(ordinaryEvent);
+            }
+        });
+
+        Assert.True(store.Current!.CurrentProcessDroppedRecordCount > 0);
+        Assert.Equal(DiagnosticSessionState.Active, store.Current.State);
+        Assert.False(store.Current.CaptureStopped);
+        Assert.False(store.IsDegraded);
+
+        var lifecycleDefinition = DiagnosticRegistry.Default.Get(new DiagnosticDefinitionId("app.lifecycle"));
+        var phaseField = lifecycleDefinition.Fields.Single(field => field.Name == "phase");
+        store.OnDiagnosticEvent(new DiagnosticEvent(
+            lifecycleDefinition,
+            lifecycleDefinition.CreateFields(DiagnosticFieldValue.Enum(phaseField, "startup")),
+            fixture.Context.Current,
+            fixture.Clock.GetUtcNow()));
+        var markerTask = store.RecordProblemMarkerAsync(CancellationToken.None);
+        var oversizedAttachment = new DiagnosticAttachment(
+            "pressure-test",
+            fixture.Clock.GetUtcNow(),
+            "image/png",
+            1,
+            1,
+            new byte[2 * 1024 * 1024]);
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => store.AddAttachmentAsync(oversizedAttachment, CancellationToken.None));
+        Assert.True(store.Current!.CaptureStopped);
+        Assert.Equal("hard-cap", store.Current.CaptureStoppedReason);
+
+        await using (var releaseWrite = blocker.CreateCommand())
+        {
+            releaseWrite.CommandText = "ROLLBACK;";
+            await releaseWrite.ExecuteNonQueryAsync();
+        }
+
+        Assert.True(await markerTask);
+        Assert.False(store.IsDegraded);
+        await store.FlushAsync(CancellationToken.None);
+
+        Assert.Equal(1L, await fixture.ScalarAsync(
+            sessionPath,
+            "SELECT COUNT(*) FROM Events WHERE DefinitionId = 'app.lifecycle';"));
+        Assert.Equal(1L, await fixture.ScalarAsync(
+            sessionPath,
+            "SELECT COUNT(*) FROM Events WHERE DefinitionId = 'diagnostics.problem_marker';"));
+        Assert.Equal(1L, await fixture.ScalarAsync(
+            sessionPath,
+            "SELECT COUNT(*) FROM Events WHERE DefinitionId = 'diagnostics.capture_stopped';"));
+        Assert.Equal(DiagnosticSessionState.Active, store.Current!.State);
+    }
+
     private sealed class RecordingConsumer : IObservabilityConsumer
     {
         public OperationCompleted? Completed { get; private set; }
@@ -333,7 +412,7 @@ public sealed class SqliteDiagnosticSessionStoreTests
         public ManualTimeProvider Clock { get; }
         public ObservabilityContextAccessor Context { get; }
 
-        public SqliteDiagnosticSessionStore CreateStore(string? processInstanceId = null)
+        public SqliteDiagnosticSessionStore CreateStore(string? processInstanceId = null, int queueCapacity = 256)
         {
             var context = processInstanceId is null ? Context : new ObservabilityContextAccessor(processInstanceId);
             return new SqliteDiagnosticSessionStore(
@@ -341,7 +420,9 @@ public sealed class SqliteDiagnosticSessionStoreTests
                 context,
                 Clock,
                 new TestAppSettingsService(AppSettings.Default),
-                new AppStoragePathResolver(Directories));
+                new AppStoragePathResolver(Directories),
+                registry: null,
+                queueCapacity: queueCapacity);
         }
 
         public string SessionPath(string sessionId) =>

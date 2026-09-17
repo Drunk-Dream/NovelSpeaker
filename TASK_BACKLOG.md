@@ -71,13 +71,15 @@ Observability、生产日志、性能遥测与诊断系统的第一版已经完�
 
 完成成果：诊断录制经单一 controller 投影 Session snapshot；恢复 Active 后自动显示紧凑悬浮控制条，并恢复容量、停止原因和记录量；Presentation、隔离 WPF 与 DI 定向验证通过。
 
-## [ ] T009（P0）：收敛诊断采集压力策略与 instrumentation 语义
+## [x] T009（P0）：收敛诊断采集压力策略与 instrumentation 语义
 
 依赖：T008。
 
 实施规格：`tasks/T009_diagnostic_pressure_and_instrumentation.md`
 
 目标：修正 `UiDispatcherStall` 等过宽采集语义；将诊断 writer 的瞬时 queue pressure 与真实 storage failure 分离。低价值高频记录可丢弃/聚合并计数，关键 Session/Marker 状态优先保留，避免一次 `TryWrite` 失败永久停止整次诊断。
+
+完成成果：普通记录在固定优先级队列压力下丢弃并通过 snapshot/悬浮条显示本进程计数；lifecycle、Marker 与 capture-stopped 共享预留容量；普通 Dispatcher 调用不再记为 stall，真实 SQLite 写失败仍会进入 storage-failure/degraded。队列压力、真实故障、ViewModel、WPF 调度器及 Observability 合同定向测试通过。
 
 ## [ ] T010（P0）：统一诊断导出与可观测失败边界
 

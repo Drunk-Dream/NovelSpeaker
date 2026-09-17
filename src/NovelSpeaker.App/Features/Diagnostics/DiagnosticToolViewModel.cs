@@ -60,6 +60,9 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
     private string sessionStorageText = string.Empty;
 
     [ObservableProperty]
+    private string droppedRecordText = string.Empty;
+
+    [ObservableProperty]
     private string durationText = "00:00:00";
 
     [ObservableProperty]
@@ -185,6 +188,7 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
             State = DiagnosticToolState.Preparing;
             IsCaptureStopped = false;
             SessionStorageText = string.Empty;
+            DroppedRecordText = string.Empty;
             StateText = "准备开始诊断。";
             return;
         }
@@ -199,6 +203,9 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
         SelectedCapacity = CapacityChoices.FirstOrDefault(option => option.Bytes == snapshot.HardCapBytes)
             ?? CapacityChoices[1];
         SessionStorageText = $"{FormatMegabytes(snapshot.RecordedBytes)} / {FormatMegabytes(snapshot.HardCapBytes)}";
+        DroppedRecordText = snapshot.CurrentProcessDroppedRecordCount == 0
+            ? "本进程无队列丢弃"
+            : $"本进程队列已跳过 {snapshot.CurrentProcessDroppedRecordCount.ToString("N0", CultureInfo.CurrentCulture)} 条记录";
         IsCaptureStopped = snapshot.CaptureStopped;
         State = snapshot.State switch
         {

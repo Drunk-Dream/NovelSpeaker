@@ -40,13 +40,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
     private readonly IAppSettingsService _settings;
     private readonly TimeProvider _timeProvider;
     private readonly DiagnosticRegistry _registry;
-    private readonly Channel<WriteRequest> _queue = Channel.CreateBounded<WriteRequest>(
-        new BoundedChannelOptions(QueueCapacity)
-        {
-            FullMode = BoundedChannelFullMode.Wait,
-            SingleReader = true,
-            SingleWriter = false
-        });
+    private readonly Channel<WriteRequest> _queue;
+    private readonly int _ordinaryQueueLimit;
     private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
     private readonly object _gate = new();
     private readonly Task _writerTask;
@@ -63,6 +58,18 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         IAppSettingsService settings,
         IAppStoragePathResolver pathResolver,
         DiagnosticRegistry? registry = null)
+        : this(directories, contextAccessor, timeProvider, settings, pathResolver, registry, QueueCapacity)
+    {
+    }
+
+    internal SqliteDiagnosticSessionStore(
+        IAppDataDirectoryProvider directories,
+        IObservabilityContextAccessor contextAccessor,
+        TimeProvider timeProvider,
+        IAppSettingsService settings,
+        IAppStoragePathResolver pathResolver,
+        DiagnosticRegistry? registry,
+        int queueCapacity)
     {
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
@@ -70,6 +77,20 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _registry = registry ?? DiagnosticRegistry.Default;
+        if (queueCapacity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(queueCapacity));
+        }
+
+        var criticalReserve = Math.Max(1, queueCapacity / 4);
+        _ordinaryQueueLimit = Math.Max(0, queueCapacity - criticalReserve);
+        _queue = Channel.CreateBounded<WriteRequest>(
+            new BoundedChannelOptions(queueCapacity)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
         _writerTask = Task.Run(WriterLoopAsync);
     }
 
@@ -492,13 +513,10 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                     },
                     completion,
                     false);
-                if (!_queue.Writer.TryWrite(request))
+                if (!TryWriteRequestLocked(active, request, isCritical: true))
                 {
                     active.RecordedBytes -= estimate;
-                    active.CaptureStopped = true;
-                    active.CaptureStoppedReason = "storage-failure";
-                    Volatile.Write(ref _degraded, 1);
-                    throw new IOException("诊断附件写入队列不可用。");
+                    throw new IOException("诊断队列繁忙，截图未能加入会话。");
                 }
             }
 
@@ -538,7 +556,6 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         }
         catch (TimeoutException)
         {
-            Volatile.Write(ref _degraded, 1);
             return false;
         }
 
@@ -621,12 +638,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 },
                 null,
                 false);
-            if (!_queue.Writer.TryWrite(request))
+            if (!TryWriteRequestLocked(active, request, isCritical: false))
             {
                 active.RecordedBytes -= estimate;
-                active.CaptureStopped = true;
-                active.CaptureStoppedReason = "storage-failure";
-                Volatile.Write(ref _degraded, 1);
             }
 
             return token;
@@ -761,7 +775,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 }
             },
             force,
-            completion);
+            completion,
+            IsHighPriorityEvent(diagnosticEvent));
     }
 
     internal Task FlushAsync(CancellationToken cancellationToken) =>
@@ -951,7 +966,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         long estimatedBytes,
         Action<SqliteConnection, SqliteTransaction> apply,
         bool force,
-        TaskCompletionSource<bool>? completion = null)
+        TaskCompletionSource<bool>? completion = null,
+        bool isCritical = false)
     {
         lock (_gate)
         {
@@ -981,12 +997,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 },
                 completion,
                 false);
-            if (!_queue.Writer.TryWrite(request))
+            if (!TryWriteRequestLocked(active, request, isCritical))
             {
                 active.RecordedBytes -= estimatedBytes;
-                active.CaptureStopped = true;
-                active.CaptureStoppedReason = "storage-failure";
-                Volatile.Write(ref _degraded, 1);
                 completion?.TrySetResult(false);
                 return false;
             }
@@ -1034,10 +1047,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             },
             null,
             false);
-        if (!_queue.Writer.TryWrite(request))
+        if (!TryWriteRequestLocked(active, request, isCritical: true))
         {
             active.RecordedBytes = Math.Max(0, active.RecordedBytes - estimate);
-            Volatile.Write(ref _degraded, 1);
         }
     }
 
@@ -1079,15 +1091,18 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 if (!EnqueueResourceRequestLocked(active, timestamp, workingSet, heap, trigger, recordedBytes))
                 {
                     active.RecordedBytes -= estimate;
-                    active.CaptureStopped = true;
-                    active.CaptureStoppedReason = "storage-failure";
-                    Volatile.Write(ref _degraded, 1);
                 }
             }
         }
         catch
         {
-            Volatile.Write(ref _degraded, 1);
+            lock (_gate)
+            {
+                if (ReferenceEquals(_active, active))
+                {
+                    active.CurrentProcessDroppedRecordCount++;
+                }
+            }
         }
     }
 
@@ -1099,7 +1114,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         string trigger,
         long recordedBytes)
     {
-        return _queue.Writer.TryWrite(
+        return TryWriteRequestLocked(
+            active,
             new WriteRequest(
                 active.Path,
                 (connection, transaction) =>
@@ -1116,8 +1132,32 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                     UpdateSessionMetadata(connection, transaction, active.SessionId, recordedBytes, active.CaptureStopped, active.CaptureStoppedReason);
                 },
                 null,
-                false));
+                false),
+            isCritical: false);
     }
+
+    private bool TryWriteRequestLocked(ActiveSession active, WriteRequest request, bool isCritical)
+    {
+        if (!isCritical && _queue.Reader.Count >= _ordinaryQueueLimit)
+        {
+            active.CurrentProcessDroppedRecordCount++;
+            return false;
+        }
+
+        if (_queue.Writer.TryWrite(request))
+        {
+            return true;
+        }
+
+        active.CurrentProcessDroppedRecordCount++;
+        return false;
+    }
+
+    private static bool IsHighPriorityEvent(DiagnosticEvent diagnosticEvent) =>
+        diagnosticEvent.Definition.Id.Value is
+            "app.lifecycle" or
+            "diagnostics.problem_marker" or
+            "diagnostics.capture_stopped";
 
     private async Task FlushPathAsync(string? path, CancellationToken cancellationToken)
     {
@@ -1841,6 +1881,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         public long HardCapBytes { get; }
         public string ProcessInstanceId { get; }
         public long RecordedBytes { get; set; }
+        public long CurrentProcessDroppedRecordCount { get; set; }
         public bool CaptureStopped { get; set; }
         public string? CaptureStoppedReason { get; set; }
         public bool AcceptingWrites { get; set; } = true;
@@ -1861,7 +1902,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 CaptureStopped,
                 EndedUnexpectedly,
                 ProcessInstanceId,
-                CaptureStoppedReason);
+                CaptureStoppedReason,
+                CurrentProcessDroppedRecordCount);
     }
 
     private sealed record SessionRow(
