@@ -36,6 +36,14 @@ public partial class DiagnosticToolWindow : System.Windows.Window
 
     private void OnCloseRequested(object? sender, EventArgs e) => Close();
 
+    private void OnToolbarMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, ToolbarSurface))
+        {
+            DragMove();
+        }
+    }
+
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
     {
         if (!ViewModel.IsCapturing || (System.Windows.Application.Current?.Dispatcher.HasShutdownStarted ?? false))

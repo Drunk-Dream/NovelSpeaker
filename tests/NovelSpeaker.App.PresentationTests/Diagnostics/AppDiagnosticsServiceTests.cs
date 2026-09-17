@@ -92,7 +92,13 @@ public sealed class AppDiagnosticsServiceTests
 
     private sealed class FakeDiagnosticToolLauncher : IDiagnosticToolLauncher
     {
+        public Task RecoverAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
         public void Open()
+        {
+        }
+
+        public void OpenIfSessionActive()
         {
         }
     }

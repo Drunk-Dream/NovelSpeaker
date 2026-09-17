@@ -61,13 +61,15 @@ Observability、生产日志、性能遥测与诊断系统的第一版已经完�
 
 完成成果：统一逻辑数据根 containment 与 reparse-point 检查；支持 Data-root Junction 并拒绝根内链接逃逸。Infrastructure 集成测试 382/382、Architecture 测试 55/55、Release build 和格式验证通过。
 
-## [ ] T008（P0）：重构诊断录制运行态与悬浮控制条
+## [x] T008（P0）：重构诊断录制运行态与悬浮控制条
 
 依赖：T007。
 
 实施规格：`tasks/T008_diagnostic_recording_controller.md`
 
 目标：将 Session 运行态从窗口/ViewModel 中抽离为明确 owner/controller；把当前页面式 ToolWindow 重构为真正紧凑的悬浮录制控制条。Active Session 跨重启恢复后自动恢复可见控制条，并从持久化 snapshot 恢复容量、停止状态和可恢复统计；容量 UI 使用 MB 等人类可读显示。
+
+完成成果：诊断录制经单一 controller 投影 Session snapshot；恢复 Active 后自动显示紧凑悬浮控制条，并恢复容量、停止原因和记录量；Presentation、隔离 WPF 与 DI 定向验证通过。
 
 ## [ ] T009（P0）：收敛诊断采集压力策略与 instrumentation 语义
 

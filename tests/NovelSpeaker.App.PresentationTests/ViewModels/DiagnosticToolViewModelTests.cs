@@ -35,8 +35,7 @@ public sealed class DiagnosticToolViewModelTests
 
         Assert.Equal(2, sessions.MarkerCount);
         Assert.Equal(1, sessions.AttachmentCount);
-        Assert.Equal(2, viewModel.MarkerCount);
-        Assert.Equal(1, viewModel.AttachmentCount);
+        Assert.Equal("0 MB / 64 MB", viewModel.SessionStorageText);
     }
 
     [Fact]
@@ -111,17 +110,81 @@ public sealed class DiagnosticToolViewModelTests
 
         await viewModel.MarkProblemCommand.ExecuteAsync(null);
 
-        Assert.Equal(0, viewModel.MarkerCount);
         Assert.NotEmpty(viewModel.ErrorText);
+        Assert.Equal(DiagnosticToolState.Capturing, viewModel.State);
+    }
+
+    [Fact]
+    public async Task Recovery_projects_the_persisted_capacity_stopped_reason_and_recorded_bytes()
+    {
+        var sessions = new FakeSessionService();
+        sessions.Restore(new DiagnosticSessionSnapshot(
+            "recovered",
+            DiagnosticSessionState.Active,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            null,
+            DiagnosticSessionCapacityPresets.LargeBytes,
+            2 * 1024 * 1024,
+            true,
+            true,
+            "process",
+            "storage-failure"));
+        var recording = new DiagnosticRecordingController(sessions);
+
+        await recording.RecoverAsync(CancellationToken.None);
+        var viewModel = CreateViewModel(sessions, recording: recording);
+
+        Assert.Equal(DiagnosticToolState.Capturing, viewModel.State);
+        Assert.Equal("2 MB / 256 MB", viewModel.SessionStorageText);
+        Assert.Contains("存储", viewModel.StateText, StringComparison.Ordinal);
+        Assert.True(viewModel.IsCaptureStopped);
+        Assert.False(viewModel.CaptureWindowCommand.CanExecute(null));
+        Assert.False(viewModel.MarkProblemCommand.CanExecute(null));
+        Assert.True(viewModel.EndCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void Ended_session_snapshot_projects_completed_state_after_recovery()
+    {
+        var sessions = new FakeSessionService();
+        sessions.RestoreEnded(new DiagnosticSessionSnapshot(
+            "ended",
+            DiagnosticSessionState.Ended,
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            new DateTimeOffset(2026, 1, 1, 0, 1, 0, TimeSpan.Zero),
+            DiagnosticSessionCapacityPresets.SmallBytes,
+            512 * 1024,
+            false,
+            false,
+            "process"));
+        var viewModel = CreateViewModel(sessions);
+
+        Assert.Equal(DiagnosticToolState.Completed, viewModel.State);
+        Assert.Equal("0.5 MB / 16 MB", viewModel.SessionStorageText);
+        Assert.True(viewModel.RestartCommand.CanExecute(null));
+        Assert.True(viewModel.ExportCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task Marker_command_contains_service_exceptions_inside_the_shared_error_boundary()
+    {
+        var sessions = new FakeSessionService { ThrowOnMarker = true };
+        var viewModel = CreateViewModel(sessions);
+        await viewModel.StartCommand.ExecuteAsync(null);
+
+        await viewModel.MarkProblemCommand.ExecuteAsync(null);
+
+        Assert.Equal("无法记录问题标记。", viewModel.ErrorText);
         Assert.Equal(DiagnosticToolState.Capturing, viewModel.State);
     }
 
     private static DiagnosticToolViewModel CreateViewModel(
         FakeSessionService sessions,
         FakeExportService? exports = null,
-        IDiagnosticWindowCapture? windowCapture = null) =>
+        IDiagnosticWindowCapture? windowCapture = null,
+        DiagnosticRecordingController? recording = null) =>
         new(
-            sessions,
+            recording ?? new DiagnosticRecordingController(sessions),
             exports ?? new FakeExportService { DestinationPath = "problem.zip" },
             windowCapture ?? new FakeWindowCapture(),
             new FakeFileDialogs { SavePath = "problem.zip" },
@@ -138,6 +201,11 @@ public sealed class DiagnosticToolViewModelTests
         public int MarkerCount { get; private set; }
         public int AttachmentCount { get; private set; }
         public bool MarkerResult { get; init; } = true;
+        public bool ThrowOnMarker { get; init; }
+
+        public void Restore(DiagnosticSessionSnapshot snapshot) => Current = snapshot;
+
+        public void RestoreEnded(DiagnosticSessionSnapshot snapshot) => LastEnded = snapshot;
 
         public void StopCapture()
         {
@@ -173,7 +241,7 @@ public sealed class DiagnosticToolViewModelTests
         }
 
         public Task<DiagnosticSessionSnapshot?> RecoverAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(Current);
+            Task.FromResult(Current ?? LastEnded);
 
         public Task<DiagnosticSessionSnapshot> EndAsync(CancellationToken cancellationToken)
         {
@@ -198,6 +266,11 @@ public sealed class DiagnosticToolViewModelTests
 
         public Task<bool> RecordProblemMarkerAsync(CancellationToken cancellationToken)
         {
+            if (ThrowOnMarker)
+            {
+                throw new IOException("sensitive-path-marker-error");
+            }
+
             if (!MarkerResult)
             {
                 return Task.FromResult(false);
