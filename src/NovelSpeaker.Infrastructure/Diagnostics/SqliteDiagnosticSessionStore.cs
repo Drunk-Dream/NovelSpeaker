@@ -35,6 +35,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
     };
 
     private readonly IAppDataDirectoryProvider _directories;
+    private readonly IAppStoragePathResolver _pathResolver;
     private readonly IObservabilityContextAccessor _contextAccessor;
     private readonly IAppSettingsService _settings;
     private readonly TimeProvider _timeProvider;
@@ -60,9 +61,11 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         IObservabilityContextAccessor contextAccessor,
         TimeProvider timeProvider,
         IAppSettingsService settings,
+        IAppStoragePathResolver pathResolver,
         DiagnosticRegistry? registry = null)
     {
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
+        _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
         _contextAccessor = contextAccessor ?? throw new ArgumentNullException(nameof(contextAccessor));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
@@ -116,11 +119,8 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             await _directories.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
             var sessionId = CreateToken();
             var startedAt = _timeProvider.GetUtcNow().ToUniversalTime();
-            var path = Path.Combine(_directories.DiagnosticsDirectoryPath, $"session-{sessionId}.nsdiag");
-            if (ContainsReparsePoint(path))
-            {
-                throw new IOException("诊断会话文件路径包含不受信任的 reparse point。");
-            }
+            var path = _pathResolver.ResolvePath(
+                Path.Combine(_directories.DiagnosticsDirectoryPath, $"session-{sessionId}.nsdiag"));
 
             var processInstanceId = _contextAccessor.Current.ProcessInstanceId;
             await CreateSessionFileAsync(
@@ -137,7 +137,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             }
             catch
             {
-                TryDeleteFile(path);
+                TryDeleteTrustedFile(path);
                 throw;
             }
 
@@ -185,7 +185,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             }
             catch
             {
-                TryDeleteFile(_directories.ActiveDiagnosticSessionMarkerPath);
+                TryDeleteTrustedFile(_directories.ActiveDiagnosticSessionMarkerPath);
                 return null;
             }
 
@@ -197,14 +197,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             var path = ResolveDiagnosticFile(fileName);
             if (path is null || !File.Exists(path))
             {
-                TryDeleteFile(_directories.ActiveDiagnosticSessionMarkerPath);
-                return null;
-            }
-
-            if (ContainsReparsePoint(path))
-            {
-                TryDeleteFile(_directories.ActiveDiagnosticSessionMarkerPath);
-                Volatile.Write(ref _degraded, 1);
+                TryDeleteTrustedFile(_directories.ActiveDiagnosticSessionMarkerPath);
                 return null;
             }
 
@@ -230,7 +223,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                         return null;
                     }
 
-                    TryDeleteFile(_directories.ActiveDiagnosticSessionMarkerPath);
+                    TryDeleteTrustedFile(_directories.ActiveDiagnosticSessionMarkerPath);
                     return session is null ? null : ToSnapshot(session, _contextAccessor.Current.ProcessInstanceId);
                 }
 
@@ -1142,10 +1135,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
 
     private async Task<SqliteConnection> OpenConnectionAsync(string path, CancellationToken cancellationToken)
     {
-        if (ContainsReparsePoint(path))
-        {
-            throw new IOException("诊断会话文件路径包含不受信任的 reparse point。");
-        }
+        path = _pathResolver.ResolvePath(path);
 
         SqliteRuntimeInitializer.EnsureInitialized();
         var connection = new SqliteConnection($"Data Source={path};Mode=ReadWriteCreate;Cache=Private;Pooling=False")
@@ -1702,12 +1692,13 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
 
     private string? ReadMarkerFileName()
     {
-        if (!File.Exists(_directories.ActiveDiagnosticSessionMarkerPath))
+        var markerPath = _pathResolver.ResolvePath(_directories.ActiveDiagnosticSessionMarkerPath);
+        if (!File.Exists(markerPath))
         {
             return null;
         }
 
-        var bytes = File.ReadAllBytes(_directories.ActiveDiagnosticSessionMarkerPath);
+        var bytes = File.ReadAllBytes(markerPath);
         if (bytes.Length == 0 || bytes.Length > MarkerMaxBytes)
         {
             throw new InvalidDataException("诊断活动 marker 无效。");
@@ -1728,24 +1719,20 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
             return null;
         }
 
-        var directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(_directories.DiagnosticsDirectoryPath));
-        var path = Path.GetFullPath(Path.Combine(directory, fileName));
-        var prefix = directory + Path.DirectorySeparatorChar;
-        if (!path.StartsWith(prefix, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+        try
+        {
+            return _pathResolver.ResolvePath(Path.Combine(_directories.DiagnosticsDirectoryPath, fileName));
+        }
+        catch (InvalidDataException)
         {
             return null;
         }
-
-        return ContainsReparsePoint(path) ? null : path;
     }
-
-    private bool ContainsReparsePoint(string path) =>
-        ReparsePointPathGuard.ContainsReparsePoint(path, _directories.RootDirectoryPath);
 
     private async Task WriteMarkerAsync(string fileName, CancellationToken cancellationToken)
     {
-        var marker = _directories.ActiveDiagnosticSessionMarkerPath;
-        var temporary = marker + ".tmp";
+        var marker = _pathResolver.ResolvePath(_directories.ActiveDiagnosticSessionMarkerPath);
+        var temporary = _pathResolver.ResolvePath(marker + ".tmp");
         await File.WriteAllTextAsync(temporary, fileName, Encoding.UTF8, cancellationToken).ConfigureAwait(false);
         File.Move(temporary, marker, true);
     }
@@ -1759,7 +1746,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                 string.Equals(ResolveDiagnosticFile(markerFileName), Path.GetFullPath(sessionPath),
                     OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
             {
-                File.Delete(_directories.ActiveDiagnosticSessionMarkerPath);
+                File.Delete(_pathResolver.ResolvePath(_directories.ActiveDiagnosticSessionMarkerPath));
             }
         }
         catch
@@ -1768,13 +1755,14 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         }
     }
 
-    private static void TryDeleteFile(string path)
+    private void TryDeleteTrustedFile(string path)
     {
         try
         {
-            if (File.Exists(path))
+            var trustedPath = _pathResolver.ResolvePath(path);
+            if (File.Exists(trustedPath))
             {
-                File.Delete(path);
+                File.Delete(trustedPath);
             }
         }
         catch

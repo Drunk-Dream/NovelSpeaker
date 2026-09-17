@@ -25,7 +25,8 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
             directories,
             context,
             clock,
-            new TestAppSettingsService(AppSettings.Default));
+            new TestAppSettingsService(AppSettings.Default),
+            new AppStoragePathResolver(directories));
         var started = await store.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
         await store.AddAttachmentAsync(
             new DiagnosticAttachment(
@@ -74,7 +75,8 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
             directories,
             new ObservabilityContextAccessor("process-one"),
             new FixedTimeProvider(),
-            new TestAppSettingsService(AppSettings.Default));
+            new TestAppSettingsService(AppSettings.Default),
+            new AppStoragePathResolver(directories));
         var started = await store.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
         await store.EndAsync(CancellationToken.None);
         var source = Path.Combine(directories.DiagnosticsDirectoryPath, $"session-{started.SessionId}.nsdiag");

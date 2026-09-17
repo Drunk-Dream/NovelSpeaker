@@ -11,6 +11,21 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Diagnostics;
 
 public sealed class LocalPerformanceTelemetryStoreTests
 {
+    [DirectoryLinkFact]
+    public async Task Writer_rejects_a_telemetry_directory_link_before_writing_outside_the_root()
+    {
+        var fixture = new Fixture(AppSettings.Default with { EnablePerformanceTelemetry = true });
+        var outside = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(outside);
+        DirectoryLinkTestHelper.CreateDirectoryLink(Path.Combine(fixture.Root, "Telemetry"), outside);
+        await using var store = fixture.CreateStore();
+        RecordOperation(fixture, store, TimeSpan.FromMilliseconds(10));
+        await store.DisposeAsync();
+
+        Assert.True(store.IsDegraded);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
+    }
+
     [Fact]
     public async Task Disabled_by_default_does_not_create_samples()
     {

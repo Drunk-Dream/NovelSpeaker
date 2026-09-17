@@ -1,30 +1,44 @@
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Infrastructure.FileSystem;
 
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
 /// <summary>Owns temporary HTTP TTS response files and their cleanup.</summary>
 public sealed class TemporaryAudioStore
 {
-    private readonly string _directoryPath;
+    private readonly IAppDataDirectoryProvider _directories;
+    private readonly IAppStoragePathResolver _pathResolver;
     private readonly ITemporaryAudioFileOperations _fileOperations;
 
     public TemporaryAudioStore(IAppDataDirectoryProvider directories)
-        : this(directories, new TemporaryAudioFileOperations())
+        : this(directories, new TemporaryAudioFileOperations(), new AppStoragePathResolver(directories))
     {
     }
 
     internal TemporaryAudioStore(
         IAppDataDirectoryProvider directories,
         ITemporaryAudioFileOperations fileOperations)
+        : this(directories, fileOperations, new AppStoragePathResolver(directories))
     {
-        _directoryPath = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
-        _fileOperations = fileOperations;
+    }
+
+    internal TemporaryAudioStore(
+        IAppDataDirectoryProvider directories,
+        ITemporaryAudioFileOperations fileOperations,
+        IAppStoragePathResolver pathResolver)
+    {
+        _directories = directories ?? throw new ArgumentNullException(nameof(directories));
+        _fileOperations = fileOperations ?? throw new ArgumentNullException(nameof(fileOperations));
+        _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
     }
 
     public async Task<string> WriteAsync(long ruleId, Stream content, CancellationToken cancellationToken)
     {
-        Directory.CreateDirectory(_directoryPath);
-        var path = Path.Combine(_directoryPath, $"tts-{ruleId}-{Guid.NewGuid():N}.tmp");
+        var directoryPath = _pathResolver.ResolvePath(
+            Path.Combine(_directories.CacheDirectoryPath, "RuleTests"));
+        Directory.CreateDirectory(directoryPath);
+        var path = _pathResolver.ResolvePath(
+            Path.Combine(directoryPath, $"tts-{ruleId}-{Guid.NewGuid():N}.tmp"));
         try
         {
             await using var file = File.Create(path);
@@ -40,7 +54,8 @@ public sealed class TemporaryAudioStore
 
     public string CreateCandidate(string temporaryPath, string extension)
     {
-        var candidate = Path.ChangeExtension(temporaryPath, extension);
+        temporaryPath = _pathResolver.ResolvePath(temporaryPath);
+        var candidate = _pathResolver.ResolvePath(Path.ChangeExtension(temporaryPath, extension));
         _fileOperations.Delete(candidate);
         try
         {
@@ -56,7 +71,7 @@ public sealed class TemporaryAudioStore
 
     internal IAsyncDisposable TransferOwnership(string path)
     {
-        return new TemporaryAudioFileOwner(path, _fileOperations);
+        return new TemporaryAudioFileOwner(_pathResolver.ResolvePath(path), _fileOperations);
     }
 
     public static void Delete(string? path)

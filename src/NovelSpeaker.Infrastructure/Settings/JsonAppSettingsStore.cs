@@ -3,6 +3,7 @@ using System.Text.Json;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Infrastructure.FileSystem;
 
 namespace NovelSpeaker.Infrastructure.Settings;
 
@@ -17,30 +18,41 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
     };
 
     private readonly IAppDataDirectoryProvider _directories;
+    private readonly IAppStoragePathResolver _pathResolver;
     private readonly TimeProvider _timeProvider;
     private readonly ISettingsFileOperations _files;
 
-    public JsonAppSettingsStore(IAppDataDirectoryProvider directories, TimeProvider? timeProvider = null)
-        : this(directories, timeProvider ?? TimeProvider.System, PhysicalSettingsFileOperations.Instance)
+    public JsonAppSettingsStore(
+        IAppDataDirectoryProvider directories,
+        TimeProvider? timeProvider = null,
+        IAppStoragePathResolver? pathResolver = null)
+        : this(
+            directories,
+            timeProvider ?? TimeProvider.System,
+            PhysicalSettingsFileOperations.Instance,
+            pathResolver)
     {
     }
 
     internal JsonAppSettingsStore(
         IAppDataDirectoryProvider directories,
         TimeProvider timeProvider,
-        ISettingsFileOperations files)
+        ISettingsFileOperations files,
+        IAppStoragePathResolver? pathResolver = null)
     {
-        _directories = directories;
-        _timeProvider = timeProvider;
-        _files = files;
+        _directories = directories ?? throw new ArgumentNullException(nameof(directories));
+        _pathResolver = pathResolver ?? new AppStoragePathResolver(_directories);
+        _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _files = files ?? throw new ArgumentNullException(nameof(files));
     }
 
     public async Task<AppSettings> LoadAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        var settingsPath = _pathResolver.ResolvePath(_directories.SettingsPath);
 
         if (!await Task.Run(
-                () => _files.Exists(_directories.SettingsPath),
+                () => _files.Exists(settingsPath),
                 cancellationToken).ConfigureAwait(false))
         {
             return AppSettings.Default;
@@ -49,7 +61,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         try
         {
             await using var stream = await Task.Run(
-                () => _files.OpenRead(_directories.SettingsPath),
+                () => _files.OpenRead(settingsPath),
                 cancellationToken).ConfigureAwait(false);
             var settings = await JsonSerializer.DeserializeAsync<AppSettings>(
                 stream,
@@ -70,7 +82,8 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
         cancellationToken.ThrowIfCancellationRequested();
         await _directories.EnsureCreatedAsync(cancellationToken).ConfigureAwait(false);
 
-        var temporaryPath = $"{_directories.SettingsPath}.{Guid.NewGuid():N}.tmp";
+        var settingsPath = _pathResolver.ResolvePath(_directories.SettingsPath);
+        var temporaryPath = _pathResolver.ResolvePath($"{settingsPath}.{Guid.NewGuid():N}.tmp");
         try
         {
             var normalized = settings.Normalize();
@@ -87,7 +100,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
 
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Run(
-                () => _files.Move(temporaryPath, _directories.SettingsPath, overwrite: true),
+                () => _files.Move(temporaryPath, settingsPath, overwrite: true),
                 cancellationToken).ConfigureAwait(false);
         }
         finally
@@ -114,10 +127,11 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
             .GetUtcNow()
             .ToUniversalTime()
             .ToString("yyyyMMddTHHmmssfffffffZ", CultureInfo.InvariantCulture);
+        var settingsPath = _pathResolver.ResolvePath(_directories.SettingsPath);
         for (var suffix = 0; ; suffix++)
         {
             var suffixText = suffix == 0 ? string.Empty : $".{suffix}";
-            var backupPath = $"{_directories.SettingsPath}.{timestamp}{suffixText}.corrupt";
+            var backupPath = _pathResolver.ResolvePath($"{settingsPath}.{timestamp}{suffixText}.corrupt");
             if (_files.Exists(backupPath))
             {
                 continue;
@@ -125,7 +139,7 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
 
             try
             {
-                _files.Move(_directories.SettingsPath, backupPath, overwrite: false);
+                _files.Move(settingsPath, backupPath, overwrite: false);
                 return;
             }
             catch (IOException) when (_files.Exists(backupPath))

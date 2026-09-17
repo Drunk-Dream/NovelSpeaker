@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.FileSystem;
+using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 
@@ -11,24 +12,45 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Diagnostics;
 
 public sealed class SqliteDiagnosticSessionStoreTests
 {
-    [Fact]
+    [DirectoryLinkFact]
     public async Task Start_and_recover_allow_reparse_points_above_the_data_root()
     {
         var installationRoot = Path.Combine(Path.GetTempPath(), "NovelSpeaker-Scoop-" + Path.GetRandomFileName());
         var versionDirectory = Path.Combine(installationRoot, "1.0.0");
         var currentDirectory = Path.Combine(installationRoot, "current");
         Directory.CreateDirectory(versionDirectory);
-        try
-        {
-            Directory.CreateSymbolicLink(currentDirectory, versionDirectory);
-        }
-        catch (Exception exception) when (
-            exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
-        {
-            return;
-        }
+        DirectoryLinkTestHelper.CreateDirectoryLink(currentDirectory, versionDirectory);
 
         var fixture = new Fixture("process-one", Path.Combine(currentDirectory, "Data"));
+        var first = fixture.CreateStore();
+        var started = await first.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
+        await first.NotifyProcessShutdownAsync(CancellationToken.None);
+        await first.DisposeAsync();
+
+        await using var second = fixture.CreateStore("process-two");
+        var recovered = await second.RecoverAsync(CancellationToken.None);
+
+        Assert.NotNull(recovered);
+        Assert.Equal(started.SessionId, recovered!.SessionId);
+    }
+
+    [DirectoryLinkFact]
+    public async Task Start_and_recover_allow_the_data_root_itself_to_be_a_symbolic_link()
+    {
+        var installationRoot = Path.Combine(Path.GetTempPath(), "NovelSpeaker-Scoop-" + Path.GetRandomFileName());
+        var logicalDataRoot = Path.Combine(installationRoot, "current", "Data");
+        var persistedDataRoot = Path.Combine(installationRoot, "persist", "novelspeaker", "Data");
+        Directory.CreateDirectory(persistedDataRoot);
+        Directory.CreateDirectory(Path.GetDirectoryName(logicalDataRoot)!);
+        DirectoryLinkTestHelper.CreateDirectoryLink(logicalDataRoot, persistedDataRoot);
+
+        var fixture = new Fixture("process-one", logicalDataRoot);
+        await using (var database = await new SqliteConnectionFactory(fixture.Directories)
+                         .OpenConnectionAsync(CancellationToken.None))
+        {
+            Assert.Equal(System.Data.ConnectionState.Open, database.State);
+        }
+
         var first = fixture.CreateStore();
         var started = await first.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
         await first.NotifyProcessShutdownAsync(CancellationToken.None);
@@ -318,7 +340,8 @@ public sealed class SqliteDiagnosticSessionStoreTests
                 Directories,
                 context,
                 Clock,
-                new TestAppSettingsService(AppSettings.Default));
+                new TestAppSettingsService(AppSettings.Default),
+                new AppStoragePathResolver(Directories));
         }
 
         public string SessionPath(string sessionId) =>

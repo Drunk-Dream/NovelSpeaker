@@ -11,6 +11,25 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class TtsResponseValidatorTests
 {
+    [DirectoryLinkFact]
+    public async Task Temporary_store_rejects_a_rule_test_directory_link_before_writing_outside_the_root()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var outside = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(outside);
+        DirectoryLinkTestHelper.CreateDirectoryLink(
+            Path.Combine(directories.CacheDirectoryPath, "RuleTests"),
+            outside);
+        var store = new TemporaryAudioStore(directories);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.WriteAsync(1, new MemoryStream([1, 2, 3]), CancellationToken.None));
+
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
+    }
+
     [Fact]
     public async Task ValidateAsync_classifies_an_empty_success_response_separately()
     {

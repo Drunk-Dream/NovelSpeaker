@@ -18,27 +18,23 @@ public sealed class AppDataDirectoryProviderTests
         Assert.True(Directory.Exists(provider.CacheDirectoryPath));
         Assert.True(Directory.Exists(provider.OperationsDirectoryPath));
         Assert.True(Directory.Exists(provider.LogsDirectoryPath));
+        Assert.True(Directory.Exists(provider.DiagnosticsDirectoryPath));
     }
 
-    [Fact]
-    public async Task EnsureCreatedAsync_rejects_reparse_point_inside_data_root()
+    [DirectoryLinkTheory]
+    [InlineData("Books")]
+    [InlineData("Cache")]
+    [InlineData("Diagnostics")]
+    public async Task EnsureCreatedAsync_rejects_reparse_points_inside_data_root(string directoryName)
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var provider = new AppDataDirectoryProvider(root);
         var outside = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(outside);
         Directory.CreateDirectory(root);
-        try
-        {
-            Directory.CreateSymbolicLink(provider.DiagnosticsDirectoryPath, outside);
-        }
-        catch (Exception exception) when (
-            exception is UnauthorizedAccessException or IOException or PlatformNotSupportedException)
-        {
-            return;
-        }
+        DirectoryLinkTestHelper.CreateDirectoryLink(Path.Combine(root, directoryName), outside);
 
-        await Assert.ThrowsAsync<IOException>(() => provider.EnsureCreatedAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() => provider.EnsureCreatedAsync(CancellationToken.None));
     }
 
     [Fact]

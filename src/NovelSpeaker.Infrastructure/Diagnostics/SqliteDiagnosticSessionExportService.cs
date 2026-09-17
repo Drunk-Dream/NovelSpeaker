@@ -7,6 +7,7 @@ using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.Application.Observability;
+using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.Infrastructure.Diagnostics;
@@ -24,15 +25,18 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
 
     private readonly SqliteDiagnosticSessionStore _store;
     private readonly IAppDataDirectoryProvider _directories;
+    private readonly IAppStoragePathResolver _pathResolver;
     private readonly DiagnosticRegistry _registry;
 
     public SqliteDiagnosticSessionExportService(
         SqliteDiagnosticSessionStore store,
         IAppDataDirectoryProvider directories,
-        DiagnosticRegistry? registry = null)
+        DiagnosticRegistry? registry = null,
+        IAppStoragePathResolver? pathResolver = null)
     {
         _store = store ?? throw new ArgumentNullException(nameof(store));
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
+        _pathResolver = pathResolver ?? new AppStoragePathResolver(_directories);
         _registry = registry ?? DiagnosticRegistry.Default;
     }
 
@@ -405,7 +409,7 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
             {
                 try
                 {
-                    foreach (var line in File.ReadLines(path))
+                    foreach (var line in File.ReadLines(_pathResolver.ResolvePath(path)))
                     {
                         if (string.IsNullOrWhiteSpace(line))
                         {

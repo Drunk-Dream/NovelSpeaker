@@ -53,13 +53,13 @@ Observability、生产日志、性能遥测与诊断系统的第一版已经完�
 
 # Phase F：存储与诊断基础设施稳定化
 
-## [ ] T007（P0）：统一应用存储信任边界并修复 Data-root reparse point
+## [x] T007（P0）：统一应用存储信任边界并修复 Data-root reparse point
 
 依赖：T001–T006。
 
-实施规格：`tasks/T007_storage_trust_boundary.md`
-
 目标：从架构层统一 reparse-point 与数据根归属规则。最终选定的数据根作为可信锚点，允许 Data root 自身或其祖先为 Junction/Symlink；严格拒绝数据根内部链接逃逸。覆盖真实 Scoop `current\Data -> persist\novelspeaker\Data` 布局，并删除 Diagnostics/Storage 中重复或冲突的路径判断。
+
+完成成果：统一逻辑数据根 containment 与 reparse-point 检查；支持 Data-root Junction 并拒绝根内链接逃逸。Infrastructure 集成测试 382/382、Architecture 测试 55/55、Release build 和格式验证通过。
 
 ## [ ] T008（P0）：重构诊断录制运行态与悬浮控制条
 

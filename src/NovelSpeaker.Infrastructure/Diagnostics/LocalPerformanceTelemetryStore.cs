@@ -6,6 +6,7 @@ using System.Threading.Channels;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Infrastructure.FileSystem;
 
 namespace NovelSpeaker.Infrastructure.Diagnostics;
 
@@ -24,6 +25,7 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
     private const int QueueCapacity = 64;
 
     private readonly IAppDataDirectoryProvider _directories;
+    private readonly IAppStoragePathResolver _pathResolver;
     private readonly IAppSettingsService _settings;
     private readonly TimeProvider _timeProvider;
     private readonly PerformanceMetricRegistry _registry;
@@ -52,9 +54,11 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         IAppDataDirectoryProvider directories,
         IAppSettingsService settings,
         TimeProvider timeProvider,
-        PerformanceMetricRegistry? registry = null)
+        PerformanceMetricRegistry? registry = null,
+        IAppStoragePathResolver? pathResolver = null)
     {
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
+        _pathResolver = pathResolver ?? new AppStoragePathResolver(_directories);
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         _registry = registry ?? PerformanceMetricRegistry.Default;
@@ -142,7 +146,7 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
                     foreach (var path in Directory.EnumerateFiles(directory, "novelspeaker-telemetry-*.jsonl"))
                     {
                         cancellationToken.ThrowIfCancellationRequested();
-                        File.Delete(path);
+                        File.Delete(_pathResolver.ResolvePath(path));
                     }
                 }
             }
@@ -413,7 +417,8 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         string path;
         while (true)
         {
-            path = Path.Combine(directory, $"novelspeaker-telemetry-{date}-{index:000}.jsonl");
+            path = _pathResolver.ResolvePath(
+                Path.Combine(directory, $"novelspeaker-telemetry-{date}-{index:000}.jsonl"));
             if (!File.Exists(path) || new FileInfo(path).Length + bytes.Length <= MaxFileBytes)
             {
                 break;
@@ -440,7 +445,9 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
             return records;
         }
 
-        foreach (var path in Directory.EnumerateFiles(directory, "novelspeaker-telemetry-*.jsonl").OrderBy(path => path, StringComparer.Ordinal))
+        foreach (var path in Directory.EnumerateFiles(directory, "novelspeaker-telemetry-*.jsonl")
+                     .Select(_pathResolver.ResolvePath)
+                     .OrderBy(path => path, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
             foreach (var line in File.ReadLines(path))
@@ -513,7 +520,9 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
             return result;
         }
 
-        foreach (var path in Directory.EnumerateFiles(_directories.LogsDirectoryPath, "*.jsonl").OrderBy(path => path, StringComparer.Ordinal))
+        foreach (var path in Directory.EnumerateFiles(_directories.LogsDirectoryPath, "*.jsonl")
+                     .Select(_pathResolver.ResolvePath)
+                     .OrderBy(path => path, StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
             foreach (var line in File.ReadLines(path))
@@ -578,20 +587,22 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         return new ProcessCpuSample(timestamp, process.TotalProcessorTime, process.WorkingSet64);
     }
 
-    private string GetTelemetryDirectory() => Path.Combine(_directories.RootDirectoryPath, "Telemetry");
+    private string GetTelemetryDirectory() =>
+        _pathResolver.ResolvePath(Path.Combine(_directories.RootDirectoryPath, "Telemetry"));
 
     private static string ResolveVersion() =>
         typeof(LocalPerformanceTelemetryStore).Assembly.GetName().Version?.ToString() ?? "unknown";
 
-    private static void ApplyRetention(string directory, DateTimeOffset now)
+    private void ApplyRetention(string directory, DateTimeOffset now)
     {
+        directory = _pathResolver.ResolvePath(directory);
         if (!Directory.Exists(directory))
         {
             return;
         }
 
         var files = Directory.EnumerateFiles(directory, "novelspeaker-telemetry-*.jsonl")
-            .Select(path => new FileInfo(path))
+            .Select(path => new FileInfo(_pathResolver.ResolvePath(path)))
             .OrderBy(file => file.LastWriteTimeUtc)
             .ToList();
         var cutoff = now.UtcDateTime - Retention;

@@ -13,6 +13,26 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Diagnostics;
 
 public sealed class RollingFileLoggerProviderTests
 {
+    [DirectoryLinkFact]
+    public async Task Logger_rejects_a_link_at_its_generated_output_path()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var outside = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(outside);
+        var clock = new FixedTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var linkedLogFile = Path.Combine(directories.LogsDirectoryPath, "novelspeaker-20260101-000.jsonl");
+        DirectoryLinkTestHelper.CreateDirectoryLink(linkedLogFile, outside);
+
+        await using var provider = new RollingFileLoggerProvider(directories, timeProvider: clock);
+        provider.CreateLogger("LinkTests").LogInformation("a safe diagnostic event");
+        await provider.FlushAsync();
+
+        Assert.True(provider.WriteFailureCount > 0);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
+    }
+
     [Fact]
     public void Log_event_registry_has_unique_stable_definitions()
     {

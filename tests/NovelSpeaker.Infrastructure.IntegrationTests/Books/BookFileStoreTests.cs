@@ -6,6 +6,25 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookFileStoreTests
 {
+    [DirectoryLinkFact]
+    public async Task StageNormalizedTextAsync_rejects_a_book_directory_link_before_writing_outside_the_root()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var outside = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Directory.CreateDirectory(outside);
+        DirectoryLinkTestHelper.CreateDirectoryLink(
+            Path.Combine(directories.BooksDirectoryPath, "book-1"),
+            outside);
+        var store = new BookFileStore(directories, new AppStoragePathResolver(directories));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            store.StageNormalizedTextAsync("fixture", "book-1", progress: null, CancellationToken.None));
+
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
+    }
+
     [Fact]
     public async Task StageNormalizedTextAsync_and_finalizeAsync_create_content_txt_inside_book_directory()
     {
