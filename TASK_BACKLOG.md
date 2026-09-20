@@ -103,12 +103,14 @@
 
 完成成果：通用文件对话框选项新增可选初始目录和状态 GUID，WPF 层映射到系统对话框；旧诊断会话选择器等待目录加载后，使用当前 Diagnostics 目录及固定独立 GUID，两个 ZIP 保存入口维持普通 Windows 保存状态。Release build、format 和受影响 Presentation focused tests 通过；临时选项语义测试通过后已删除。未恢复已删除的细粒度永久测试；无旧兼容残留或长期文档冲突。人工点击未执行，系统对话框实际显示仍可选验收。
 
-## [ ] T005（P0）：提升普通性能遥测的长期可分析性
+## [x] T005（P0）：提升普通性能遥测的长期可分析性
 
 依赖：T004（仅调度顺序；无技术耦合）。
 
 实施规格：`tasks/T005_performance_telemetry_analysis_readiness.md`
 
 目标：将 CPU/Working Set/Managed Heap 从“每次 Operation 完成时附带采样”改为遥测开启期间约 60 秒一次的独立低频采样；保留空闲资源窗口、process instance 与一分钟时间结构；审计稳定 operation vocabulary；将单个 `telemetry.json` 扩展为 definitions + aggregates + windows 的自解释交换格式，并导出当前 retention 内全部遥测数据。
+
+完成成果：普通遥测改为由可控 `TimeProvider` 定时器驱动的独立低频进程资源采样，开关、关闭、快速重启和系统时钟回拨均保持基线与窗口语义；窗口复用共享 process instance 并兼容缺失身份的旧记录。operation vocabulary 收敛为准确的存储连接打开、缓存音频生成、缓存完整性检查及有限页面表面，耗时 Histogram 覆盖亚毫秒到 60 秒并在导出时按 bucket 定义隔离旧新窗口。`telemetry.json` 现在包含 coverage、collection、metricDefinitions、aggregates 和 windows，并导出 retention 内全部窗口；summary 仅报告客观覆盖、版本、进程、窗口、dropped/degraded 状态。保留并扩展少量核心 Infrastructure/Application 测试，临时测试已删除；T004/T005 focused tests、locked restore、Release build、format 和全量 Release 测试均通过（首次全量运行出现一次已知 WPF cleanup 偶发失败，规定命令重跑通过：Domain 15、Application 162、Presentation 187、WPF 93、Infrastructure 336）。人工 UI 验收未执行，不影响任务完成。无长期文档冲突。
 
 T005 为本阶段收口任务，完成后执行完整 Release 质量门禁。

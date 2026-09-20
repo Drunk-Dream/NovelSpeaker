@@ -61,9 +61,55 @@ public sealed class LocalPerformanceTelemetryStoreTests
             ["summary.md", "telemetry.json", "logs.jsonl", "environment.json"],
             archive.Entries.Select(entry => entry.FullName).ToArray());
         var telemetry = await ReadJsonAsync(archive, "telemetry.json");
-        Assert.Equal(1, telemetry.GetProperty("windowCount").GetInt32());
-        Assert.Equal(2, telemetry.GetProperty("metrics").GetArrayLength());
+        Assert.Equal(1, telemetry.GetProperty("collection").GetProperty("windowCount").GetInt32());
+        Assert.Equal(2, telemetry.GetProperty("aggregates").GetArrayLength());
+        Assert.Equal(5, telemetry.GetProperty("metricDefinitions").GetArrayLength());
+        Assert.Single(telemetry.GetProperty("windows").EnumerateArray());
+        Assert.Equal(1, telemetry.GetProperty("coverage").GetProperty("processInstanceCount").GetInt32());
         Assert.False(settings.Current.EnablePerformanceTelemetry);
+    }
+
+    [Fact]
+    public async Task Export_includes_retained_windows_older_than_fourteen_days()
+    {
+        var fixture = new Fixture(AppSettings.Default with { EnablePerformanceTelemetry = true });
+        await using var store = fixture.CreateStore();
+        RecordOperation(fixture, store, TimeSpan.FromMilliseconds(10));
+        store.SetCollectionEnabled(false);
+        fixture.Clock.Advance(TimeSpan.FromDays(15));
+
+        var exportPath = Path.Combine(fixture.Root, "older-than-fourteen-days.zip");
+        await store.ExportAsync(exportPath, CancellationToken.None);
+
+        using var archive = ZipFile.OpenRead(exportPath);
+        var telemetry = await ReadJsonAsync(archive, "telemetry.json");
+        Assert.Equal(1, telemetry.GetProperty("windows").GetArrayLength());
+        Assert.Equal(
+            new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+            telemetry.GetProperty("coverage").GetProperty("earliestWindowStartUtc").GetDateTimeOffset());
+    }
+
+    [Fact]
+    public async Task Legacy_window_without_process_instance_id_exports_as_null()
+    {
+        var fixture = new Fixture(AppSettings.Default with { EnablePerformanceTelemetry = true });
+        await using var store = fixture.CreateStore();
+        RecordOperation(fixture, store, TimeSpan.FromMilliseconds(10));
+        await store.FlushAsync(CancellationToken.None);
+
+        var telemetryPath = Directory.EnumerateFiles(fixture.Root, "novelspeaker-telemetry-*.jsonl", SearchOption.AllDirectories)
+            .Single();
+        var legacyLine = (await File.ReadAllTextAsync(telemetryPath))
+            .Replace("\"processInstanceId\":\"test-process-instance\",", string.Empty, StringComparison.Ordinal);
+        await File.WriteAllTextAsync(telemetryPath, legacyLine);
+
+        var exportPath = Path.Combine(fixture.Root, "legacy.zip");
+        await store.ExportAsync(exportPath, CancellationToken.None);
+
+        using var archive = ZipFile.OpenRead(exportPath);
+        var telemetry = await ReadJsonAsync(archive, "telemetry.json");
+        Assert.Equal(0, telemetry.GetProperty("coverage").GetProperty("processInstanceCount").GetInt32());
+        Assert.True(telemetry.GetProperty("windows")[0].GetProperty("processInstanceId").ValueKind == JsonValueKind.Null);
     }
 
     [Fact]
@@ -207,7 +253,7 @@ public sealed class LocalPerformanceTelemetryStoreTests
         await store.ExportAsync(exportPath, CancellationToken.None);
         using var archive = ZipFile.OpenRead(exportPath);
         var telemetry = await ReadJsonAsync(archive, "telemetry.json");
-        var duration = telemetry.GetProperty("metrics")
+        var duration = telemetry.GetProperty("aggregates")
             .EnumerateArray()
             .Single(metric => metric.GetProperty("name").GetString() == "operation.duration");
 

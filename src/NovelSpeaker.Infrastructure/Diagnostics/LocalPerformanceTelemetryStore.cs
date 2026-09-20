@@ -16,12 +16,11 @@ namespace NovelSpeaker.Infrastructure.Diagnostics;
 /// </summary>
 public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryService, IObservabilityConsumer, IAsyncDisposable
 {
-    private const int ExportSchemaVersion = 1;
+    private const int ExportSchemaVersion = 2;
     private const int WindowSchemaVersion = 2;
     private static readonly TimeSpan WindowSize = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ResourceSampleInterval = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan Retention = TimeSpan.FromDays(30);
-    private static readonly TimeSpan ExportRange = TimeSpan.FromDays(14);
     private const long MaxFileBytes = 8L * 1024 * 1024;
     private const long MaxDirectoryBytes = 64L * 1024 * 1024;
     private const int QueueCapacity = 64;
@@ -234,25 +233,66 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
             await FlushAsync(cancellationToken).ConfigureAwait(false);
 
             var now = _timeProvider.GetUtcNow();
-            var rangeStart = now - ExportRange;
             TryApplyRetention(now);
             stage = DiagnosticFailureStage.ReadTelemetry;
-            var windows = ReadWindows(rangeStart, cancellationToken);
+            var windows = ReadWindows(cancellationToken);
             var metrics = MergeMetrics(windows);
             stage = DiagnosticFailureStage.ReadLogs;
-            var logLines = ReadRelevantLogs(rangeStart, cancellationToken);
+            var coverageStart = windows.Count == 0 ? now - Retention : windows.Min(window => window.WindowStartUtc);
+            var logLines = ReadRelevantLogs(coverageStart, cancellationToken);
             var appVersion = ResolveVersion();
+            var coverageEnd = windows.Count == 0
+                ? (DateTimeOffset?)null
+                : windows.Max(window => window.WindowEndUtc);
+            var processInstanceCount = windows
+                .Select(window => window.ProcessInstanceId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .Count();
+            var exportedWindows = windows.Select(window => new
+            {
+                windowStartUtc = window.WindowStartUtc,
+                windowEndUtc = window.WindowEndUtc,
+                appVersion = window.AppVersion,
+                processInstanceId = window.ProcessInstanceId,
+                metrics = window.Metrics.Values.ToArray()
+            }).ToArray();
+            var metricDefinitions = _registry.Definitions.Select(definition => new
+            {
+                name = definition.Name,
+                type = definition.Type.ToString(),
+                unit = definition.Unit,
+                description = definition.Description,
+                histogramBuckets = definition.HistogramBuckets.ToArray(),
+                allowedDimensions = definition.AllowedTags
+            }).ToArray();
 
             var telemetryJson = JsonSerializer.Serialize(
                 new
                 {
                     schemaVersion = ExportSchemaVersion,
                     generatedAtUtc = now,
-                    rangeStartUtc = rangeStart,
-                    rangeEndUtc = now,
-                    windowCount = windows.Count,
-                    droppedWindowCount = DroppedWindowCount,
-                    metrics
+                    coverage = new
+                    {
+                        earliestWindowStartUtc = windows.Count == 0 ? (DateTimeOffset?)null : coverageStart,
+                        latestWindowEndUtc = coverageEnd,
+                        appVersions = windows.Select(window => window.AppVersion)
+                            .Distinct(StringComparer.Ordinal)
+                            .OrderBy(version => version, StringComparer.Ordinal)
+                            .ToArray(),
+                        processInstanceCount
+                    },
+                    collection = new
+                    {
+                        windowSize = WindowSize,
+                        resourceSampleInterval = ResourceSampleInterval,
+                        windowCount = windows.Count,
+                        droppedWindowCount = DroppedWindowCount,
+                        degraded = IsDegraded
+                    },
+                    metricDefinitions,
+                    aggregates = metrics,
+                    windows = exportedWindows
                 },
                 _jsonOptions);
             var environmentJson = JsonSerializer.Serialize(
@@ -268,7 +308,17 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
                     gcServer = System.Runtime.GCSettings.IsServerGC
                 },
                 _jsonOptions);
-            var summary = BuildSummary(now, rangeStart, windows.Count, metrics.Count, logLines.Count, appVersion);
+            var summary = BuildSummary(
+                now,
+                coverageStart,
+                coverageEnd,
+                windows,
+                metrics.Count,
+                logLines.Count,
+                appVersion,
+                processInstanceCount,
+                DroppedWindowCount,
+                IsDegraded);
 
             stage = DiagnosticFailureStage.BuildBundle;
             await _bundleWriter.WriteAsync(
@@ -555,7 +605,7 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         ApplyRetention(directory, _timeProvider.GetUtcNow());
     }
 
-    private IReadOnlyList<TelemetryWindowRecord> ReadWindows(DateTimeOffset rangeStart, CancellationToken cancellationToken)
+    private IReadOnlyList<TelemetryWindowRecord> ReadWindows(CancellationToken cancellationToken)
     {
         var records = new List<TelemetryWindowRecord>();
         var directory = GetTelemetryDirectory();
@@ -594,7 +644,7 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
                     try
                     {
                         var record = JsonSerializer.Deserialize<TelemetryWindowRecord>(line, _jsonOptions);
-                        if (record is not null && record.WindowEndUtc >= rangeStart)
+                        if (record is not null)
                         {
                             records.Add(record);
                         }
@@ -726,19 +776,26 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
 
     private static string BuildSummary(
         DateTimeOffset now,
-        DateTimeOffset rangeStart,
-        int windowCount,
+        DateTimeOffset coverageStart,
+        DateTimeOffset? coverageEnd,
+        IReadOnlyList<TelemetryWindowRecord> windows,
         int metricCount,
         int logCount,
-        string appVersion) =>
+        string appVersion,
+        int processInstanceCount,
+        long droppedWindowCount,
+        bool degraded) =>
         $"# NovelSpeaker diagnostics\n\n" +
         $"Generated (UTC): {now:O}\n" +
-        $"Range (UTC): {rangeStart:O} to {now:O}\n" +
+        $"Coverage (UTC): {(windows.Count == 0 ? "none" : $"{coverageStart:O} to {coverageEnd:O}")}\n" +
         $"App version: {appVersion}\n\n" +
         "This bundle contains local, user-requested diagnostics only. It is not uploaded automatically.\n\n" +
-        $"- Telemetry windows: {windowCount}\n" +
+        $"- Telemetry windows: {windows.Count}\n" +
+        $"- Process instances: {processInstanceCount}\n" +
         $"- Merged metrics: {metricCount}\n" +
-        $"- Relevant log records: {logCount}\n";
+        $"- Relevant log records: {logCount}\n" +
+        $"- Dropped windows: {droppedWindowCount}\n" +
+        $"- Collection degraded: {degraded}\n";
 
     private static void WriteEntry(ZipArchive archive, string name, string content)
     {
