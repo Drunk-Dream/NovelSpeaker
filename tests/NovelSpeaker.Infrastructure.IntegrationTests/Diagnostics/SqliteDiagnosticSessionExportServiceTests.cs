@@ -25,7 +25,8 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
             directories,
             context,
             clock,
-            new TestAppSettingsService(AppSettings.Default));
+            new TestAppSettingsService(AppSettings.Default),
+            new AppStoragePathResolver(directories));
         var started = await store.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
         await store.AddAttachmentAsync(
             new DiagnosticAttachment(
@@ -40,8 +41,11 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
         await store.EndAsync(CancellationToken.None);
 
         var exporter = new SqliteDiagnosticSessionExportService(store, directories);
-        var immediatePath = Path.Combine(root, "immediate.zip");
-        var selectedPath = Path.Combine(root, "selected.zip");
+        var externalDirectory = root + "-external-exports";
+        Directory.CreateDirectory(externalDirectory);
+        var immediatePath = Path.Combine(externalDirectory, "immediate.zip");
+        var selectedPath = Path.Combine(externalDirectory, "selected.zip");
+        await File.WriteAllTextAsync(selectedPath, "previous problem export");
         await exporter.ExportLastEndedAsync(immediatePath, CancellationToken.None);
         await exporter.ExportAsync(
             Path.Combine(directories.DiagnosticsDirectoryPath, $"session-{started.SessionId}.nsdiag"),
@@ -74,7 +78,8 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
             directories,
             new ObservabilityContextAccessor("process-one"),
             new FixedTimeProvider(),
-            new TestAppSettingsService(AppSettings.Default));
+            new TestAppSettingsService(AppSettings.Default),
+            new AppStoragePathResolver(directories));
         var started = await store.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
         await store.EndAsync(CancellationToken.None);
         var source = Path.Combine(directories.DiagnosticsDirectoryPath, $"session-{started.SessionId}.nsdiag");

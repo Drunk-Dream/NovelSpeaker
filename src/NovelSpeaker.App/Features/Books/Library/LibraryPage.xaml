@@ -193,7 +193,7 @@
                     </Style>
                 </feedbackControls:AppStatusView.Style>
                 <feedbackControls:AppStatusView.PrimaryAction>
-                    <Button x:Name="EmptyStateImportButton"
+                    <ui:Button x:Name="EmptyStateImportButton"
                             Style="{StaticResource App.Button.Primary}"
                             Click="ImportButton_OnClick"
                             Content="导入小说"

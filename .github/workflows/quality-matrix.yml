@@ -12,8 +12,6 @@ jobs:
   quality:
     name: Quality / ${{ matrix.layer }} / ${{ matrix.project }}
     runs-on: windows-latest
-    env:
-      NOVELSPEAKER_TEST_SHOW_WINDOWS: '0'
     strategy:
       fail-fast: false
       matrix:

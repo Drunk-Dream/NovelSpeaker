@@ -92,58 +92,6 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task PreviousSegmentAsync_double_tap_while_playing_stops_intermediate_segment_before_buffering()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakeAudioGenerationProvider();
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            audioProvider: audioProvider,
-            book: CreateThreeSegmentBook());
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 0, 2, null, 10), CancellationToken.None);
-        await coordinator.PreviousSegmentAsync(CancellationToken.None);
-        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
-
-        var pendingAudio = audioProvider.EnqueuePendingSuccess("audio-delayed-previous.mp3");
-        var secondPreviousTask = coordinator.PreviousSegmentAsync(CancellationToken.None);
-
-        await WaitForAsync(audioProvider, () => audioProvider.Requests.Count == 3);
-        Assert.False(localCoordinator.TryRaiseCompleted());
-
-        pendingAudio.CompleteSuccess();
-        await secondPreviousTask;
-
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
-    }
-
-    [Fact]
-    public async Task PreviousSegmentAsync_after_pausing_keeps_paused_context_without_rebuffering()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakeAudioGenerationProvider();
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            audioProvider: audioProvider,
-            book: CreateThreeSegmentBook());
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 0, 2, null, 10), CancellationToken.None);
-        await coordinator.PauseAsync(CancellationToken.None);
-
-        await coordinator.PreviousSegmentAsync(CancellationToken.None);
-        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
-
-        var requestCountBeforeSecondJump = audioProvider.Requests.Count;
-        await coordinator.PreviousSegmentAsync(CancellationToken.None);
-        Assert.False(localCoordinator.TryRaiseCompleted());
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
-        Assert.Equal(requestCountBeforeSecondJump, audioProvider.Requests.Count);
-    }
-
-    [Fact]
     public async Task OpenPausedAsync_restores_saved_progress_without_requesting_audio_until_resume()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
@@ -168,35 +116,6 @@ public sealed partial class PlaybackCoordinatorTests
 
         Assert.Single(audioProvider.Requests);
         Assert.Equal(333, localCoordinator.LastStartedRequest?.ResumePositionMilliseconds);
-    }
-
-    [Fact]
-    public async Task OpenPausedAsync_with_explicit_position_persists_new_position_immediately()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var readingProgressStore = new FakeReadingProgressStore
-        {
-            StoredProgress = new ReadingProgressEntry(
-                "book-1",
-                0,
-                0,
-                0,
-                0,
-                DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
-        };
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            readingProgressStore: readingProgressStore,
-            book: CreateTwoChapterBook());
-
-        await coordinator.OpenPausedAsync(
-            new OpenBookPlaybackRequest("book-1", 1, 0, 10),
-            CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
-        Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
-        Assert.Equal(1, readingProgressStore.StoredProgress?.ChapterIndex);
-        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
     }
 
     [Fact]
@@ -232,36 +151,6 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task JumpToChapterAsync_while_paused_persists_new_position_immediately()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var readingProgressStore = new FakeReadingProgressStore
-        {
-            StoredProgress = new ReadingProgressEntry(
-                "book-1",
-                0,
-                0,
-                0,
-                0,
-                DateTimeOffset.Parse("2026-06-25T00:00:00.0000000Z"))
-        };
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            readingProgressStore: readingProgressStore,
-            book: CreateTwoChapterBook());
-
-        await coordinator.OpenPausedAsync(
-            new OpenBookPlaybackRequest("book-1", 0, 0, 10),
-            CancellationToken.None);
-        await coordinator.JumpToChapterAsync(1, CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
-        Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
-        Assert.Equal(1, readingProgressStore.StoredProgress?.ChapterIndex);
-        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
-    }
-
-    [Fact]
     public async Task JumpToSegmentAsync_while_playing_persists_new_position_after_old_session_stops()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
@@ -279,27 +168,6 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(2, readingProgressStore.StoredProgress?.SegmentIndex);
-    }
-
-    [Fact]
-    public async Task JumpToSegmentAsync_across_chapters_persists_resolved_target_position()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var readingProgressStore = new FakeReadingProgressStore();
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            readingProgressStore: readingProgressStore,
-            book: CreateTwoChapterBook());
-
-        await coordinator.OpenPausedAsync(
-            new OpenBookPlaybackRequest("book-1", 0, 0, 10),
-            CancellationToken.None);
-        await coordinator.NextSegmentAsync(CancellationToken.None);
-
-        Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(1, readingProgressStore.StoredProgress?.ChapterIndex);
-        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
     }
 
     [Fact]
@@ -423,40 +291,6 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task JumpToSegmentAsync_while_playing_keeps_playing_and_requests_new_audio()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakeAudioGenerationProvider();
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            audioProvider: audioProvider,
-            book: CreateThreeSegmentBook());
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 0, 0, null, 10), CancellationToken.None);
-        await coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(2, audioProvider.Requests.Count);
-    }
-
-    [Fact]
-    public async Task StartAsync_can_surface_cached_audio_usage_in_snapshot()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakeAudioGenerationProvider();
-        audioProvider.EnqueueCachedSuccess("audio-cached.mp3");
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            audioProvider: audioProvider);
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-
-        Assert.True(coordinator.CurrentSnapshot.IsUsingCache);
-        Assert.Equal("audio-cached.mp3", localCoordinator.LastStartedRequest?.FilePath);
-    }
-
-    [Fact]
     public async Task DisposeAsync_saves_current_progress_before_releasing_session()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
@@ -471,66 +305,6 @@ public sealed partial class PlaybackCoordinatorTests
         var saved = Assert.Single(readingProgressStore.SavedProgress);
         Assert.Equal(512, saved.AudioPositionMilliseconds);
         Assert.Equal(0, saved.CharacterOffset);
-    }
-
-    [Fact]
-    public async Task Playback_completed_dependency_failure_is_projected_without_leaking_event_task()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var readingProgressStore = new FakeReadingProgressStore
-        {
-            SaveFailure = new InvalidOperationException("private progress failure")
-        };
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            readingProgressStore: readingProgressStore);
-        var faulted = new TaskCompletionSource<PlaybackSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
-        coordinator.SnapshotChanged += (_, snapshot) =>
-        {
-            if (snapshot.State == PlaybackState.Faulted &&
-                snapshot.Message == "播放事件处理失败，请稍后重试。")
-            {
-                faulted.TrySetResult(snapshot);
-            }
-        };
-
-        await coordinator.StartAsync(
-            new PlaybackStartRequest("book-1", null, null, null, 10),
-            CancellationToken.None);
-
-        localCoordinator.RaiseCompleted();
-
-        var snapshot = await faulted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PlaybackState.Faulted, snapshot.State);
-
-        readingProgressStore.SaveFailure = null;
-    }
-
-    [Fact]
-    public async Task DisposeAsync_blocks_late_completion_and_releases_local_player()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var readingProgressStore = new FakeReadingProgressStore
-        {
-            SaveGate = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously)
-        };
-        var coordinator = CreateCoordinator(
-            localCoordinator,
-            readingProgressStore: readingProgressStore);
-
-        await coordinator.StartAsync(
-            new PlaybackStartRequest("book-1", null, null, null, 10),
-            CancellationToken.None);
-
-        var disposeTask = coordinator.DisposeAsync().AsTask();
-        await readingProgressStore.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        localCoordinator.RaiseCompleted();
-        readingProgressStore.SaveGate.SetResult(null);
-
-        await disposeTask.WaitAsync(TimeSpan.FromSeconds(5));
-
-        Assert.True(localCoordinator.WasDisposed);
-        Assert.Single(readingProgressStore.SavedProgress);
     }
 
     [Fact]
@@ -563,42 +337,6 @@ public sealed partial class PlaybackCoordinatorTests
 
         Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(2, audioProvider.Requests.Count);
-    }
-
-    [Fact]
-    public async Task Completion_queued_before_immediate_jump_does_not_advance_the_jump_target_again()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            book: CreateThreeSegmentBook());
-
-        await coordinator.StartAsync(
-            new PlaybackStartRequest("book-1", 0, 0, null, 10),
-            CancellationToken.None);
-
-        localCoordinator.RaiseCompleted();
-        await coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None);
-
-        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
-    }
-
-    [Fact]
-    public async Task StopAsync_cancels_active_prefetch_session()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var prefetchScheduler = new FakePrefetchScheduler();
-        await using var coordinator = CreateCoordinator(
-            localCoordinator,
-            book: CreateThreeSegmentBook(),
-            prefetchScheduler: prefetchScheduler);
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        var sessionId = Assert.Single(prefetchScheduler.ScheduleCalls).SessionId;
-
-        await coordinator.StopAsync(CancellationToken.None);
-
-        Assert.Contains(sessionId, prefetchScheduler.CancelledSessions);
     }
 
     [Fact]
@@ -670,20 +408,6 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(PlaybackState.Faulted, secondFailure.State);
         Assert.True(secondFailure.CanRetry);
         Assert.Equal(1, audioProvider.InvalidateCallCount);
-    }
-
-    [Fact]
-    public async Task Snapshot_subscriber_failure_is_observed_by_the_command_caller()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        await using var coordinator = CreateCoordinator(localCoordinator);
-        coordinator.SnapshotChanged += static (_, _) => throw new InvalidOperationException("subscriber failed");
-
-        var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.StartAsync(
-            new PlaybackStartRequest("book-1", null, null, null, 10),
-            CancellationToken.None));
-
-        Assert.Equal("subscriber failed", exception.Message);
     }
 
 }

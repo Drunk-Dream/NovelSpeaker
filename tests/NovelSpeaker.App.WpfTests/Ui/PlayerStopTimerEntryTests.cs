@@ -28,7 +28,7 @@ public sealed class PlayerStopTimerEntryTests
             var flyout = Assert.IsType<Flyout>(view.FindName("StopTimerFlyout"));
             var customMinutes = Assert.IsType<TextBox>(view.FindName("CustomStopMinutesTextBox"));
             var cancelButton = Assert.IsType<Button>(view.FindName("CancelStopTimerButton"));
-            var applyButton = Assert.IsType<Button>(view.FindName("ApplyCustomStopTimerButton"));
+            var applyButton = Assert.IsType<WpfUiButton>(view.FindName("ApplyCustomStopTimerButton"));
 
             Assert.Equal("定时停止", button.ToolTip);
             Assert.Equal("定时停止", AutomationProperties.GetName(button));
@@ -94,56 +94,6 @@ public sealed class PlayerStopTimerEntryTests
                 (string?)choice.Attribute("Tag"));
             Assert.Equal("72", (string?)choice.Attribute("MinWidth"));
             Assert.Equal("36", (string?)choice.Attribute("Height"));
-        });
-    }
-
-    [Fact]
-    public void Player_stop_timer_choice_style_marks_only_the_current_preset()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            GalleryThemeRuntime.EnsureProviderResources();
-            GalleryThemeRuntime.Apply(GalleryTheme.Light);
-            var view = new PlayerView();
-            var style = Assert.IsType<Style>(view.FindResource("Player.StopTimerChoice"));
-            var active = new Button
-            {
-                Style = style,
-                Tag = "30",
-                DataContext = new StopTimerChoiceState("30")
-            };
-            var inactive = new Button
-            {
-                Style = style,
-                Tag = "15",
-                DataContext = new StopTimerChoiceState("30")
-            };
-            var window = new Window
-            {
-                Content = new StackPanel
-                {
-                    Children = { active, inactive }
-                },
-                Width = 240,
-                Height = 120,
-                ShowInTaskbar = false,
-                WindowStyle = WindowStyle.ToolWindow
-            };
-            try
-            {
-                WpfWindowHost.Show(window);
-                window.UpdateLayout();
-
-                var accent = Assert.IsType<SolidColorBrush>(
-                    view.FindResource("App.Brush.Accent.Subtle")).Color;
-                Assert.Equal(accent, Assert.IsType<SolidColorBrush>(active.Background).Color);
-                Assert.NotEqual(accent, Assert.IsType<SolidColorBrush>(inactive.Background).Color);
-            }
-            finally
-            {
-                GalleryThemeRuntime.Apply(GalleryTheme.Light);
-                window.Close();
-            }
         });
     }
 

@@ -47,7 +47,7 @@
                                 Command="{Binding CancelEditCommand}"
                                 Content="取消"
                                 AutomationProperties.Name="取消编辑" />
-                        <Button x:Name="SaveBookButton"
+                        <ui:Button x:Name="SaveBookButton"
                                 Style="{StaticResource App.Button.Primary}"
                                 Command="{Binding SaveCommand}"
                                 Content="保存"

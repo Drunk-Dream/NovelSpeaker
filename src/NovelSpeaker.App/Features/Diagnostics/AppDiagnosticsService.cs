@@ -87,8 +87,8 @@ public sealed class AppDiagnosticsService : IAppDiagnosticsService
             $".NET：{RuntimeInformation.FrameworkDescription}",
             $"主题：{settings.Theme}",
             $"日志级别：{settings.LogLevel}",
-            $"应用数据目录：{snapshot.AppDataDirectoryPath}",
-            $"日志目录：{snapshot.LogsDirectoryPath}");
+            "应用数据目录：已设置",
+            "日志目录：已设置");
     }
 
     public Task OpenAppDataDirectoryAsync(CancellationToken cancellationToken)

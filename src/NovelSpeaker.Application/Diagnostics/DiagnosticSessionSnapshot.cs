@@ -10,4 +10,5 @@ public sealed record DiagnosticSessionSnapshot(
     bool CaptureStopped,
     bool EndedUnexpectedly,
     string CurrentProcessInstanceId,
-    string? CaptureStoppedReason = null);
+    string? CaptureStoppedReason = null,
+    long CurrentProcessDroppedRecordCount = 0);

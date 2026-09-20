@@ -25,11 +25,12 @@ public sealed class BookFileStore : IBookFileStore
         IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var directory = Path.Combine(_directories.BooksDirectoryPath, bookId);
+        cancellationToken.ThrowIfCancellationRequested();
+        var directory = _pathResolver.ResolvePath(Path.Combine(_directories.BooksDirectoryPath, bookId));
         Directory.CreateDirectory(directory);
 
-        var finalPath = Path.Combine(directory, "content.txt");
-        var temporaryPath = Path.Combine(directory, "content.txt.tmp");
+        var finalPath = _pathResolver.ResolvePath(Path.Combine(directory, "content.txt"));
+        var temporaryPath = _pathResolver.ResolvePath(Path.Combine(directory, "content.txt.tmp"));
 
         await File.WriteAllTextAsync(temporaryPath, normalizedText, Utf8WithoutBom, cancellationToken);
         var encodedLength = Utf8WithoutBom.GetByteCount(normalizedText);

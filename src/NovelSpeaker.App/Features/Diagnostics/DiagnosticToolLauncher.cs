@@ -5,7 +5,7 @@ namespace NovelSpeaker.App.Features.Diagnostics;
 
 internal sealed class DiagnosticToolLauncher : IDiagnosticToolLauncher
 {
-    private readonly IDiagnosticSessionService _sessions;
+    private readonly DiagnosticRecordingController _recording;
     private readonly IDiagnosticSessionExportService _exports;
     private readonly IDiagnosticWindowCapture _windowCapture;
     private readonly IPresentationFileDialogService _fileDialogs;
@@ -13,17 +13,32 @@ internal sealed class DiagnosticToolLauncher : IDiagnosticToolLauncher
     private DiagnosticToolWindow? _window;
 
     public DiagnosticToolLauncher(
-        IDiagnosticSessionService sessions,
+        DiagnosticRecordingController recording,
         IDiagnosticSessionExportService exports,
         IDiagnosticWindowCapture windowCapture,
         IPresentationFileDialogService fileDialogs,
         TimeProvider timeProvider)
     {
-        _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+        _recording = recording ?? throw new ArgumentNullException(nameof(recording));
         _exports = exports ?? throw new ArgumentNullException(nameof(exports));
         _windowCapture = windowCapture ?? throw new ArgumentNullException(nameof(windowCapture));
         _fileDialogs = fileDialogs ?? throw new ArgumentNullException(nameof(fileDialogs));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+    }
+
+    public async Task RecoverAsync(CancellationToken cancellationToken)
+    {
+        await _recording.RecoverAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    internal DiagnosticToolWindow? CurrentWindow => _window;
+
+    public void OpenIfSessionActive()
+    {
+        if (_recording.Snapshot?.State == DiagnosticSessionState.Active)
+        {
+            Open();
+        }
     }
 
     public void Open()
@@ -36,7 +51,7 @@ internal sealed class DiagnosticToolLauncher : IDiagnosticToolLauncher
 
         var window = new DiagnosticToolWindow(
             new DiagnosticToolViewModel(
-                _sessions,
+                _recording,
                 _exports,
                 _windowCapture,
                 _fileDialogs,

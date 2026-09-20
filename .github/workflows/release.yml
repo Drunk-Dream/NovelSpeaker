@@ -131,8 +131,18 @@ jobs:
           if ($packagedTemporaryFiles) { throw "ZIP contains temporary file: $($packagedTemporaryFiles -join ', ')" }
           (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() + "  " + [System.IO.Path]::GetFileName($zip) | Out-File "$zip.sha256" -Encoding ascii
 
-      - name: Create GitHub release
+      - name: Create or update GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create '${{ github.ref_name }}' 'artifacts/*.zip' 'artifacts/*.sha256' --generate-notes --title 'NovelSpeaker ${{ github.ref_name }}'
+        run: |
+          $tag = '${{ github.ref_name }}'
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag 'artifacts/*.zip' 'artifacts/*.sha256' --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Failed to update GitHub release $tag." }
+          }
+          else {
+            gh release create $tag 'artifacts/*.zip' 'artifacts/*.sha256' --generate-notes --title "NovelSpeaker $tag"
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create GitHub release $tag." }
+          }

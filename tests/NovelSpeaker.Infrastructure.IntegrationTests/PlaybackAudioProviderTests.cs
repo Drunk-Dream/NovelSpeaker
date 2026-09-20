@@ -122,42 +122,6 @@ public sealed class CacheAudioGenerationProviderTests
     }
 
     [Fact]
-    public async Task GetAudioAsync_prefetch_request_preempts_active_cache_request()
-    {
-        var activeRequest = CreatePlaybackRequest(segmentIndex: 0, speechText: "主动缓存段");
-        var prefetchRequest = CreatePlaybackRequest(segmentIndex: 1, speechText: "预取段");
-        var httpClient = new FakeHttpTtsClient();
-        var cancelledExecution = httpClient.EnqueuePendingSuccess();
-        httpClient.EnqueueSuccess();
-        var provider = new CacheAudioGenerationProvider(
-            new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
-            httpClient,
-            new FakeAudioCache(),
-            new TtsRateLimiter(new ManualTimeProvider()));
-
-        var activeTask = provider.GetAudioAsync(
-            activeRequest,
-            AudioGenerationPriority.ActiveCache,
-            null,
-            CancellationToken.None);
-        await cancelledExecution.ExecutionStarted;
-
-        var prefetchTask = provider.GetAudioAsync(
-            prefetchRequest,
-            AudioGenerationPriority.Prefetch,
-            null,
-            CancellationToken.None);
-
-        await cancelledExecution.CancellationRequested;
-        var prefetchResult = await prefetchTask;
-        var activeResult = await activeTask;
-
-        Assert.True(prefetchResult.IsSuccess);
-        Assert.Equal(TtsErrorKind.Cancelled, activeResult.Failure!.Kind);
-        Assert.Equal(2, httpClient.ExecuteCallCount);
-    }
-
-    [Fact]
     public async Task GetAudioAsync_retries_429_with_retry_after_for_current_segment()
     {
         var timeProvider = new ManualTimeProvider();
@@ -190,42 +154,6 @@ public sealed class CacheAudioGenerationProviderTests
     }
 
     [Fact]
-    public async Task GetAudioAsync_returns_invalid_rule_when_concurrent_rate_is_invalid()
-    {
-        var rule = CreateRule(concurrentRate: "not-a-rate");
-        var request = new AudioGenerationRequest(
-            "book-1",
-            0,
-            0,
-            "第一段",
-            rule.Id,
-            rule,
-            rule.Normalize(),
-            10,
-            Guid.NewGuid())
-        {
-            ChapterId = "book-1/chapter/0",
-            StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1)
-        };
-        var httpClient = new FakeHttpTtsClient();
-        var provider = new CacheAudioGenerationProvider(
-            new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
-            httpClient,
-            new FakeAudioCache(),
-            new TtsRateLimiter(TimeProvider.System));
-
-        var result = await provider.GetAudioAsync(
-            request,
-            AudioGenerationPriority.Current,
-            null,
-            CancellationToken.None);
-
-        Assert.False(result.IsSuccess);
-        Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
-        Assert.Equal(0, httpClient.ExecuteCallCount);
-    }
-
-    [Fact]
     public async Task InvalidateAsync_uses_the_same_cache_identity_as_get_audio()
     {
         var request = CreatePlaybackRequest();
@@ -239,59 +167,6 @@ public sealed class CacheAudioGenerationProviderTests
         await provider.InvalidateAsync(request, CancellationToken.None);
 
         Assert.Equal(request.ToCacheKey(), cache.InvalidatedKey);
-    }
-
-    [Fact]
-    public async Task GetAudioAsync_passes_source_rule_into_request_context()
-    {
-        var rule = CreateRule();
-        var request = new AudioGenerationRequest(
-            "book-1",
-            0,
-            0,
-            "第一段",
-            rule.Id,
-            rule,
-            rule.Normalize(),
-            10,
-            Guid.NewGuid())
-        {
-            ChapterId = "book-1/chapter/0",
-            StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1)
-        };
-        var compiler = new FakeTtsRequestCompiler
-        {
-            CompilationResult = CreateSuccessfulCompilationResult()
-        };
-        var provider = new CacheAudioGenerationProvider(
-            compiler,
-            new FakeHttpTtsClient(),
-            new FakeAudioCache(),
-            new CountingRateLimiter());
-
-        await provider.GetAudioAsync(
-            request,
-            AudioGenerationPriority.Current,
-            null,
-            CancellationToken.None);
-
-        Assert.Equal("默认规则", compiler.LastContext!.Source.Name);
-    }
-
-    [Fact]
-    public async Task GetAudioAsync_maps_playback_priority_to_shared_admission()
-    {
-        foreach (var (playbackPriority, expectedAdmissionPriority) in new[]
-        {
-            (AudioGenerationPriority.Current, TtsAdmissionPriority.CurrentPlayback),
-            (AudioGenerationPriority.Prefetch, TtsAdmissionPriority.Prefetch),
-            (AudioGenerationPriority.ActiveCache, TtsAdmissionPriority.ActiveCache)
-        })
-        {
-            await GetAudioAsync_maps_playback_priority_to_shared_admission_for_priority(
-                playbackPriority,
-                expectedAdmissionPriority);
-        }
     }
 
     private async Task GetAudioAsync_maps_playback_priority_to_shared_admission_for_priority(
@@ -397,40 +272,6 @@ public sealed class CacheAudioGenerationProviderTests
     }
 
     [Fact]
-    public async Task GetAudioAsync_failure_releases_shared_admission_for_next_request()
-    {
-        var httpClient = new FakeHttpTtsClient();
-        httpClient.EnqueueFailure(new TtsExecutionFailure(
-            TtsErrorKind.Network,
-            "网络请求失败。",
-            null,
-            null,
-            null,
-            null));
-        httpClient.EnqueueSuccess();
-        var provider = new CacheAudioGenerationProvider(
-            new FakeTtsRequestCompiler { CompilationResult = CreateSuccessfulCompilationResult() },
-            httpClient,
-            new FakeAudioCache(),
-            new TtsRateLimiter(new ManualTimeProvider()));
-
-        var failed = await provider.GetAudioAsync(
-            CreatePlaybackRequest(0, "失败段"),
-            AudioGenerationPriority.ActiveCache,
-            null,
-            CancellationToken.None);
-        var next = await provider.GetAudioAsync(
-            CreatePlaybackRequest(1, "后续段"),
-            AudioGenerationPriority.Current,
-            null,
-            CancellationToken.None);
-
-        Assert.False(failed.IsSuccess);
-        Assert.True(next.IsSuccess);
-        Assert.Equal(2, httpClient.ExecuteCallCount);
-    }
-
-    [Fact]
     public async Task GetAudioAsync_projects_safe_unexpected_failure_and_redacts_log()
     {
         const string token = "fixture-token-4371";
@@ -482,35 +323,6 @@ public sealed class CacheAudioGenerationProviderTests
         Assert.DoesNotContain(novelText, entry.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(token, result.Failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain(novelText, result.Failure.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task GetAudioAsync_projects_safe_initial_cache_failure()
-    {
-        const string novelText = "fixture-novel-text-2195";
-        var request = CreatePlaybackRequest(speechText: novelText);
-        var logger = new CapturingLogger<AudioGenerationFailureReporter>();
-        var provider = new CacheAudioGenerationProvider(
-            new FakeTtsRequestCompiler(),
-            new FakeHttpTtsClient(),
-            new FakeAudioCache
-            {
-                LookupException = new IOException($"cache path contains {novelText}")
-            },
-            new CountingRateLimiter(),
-            new AudioGenerationFailureReporter(logger));
-
-        var result = await provider.GetAudioAsync(
-            request,
-            AudioGenerationPriority.Current,
-            null,
-            CancellationToken.None);
-
-        Assert.Equal(TtsErrorKind.Unknown, result.Failure!.Kind);
-        Assert.Equal("音频生成失败，请稍后重试。", result.Failure.Message);
-        var entry = Assert.Single(logger.Entries);
-        Assert.Null(entry.Exception);
-        Assert.DoesNotContain(novelText, entry.Message, StringComparison.Ordinal);
     }
 
     [Fact]

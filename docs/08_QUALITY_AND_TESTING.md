@@ -2,146 +2,203 @@
 
 ## 1. 目标
 
-测试用于保护稳定行为、数据安全和架构边界，不用于冻结旧内部实现。允许随着架构重构删除、合并或重写实现细节测试。
+测试用于保护 **NovelSpeaker 的核心产品契约**，而不是证明每个实现细节都保持不变。
 
-衡量标准：
+长期测试资产应满足以下目标：
 
-- 关键风险是否覆盖；
-- 测试是否处在正确层级；
-- 是否依赖私有实现；
-- 是否支持继续重构；
-- WPF 自动测试是否安全隔离；
-- 自动验收是否足以让 Agent 无需人工等待即可继续。
+- 核心用户流程发生真实回归时能够尽快失败；
+- 数据安全、持久化兼容和关键安全边界得到保护；
+- 少量重要架构边界能够持续自动检查；
+- 测试允许内部实现、UI 结构和局部交互细节正常演进；
+- 自动验收能够让 Agent 在不等待人工验收的情况下继续工作。
 
-## 2. 测试层级
+测试数量、覆盖率和“每次改代码都新增测试”都不是目标。已有测试与已确认的产品/架构调整冲突时，先判断测试是否仍保护核心契约；不再有长期价值的测试应删除、合并或重写，不得为了维持旧测试而保留旧实现。
+
+## 2. 永久测试的准入标准
+
+新增或保留一个永久自动测试前，至少满足以下一项：
+
+1. 行为失效会使核心用户流程不可用或明显错误；
+2. 可能导致用户数据丢失、损坏、错误覆盖或兼容性破坏；
+3. 涉及持久化 migration、文件路径、安装布局、权限或其他高风险边界；
+4. 守护一个长期明确且重要的架构边界；
+5. 曾发生严重且具有现实复发风险的回归，并且现有更高层核心测试无法有效发现。
+
+同时必须满足：
+
+- 断言面向稳定、用户可观察或长期架构契约；
+- 不重复已有更高层测试已经覆盖的风险；
+- 不依赖无必要的调用次数、私有类型、资源顺序、Visual Tree 形状、精确像素值或其他实现细节。
+
+如果不能说明“这个测试失败代表哪个核心能力或高风险边界坏了”，默认不应成为永久测试。
+
+## 3. 不应长期测试的内容
+
+除非它们本身构成明确产品契约，以下内容默认不建立永久测试：
+
+- UI 微调、圆角、边距、具体颜色、精确尺寸和控件排列；
+- XAML 资源 Key 的顺序、Setter 顺序、具体模板组成和 BasedOn 路径；
+- ViewModel/Service 内部调用顺序或精确调用次数；
+- 私有类、局部 helper、内部 DTO 和可自由重构的数据投影形状；
+- getter/setter、简单映射或框架本身已经保证的行为；
+- 重命名、提取方法、目录调整等行为保持型重构；
+- 仅为了提高覆盖率或让修改“看起来有测试”的断言。
+
+非核心改动默认不新增永久测试。已有细粒度测试若因此失败，应先检查它是否在锁定实现细节；若核心行为仍正确，可以删除或重写该测试。
+
+## 4. 临时测试
+
+为了理解问题、复现 Bug、验证重构假设或证明某个实现方案，可以建立 **临时测试**。
+
+临时测试可以比永久测试更贴近内部实现，但必须遵守：
+
+- 明确只用于当前任务的诊断或验证；
+- 不把临时断言包装成新的长期产品契约；
+- 使用完成后必须删除；
+- 任务完成、Review 和提交前不得遗留临时测试、临时 fixture、临时脚本或专用测试入口；
+- 如果临时测试暴露的是值得长期保护的核心回归，应重新按“永久测试准入标准”设计成稳定的行为测试，而不是直接原样保留。
+
+## 5. 推荐开发方式
+
+对于新增或修改 **核心行为**、修复 **核心回归** 时，推荐采用 test-first/TDD：
+
+1. 先用最小测试描述需要保护的稳定行为；
+2. 确认测试能够在旧实现上失败；
+3. 实现最小修复或功能；
+4. 使核心测试通过；
+5. 重构而不扩大测试对实现细节的绑定。
+
+TDD 是推荐方法，不是强制流程。Agent 可以根据任务性质选择更合适的方式，例如先做静态分析、最小运行复现、临时测试或直接实现后运行既有核心回归。
+
+无论采用哪种方式，都不得因为“使用 TDD”而为非核心细节新增永久测试。
+
+## 6. 核心长期回归范围
+
+### 6.1 核心用户流程
+
+长期测试优先保护：
+
+- 书籍导入、打开和基本书库读取；
+- 播放开始、暂停、恢复；
+- 显式切章、切段和阅读进度保存/恢复；
+- 代表性的 TTS 规则解析与请求流程；
+- 缓存生成、读取、失效和删除；
+- 章节/缓存等正式导出路径。
+
+同一核心流程优先用较高层、行为导向的少量测试覆盖，不把一个正常流程拆成大量内部状态微测试。
+
+### 6.2 数据与兼容性
+
+长期保护：
+
+- 已发布 SQLite migration 与关键持久化兼容；
+- 用户外部 TXT 不被修改；
+- Cache identity 和必要的数据一致性；
+- 数据根信任边界，包括 Scoop 等 Data-root Junction；
+- 数据根内部 reparse-point 逃逸必须拒绝；
+- 对用户数据有风险的原子写入/替换语义。
+
+### 6.3 关键架构边界
+
+Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例如：
+
+1. Domain / Application / Infrastructure / App 的依赖方向；
+2. Application 不依赖 WPF 或 Infrastructure 具体实现；
+3. 关键模块不形成循环依赖；
+4. 关键 mutable state 只有一个权威 owner；
+5. 不新增 Service Locator 或通用 EventBus/Messenger；
+6. 存储信任边界只有一个权威实现；
+7. Observability 不向业务层泄露 Infrastructure store 类型。
+
+不要为 architecture test 检测器自身建立大量穷举式 parser/语法边界测试；只保留足以证明规则有效的代表性 contract tests。
+
+### 6.4 Observability 与 Diagnostics
+
+长期测试保护产品级行为：
+
+- Logging / Telemetry / Diagnostics 失败不使业务失败；
+- 性能遥测默认关闭并可开关/清除；
+- 诊断会话可以 Start → Marker → End；
+- Active Session 能够完成必要的跨正常重启恢复；
+- hard cap 等核心容量边界生效；
+- 普通诊断和问题诊断能够产生有效导出；
+- 隐私边界和用户主动截图例外不被突破。
+
+内部 queue pressure 的每一种中间状态、所有投影字段、具体 writer 调度方式和 UI 显示细节默认不形成永久测试合同。
+
+## 7. 各测试层职责
+
+现有 Domain / Application / Infrastructure Integration / Presentation / WPF 测试项目可以继续使用，但不要求每层都对每次改动增加测试。
 
 ### Domain / Application
 
-验证业务规则、use case、Playback session/checkpoint、Cache/background coordinator、query/projection、cancellation/version、Observability contract 等。不实例化真实 WPF。
+保护稳定业务规则和核心 use case。优先纯逻辑、低维护成本的行为测试。
 
 ### Infrastructure Integration
 
-验证 SQLite migration/query、文件/路径、HTTP/TTS、Jint、NAudio、cache index/file、JSONL、诊断 SQLite store、真实序列化和导出。
+只对真实基础设施风险保留集成测试，例如 migration、关键 SQLite 行为、文件/路径边界、HTTP/TTS、缓存持久化、正式导出和诊断持久化。
 
 ### Presentation
 
-验证 ViewModel state、command、activation/deactivation、staged loading、snapshot/read-model projection、诊断工具状态和迟到结果。不得因为方便加载真实 Window。
+只保护关键页面状态流、命令和生命周期中会影响核心功能的行为。不要把 ViewModel 的内部调用顺序、辅助文案或每个投影字段都固定为永久合同。
 
 ### WPF
 
-只验证依赖 WPF 的 navigation composition、binding、virtualization、focus、popup/dialog、layout/hit testing、scrolling/locator、style/resource/theme、悬浮诊断工具窗口和主动当前窗口截图边界。
+WPF 自动测试必须非常克制，只用于确实依赖 WPF 才能验证的核心行为，例如：
 
-## 3. 长期必须保护
+- 核心页面能够创建且关键 binding 未断；
+- 关键 navigation composition；
+- 必要的 Window/Popup/Dialog 生命周期；
+- 关键 focus/hit-testing/virtualization 行为确实影响核心可用性；
+- 隔离 Desktop 与 fail-closed 边界。
 
-- PlaybackSnapshot 与 ReadingProgress checkpoint 语义。
-- 显式切章/切段成功、失败和取消。
-- 强类型 navigation/ReturnRoute。
-- Active Cache / Export / Repair owner 生命周期。
-- SQLite migration。
-- Cache identity / plan / coverage。
-- 外部 TXT 路径安全。
-- TTS 脚本安全、请求编译与限流。
-- 大列表结构合同。
-- WPF hidden Desktop fail-closed。
-- Light/Dark/System 和关键视觉交互。
-- Logging / Telemetry / Diagnostics 失败不影响业务。
-- 诊断隐私边界与主动截图例外。
-- 诊断 Session 跨进程继续、用户结束、容量上限和导出。
+样式细节、资源结构、精确像素和大部分视觉变化默认不做永久自动测试。Style Gallery、截图和人工视觉检查可以作为开发工具或可选验收，但不是核心自动门禁。
 
-## 4. Architecture Fitness Tests
-
-长期守护：
-
-1. 四层依赖方向。
-2. Application 模块无 cycle。
-3. App 非 Bootstrap 不直接依赖 Infrastructure。
-4. Shared 不依赖 Feature，Feature 无双向依赖。
-5. ordinary Page/ViewModel 默认不注册 Singleton。
-6. ViewModel/Feature controller 不使用 Service Locator。
-7. 不新增通用 EventBus/Messenger。
-8. Application 不引用 WPF。
-9. 页面不直接写 ReadingProgress。
-10. Playback mutable session state 只有指定 owner。
-11. Cache 不反向依赖 Playback session truth。
-12. Observability API 不泄露 Infrastructure store 类型。
-13. Logging、Telemetry、Diagnostic Session writer/store 不互相依赖。
-14. 内部 migration compatibility wrapper/Obsolete bridge 不长期留存。
-
-Architecture tests 不使用绝对毫秒阈值。
-
-## 5. 大列表与性能回归
-
-结构性自动测试优先验证：
-
-- staged loading 首帧不等待 enrichment；
-- current/cache change 只更新必要范围；
-- 大列表不产生 N 次同步 collection add；
-- locator 完成后解除临时订阅；
-- 页面离开后旧 enrichment 失效。
-
-真实规模回归保留 180 / 1000 / 3000+ / 10000 章节场景，并观察首帧、Dispatcher、locator、cache decoration、memory、SQLite 和必要的普通性能遥测。
-
-真实耗时用于诊断与比较，不作为脆弱固定毫秒门槛。
-
-## 6. Observability 测试原则
-
-生产日志：
-
-- schema 与 EventId 稳定；
-- queue overflow 不阻塞业务；
-- rotation/retention；
-- Exception 序列化与隐私清理；
-- 写入失败降级。
-
-性能遥测：
-
-- 默认关闭；
-- 开关/清除；
-- 稀疏窗口与可合并统计；
-- retention/capacity；
-- 导出不错误合并版本/不同指标合同。
-
-诊断会话：
-
-- Start 前不采集；
-- Active Session 跨正常重启和 Unexpected process end；
-- End 后不可续写；
-- Marker 前后数据和 snapshot；
-- Session 内匿名对象不可反向映射真实 ID；
-- 主动截图只捕获 NovelSpeaker 窗口且仅由用户操作触发；
-- 达到硬容量上限停止采集；
-- `.nsdiag` 与关联日志可导出；
-- Diagnostics store 失败不影响业务。
-
-## 7. WPF 隔离 Desktop
+## 8. WPF 隔离 Desktop
 
 默认自动测试不得在用户当前 Desktop 显示顶层窗口。
 
-- 普通 Page/UserControl 优先无顶层 Window host。
-- 真实 Window/Popup/Focus/HWND 生命周期使用 `tests/TestKit/Wpf` 隔离 Desktop。
-- 隔离初始化失败 fail closed，不回退当前 Desktop。
+- 普通 Page/UserControl 优先无顶层 Window host；
+- 确实需要真实 Window/Popup/Focus/HWND 生命周期的核心测试使用 `tests/TestKit/Wpf` 隔离 Desktop；
+- 隔离初始化失败 fail closed，不回退当前 Desktop；
 - 未经当前任务明确授权，不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
-- 生成视觉验收产物不等于允许显示窗口。
 
-## 8. 异步与时间
+不得仅因为现有 WPF harness 已经存在，就为非核心 UI 细节继续增加 WPF 自动测试。
 
-- 使用事件、状态版本、barrier/gate 或可控 TimeProvider。
-- 不用固定 `Thread.Sleep`/任意 `Task.Delay` 猜测完成。
-- cancellation 是正常控制流。
-- 测试观察所有 background owner/fire-and-forget 的异常。
+## 9. 异步与压力测试
 
-## 9. 人工验收
+只有当异步、并发或压力本身是核心风险时才建立永久测试。
 
-人工视觉/交互验收始终属于**可选补充**：
+- 优先事件、状态版本、barrier/gate、可控 TimeProvider 或可控 bounded queue；
+- 不用固定 `Thread.Sleep` / 任意 `Task.Delay` 猜测完成；
+- cancellation 视为正常控制流；
+- 不用绝对毫秒阈值冻结机器性能；
+- 针对一次实现调查所需的高强度/内部状态测试可以作为临时测试，任务结束前删除。
 
-- 不作为 Task 完成条件。
-- 不阻塞 Agent 执行下一任务。
-- 不要求用户批准后才可提交自动验证通过的任务。
-- 后续人工发现问题时，新建修复 Task 并补充自动回归测试。
+## 10. 处理测试失败
 
-Agent 可以自行生成截图或视觉产物进行自动/静态辅助验收，但任务通过后删除一次性产物。
+当代码修改导致已有测试失败时，按以下顺序处理：
 
-## 10. 完整质量门禁
+1. 判断核心产品行为、数据安全或架构边界是否真的回归；
+2. 如果真实核心行为回归，修复生产代码；
+3. 如果产品/架构调整是有意的，更新对应核心测试；
+4. 如果失败测试只锁定旧实现或非核心细节，删除、合并或重写测试；
+5. 禁止仅为了让旧测试变绿而恢复已经不需要的旧 API、兼容 wrapper、旧 UI 结构或重复实现。
+
+**测试本身不是产品需求来源。**
+
+## 11. 人工验收
+
+人工视觉/交互验收始终属于可选补充：
+
+- 不作为 Task 完成条件；
+- 不阻塞 Agent 执行下一任务；
+- 不要求用户批准后才可提交自动验证通过的任务；
+- 人工发现问题后，根据风险决定是否需要永久核心回归测试；非核心问题不因“曾经出现过”就自动获得永久测试。
+
+## 12. 自动质量门禁
+
+默认完整门禁仍包括：
 
 ```powershell
 dotnet restore --locked-mode -r win-x64
@@ -150,6 +207,6 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
-任务可以使用 focused tests 加快迭代；是否要求完整门禁由 task spec 指定。一个 Phase 的最终收口任务应执行完整门禁。
+完整门禁用于确认当前保留的核心测试全部通过，不代表测试数量越多越好。
 
-环境导致 testhost/网络/沙箱阻塞时如实记录；禁止删测试、弱化架构规则、开启可见 Desktop 或绕过隔离来制造绿色。
+任务开发阶段优先运行与风险匹配的 focused tests。是否需要在每个任务切片都执行完整 `dotnet test` 由任务风险决定；阶段收口、发布和测试体系改造完成时执行完整门禁。

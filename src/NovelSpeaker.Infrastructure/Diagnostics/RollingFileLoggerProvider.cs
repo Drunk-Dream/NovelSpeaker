@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Application.Speech.Security;
+using NovelSpeaker.Infrastructure.FileSystem;
 
 namespace NovelSpeaker.Infrastructure.Diagnostics;
 
@@ -33,6 +34,7 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider, IAsyncDisposabl
     private readonly Channel<LogWorkItem> _normalPriorityQueue;
     private readonly SemaphoreSlim _queueSignal;
     private readonly string _logDirectoryPath;
+    private readonly IAppStoragePathResolver _pathResolver;
     private readonly long _maxFileBytes;
     private readonly long _maxTotalBytes;
     private readonly TimeSpan _retention;
@@ -55,7 +57,8 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider, IAsyncDisposabl
         long maxTotalBytes = DefaultMaxTotalBytes,
         int queueCapacity = DefaultQueueCapacity,
         int retentionDays = DefaultRetentionDays,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IAppStoragePathResolver? pathResolver = null)
     {
         ArgumentNullException.ThrowIfNull(directories);
         ArgumentOutOfRangeException.ThrowIfLessThan(maxFileBytes, 1);
@@ -63,7 +66,8 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider, IAsyncDisposabl
         ArgumentOutOfRangeException.ThrowIfLessThan(queueCapacity, 2);
         ArgumentOutOfRangeException.ThrowIfLessThan(retentionDays, 1);
 
-        _logDirectoryPath = directories.LogsDirectoryPath;
+        _pathResolver = pathResolver ?? new AppStoragePathResolver(directories);
+        _logDirectoryPath = _pathResolver.ResolvePath(directories.LogsDirectoryPath);
         _maxFileBytes = maxFileBytes;
         _maxTotalBytes = maxTotalBytes;
         _retention = TimeSpan.FromDays(retentionDays);
@@ -467,14 +471,15 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider, IAsyncDisposabl
 
     private FileState OpenFile(DateTime date, long pendingByteCount, string? excludedPath = null)
     {
-        Directory.CreateDirectory(_logDirectoryPath);
+        var logDirectoryPath = _pathResolver.ResolvePath(_logDirectoryPath);
+        Directory.CreateDirectory(logDirectoryPath);
         var index = 0;
         string path;
         do
         {
-            path = Path.Combine(
-                _logDirectoryPath,
-                $"novelspeaker-{date:yyyyMMdd}-{index:000}.jsonl");
+            path = _pathResolver.ResolvePath(Path.Combine(
+                logDirectoryPath,
+                $"novelspeaker-{date:yyyyMMdd}-{index:000}.jsonl"));
             index++;
         }
         while (File.Exists(path) &&
@@ -491,8 +496,9 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider, IAsyncDisposabl
 
     private void ApplyRetention(DateTime currentDate, string activePath, string? previousPath = null)
     {
-        var files = Directory.EnumerateFiles(_logDirectoryPath, "novelspeaker-*.jsonl")
-            .Select(path => new FileInfo(path))
+        var logDirectoryPath = _pathResolver.ResolvePath(_logDirectoryPath);
+        var files = Directory.EnumerateFiles(logDirectoryPath, "novelspeaker-*.jsonl")
+            .Select(path => new FileInfo(_pathResolver.ResolvePath(path)))
             .OrderBy(info => info.LastWriteTimeUtc)
             .ToList();
         var cutoff = currentDate - _retention;
@@ -523,11 +529,11 @@ public sealed class RollingFileLoggerProvider : ILoggerProvider, IAsyncDisposabl
         path.Equals(activePath, StringComparison.OrdinalIgnoreCase) ||
         (previousPath is not null && path.Equals(previousPath, StringComparison.OrdinalIgnoreCase));
 
-    private static bool TryDelete(string path)
+    private bool TryDelete(string path)
     {
         try
         {
-            File.Delete(path);
+            File.Delete(_pathResolver.ResolvePath(path));
             return true;
         }
         catch

@@ -27,8 +27,8 @@ public static class OperationCatalog
 
     public static OperationDefinition UiDispatcherStall { get; } = Create(
         "ui.dispatcher-stall",
-        "UI dispatcher work",
-        "A UI dispatcher callback waits or runs before returning to the message loop.");
+        "UI dispatcher stall",
+        "An explicitly detected dispatcher wait that exceeds the observer's abnormal-wait threshold; ordinary dispatch is excluded.");
 
     public static OperationDefinition PlaybackStart { get; } = Create(
         "playback.start",
@@ -60,6 +60,11 @@ public static class OperationCatalog
         "Storage query",
         "A stable application storage query is executed.");
 
+    public static OperationDefinition DiagnosticsAction { get; } = Create(
+        "diagnostics.action",
+        "Diagnostics action",
+        "A user-visible diagnostic operation is executed.");
+
     public static IReadOnlyList<OperationDefinition> All { get; } = Array.AsReadOnly(
     [
         AppStartup,
@@ -72,7 +77,8 @@ public static class OperationCatalog
         TtsRequest,
         TtsRetry,
         CacheOperation,
-        StorageQuery
+        StorageQuery,
+        DiagnosticsAction
     ]);
 
     private static OperationDefinition Create(string id, string name, string description) =>

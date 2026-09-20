@@ -1,11 +1,11 @@
 ---
 name: release-version
-description: 为 NovelSpeaker 执行完整版本发布：检查 gh/认证与仓库状态，判断 SemVer 版本并更新 Directory.Build.props，运行质量门禁，按 fast-forward-if-possible 策略处理 main/master 或 PR，打 tag 触发 Release CI，验证发布资产、更新 Release Note，并按分支类型完成发布后收尾。用户明确调用本 Skill 即授权完成该发布所需的版本提交、push、PR 创建/合并、tag 推送和 Release Note 更新；用户当前请求中的特殊限制始终优先。
+description: 为 NovelSpeaker 执行完整版本发布：检查 gh/认证与仓库状态，判断 SemVer 版本并更新 Directory.Build.props，运行质量门禁，通过标准 PR 流程合并到 main/master，打 tag 触发 Release CI，并在可判定为测试问题时修复后继续，验证发布资产、更新 Release Note，并按分支类型完成发布后收尾。用户明确调用本 Skill 即授权完成该发布所需的版本提交、push、PR 创建/合并、tag 推送和 Release Note 更新；用户当前请求中的特殊限制始终优先。
 ---
 
 # NovelSpeaker 版本发布
 
-本 Skill 只负责正式版本发布流程。发布包构建、内容校验和 GitHub Release 初始创建以 `.github/workflows/release.yml` 为唯一执行来源，不在 Skill 中复制其文件清单。
+本 Skill 只负责正式版本发布流程。发布包构建、内容校验和 GitHub Release 的创建/更新以 `.github/workflows/release.yml` 为唯一执行来源，不在 Skill 中复制其文件清单。
 
 用户当前请求中的版本号、分支、合并方式、是否保留分支、Release Note 风格或其它特殊要求优先于本 Skill 的默认值。若用户要求与仓库安全约束冲突，先说明并停止有风险的步骤。
 
@@ -14,15 +14,17 @@ description: 为 NovelSpeaker 执行完整版本发布：检查 gh/认证与仓�
 用户明确调用 `release-version` Skill，即视为授权本次发布所必需的：
 
 - 修改并提交版本配置；
+- 修复本次发布直接暴露的、可确认属于测试或测试基础设施的问题，并为此更新发布分支/PR；
+- 修复本次发布直接暴露的、局部且低风险的源码问题，并为此更新发布分支/PR；
 - push 当前发布分支；
 - 创建或复用指向主分支的 PR；
-- 按本 Skill 规则完成 PR 合并；
-- 创建并 push 发布 tag；
+- 按本 Skill 规则完成 PR 合并；不直接 push main/master；
+- 创建并 push 发布 tag，或在本次发布失败恢复中按本 Skill 规则安全移动该 tag；
 - 等待并读取 GitHub Actions / Release 状态；
-- 使用 `gh release edit` 更新最终 Release Note；
+- 使用 `gh release edit` 更新最终 Release Note，必要时使用 workflow 更新已有 Release 的资产；
 - 按本 Skill 规则同步、保留或删除本次发布分支。
 
-该授权不包含与发布无关的代码修改、强制改写远端历史、删除失败发布的 tag、绕过失败检查或处理其它仓库。
+该授权不包含与发布无关的代码修改、主分支强制改写、删除 tag/Release、绕过失败检查或处理其它仓库。唯一例外是第 9 节为修复本次发布问题而对本次 release tag 执行带远端旧 SHA 保护的强制更新；不得使用无条件 `--force`，不得删除后重建远端 tag。
 
 ## 1. 前置检查
 
@@ -49,8 +51,11 @@ description: 为 NovelSpeaker 执行完整版本发布：检查 gh/认证与仓�
 7. 通过远端默认分支确定发布主分支：
    - 默认分支为 `main` 或 `master` 时使用它；
    - 其它名称只有在用户明确指定时使用，否则停止并询问。
-8. 确认 `.github/workflows/release.yml` 存在，并检查其 tag 触发/版本约束仍与本 Skill 假设兼容。
-9. 检查当前分支和远端同名分支是否存在异常偏离；记录发布开始时的远端 source SHA，供发布后判断分支是否被别人追加提交。
+8. 当前分支不得是发布主分支。
+   - 发布提交必须从非主分支通过 PR 进入 `main/master`；
+   - 如果当前分支是 `main/master`，立即停止并要求用户切换到发布源分支；不得先修改版本文件，也不得隐式创建临时分支。
+9. 确认 `.github/workflows/release.yml` 存在，并检查其 tag 触发/版本约束以及“已有 Release 时更新资产”的恢复路径仍与本 Skill 假设兼容。
+10. 检查当前分支和远端同名分支是否存在异常偏离；记录发布开始时的远端 source SHA，供发布后判断分支是否被别人追加提交。
 
 任何前置检查失败都不得创建版本提交、PR 或 tag。
 
@@ -69,7 +74,7 @@ description: 为 NovelSpeaker 执行完整版本发布：检查 gh/认证与仓�
    - `git log`
    - `git diff`
    - 用户可见行为、兼容性和迁移变化。
-5. 当前分支不是主分支时，版本判断不能只看 source 分支；还要考虑 `origin/<main>` 自 `previous_tag` 以来已经存在、最终也会进入 Release 的提交。
+5. 版本判断不能只看 source 分支；还要考虑 `origin/<main>` 自 `previous_tag` 以来已经存在、最终也会进入 Release 的提交。
 
 若 `previous_tag..待发布内容` 没有任何提交，默认停止，不创建空版本；用户明确要求仍发布时除外。
 
@@ -91,7 +96,7 @@ description: 为 NovelSpeaker 执行完整版本发布：检查 gh/认证与仓�
 - `release_version = X.Y.Z`
 - `release_tag = vX.Y.Z`
 
-并确认远端不存在同名 tag/Release。
+并确认远端不存在同名 tag/Release。若当前执行明确是在恢复本次已记录的失败发布，则可以存在同名 tag/Release，但必须记录其当前 tag commit，并确认它属于本次发布尝试；不能把其它历史发布的同名 tag 当作恢复目标。
 
 ## 4. 更新版本配置
 
@@ -128,7 +133,24 @@ dotnet test -c Release --no-build
 - 不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`；
 - 若门禁修改了非预期文件，先调查并重新验证。
 
-门禁失败时停止发布，不创建 tag，不绕过检查。本 Skill 不顺带修复与版本发布无关的代码缺陷。
+### 5.1 CI 失败分类与恢复
+
+本地门禁或 GitHub Actions 失败时，不默认立即终止。先读取失败 job、测试名称、日志和必要的重跑结果，判断失败属于哪一类：
+
+1. **测试或测试基础设施问题**：例如测试之间共享临时目录/端口/文件、并发清理竞态、固定延时导致的时序失败、fixture 隔离错误、测试断言与已确认的产品契约不一致、WPF 测试宿主清理问题或测试 workflow 配置问题。确认不是生产行为错误后，修复测试、fixture 或测试基础设施，不能仅通过删除测试、放宽断言、关闭并发或屏蔽失败来“修绿”。
+2. **明确且局部的源码问题**：如果证据表明是源码功能/逻辑问题，但修复范围小、行为明确、风险低且可以由现有测试验证，可以在发布源分支修复，重新执行完整门禁并继续。
+3. **复杂、影响范围不清或需要产品取舍的源码问题**：停止发布，保留现场，向用户报告失败证据和可选方案，等待用户决策。
+4. **无法分类或疑似外部 runner/网络问题**：先进行有限次数的针对性重跑；若仍无法证明是仓库内测试问题，则停止并报告，不自行修改产品或绕过检查。
+
+每次获准修复后都必须：
+
+- 先运行针对失败的 focused check，确认假设成立；
+- 提交修复并更新 PR/source 分支；
+- 重新执行完整发布前门禁和相关 GitHub checks；
+- 将最新、已验证的 source tip 更新为新的 `release_source_sha`；
+- 只有所有 required checks 通过后才继续合并或发布。
+
+门禁失败不允许被静默忽略。测试问题修复完成后继续流程；复杂或不确定的源码问题仍然停止。本 Skill 不修复与本次发布无关的缺陷。
 
 ## 6. 创建版本提交
 
@@ -141,22 +163,13 @@ dotnet test -c Release --no-build
 chore(release): prepare vX.Y.Z
 ```
 
-3. 记录该提交及当前 source HEAD 为 `release_source_sha`。
+3. 记录该提交及当前 source HEAD 为 `release_source_sha`。若后续按第 5.1 节提交了获准修复，则以最后一个已通过完整门禁的 source tip 更新该值。
 4. 若当前分支远端存在，push 前确认远端没有从发布开始后新增未知提交。
 5. 不使用 force push。
 
-## 7. 当前分支就是 main/master
+## 7. 通过标准 PR 流程合并
 
-若 `original_branch == main_branch`：
-
-1. 确认本地 main/master 基于最新 `origin/<main>`，没有远端竞态。
-2. push 版本提交到 `origin/<main>`。
-3. push 失败或远端已前进时停止，重新 fetch 并重新评估发布范围；不得 force。
-4. 进入“最终主分支确认”。
-
-## 8. 当前分支不是 main/master：创建 PR
-
-### 8.1 Push 与 PR
+### 7.1 Push 与 PR
 
 1. push 当前 source 分支；无 upstream 时建立 upstream。
 2. 查找 `source -> main` 是否已有 open PR：
@@ -165,36 +178,21 @@ chore(release): prepare vX.Y.Z
 3. PR body 应简要说明目标版本、主要变更和已通过的本地门禁。
 4. 等待 PR checks 完成：
    - `gh pr checks <number> --watch` 或等价命令；
-   - 任一 required/实际质量检查失败则停止；
-   - 不绕过失败 checks。
+   - 任一 required/实际质量检查失败都按第 5.1 节分类处理；
+   - 测试问题修复后 push 并重新等待 checks；
+   - 不绕过失败 checks，也不在 checks 仍失败时合并。
 
-### 8.2 fast-forward-if-possible
+### 7.2 PR 合并
 
-始终保留 PR 中的原始 commits：**不 squash、不 rebase**。
+始终保留 PR 中的原始 commits，使用普通 merge commit：**不直接 push main/master，不 squash，不 rebase**。
 
-在合并前重新 `git fetch origin`，并确认 PR head 仍等于 `release_source_sha`。
+在合并前重新 `git fetch origin`，并确认 PR head 等于最新已验证的 `release_source_sha`。如果 PR head 发生变化，先确认变化只来自按第 5.1 节获准并已通过门禁的修复；否则停止并重新评估，不自动接受未知追加提交。
 
-判断 `origin/<main>` 是否为 `release_source_sha` 的 ancestor。
+使用：
 
-#### 可以 fast-forward
-
-如果主分支是 source 的祖先：
-
-1. 首选直接将远端主分支 fast-forward 到 `release_source_sha`。
-2. 该 push 必须是普通 non-force fast-forward。
-3. 如果仓库规则/权限拒绝直接更新主分支，则退回 `gh pr merge --merge`，允许生成 merge commit。
-4. fast-forward 成功后等待并检查 GitHub PR 状态，确认 PR 被识别为 merged。
-5. 如果 PR 没有进入可确认的 merged 状态，停止后续 tag 操作并报告，不把 open/closed PR 冒充 merged。
-
-#### 存在分叉
-
-如果 main 与 source 已分叉：
-
-1. 使用 `gh pr merge --merge`。
-2. 尽可能使用 head SHA guard，防止 PR 在检查后被追加提交。
-3. 不使用 `--squash`。
-4. 不使用 `--rebase`。
-5. 不在本地重写 source commits 来制造可快进历史。
+```bash
+gh pr merge <number> --merge --match-head-commit <release_source_sha>
+```
 
 合并后：
 
@@ -202,7 +200,9 @@ chore(release): prepare vX.Y.Z
 - 确认 `release_source_sha` 已 reachable from 主分支；
 - 确认 PR 状态为 merged。
 
-## 9. 最终主分支确认
+如果 PR 合并失败、检查未通过或无法确认 merged 状态，停止后续 tag 操作并报告，不把 open/closed PR 冒充 merged。
+
+## 8. 最终主分支确认
 
 在打 tag 前重新检查实际将发布的主分支：
 
@@ -213,17 +213,17 @@ chore(release): prepare vX.Y.Z
    - `git log previous_tag..final_main_sha`
    - `git diff previous_tag..final_main_sha`
 5. 确认 `Directory.Build.props` 在 `final_main_sha` 中就是 `release_version`。
-6. 若在 PR 合并/主分支 push 后又出现本次未分析的新 main 提交：
+6. 若在 PR 合并后又出现本次未分析的新 main 提交：
    - 停止；
    - 不打 tag；
    - 重新评估版本号与 Release 范围。
-7. 确认 `release_tag` 仍不存在。
+7. 新发布必须确认 `release_tag` 仍不存在；失败发布恢复必须确认已有 `release_tag` 仍指向已记录的旧发布提交，并且没有被其它操作改动。
 
-## 10. Tag 与 Release CI
+## 9. Tag 与 Release CI
 
 Tag 必须指向最终 `final_main_sha`，不能指向合并前的 feature/dev tip。
 
-默认创建 annotated tag：
+新发布默认创建 annotated tag：
 
 ```bash
 git tag -a vX.Y.Z <final_main_sha> -m "NovelSpeaker vX.Y.Z"
@@ -235,13 +235,26 @@ push tag 后：
 1. 定位由该 tag 触发的 Release workflow。
 2. 等待 workflow 完成。
 3. workflow 失败时：
-   - 不宣告发布完成；
-   - 不自动删除本地/远端 tag；
-   - 不自动改版本后重新发同一 tag；
-   - 读取失败 job/log，报告明确失败点并停止。
+   - 读取失败 job/log，按第 5.1 节分类；
+   - 如果只是可重试的外部 runner/网络故障，有限次数重跑同一 workflow，不移动 tag；
+   - 如果是测试问题，或是已确认的局部低风险源码问题，先通过新的标准 PR 修复并合并到主分支；
+   - 如果是复杂或不确定的源码问题，停止并等待用户决策，不移动 tag；
+   - 修复合并后重新 fetch，确认版本配置仍为 `release_version`，并记录新的 `final_main_sha`；
+   - 确认远端 tag 当前仍指向修复前的旧 `final_main_sha`，然后使用带旧 SHA 保护的 tag 更新：
+
+```bash
+git fetch origin --tags
+git tag -f -a vX.Y.Z <new_final_main_sha> -m "NovelSpeaker vX.Y.Z"
+git push --force-with-lease=refs/tags/vX.Y.Z:<old_tag_sha> origin refs/tags/vX.Y.Z
+```
+
+   - 不使用无条件 `git push --force`，不删除后重建远端 tag；
+   - 移动 tag 后重新等待该 tag workflow，并重新验证 Release 和资产。
 4. workflow 成功后，继续验证 GitHub Release。
 
-## 11. 验证 Release 与资产
+如果同名 GitHub Release 已经存在，Release workflow 必须更新并覆盖本次生成的同名资产，而不是再次执行只允许创建新 Release 的操作；不得删除已有 Release 来规避冲突。
+
+## 10. 验证 Release 与资产
 
 使用 `gh release view <release_tag>` 检查：
 
@@ -256,7 +269,7 @@ push tag 后：
 
 资产缺失或不可访问时，不宣告发布完成。
 
-## 12. 编写并更新最终 Release Note
+## 11. 编写并更新最终 Release Note
 
 Release workflow 创建的自动 notes 只是初始内容。最终 Release Note 必须根据真实发布范围重新整理。
 
@@ -293,15 +306,11 @@ gh release edit <release_tag> --notes-file <file>
 
 然后重新读取远端 Release body，确认版本、实际 diff、资产与正文一致。验证成功后删除临时 notes 文件。
 
-## 13. 发布后分支收尾
+## 12. 发布后分支收尾
 
 开始发布时记录的 `original_branch` 决定默认行为。任何分支收尾前先 `git fetch origin --prune`。
 
-### 13.1 原分支是 main/master
-
-保持在主分支，更新到 `origin/<main>`，不额外创建分支。
-
-### 13.2 长期开发分支
+### 12.1 长期开发分支
 
 默认长期分支名称：
 
@@ -320,12 +329,12 @@ gh release edit <release_tag> --notes-file <file>
 若没有新增提交：
 
 1. `git switch <branch>`
-2. `git rebase origin/<main>`
+2. `git merge --ff-only origin/<main>`
 3. 正常 push 更新远端长期分支。
 
-因为本次 source commits 已包含于 main，该过程应收敛到最新主线；不得使用 force push。
+因为本次 source commits 已包含于 main，该过程应通过 fast-forward 收敛到最新主线；不得使用 force push。
 
-### 13.3 已完成的短期分支
+### 12.2 已完成的短期分支
 
 默认可清理前缀：
 
@@ -350,11 +359,11 @@ gh release edit <release_tag> --notes-file <file>
 
 任何条件不满足都保留分支并报告原因。
 
-### 13.4 未识别分支
+### 12.3 未识别分支
 
 其它分支默认保留，不自动删除、不自动 rebase。若安全可切换，则回到原分支；用户另有要求时按用户要求处理。
 
-## 14. 最终检查
+## 13. 最终检查
 
 发布完成前必须确认：
 
@@ -372,10 +381,11 @@ gh release edit <release_tag> --notes-file <file>
 - 上一版本 → 新版本；
 - major/minor/patch 的判断依据（若为自动判断）；
 - 版本提交 SHA；
-- PR 编号及实际合并方式（direct fast-forward / merge commit / main direct）；
+- PR 编号及实际合并方式（标准 PR merge commit）；
 - tag；
 - Release workflow 结果；
 - Release URL 与资产核对结果；
 - Release Note 更新结果；
+- 如发生失败恢复，记录失败原因、修复提交以及 tag 移动前后的 commit SHA；
 - 最终所在分支及分支清理/同步结果；
 - 任何未完成项或风险。

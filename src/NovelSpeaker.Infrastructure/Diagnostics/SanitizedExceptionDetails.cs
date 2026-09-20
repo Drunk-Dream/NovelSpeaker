@@ -20,6 +20,15 @@ internal sealed record SanitizedExceptionDetails(
     public static SanitizedExceptionDetails Create(
         Exception exception,
         IEnumerable<string?>? knownSecrets = null)
+        => Create(exception, knownSecrets, includeMessagesAndStackTraces: true);
+
+    public static SanitizedExceptionDetails CreateTypeChain(Exception exception)
+        => Create(exception, knownSecrets: null, includeMessagesAndStackTraces: false);
+
+    private static SanitizedExceptionDetails Create(
+        Exception exception,
+        IEnumerable<string?>? knownSecrets,
+        bool includeMessagesAndStackTraces)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
@@ -30,14 +39,15 @@ internal sealed record SanitizedExceptionDetails(
                 .Where(static value => !string.IsNullOrWhiteSpace(value))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
-        return Create(exception, secrets, 0, new ExceptionBudget(MaxNodes - 1));
+        return Create(exception, secrets, 0, new ExceptionBudget(MaxNodes - 1), includeMessagesAndStackTraces);
     }
 
     private static SanitizedExceptionDetails Create(
         Exception exception,
         IReadOnlyList<string> knownSecrets,
         int depth,
-        ExceptionBudget budget)
+        ExceptionBudget budget,
+        bool includeMessagesAndStackTraces)
     {
         var candidateChildren = exception is AggregateException aggregate
             ? aggregate.InnerExceptions
@@ -56,7 +66,7 @@ internal sealed record SanitizedExceptionDetails(
                     break;
                 }
 
-                children.Add(Create(child, knownSecrets, depth + 1, budget));
+                children.Add(Create(child, knownSecrets, depth + 1, budget, includeMessagesAndStackTraces));
             }
 
             truncated |= candidateChildren.Count > MaxChildren;
@@ -65,8 +75,8 @@ internal sealed record SanitizedExceptionDetails(
         return new SanitizedExceptionDetails(
             exception.GetType().FullName ?? exception.GetType().Name,
             exception.HResult,
-            LogTextSanitizer.Sanitize(exception.Message, knownSecrets),
-            exception.StackTrace is null
+            includeMessagesAndStackTraces ? LogTextSanitizer.Sanitize(exception.Message, knownSecrets) : null,
+            !includeMessagesAndStackTraces || exception.StackTrace is null
                 ? null
                 : LogTextSanitizer.Sanitize(exception.StackTrace, knownSecrets),
             children,

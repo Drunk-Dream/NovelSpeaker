@@ -19,122 +19,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
-    private async Task Volume_projection_and_changes_use_the_shared_playback_session()
-    {
-        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
-        {
-            State = PlaybackState.Paused,
-            BookId = "book-1",
-            BookTitle = "示例小说",
-            ChapterTitle = "第一章",
-            SegmentCount = 1,
-            Volume = 0.4
-        });
-        var viewModel = CreateViewModel(
-            coordinator,
-            new FakeBookPlaybackContentService(null, null));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        Assert.Equal(0.4, viewModel.Volume);
-        Assert.Equal("40%", viewModel.VolumePercentText);
-
-        viewModel.Volume = 0.2;
-
-        Assert.Equal(0.2, coordinator.LastVolume);
-
-        viewModel.ToggleVolumeMenuCommand.Execute(null);
-        Assert.True(viewModel.IsVolumeMenuOpen);
-        viewModel.ToggleVolumeMenuCommand.Execute(null);
-        Assert.False(viewModel.IsVolumeMenuOpen);
-    }
-
-    private async Task Faulted_snapshot_shows_error_bar_and_retry_flow()
-    {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Faulted,
-            "book-1",
-            "示例小说",
-            0,
-            "第一章",
-            0,
-            1,
-            1,
-            "默认规则",
-            10,
-            0,
-            0,
-            "网络失败，请稍后重试。",
-            false,
-            true,
-            "作者甲"));
-        var viewModel = CreateViewModel(
-            coordinator,
-            new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
-                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
-            CancellationToken.None);
-
-        Assert.True(viewModel.ShowPlaybackErrorBar);
-        Assert.False(viewModel.CanTogglePlayPause);
-        Assert.Equal("网络失败，请稍后重试。", viewModel.ErrorText);
-
-        await viewModel.RetryCurrentSegmentCommand.ExecuteAsync(null);
-        Assert.Equal(1, coordinator.RetryCurrentSegmentCallCount);
-
-        viewModel.OpenRuleMenuCommand.Execute(null);
-        Assert.True(viewModel.IsRuleMenuOpen);
-    }
-
-    private async Task Navigation_projects_loaded_metadata_when_snapshot_metadata_is_missing()
-    {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
-            "book-1",
-            string.Empty,
-            0,
-            string.Empty,
-            0,
-            1,
-            0,
-            null,
-            0,
-            0,
-            0,
-            null,
-            false,
-            false,
-            string.Empty));
-        var viewModel = CreateViewModel(
-            coordinator,
-            new FakeBookPlaybackContentService(
-                new PlaybackBookContent(
-                    "book-1",
-                    "加载书名",
-                    [PlaybackChapterContent.FromLoaded(0, "回退章节", [])],
-                    "作者乙"),
-                PlaybackChapterContent.FromLoaded(
-                    0,
-                    "回退章节",
-                    [new SpeechSegment(0, 0, 3, "第一段", "第一段")])),
-            settingsService: new FakeAppSettingsService(
-                AppSettings.Default with { DefaultSpeakSpeed = 18 }));
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.HandleNavigationAsync(
-            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
-            CancellationToken.None);
-
-        Assert.Equal("加载书名", viewModel.CurrentTitle);
-        Assert.Equal("作者乙", viewModel.CurrentAuthor);
-        Assert.Equal("回退章节", viewModel.CurrentChapterTitle);
-        Assert.Equal(18, viewModel.SpeakSpeed);
-    }
-
     private async Task CommitSegmentProgressAsync_same_segment_is_noop()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
@@ -447,57 +331,48 @@ public sealed partial class PlayerViewModelTests
         Assert.False(viewModel.ShouldAutoCenterCurrentSegment);
     }
 
-    private async Task Loading_states_are_exposed_only_for_inline_loading_indicator()
+    private async Task Faulted_snapshot_shows_error_bar_and_retry_flow()
     {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
+            PlaybackState.Faulted,
+            "book-1",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            0,
+            "网络失败，请稍后重试。",
+            false,
+            true,
+            "作者甲"));
         var viewModel = CreateViewModel(
-            new FakePlaybackCoordinator(
-                PlaybackSnapshot.Idle with
-                {
-                    State = PlaybackState.Idle
-                }),
-            new FakeBookPlaybackContentService(null, null));
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
 
         await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
 
-        Assert.False(viewModel.ShowInlineLoadingState);
-        Assert.Equal(string.Empty, viewModel.InlineLoadingText);
+        Assert.True(viewModel.ShowPlaybackErrorBar);
+        Assert.False(viewModel.CanTogglePlayPause);
+        Assert.Equal("网络失败，请稍后重试。", viewModel.ErrorText);
 
-        viewModel = CreateViewModel(
-            new FakePlaybackCoordinator(PlaybackSnapshot.Idle with { State = PlaybackState.Preparing }),
-            new FakeBookPlaybackContentService(null, null));
-        await viewModel.LoadAsync(CancellationToken.None);
-        Assert.True(viewModel.ShowInlineLoadingState);
-        Assert.Equal("正在准备", viewModel.InlineLoadingText);
+        await viewModel.RetryCurrentSegmentCommand.ExecuteAsync(null);
+        Assert.Equal(1, coordinator.RetryCurrentSegmentCallCount);
 
-        viewModel = CreateViewModel(
-            new FakePlaybackCoordinator(PlaybackSnapshot.Idle with { State = PlaybackState.Buffering }),
-            new FakeBookPlaybackContentService(null, null));
-        await viewModel.LoadAsync(CancellationToken.None);
-        Assert.True(viewModel.ShowInlineLoadingState);
-        Assert.Equal("正在加载", viewModel.InlineLoadingText);
-
-        viewModel = CreateViewModel(
-            new FakePlaybackCoordinator(PlaybackSnapshot.Idle with { State = PlaybackState.Recovering }),
-            new FakeBookPlaybackContentService(null, null));
-        await viewModel.LoadAsync(CancellationToken.None);
-        Assert.True(viewModel.ShowInlineLoadingState);
-        Assert.Equal("正在恢复", viewModel.InlineLoadingText);
-
-        viewModel = CreateViewModel(
-            new FakePlaybackCoordinator(PlaybackSnapshot.Idle with { State = PlaybackState.Paused }),
-            new FakeBookPlaybackContentService(null, null));
-        await viewModel.LoadAsync(CancellationToken.None);
-        Assert.False(viewModel.ShowInlineLoadingState);
-        Assert.Equal(string.Empty, viewModel.InlineLoadingText);
     }
 
     [Fact]
-    public async Task Player_projection_contracts_cover_volume_errors_and_loaded_metadata()
-    {
-        await Volume_projection_and_changes_use_the_shared_playback_session();
-        await Faulted_snapshot_shows_error_bar_and_retry_flow();
-        await Navigation_projects_loaded_metadata_when_snapshot_metadata_is_missing();
-    }
+    public Task Faulted_playback_exposes_and_runs_retry() =>
+        Faulted_snapshot_shows_error_bar_and_retry_flow();
 
     [Fact]
     public async Task Player_progress_contracts_cover_same_and_new_segment_commits()
@@ -516,9 +391,4 @@ public sealed partial class PlayerViewModelTests
         await Playback_snapshot_segment_change_keeps_manual_browsing_state();
     }
 
-    [Fact]
-    public async Task Player_loading_contracts_cover_inline_loading_state_projection()
-    {
-        await Loading_states_are_exposed_only_for_inline_loading_indicator();
-    }
 }

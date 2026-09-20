@@ -215,7 +215,7 @@
                                         Command="{Binding CancelCommand}"
                                         Content="取消"
                                         IsEnabled="{Binding CanCancel}" />
-                                <Button Style="{StaticResource App.Button.Primary}"
+                                <ui:Button Style="{StaticResource App.Button.Primary}"
                                         Command="{Binding SaveCommand}"
                                         Content="保存"
                                         IsEnabled="{Binding CanSave}" />

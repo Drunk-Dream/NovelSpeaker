@@ -16,6 +16,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
     private readonly IAppSettingsService _settingsService;
     private readonly IPresentationClipboard _clipboard;
     private readonly IPresentationFileDialogService _fileDialogs;
+    private readonly TimeProvider _timeProvider;
     private bool _isLoading;
     private int _logLevelVersion;
     private int _telemetryVersion;
@@ -27,13 +28,15 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         IPresentationClipboard clipboard,
         IAppNavigator navigator,
         IAppFeedbackService feedbackService,
-        IPresentationFileDialogService fileDialogs)
+        IPresentationFileDialogService fileDialogs,
+        TimeProvider? timeProvider = null)
         : base(navigator, feedbackService)
     {
         _diagnosticsService = diagnosticsService;
         _settingsService = settingsService;
         _clipboard = clipboard;
         _fileDialogs = fileDialogs;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public IReadOnlyList<string> AvailableLogLevels => AppSettings.SupportedLogLevels;
@@ -217,7 +220,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
             var destinationPath = await _fileDialogs.PickSaveFileAsync(
                 new PresentationFileDialogOptions(
                     "ZIP files (*.zip)|*.zip",
-                    "NovelSpeaker-Diagnostics.zip"),
+                    DiagnosticExportFileNames.Diagnostics(_timeProvider)),
                 cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(destinationPath))
             {
@@ -253,7 +256,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
             var destinationPath = await _fileDialogs.PickSaveFileAsync(
                 new PresentationFileDialogOptions(
                     "ZIP files (*.zip)|*.zip",
-                    "NovelSpeaker-Problem-Diagnostics.zip"),
+                    DiagnosticExportFileNames.ProblemDiagnostics(_timeProvider)),
                 cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(destinationPath))
             {

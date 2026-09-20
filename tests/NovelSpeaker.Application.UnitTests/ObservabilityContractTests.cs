@@ -21,6 +21,16 @@ public sealed class ObservabilityContractTests
     }
 
     [Fact]
+    public void Dispatcher_stall_operation_excludes_ordinary_dispatch_and_requires_an_explicit_threshold()
+    {
+        var stall = OperationCatalog.UiDispatcherStall;
+
+        Assert.Contains("explicitly detected", stall.Description, StringComparison.Ordinal);
+        Assert.Contains("threshold", stall.Description, StringComparison.Ordinal);
+        Assert.Contains("ordinary dispatch is excluded", stall.Description, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Diagnostic_registry_has_unique_ids_and_declared_fields_only()
     {
         var registry = DiagnosticRegistry.Default;

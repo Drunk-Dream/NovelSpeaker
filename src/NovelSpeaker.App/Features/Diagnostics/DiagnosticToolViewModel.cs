@@ -1,3 +1,4 @@
+using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Diagnostics;
@@ -7,32 +8,38 @@ namespace NovelSpeaker.App.Features.Diagnostics;
 
 public sealed partial class DiagnosticToolViewModel : ObservableObject
 {
-    private readonly IDiagnosticSessionService _sessions;
+    private static readonly IReadOnlyList<CapacityOption> CapacityChoices =
+    [
+        new(DiagnosticSessionCapacityPresets.SmallBytes, "16 MB"),
+        new(DiagnosticSessionCapacityPresets.StandardBytes, "64 MB"),
+        new(DiagnosticSessionCapacityPresets.LargeBytes, "256 MB")
+    ];
+
+    private readonly DiagnosticRecordingController _recording;
     private readonly IDiagnosticSessionExportService _exports;
     private readonly IDiagnosticWindowCapture _windowCapture;
     private readonly IPresentationFileDialogService _fileDialogs;
     private readonly TimeProvider _timeProvider;
+    private DiagnosticSessionSnapshot? _sessionSnapshot;
     private DateTimeOffset? _startedAtUtc;
-    private string? _endedSessionId;
 
-    public DiagnosticToolViewModel(
-        IDiagnosticSessionService sessions,
+    internal DiagnosticToolViewModel(
+        DiagnosticRecordingController recording,
         IDiagnosticSessionExportService exports,
         IDiagnosticWindowCapture windowCapture,
         IPresentationFileDialogService fileDialogs,
         TimeProvider timeProvider)
     {
-        _sessions = sessions ?? throw new ArgumentNullException(nameof(sessions));
+        _recording = recording ?? throw new ArgumentNullException(nameof(recording));
         _exports = exports ?? throw new ArgumentNullException(nameof(exports));
         _windowCapture = windowCapture ?? throw new ArgumentNullException(nameof(windowCapture));
         _fileDialogs = fileDialogs ?? throw new ArgumentNullException(nameof(fileDialogs));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
-        SelectedHardCapBytes = DiagnosticSessionCapacityPresets.DefaultBytes;
-        StateText = "准备开始诊断。打开工具不会开始采集。";
+        SelectedCapacity = CapacityChoices[1];
         RefreshFromSession();
     }
 
-    public IReadOnlyList<long> CapacityOptions => DiagnosticSessionCapacityPresets.All;
+    public IReadOnlyList<CapacityOption> CapacityOptions => CapacityChoices;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(StartCommand))]
@@ -44,21 +51,19 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
     private DiagnosticToolState state = DiagnosticToolState.Preparing;
 
     [ObservableProperty]
-    private long selectedHardCapBytes;
+    private CapacityOption selectedCapacity;
 
     [ObservableProperty]
     private string stateText = string.Empty;
 
     [ObservableProperty]
+    private string sessionStorageText = string.Empty;
+
+    [ObservableProperty]
+    private string droppedRecordText = string.Empty;
+
+    [ObservableProperty]
     private string durationText = "00:00:00";
-
-    [ObservableProperty]
-    private int markerCount;
-
-    [ObservableProperty]
-    private int attachmentCount;
-
-    public string CaptureCountText => $"问题标记：{MarkerCount}；截图：{AttachmentCount}";
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(MarkProblemCommand))]
@@ -81,118 +86,65 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
         OnPropertyChanged(nameof(IsCompleted));
     }
 
-    partial void OnSelectedHardCapBytesChanged(long value)
-    {
-        if (!DiagnosticSessionCapacityPresets.All.Contains(value))
-        {
-            SelectedHardCapBytes = DiagnosticSessionCapacityPresets.DefaultBytes;
-        }
-    }
-
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanStart))]
-    private async Task StartAsync(CancellationToken cancellationToken)
-    {
-        await RunAsync(
-            async () =>
-            {
-                var snapshot = await _sessions.StartAsync(
-                    new DiagnosticSessionStartOptions(SelectedHardCapBytes),
-                    cancellationToken);
-                _startedAtUtc = snapshot.StartedAtUtc;
-                _endedSessionId = null;
-                MarkerCount = 0;
-                AttachmentCount = 0;
-                OnPropertyChanged(nameof(CaptureCountText));
-                State = DiagnosticToolState.Capturing;
-                ErrorText = string.Empty;
-                ApplySnapshot(snapshot);
-            });
-    }
+    private Task StartAsync(CancellationToken cancellationToken) =>
+        StartSessionAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanRestart))]
-    private async Task RestartAsync(CancellationToken cancellationToken)
-    {
-        await RunAsync(
-            async () =>
-            {
-                var snapshot = await _sessions.StartAsync(
-                    new DiagnosticSessionStartOptions(SelectedHardCapBytes),
-                    cancellationToken);
-                _startedAtUtc = snapshot.StartedAtUtc;
-                _endedSessionId = null;
-                MarkerCount = 0;
-                AttachmentCount = 0;
-                OnPropertyChanged(nameof(CaptureCountText));
-                State = DiagnosticToolState.Capturing;
-                ErrorText = string.Empty;
-                ApplySnapshot(snapshot);
-            });
-    }
+    private Task RestartAsync(CancellationToken cancellationToken) =>
+        StartSessionAsync(cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanEnd))]
-    private async Task EndAsync(CancellationToken cancellationToken)
-    {
-        await RunAsync(
-            async () =>
-            {
-                var snapshot = await _sessions.EndAsync(cancellationToken);
-                _endedSessionId = snapshot.SessionId;
-                State = DiagnosticToolState.Completed;
-                ApplySnapshot(snapshot);
-                StateText = "诊断已保存，可以导出或重新开始。";
-            });
-    }
+    private Task EndAsync(CancellationToken cancellationToken) => RunCommandAsync(
+        async () => ApplySnapshot(await _recording.EndAsync(cancellationToken)),
+        "无法结束诊断会话。",
+        cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanCapture))]
-    private async Task CaptureWindowAsync(CancellationToken cancellationToken)
-    {
-        await RunAsync(
-            async () =>
-            {
-                var attachment = await _windowCapture
-                    .CaptureCurrentWindowAsync(cancellationToken);
-                await _sessions.AddAttachmentAsync(attachment, cancellationToken);
-                AttachmentCount++;
-                OnPropertyChanged(nameof(CaptureCountText));
-                RefreshFromSession();
-            });
-    }
-
-    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanCapture))]
-    private async Task MarkProblemAsync(CancellationToken cancellationToken)
-    {
-        var recorded = await _sessions.RecordProblemMarkerAsync(cancellationToken);
-        RefreshFromSession();
-        if (!recorded)
+    private Task CaptureWindowAsync(CancellationToken cancellationToken) => RunCommandAsync(
+        async () =>
         {
-            ErrorText = "问题标记未能写入诊断会话。";
-            return;
-        }
+            var attachment = await _windowCapture.CaptureCurrentWindowAsync(cancellationToken);
+            await _recording.AddAttachmentAsync(attachment, cancellationToken);
+            RefreshFromSession();
+        },
+        "无法截取当前窗口。",
+        cancellationToken);
 
-        MarkerCount++;
-        OnPropertyChanged(nameof(CaptureCountText));
-    }
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanCapture))]
+    private Task MarkProblemAsync(CancellationToken cancellationToken) => RunCommandAsync(
+        async () =>
+        {
+            if (!await _recording.RecordProblemMarkerAsync(cancellationToken))
+            {
+                ErrorText = "问题标记未能写入诊断会话。";
+                return;
+            }
+
+            RefreshFromSession();
+        },
+        "无法记录问题标记。",
+        cancellationToken);
 
     [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanExport))]
-    private async Task ExportAsync(CancellationToken cancellationToken)
-    {
-        await RunAsync(
-            async () =>
+    private Task ExportAsync(CancellationToken cancellationToken) => RunCommandAsync(
+        async () =>
+        {
+            var destinationPath = await _fileDialogs.PickSaveFileAsync(
+                new PresentationFileDialogOptions(
+                    "ZIP files (*.zip)|*.zip",
+                    DiagnosticExportFileNames.ProblemDiagnostics(_timeProvider)),
+                cancellationToken);
+            if (string.IsNullOrWhiteSpace(destinationPath))
             {
-                var destinationPath = await _fileDialogs.PickSaveFileAsync(
-                    new PresentationFileDialogOptions(
-                        "ZIP files (*.zip)|*.zip",
-                        "NovelSpeaker-Problem-Diagnostics.zip"),
-                    cancellationToken);
-                if (string.IsNullOrWhiteSpace(destinationPath))
-                {
-                    return;
-                }
+                return;
+            }
 
-                await _exports.ExportLastEndedAsync(destinationPath, cancellationToken);
-                StateText = "问题诊断包已导出。";
-            });
-    }
+            await _exports.ExportLastEndedAsync(destinationPath, cancellationToken);
+            StateText = "问题诊断包已导出。";
+        },
+        "无法导出问题诊断包。",
+        cancellationToken);
 
     [RelayCommand]
     private void Close() => CloseRequested?.Invoke(this, EventArgs.Empty);
@@ -206,63 +158,104 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
             return;
         }
 
-        var elapsed = _timeProvider.GetUtcNow() - _startedAtUtc.Value;
-        DurationText = FormatDuration(elapsed);
+        DurationText = FormatDuration(_timeProvider.GetUtcNow() - _startedAtUtc.Value);
     }
 
-    private bool CanStart() => State == DiagnosticToolState.Preparing && _sessions.Current is null;
+    private Task StartSessionAsync(CancellationToken cancellationToken) => RunCommandAsync(
+        async () => ApplySnapshot(await _recording.StartAsync(
+            SelectedCapacity.Bytes,
+            cancellationToken)),
+        "无法开始诊断会话。",
+        cancellationToken);
 
-    private bool CanRestart() => State == DiagnosticToolState.Completed && _sessions.Current is null;
+    private bool CanStart() => State == DiagnosticToolState.Preparing && _recording.Snapshot is null;
 
-    private bool CanEnd() => State == DiagnosticToolState.Capturing && _sessions.Current is not null;
+    private bool CanRestart() => State == DiagnosticToolState.Completed && _recording.Snapshot?.State != DiagnosticSessionState.Active;
+
+    private bool CanEnd() => State == DiagnosticToolState.Capturing && _sessionSnapshot?.State == DiagnosticSessionState.Active;
 
     private bool CanCapture() =>
-        State == DiagnosticToolState.Capturing && !IsCaptureStopped && _sessions.Current is not null;
+        State == DiagnosticToolState.Capturing && !IsCaptureStopped && _sessionSnapshot?.State == DiagnosticSessionState.Active;
 
-    private bool CanExport() => State == DiagnosticToolState.Completed && !string.IsNullOrWhiteSpace(_endedSessionId);
+    private bool CanExport() => State == DiagnosticToolState.Completed && _sessionSnapshot?.State == DiagnosticSessionState.Ended;
 
     private void RefreshFromSession()
     {
-        var snapshot = _sessions.Current;
-        if (snapshot is not null)
+        var snapshot = _recording.Snapshot;
+        if (snapshot is null)
         {
-            if (snapshot.State == DiagnosticSessionState.Active && State == DiagnosticToolState.Preparing)
-            {
-                _startedAtUtc = snapshot.StartedAtUtc;
-                State = DiagnosticToolState.Capturing;
-            }
-
-            ApplySnapshot(snapshot);
+            _sessionSnapshot = null;
+            State = DiagnosticToolState.Preparing;
+            IsCaptureStopped = false;
+            SessionStorageText = string.Empty;
+            DroppedRecordText = string.Empty;
+            StateText = "准备开始诊断。";
+            return;
         }
+
+        ApplySnapshot(snapshot);
     }
 
     private void ApplySnapshot(DiagnosticSessionSnapshot snapshot)
     {
+        _sessionSnapshot = snapshot;
+        _startedAtUtc = snapshot.StartedAtUtc;
+        SelectedCapacity = CapacityChoices.FirstOrDefault(option => option.Bytes == snapshot.HardCapBytes)
+            ?? CapacityChoices[1];
+        SessionStorageText = $"{FormatMegabytes(snapshot.RecordedBytes)} / {FormatMegabytes(snapshot.HardCapBytes)}";
+        DroppedRecordText = snapshot.CurrentProcessDroppedRecordCount == 0
+            ? "本进程无队列丢弃"
+            : $"本进程队列已跳过 {snapshot.CurrentProcessDroppedRecordCount.ToString("N0", CultureInfo.CurrentCulture)} 条记录";
         IsCaptureStopped = snapshot.CaptureStopped;
-        if (snapshot.CaptureStopped)
+        State = snapshot.State switch
         {
-            StateText = "已达到容量上限，采集已停止；仍可结束并保存当前会话。";
-        }
-        else if (snapshot.State == DiagnosticSessionState.Active)
+            DiagnosticSessionState.Active => DiagnosticToolState.Capturing,
+            DiagnosticSessionState.Ended => DiagnosticToolState.Completed,
+            _ => DiagnosticToolState.Preparing
+        };
+
+        StateText = snapshot.State switch
         {
-            StateText = "诊断中：请复现问题，可按需标记或截取当前窗口。";
-        }
+            DiagnosticSessionState.Active when snapshot.CaptureStopped =>
+                GetCaptureStoppedText(snapshot.CaptureStoppedReason),
+            DiagnosticSessionState.Active => "诊断中",
+            DiagnosticSessionState.Ended => "诊断已保存",
+            _ => "准备开始诊断。"
+        };
+
+        OnPropertyChanged(nameof(SessionStorageText));
     }
 
-    private async Task RunAsync(Func<Task> operation)
+    private async Task RunCommandAsync(
+        Func<Task> operation,
+        string failureMessage,
+        CancellationToken cancellationToken)
     {
         ErrorText = string.Empty;
         try
         {
             await operation();
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
         }
-        catch (Exception exception)
+        catch
         {
-            ErrorText = exception.Message;
+            ErrorText = failureMessage;
         }
+    }
+
+    private static string GetCaptureStoppedText(string? reason) => reason switch
+    {
+        "hard-cap" => "已达到容量上限，采集已停止；仍可结束并保存。",
+        "storage-failure" => "诊断存储遇到问题，采集已停止；仍可结束并保存。",
+        _ => "采集已停止；仍可结束并保存。"
+    };
+
+    private static string FormatMegabytes(long bytes)
+    {
+        var megabytes = Math.Max(0, bytes) / (1024d * 1024d);
+        return $"{megabytes.ToString("0.#", CultureInfo.CurrentCulture)} MB";
     }
 
     private static string FormatDuration(TimeSpan duration)
@@ -270,4 +263,6 @@ public sealed partial class DiagnosticToolViewModel : ObservableObject
         var totalHours = Math.Max(0, (int)duration.TotalHours);
         return $"{totalHours:00}:{duration.Minutes:00}:{duration.Seconds:00}";
     }
+
+    public sealed record CapacityOption(long Bytes, string DisplayText);
 }

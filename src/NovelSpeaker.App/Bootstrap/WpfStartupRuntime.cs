@@ -15,6 +15,7 @@ using NovelSpeaker.Application.Observability;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Activation;
+using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.Diagnostics;
@@ -190,7 +191,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         try
         {
             await RequireServices()
-                .GetRequiredService<IDiagnosticSessionService>()
+                .GetRequiredService<IDiagnosticToolLauncher>()
                 .RecoverAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -242,6 +243,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
                 RequireServices().GetRequiredService<IMediaControlCoordinator>().StartAsync,
                 CloseStartupStatus,
                 cancellationToken).ConfigureAwait(true);
+            RequireServices().GetRequiredService<IDiagnosticToolLauncher>().OpenIfSessionActive();
             _startupOperation?.Complete(OperationResult.Succeeded());
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

@@ -205,7 +205,7 @@
                                         Command="{Binding CancelEditingCommand}"
                                         Content="取消"
                                         IsEnabled="{Binding CanCancelEditing}" />
-                                <Button Style="{StaticResource App.Button.Primary}"
+                                <ui:Button Style="{StaticResource App.Button.Primary}"
                                         Command="{Binding SaveDraftCommand}"
                                         Content="保存"
                                         IsEnabled="{Binding CanSaveDraft}" />

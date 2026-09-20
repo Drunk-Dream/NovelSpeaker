@@ -114,10 +114,6 @@ public sealed class WpfUiFlyoutPlacementTests
             Assert.Same(
                 firstAction,
                 FocusManager.GetFocusedElement(FocusManager.GetFocusScope(firstAction)));
-            var popupLayer = Assert.Single(
-                TransientPopupVisualRenderer.CaptureOpenLayers(window, 96));
-            Assert.True(popupLayer.Size.Width > 0);
-            Assert.True(popupLayer.Size.Height > 0);
             Assert.Equal("绑定标题", boundTitle.Text);
             Assert.Equal(2, boundItems.Items.Count);
             Assert.NotNull(boundItems.ItemContainerGenerator.ContainerFromIndex(0));

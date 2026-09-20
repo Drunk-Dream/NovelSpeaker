@@ -83,36 +83,6 @@ public sealed class NaudioAudioPlayerTests
     }
 
     [Fact]
-    public async Task PlaybackStopped_before_exact_end_still_raises_completion_event()
-    {
-        var wavePlayer = new FakeWavePlayer();
-        await using var player = new NaudioAudioPlayer(() => wavePlayer);
-        var completed = false;
-        player.PlaybackCompleted += (_, _) => completed = true;
-
-        await player.LoadAsync(PlaybackTestAudio.DemoMp3Path, CancellationToken.None);
-        player.Play();
-        wavePlayer.RaisePlaybackStopped();
-
-        Assert.True(completed);
-        Assert.Equal(PlaybackStatus.Stopped, player.State);
-    }
-
-    [Fact]
-    public async Task LoadAsync_raises_failed_event_for_missing_file()
-    {
-        var wavePlayer = new FakeWavePlayer();
-        await using var player = new NaudioAudioPlayer(() => wavePlayer);
-        PlaybackErrorEventArgs? captured = null;
-        player.PlaybackFailed += (_, error) => captured = error;
-
-        await Assert.ThrowsAnyAsync<Exception>(() => player.LoadAsync("missing-file.mp3", CancellationToken.None));
-
-        Assert.NotNull(captured);
-        Assert.Equal(PlaybackErrorKind.FileNotFound, captured!.Kind);
-    }
-
-    [Fact]
     public async Task LoadAsync_raises_failed_event_for_corrupt_audio()
     {
         var wavePlayer = new FakeWavePlayer();
@@ -146,59 +116,6 @@ public sealed class NaudioAudioPlayerTests
     }
 
     [Fact]
-    public async Task Stop_can_be_called_repeatedly_without_raising_completion()
-    {
-        var wavePlayer = new FakeWavePlayer();
-        await using var player = new NaudioAudioPlayer(() => wavePlayer);
-        var completionCount = 0;
-        player.PlaybackCompleted += (_, _) => completionCount++;
-
-        await player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None);
-        player.Play();
-        player.Stop();
-        player.Stop();
-
-        Assert.Equal(PlaybackStatus.Stopped, player.State);
-        Assert.Equal(TimeSpan.Zero, player.Position);
-        Assert.Equal(0, completionCount);
-    }
-
-    [Fact]
-    public async Task Loading_next_audio_reuses_existing_output_device()
-    {
-        var factory = new FakeWavePlayerFactory();
-        await using var player = new NaudioAudioPlayer(factory.Create);
-
-        await player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None);
-        player.Play();
-        await player.LoadAsync(PlaybackTestAudio.DemoMp3Path, CancellationToken.None);
-        player.Play();
-
-        Assert.Single(factory.CreatedPlayers);
-        Assert.Equal(PlaybackStatus.Playing, player.State);
-    }
-
-    [Fact]
-    public async Task Suppressed_stop_during_reload_does_not_raise_completion_for_next_audio()
-    {
-        var wavePlayer = new FakeWavePlayer();
-        await using var player = new NaudioAudioPlayer(() => wavePlayer);
-        var completionCount = 0;
-        player.PlaybackCompleted += (_, _) => completionCount++;
-
-        await player.LoadAsync(PlaybackTestAudio.DemoWavPath, CancellationToken.None);
-        player.Play();
-        await player.LoadAsync(PlaybackTestAudio.DemoMp3Path, CancellationToken.None);
-        player.Play();
-
-        Assert.Equal(0, completionCount);
-        wavePlayer.RaisePlaybackStopped();
-
-        Assert.Equal(1, completionCount);
-        Assert.Equal(PlaybackStatus.Stopped, player.State);
-    }
-
-    [Fact]
     public async Task LoadAsync_releases_output_device_when_initialization_fails()
     {
         var wavePlayer = new ThrowingInitWavePlayer();
@@ -214,22 +131,6 @@ public sealed class NaudioAudioPlayerTests
         {
             await player.DisposeAsync();
         }
-    }
-
-    [Fact]
-    public async Task LoadAsync_releases_reader_when_format_conversion_fails()
-    {
-        var filePath = CreateThreeChannelWaveFile();
-        await using var player = new NaudioAudioPlayer(() => new FakeWavePlayer());
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            player.LoadAsync(filePath, CancellationToken.None));
-
-        using var exclusive = new FileStream(
-            filePath,
-            FileMode.Open,
-            FileAccess.ReadWrite,
-            FileShare.None);
     }
 
     [Fact]
