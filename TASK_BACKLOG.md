@@ -59,15 +59,15 @@
 - WPF：`Ui/*Style*Tests`、`Ui/*Palette*Tests`、`Ui/*Gallery*Tests`、`Ui/*ResponsiveLayoutTests`、`Ui/*FormControlTests`、`Ui/*ResourceTests`、`Ui/*VisualTests`、`Ui/*FeedbackControlTests`、`Ui/*CallerAuditTests`、`Ui/*ContractTests` DELETE（样式、资源、几何、截图、结构）；`Ui/AppearanceSettingsPageTests`、`Ui/BookCardViewTests`、`Ui/CacheAndDataPageTests`、`Ui/CachePagesViewTests`、`Ui/DiagnosticsAboutPageTests`、`Ui/GeneralSettingsPageTests`、`Ui/ImportTextSettingsPageTests`、`Ui/PlaybackSettingsPageTests`、`Ui/RuleListItemViewTests`、`Ui/RuleDragInteractionTests`、`Ui/TtsRulesPageTests`、`Ui/RegexReplacementRulesPageTests` DELETE（页面布局和控件内部形状）；`Ui/PlayerViewAutoCenterTests` MERGE/REWRITE 为恢复当前位置、手动浏览两项核心交互；`Ui/PlayerViewLayoutTests` MERGE/REWRITE，保留空章节/无可用规则时播放控件状态及 Single Surface 断言；`Ui/SettingsPageViewTests` MERGE/REWRITE，保留键盘导航路线激活；`Ui/LibraryPageTests`、`Ui/BookDetailsPageTests`、`Ui/PlayerStopTimerEntryTests`、`Navigation/MainWindowNavigationTests`、`Desktop/MiniPlayerWindowTests`、`Bootstrap/StartupStatusWindowTests` MERGE/REWRITE：删除截图、样式、精确几何断言，保留关键 binding、虚拟化、导航和窗口生命周期。`Architecture/VisualResourceGraphTests`、`Architecture/IconForegroundContractTests`、`Architecture/VisualStyleArchitectureTests` DELETE（资源图、图标和样式检测器细节）；其他 KEEP，其中 `Architecture/WpfTestHostIsolationTests` 守护隔离桌面失败关闭。
 - TestKit：`PageVisualReviewHarness`、`WindowVisualReviewHarness`、`VisualArtifactTestGuard`、`TransientPopupVisualRenderer`、`VisualTreeTestHelper` 是 TEMPORARY-ONLY PATTERN 候选；T003 按删除后的真实引用清理。CI 五项目入口目前有效。未发现必须新增长期测试才能开展瘦身的核心缺口；临时的视觉/内部状态验证须随任务删除。
 
-## [ ] T002（P0）：按核心契约瘦身现有测试体系
+## [x] T002（P0）：按核心契约瘦身现有测试体系
 
 依赖：T001。
-
-实施规格：`tasks/T002_reduce_test_suite.md`
 
 目标：执行 T001 的审计结论，删除/合并/重写不符合长期准入标准的测试。优先收敛 WPF 与 Presentation 细粒度测试，再处理重复的 Application/Infrastructure 测试和过度的 Architecture rule contract tests。
 
 不得按目标测试数量机械删除测试；每个保留测试都应能说明其保护的核心能力或高风险边界。不得为了让旧测试继续通过而恢复旧实现。
+
+完成成果：按 T001 分类删除 WPF 样式、资源、截图、精确几何与页面结构测试；混合测试保留关键 binding、键盘导航、虚拟化、播放器可用状态和四个浮层的 Single Surface 运行态检查。Presentation 删除辅助投影/设置微测试，将 Architecture 检测器探针压缩为代表性边界，并保留书籍详情打开章节、播放失败重试等独立审查确认的核心路径。Application/Infrastructure 删除简单转发、映射和已由高层流程覆盖的测试；合并播放恢复、缓存持久化与失效、设置保存、音频资源释放、TTS 规则导入等重复分支，保留各自的数据、兼容与安全边界。删除失去引用的 Visual Review TestKit 与截图辅助设施。生产代码未改动；后续 T003 检查 CI、剩余辅助资产及完整门禁。
 
 ## [ ] T003（P0）：收口质量门禁与后续测试工作流
 
