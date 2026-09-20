@@ -238,7 +238,7 @@ public sealed partial class LibraryPageTests
             Assert.Equal("尚未导入小说", emptyStatus.Title);
             Assert.Equal(Visibility.Visible, emptyStatus.Visibility);
 
-            var importButton = Assert.IsType<Button>(view.FindName("EmptyStateImportButton"));
+            var importButton = Assert.IsType<Wpf.Ui.Controls.Button>(view.FindName("EmptyStateImportButton"));
             Assert.Equal("导入小说", importButton.Content);
             Assert.Equal("导入小说", AutomationProperties.GetName(importButton));
             Assert.Same(view.FindResource("App.Button.Primary"), importButton.Style);

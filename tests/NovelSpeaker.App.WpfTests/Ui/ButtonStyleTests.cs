@@ -52,7 +52,7 @@ public sealed class ButtonStyleTests
         {
             Assert.Equal("Style", resource.Name.LocalName);
             var key = (string?)resource.Attribute(xaml + "Key");
-            var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue" or "App.Button.FloatingIcon";
+            var usesUiButton = key is "App.Button.Primary" or "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue" or "App.Button.FloatingIcon";
             Assert.Equal(
                 usesUiButton ? "{x:Type ui:Button}" : "Button",
                 (string?)resource.Attribute("TargetType"));
@@ -447,11 +447,11 @@ public sealed class ButtonStyleTests
             var buttons = new Dictionary<string, WpfButton>(StringComparer.Ordinal);
             foreach (var key in ButtonStyleKeys)
             {
-                var usesUiButton = key is "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue" or "App.Button.FloatingIcon";
+                var usesUiButton = key is "App.Button.Primary" or "App.Button.Icon" or "App.Button.DangerIcon" or "App.Button.ToolbarValue" or "App.Button.FloatingIcon";
                 WpfButton button = usesUiButton
                     ? new WpfUiButton
                     {
-                        Icon = new SymbolIcon
+                        Icon = key == "App.Button.Primary" ? null : new SymbolIcon
                         {
                             Symbol = key == "App.Button.DangerIcon"
                                 ? SymbolRegular.Delete24
@@ -459,7 +459,8 @@ public sealed class ButtonStyleTests
                                     ? SymbolRegular.TargetArrow24
                                     : SymbolRegular.Settings24
                         },
-                        Style = Assert.IsType<Style>(application.FindResource(key))
+                        Style = Assert.IsType<Style>(application.FindResource(key)),
+                        Content = key == "App.Button.Primary" ? $"{key} fixture" : null
                     }
                     : new WpfButton
                     {
@@ -525,7 +526,7 @@ public sealed class ButtonStyleTests
                     Assert.NotNull(button.Template);
                     Assert.True(button.ActualWidth >= 32, pair.Key);
                     Assert.True(button.ActualHeight >= 32, pair.Key);
-                    if (button is WpfUiButton iconButton)
+                    if (button is WpfUiButton iconButton && pair.Key != "App.Button.Primary")
                     {
                         Assert.IsType<SymbolIcon>(iconButton.Icon);
                     }
@@ -569,6 +570,80 @@ public sealed class ButtonStyleTests
     {
         Button_style_dictionary_contains_only_explicit_provider_based_styles_and_allowed_templates();
         Named_button_styles_keep_provider_templates_and_have_all_interaction_state_triggers();
+    }
+
+    [Fact]
+    public void Primary_button_renders_accent_surface_in_each_interaction_state()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            var originalTheme = FloatingIconVisualAssertions.CaptureTheme();
+            var hoverKey = (DependencyPropertyKey)(typeof(UIElement)
+                .GetField("IsMouseOverPropertyKey", BindingFlags.Static | BindingFlags.NonPublic)
+                ?.GetValue(null) ?? throw new InvalidOperationException("IsMouseOver key was not found."));
+            var pressedKey = (DependencyPropertyKey)(typeof(ButtonBase)
+                .GetField("IsPressedPropertyKey", BindingFlags.Static | BindingFlags.NonPublic)
+                ?.GetValue(null) ?? throw new InvalidOperationException("IsPressed key was not found."));
+            try
+            {
+                foreach (var theme in new[] { GalleryTheme.Light, GalleryTheme.Dark })
+                {
+                    GalleryThemeRuntime.Apply(theme);
+                    var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                        global::System.Windows.Application.Current);
+                    var button = new WpfUiButton
+                    {
+                        Width = 120,
+                        Height = 40,
+                        HorizontalAlignment = HorizontalAlignment.Left,
+                        VerticalAlignment = VerticalAlignment.Top,
+                        Content = "开始诊断",
+                        Style = Assert.IsType<Style>(application.FindResource("App.Button.Primary"))
+                    };
+                    var root = new Grid
+                    {
+                        Width = 160,
+                        Height = 80,
+                        Background = Brushes.Transparent,
+                        Children = { button }
+                    };
+                    using var host = FloatingIconVisualHost.Show(root, new Size(160, 80));
+                    host.MeasureArrange();
+                    AssertRenderedSurface(host, button, application, "App.Brush.Accent.Default");
+
+                    button.SetValue(hoverKey, true);
+                    host.MeasureArrange();
+                    AssertRenderedSurface(host, button, application, "App.Brush.Accent.Hover");
+
+                    button.SetValue(pressedKey, true);
+                    host.MeasureArrange();
+                    AssertRenderedSurface(host, button, application, "App.Brush.Accent.Pressed");
+                }
+            }
+            finally
+            {
+                GalleryThemeRuntime.Apply(originalTheme);
+            }
+        });
+    }
+
+    private static void AssertRenderedSurface(
+        FloatingIconVisualHost host,
+        WpfUiButton button,
+        global::System.Windows.Application application,
+        string brushKey)
+    {
+        var bitmap = host.Render();
+        var sample = button.TranslatePoint(new Point(12, 20), host.Root);
+        var pixels = new byte[4];
+        bitmap.CopyPixels(new Int32Rect((int)sample.X, (int)sample.Y, 1, 1), pixels, 4, 0);
+        var actual = Color.FromArgb(pixels[3], pixels[2], pixels[1], pixels[0]);
+        var expected = Assert.IsType<SolidColorBrush>(application.FindResource(brushKey)).Color;
+        Assert.Equal(expected, actual);
+        Assert.Equal(
+            Assert.IsType<SolidColorBrush>(application.FindResource("App.Brush.Accent.Text")).Color,
+            Assert.IsType<SolidColorBrush>(button.Foreground).Color);
     }
 
     [Fact]

@@ -178,7 +178,7 @@ public sealed partial class PlayerViewTests
             var locateButton = Assert.IsType<WpfUiButton>(view.FindName("LocateCurrentChapterButton"));
             var selectionToolbar = Assert.IsType<StackPanel>(view.FindName("ActiveCacheSelectionToolbar"));
             var cancelButton = Assert.IsType<Button>(view.FindName("CancelActiveCacheSelectionButton"));
-            var startButton = Assert.IsType<Button>(view.FindName("StartActiveCacheButton"));
+            var startButton = Assert.IsType<WpfUiButton>(view.FindName("StartActiveCacheButton"));
 
             Assert.Equal("主动缓存章节", toolButton.ToolTip);
             Assert.Equal("主动缓存章节", AutomationProperties.GetName(toolButton));
@@ -393,7 +393,7 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var emptyStateButton = Assert.IsType<Button>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
+            var emptyStateButton = Assert.IsType<WpfUiButton>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
             var noRuleFooter = Assert.IsType<AppStatusView>(view.FindName("NoRuleStatusView"));
             var backButton = FindUiButtonByAutomationName(view, "返回");
 

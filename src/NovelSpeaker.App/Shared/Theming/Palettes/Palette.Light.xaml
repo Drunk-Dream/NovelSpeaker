@@ -23,8 +23,8 @@
     <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Selected" Color="#20242C" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Disabled" Color="#8A919D" />
 
-    <SolidColorBrush x:Key="App.Brush.Accent" Color="#5B6FD8" />
-    <SolidColorBrush x:Key="App.Brush.Accent.Default" Color="#5B6FD8" />
+    <SolidColorBrush x:Key="App.Brush.Accent" Color="#566AD0" />
+    <SolidColorBrush x:Key="App.Brush.Accent.Default" Color="#566AD0" />
     <SolidColorBrush x:Key="App.Brush.Accent.Hover" Color="#4B5FC8" />
     <SolidColorBrush x:Key="App.Brush.Accent.Pressed" Color="#4052AF" />
     <SolidColorBrush x:Key="App.Brush.Accent.Subtle" Color="#E8EBFA" />

@@ -52,7 +52,7 @@ public sealed partial class BookDetailsPageTests
             Assert.Same(page.FindResource("App.Button.Danger"), Assert.IsType<Button>(page.FindName("DeleteBookButton")).Style);
             Assert.Same(page.FindResource("App.Button.Secondary"), Assert.IsType<Button>(page.FindName("ClearCacheButton")).Style);
             Assert.Same(page.FindResource("App.Button.Secondary"), Assert.IsType<Button>(page.FindName("CancelEditButton")).Style);
-            Assert.Same(page.FindResource("App.Button.Primary"), Assert.IsType<Button>(page.FindName("SaveBookButton")).Style);
+            Assert.Same(page.FindResource("App.Button.Primary"), Assert.IsType<WpfUiButton>(page.FindName("SaveBookButton")).Style);
         });
     }
 

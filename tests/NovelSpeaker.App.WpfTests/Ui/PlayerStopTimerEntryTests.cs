@@ -28,7 +28,7 @@ public sealed class PlayerStopTimerEntryTests
             var flyout = Assert.IsType<Flyout>(view.FindName("StopTimerFlyout"));
             var customMinutes = Assert.IsType<TextBox>(view.FindName("CustomStopMinutesTextBox"));
             var cancelButton = Assert.IsType<Button>(view.FindName("CancelStopTimerButton"));
-            var applyButton = Assert.IsType<Button>(view.FindName("ApplyCustomStopTimerButton"));
+            var applyButton = Assert.IsType<WpfUiButton>(view.FindName("ApplyCustomStopTimerButton"));
 
             Assert.Equal("定时停止", button.ToolTip);
             Assert.Equal("定时停止", AutomationProperties.GetName(button));

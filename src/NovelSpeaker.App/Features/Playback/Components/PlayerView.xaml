@@ -227,7 +227,7 @@
                                     IsEnabled="{Binding HasActiveStopTimer}"
                                     ToolTip="取消定时停止"
                                     AutomationProperties.Name="取消" />
-                            <Button x:Name="ApplyCustomStopTimerButton"
+                            <ui:Button x:Name="ApplyCustomStopTimerButton"
                                     Grid.Column="2"
                                     Margin="8,0,0,0"
                                     Padding="12,6"
@@ -460,7 +460,7 @@
                                         Content="取消选择"
                                         ToolTip="取消选择"
                                         AutomationProperties.Name="取消选择" />
-                                <Button x:Name="StartActiveCacheButton"
+                                <ui:Button x:Name="StartActiveCacheButton"
                                         Margin="8,0,0,0"
                                         Padding="10,6"
                                         Style="{StaticResource App.Button.Primary}"
@@ -599,7 +599,7 @@
                         </Style>
                     </feedbackControls:AppStatusView.Style>
                     <feedbackControls:AppStatusView.PrimaryAction>
-                        <Button Style="{StaticResource App.Button.Primary}"
+                        <ui:Button Style="{StaticResource App.Button.Primary}"
                                 Command="{Binding RetryCurrentSegmentCommand}"
                                 Content="再次尝试"
                                 ToolTip="再次尝试"
@@ -993,7 +993,7 @@
                     </Style>
                 </feedbackControls:AppStatusView.Style>
                 <feedbackControls:AppStatusView.PrimaryAction>
-                    <Button Margin="0,16,0,0"
+                    <ui:Button Margin="0,16,0,0"
                             Style="{StaticResource App.Button.Primary}"
                             Command="{Binding OpenRulesManagementCommand}"
                             Content="前往 TTS 规则" />

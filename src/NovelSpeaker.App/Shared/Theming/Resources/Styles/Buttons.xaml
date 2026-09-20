@@ -7,25 +7,32 @@
         stable semantic values and state setters.
     -->
     <Style x:Key="App.Button.Primary"
-           TargetType="Button"
-           BasedOn="{StaticResource Provider.Button}">
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource Provider.UiButton}">
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
         <Setter Property="Padding" Value="12,8" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Default}" />
+        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Hover}" />
+        <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Pressed}" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Text}" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Accent.Text}" />
         <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="MouseOverBorderBrush" Value="Transparent" />
+        <Setter Property="PressedBorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Hover}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Text}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Pressed}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Text}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Surface.Secondary}" />
+                <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Surface.Secondary}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />

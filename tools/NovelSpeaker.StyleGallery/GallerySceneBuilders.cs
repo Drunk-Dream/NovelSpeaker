@@ -1122,13 +1122,13 @@ internal static class GallerySceneBuilders
 
     private static Button CreateButtonPreview(string variant, string state)
     {
-        Button button = variant is "Icon" or "DangerIcon" or "ToolbarValue" or "FloatingIcon"
+        Button button = variant is "Primary" or "Icon" or "DangerIcon" or "ToolbarValue" or "FloatingIcon"
             ? new WpfUiButton
             {
                 Style = FindButtonStyle(variant),
                 HorizontalAlignment = HorizontalAlignment.Left,
                 Margin = new Thickness(0, 0, 12, 8),
-                Icon = new SymbolIcon
+                Icon = variant == "Primary" ? null : new SymbolIcon
                 {
                     Symbol = variant == "DangerIcon"
                         ? SymbolRegular.Delete24
@@ -1138,7 +1138,7 @@ internal static class GallerySceneBuilders
                             ? SymbolRegular.Speaker124
                             : SymbolRegular.Settings24
                 },
-                Content = variant == "ToolbarValue" ? "10" : null,
+                Content = variant == "Primary" ? variant : variant == "ToolbarValue" ? "10" : null,
                 ToolTip = $"{variant} · {state}"
             }
             : new Button
@@ -1194,14 +1194,17 @@ internal static class GallerySceneBuilders
                 stateTrigger.Setters.Add(new Setter(
                     Control.BackgroundProperty,
                     FindBrush(hoverBackground)));
-                if (variant == "FloatingIcon")
+                if (variant is "Primary" or "FloatingIcon")
                 {
                     stateTrigger.Setters.Add(new Setter(
                         WpfUiButton.MouseOverBackgroundProperty,
                         FindBrush(hoverBackground)));
-                    stateTrigger.Setters.Add(new Setter(
-                        Control.ForegroundProperty,
-                        FindBrush("App.Brush.Interaction.Foreground.Hover")));
+                    if (variant == "FloatingIcon")
+                    {
+                        stateTrigger.Setters.Add(new Setter(
+                            Control.ForegroundProperty,
+                            FindBrush("App.Brush.Interaction.Foreground.Hover")));
+                    }
                 }
                 else if (variant is "Danger" or "DangerIcon")
                 {
@@ -1226,17 +1229,20 @@ internal static class GallerySceneBuilders
                 stateTrigger.Setters.Add(new Setter(
                     Control.BackgroundProperty,
                     FindBrush(pressedBackground)));
-                if (variant == "FloatingIcon")
+                if (variant is "Primary" or "FloatingIcon")
                 {
                     stateTrigger.Setters.Add(new Setter(
                         WpfUiButton.PressedBackgroundProperty,
                         FindBrush(pressedBackground)));
-                    stateTrigger.Setters.Add(new Setter(
-                        Control.ForegroundProperty,
-                        FindBrush("App.Brush.Interaction.Foreground.Pressed")));
-                    stateTrigger.Setters.Add(new Setter(
-                        WpfUiButton.PressedForegroundProperty,
-                        FindBrush("App.Brush.Interaction.Foreground.Pressed")));
+                    if (variant == "FloatingIcon")
+                    {
+                        stateTrigger.Setters.Add(new Setter(
+                            Control.ForegroundProperty,
+                            FindBrush("App.Brush.Interaction.Foreground.Pressed")));
+                        stateTrigger.Setters.Add(new Setter(
+                            WpfUiButton.PressedForegroundProperty,
+                            FindBrush("App.Brush.Interaction.Foreground.Pressed")));
+                    }
                 }
                 else if (variant is "Danger" or "DangerIcon")
                 {
@@ -1301,7 +1307,7 @@ internal static class GallerySceneBuilders
         iconAndTextSymbol.Width = 20;
         iconAndTextSymbol.Height = 20;
         iconAndTextSymbol.Margin = new Thickness(0, 0, 8, 0);
-        var iconAndText = new Button
+        var iconAndText = new WpfUiButton
         {
             Style = FindButtonStyle("Primary"),
             HorizontalAlignment = HorizontalAlignment.Left,
