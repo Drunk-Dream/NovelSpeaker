@@ -44,13 +44,20 @@
 
 # Phase A：测试资产收敛
 
-## [ ] T001（P0）：审计永久测试并建立保留/删除判定
-
-实施规格：`tasks/T001_test_suite_audit.md`
+## [x] T001（P0）：审计永久测试并建立保留/删除判定
 
 目标：对现有 Domain / Application / Presentation / Infrastructure / WPF 测试按新的永久测试准入标准分类。重点识别锁定实现细节、重复覆盖、低价值 UI/XAML 结构断言和过细 ViewModel/Architecture contract tests，形成可执行的删除、合并、重写清单。
 
 本任务以审计和最小验证为主，不进行大规模生产代码重构。
+
+完成成果：已审计五个测试项目、`tests/TestKit` 与 Quality Matrix。T002 执行下列具名簇；未列入删除/改写簇的测试按 KEEP 保留，其保护的核心契约分别是领域文本规则、Application 的导入/播放/缓存/导出/TTS 安全、Infrastructure 的真实持久化/文件/HTTP/音频边界、Presentation 的核心流程与生命周期、WPF 的可用性与隔离 Desktop。
+
+- Domain：`NarratableTextTests`、`TextSegmentationOptionsTests` KEEP（叙述内容和分段规则）。
+- Application：`PlaybackAudioControllerTests`、`PlaybackCommandProcessorTests`、`PlaybackPrefetchCoordinatorTests`、`PlaybackSpeechSegmentComposerTests`、`CacheCatalogTests`、`ExportFileNameSanitizerTests`、`BookFileNameMetadataParserTests` DELETE（低层转发、内部排序或简单映射，风险由播放/缓存/导入/导出流程覆盖）；`PlaybackPositionResolverTests`、`PlaybackRecoveryPolicyTests`、`CacheInvalidationCoordinatorTests`、`AppSettingsServiceTests` MERGE/REWRITE（保留恢复边界、失效范围和设置持久化代表行为，删重复微分支）；其他 KEEP。
+- Infrastructure：`Sha256ContentHasherTests`、`SqliteDateTimeMapperTests`、`AppDataDirectoryProviderTests`、`BookDuplicateDetectorTests`、`ChapterRuleManagementServiceTests` DELETE（helper 或被导入/数据库流程覆盖）；`NaudioAudioPlayerTests`、`PlaybackAudioProviderTests`、`SqliteAudioCacheTests`、`PlaybackCoordinatorRecoveryTests`、`TtsRuleUseCaseTests` MERGE/REWRITE（保留可解码播放、缓存一致性、进度恢复、规则导入和安全边界的代表路径）；其他 KEEP。
+- Presentation：`CacheCompletenessFormatterTests`、`ShellLayoutControllerTests`、`LibraryScrollStateTests`、`MiniPlayerViewModelTests`、`DiagnosticsAboutViewModelTests`、`ImportTextSettingsViewModelTests`、`PlaybackSettingsViewModelTests`、`AppearanceSettingsViewModelTests`、`AppThemeStartupCoordinatorTests`、`ThemeToggleServiceTests` DELETE（辅助投影、文案/设置 UI 或被核心流程覆盖）；`ArchitectureRuleContractTests` MERGE/REWRITE 为少量代表性规则探针；`BookDetailsViewModelTests`、`PlayerViewModelProjectionTests`、`TtsRulesViewModelTests`、`RegexReplacementRulesViewModelTests` MERGE/REWRITE，保留打开、播放、规则编辑的稳定行为，删投影字段/调用时序断言；其他 KEEP。
+- WPF：`Ui/*Style*Tests`、`Ui/*Palette*Tests`、`Ui/*Gallery*Tests`、`Ui/*ResponsiveLayoutTests`、`Ui/*FormControlTests`、`Ui/*ResourceTests`、`Ui/*VisualTests`、`Ui/*FeedbackControlTests`、`Ui/*CallerAuditTests`、`Ui/*ContractTests` DELETE（样式、资源、几何、截图、结构）；`Ui/AppearanceSettingsPageTests`、`Ui/BookCardViewTests`、`Ui/CacheAndDataPageTests`、`Ui/CachePagesViewTests`、`Ui/DiagnosticsAboutPageTests`、`Ui/GeneralSettingsPageTests`、`Ui/ImportTextSettingsPageTests`、`Ui/PlaybackSettingsPageTests`、`Ui/RuleListItemViewTests`、`Ui/RuleDragInteractionTests`、`Ui/TtsRulesPageTests`、`Ui/RegexReplacementRulesPageTests` DELETE（页面布局和控件内部形状）；`Ui/PlayerViewAutoCenterTests` MERGE/REWRITE 为恢复当前位置、手动浏览两项核心交互；`Ui/PlayerViewLayoutTests` MERGE/REWRITE，保留空章节/无可用规则时播放控件状态及 Single Surface 断言；`Ui/SettingsPageViewTests` MERGE/REWRITE，保留键盘导航路线激活；`Ui/LibraryPageTests`、`Ui/BookDetailsPageTests`、`Ui/PlayerStopTimerEntryTests`、`Navigation/MainWindowNavigationTests`、`Desktop/MiniPlayerWindowTests`、`Bootstrap/StartupStatusWindowTests` MERGE/REWRITE：删除截图、样式、精确几何断言，保留关键 binding、虚拟化、导航和窗口生命周期。`Architecture/VisualResourceGraphTests`、`Architecture/IconForegroundContractTests`、`Architecture/VisualStyleArchitectureTests` DELETE（资源图、图标和样式检测器细节）；其他 KEEP，其中 `Architecture/WpfTestHostIsolationTests` 守护隔离桌面失败关闭。
+- TestKit：`PageVisualReviewHarness`、`WindowVisualReviewHarness`、`VisualArtifactTestGuard`、`TransientPopupVisualRenderer`、`VisualTreeTestHelper` 是 TEMPORARY-ONLY PATTERN 候选；T003 按删除后的真实引用清理。CI 五项目入口目前有效。未发现必须新增长期测试才能开展瘦身的核心缺口；临时的视觉/内部状态验证须随任务删除。
 
 ## [ ] T002（P0）：按核心契约瘦身现有测试体系
 
