@@ -92,11 +92,35 @@
                 <ui:Button x:Name="ActiveCacheToolButton"
                         Width="44"
                         Height="44"
-                        Style="{StaticResource App.Button.Icon}"
-                        Command="{Binding EnterActiveCacheSelectionCommand}"
-                        ToolTip="主动缓存章节"
-                        AutomationProperties.Name="主动缓存章节"
-                        Icon="{ui:SymbolIcon Symbol=ArrowDownload24}" />
+                        Command="{Binding ToggleActiveCacheSelectionCommand}">
+                    <ui:Button.Style>
+                        <Style TargetType="{x:Type ui:Button}"
+                               BasedOn="{StaticResource App.Button.Icon}">
+                            <Setter Property="ToolTip" Value="缓存章节" />
+                            <Setter Property="AutomationProperties.Name" Value="缓存章节" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsActiveCacheSelectionMode}" Value="True">
+                                    <Setter Property="ToolTip" Value="退出选择" />
+                                    <Setter Property="AutomationProperties.Name" Value="退出选择" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ui:Button.Style>
+                    <ui:Button.Icon>
+                        <ui:SymbolIcon>
+                            <ui:SymbolIcon.Style>
+                                <Style TargetType="{x:Type ui:SymbolIcon}">
+                                    <Setter Property="Symbol" Value="ArrowDownload24" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsActiveCacheSelectionMode}" Value="True">
+                                            <Setter Property="Symbol" Value="Dismiss24" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:SymbolIcon.Style>
+                        </ui:SymbolIcon>
+                    </ui:Button.Icon>
+                </ui:Button>
                 <ui:Button x:Name="MiniPlayerToolButton"
                         Margin="12,0,0,0"
                         Width="44"
@@ -435,9 +459,9 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                        <StackPanel x:Name="ActiveCacheSelectionToolbar">
-                            <StackPanel.Style>
-                                <Style TargetType="StackPanel">
+                        <Grid x:Name="ActiveCacheSelectionToolbar">
+                            <Grid.Style>
+                                <Style TargetType="Grid">
                                     <Setter Property="Visibility" Value="Collapsed" />
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsActiveCacheSelectionMode}" Value="True">
@@ -445,32 +469,37 @@
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </StackPanel.Style>
-                            <TextBlock Style="{StaticResource App.Typography.FormLabel}"
+                            </Grid.Style>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center"
+                                       Style="{StaticResource App.Typography.FormLabel}"
                                        Text="{Binding ActiveCacheSelectionSummary}" />
-                            <TextBlock Margin="0,4,0,0"
+                            <ui:Button x:Name="StartActiveCacheButton"
+                                       Grid.Column="1"
+                                       Width="40"
+                                       Height="40"
+                                       Padding="0"
+                                       Style="{StaticResource App.Button.Primary}"
+                                       Command="{Binding StartActiveCacheCommand}"
+                                       IsEnabled="{Binding CanStartActiveCache}"
+                                       ToolTip="开始缓存"
+                                       ToolTipService.ShowOnDisabled="True"
+                                       AutomationProperties.Name="开始缓存"
+                                       Icon="{ui:SymbolIcon Symbol=ArrowDownload24}" />
+                            <TextBlock Grid.Row="1"
+                                       Grid.ColumnSpan="2"
+                                       Margin="0,4,0,0"
                                        Style="{StaticResource App.Typography.Secondary}"
                                        Text="{Binding ActiveCacheStatusText}"
                                        TextWrapping="Wrap" />
-                            <WrapPanel Margin="0,10,0,0">
-                                <Button x:Name="CancelActiveCacheSelectionButton"
-                                        Padding="10,6"
-                                        Style="{StaticResource App.Button.Secondary}"
-                                        Command="{Binding CancelActiveCacheSelectionCommand}"
-                                        Content="取消选择"
-                                        ToolTip="取消选择"
-                                        AutomationProperties.Name="取消选择" />
-                                <ui:Button x:Name="StartActiveCacheButton"
-                                        Margin="8,0,0,0"
-                                        Padding="10,6"
-                                        Style="{StaticResource App.Button.Primary}"
-                                        Command="{Binding StartActiveCacheCommand}"
-                                        Content="开始缓存"
-                                        IsEnabled="{Binding CanStartActiveCache}"
-                                        ToolTip="开始缓存"
-                                        AutomationProperties.Name="开始缓存" />
-                            </WrapPanel>
-                        </StackPanel>
+                        </Grid>
                     </Grid>
                     <Grid>
                         <ListBox x:Name="WideChaptersListBox"

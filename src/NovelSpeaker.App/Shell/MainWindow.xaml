@@ -104,11 +104,16 @@
                             </ui:SymbolIcon.Style>
                         </ui:SymbolIcon>
                     </ui:NavigationViewItem.Icon>
-                    <StackPanel>
+                    <StackPanel MaxWidth="140"
+                                Visibility="{Binding ElementName=RootNavigationView, Path=IsPaneOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
+                                   TextWrapping="NoWrap"
+                                   TextTrimming="CharacterEllipsis"
                                    Text="{Binding NowPlayingTitle}" />
                         <TextBlock FontSize="12"
                                    Style="{StaticResource App.Typography.Caption}"
+                                   TextWrapping="NoWrap"
+                                   TextTrimming="CharacterEllipsis"
                                    Text="{Binding NowPlayingStatus}" />
                     </StackPanel>
                 </ui:NavigationViewItem>

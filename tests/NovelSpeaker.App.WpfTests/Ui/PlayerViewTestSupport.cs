@@ -197,9 +197,7 @@ public sealed partial class PlayerViewTests
 
         public IRelayCommand CancelStopTimerCommand { get; } = new RelayCommand(() => { });
 
-        public IRelayCommand EnterActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
-
-        public IRelayCommand CancelActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
+        public IRelayCommand ToggleActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand StartActiveCacheCommand { get; } = new RelayCommand(() => { });
 

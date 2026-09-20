@@ -71,6 +71,21 @@ public sealed partial class PlayerViewTests
     {
         WpfTestHost.RunInSta(() =>
         {
+            var inactiveView = new PlayerView
+            {
+                DataContext = new PlayerViewLayoutTestContext(
+                    new ObservableCollection<PlayerChapterItemViewModel> { new(0, "第一章") },
+                    new ObservableCollection<PlayerSegmentItemViewModel> { new(0, 0, "第一段") })
+            };
+            inactiveView.Measure(new Size(1280, 760));
+            inactiveView.Arrange(new Rect(0, 0, 1280, 760));
+            inactiveView.UpdateLayout();
+
+            var inactiveToolButton = Assert.IsType<WpfUiButton>(inactiveView.FindName("ActiveCacheToolButton"));
+            Assert.Equal("缓存章节", inactiveToolButton.ToolTip);
+            Assert.Equal("缓存章节", AutomationProperties.GetName(inactiveToolButton));
+            Assert.Equal(SymbolRegular.ArrowDownload24, Assert.IsType<SymbolIcon>(inactiveToolButton.Icon).Symbol);
+
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
                 new(0, "第一章", isSelectedForActiveCache: true),
@@ -96,17 +111,18 @@ public sealed partial class PlayerViewTests
 
             var toolButton = Assert.IsType<WpfUiButton>(view.FindName("ActiveCacheToolButton"));
             var locateButton = Assert.IsType<WpfUiButton>(view.FindName("LocateCurrentChapterButton"));
-            var selectionToolbar = Assert.IsType<StackPanel>(view.FindName("ActiveCacheSelectionToolbar"));
-            var cancelButton = Assert.IsType<Button>(view.FindName("CancelActiveCacheSelectionButton"));
+            var selectionToolbar = Assert.IsAssignableFrom<FrameworkElement>(view.FindName("ActiveCacheSelectionToolbar"));
             var startButton = Assert.IsType<WpfUiButton>(view.FindName("StartActiveCacheButton"));
 
-            Assert.Equal("主动缓存章节", toolButton.ToolTip);
-            Assert.Equal("主动缓存章节", AutomationProperties.GetName(toolButton));
+            Assert.Equal("退出选择", toolButton.ToolTip);
+            Assert.Equal("退出选择", AutomationProperties.GetName(toolButton));
+            Assert.Equal(SymbolRegular.Dismiss24, Assert.IsType<SymbolIcon>(toolButton.Icon).Symbol);
             Assert.Equal(Visibility.Visible, selectionToolbar.Visibility);
             Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已选择 2 章"));
             Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已有主动缓存批次正在运行，完成或取消后可开始新批次。"));
-            Assert.Equal("取消选择", AutomationProperties.GetName(cancelButton));
             Assert.Equal("开始缓存", AutomationProperties.GetName(startButton));
+            Assert.Null(startButton.Content);
+            Assert.Equal(SymbolRegular.ArrowDownload24, Assert.IsType<SymbolIcon>(startButton.Icon).Symbol);
             Assert.False(startButton.IsEnabled);
             Assert.Equal("定位到当前章节", locateButton.ToolTip);
             Assert.Equal("定位到当前章节", AutomationProperties.GetName(locateButton));

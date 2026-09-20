@@ -822,16 +822,16 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         _cacheDecorationController.RequestDecorationWindow(start, count);
 
     [RelayCommand]
-    private void EnterActiveCacheSelection()
+    private void ToggleActiveCacheSelection()
     {
+        if (IsActiveCacheSelectionMode)
+        {
+            _cacheDecorationController.ExitSelectionMode();
+            return;
+        }
+
         CloseTransientPanels();
         _cacheDecorationController.EnterSelectionMode();
-    }
-
-    [RelayCommand]
-    private void CancelActiveCacheSelection()
-    {
-        _cacheDecorationController.ExitSelectionMode();
     }
 
     [RelayCommand]
