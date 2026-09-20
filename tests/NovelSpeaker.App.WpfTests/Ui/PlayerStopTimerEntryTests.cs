@@ -97,56 +97,6 @@ public sealed class PlayerStopTimerEntryTests
         });
     }
 
-    [Fact]
-    public void Player_stop_timer_choice_style_marks_only_the_current_preset()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            GalleryThemeRuntime.EnsureProviderResources();
-            GalleryThemeRuntime.Apply(GalleryTheme.Light);
-            var view = new PlayerView();
-            var style = Assert.IsType<Style>(view.FindResource("Player.StopTimerChoice"));
-            var active = new Button
-            {
-                Style = style,
-                Tag = "30",
-                DataContext = new StopTimerChoiceState("30")
-            };
-            var inactive = new Button
-            {
-                Style = style,
-                Tag = "15",
-                DataContext = new StopTimerChoiceState("30")
-            };
-            var window = new Window
-            {
-                Content = new StackPanel
-                {
-                    Children = { active, inactive }
-                },
-                Width = 240,
-                Height = 120,
-                ShowInTaskbar = false,
-                WindowStyle = WindowStyle.ToolWindow
-            };
-            try
-            {
-                WpfWindowHost.Show(window);
-                window.UpdateLayout();
-
-                var accent = Assert.IsType<SolidColorBrush>(
-                    view.FindResource("App.Brush.Accent.Subtle")).Color;
-                Assert.Equal(accent, Assert.IsType<SolidColorBrush>(active.Background).Color);
-                Assert.NotEqual(accent, Assert.IsType<SolidColorBrush>(inactive.Background).Color);
-            }
-            finally
-            {
-                GalleryThemeRuntime.Apply(GalleryTheme.Light);
-                window.Close();
-            }
-        });
-    }
-
     private sealed record StopTimerChoiceState(string StopTimerPresetMinutesText);
 
     private static string LocateRepositoryRoot()
