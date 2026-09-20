@@ -69,11 +69,9 @@
 
 完成成果：按 T001 分类删除 WPF 样式、资源、截图、精确几何与页面结构测试；混合测试保留关键 binding、键盘导航、虚拟化、播放器可用状态和四个浮层的 Single Surface 运行态检查。Presentation 删除辅助投影/设置微测试，将 Architecture 检测器探针压缩为代表性边界，并保留书籍详情打开章节、播放失败重试等独立审查确认的核心路径。Application/Infrastructure 删除简单转发、映射和已由高层流程覆盖的测试；合并播放恢复、缓存持久化与失效、设置保存、音频资源释放、TTS 规则导入等重复分支，保留各自的数据、兼容与安全边界。删除失去引用的 Visual Review TestKit 与截图辅助设施。生产代码未改动；后续 T003 检查 CI、剩余辅助资产及完整门禁。
 
-## [ ] T003（P0）：收口质量门禁与后续测试工作流
+## [x] T003（P0）：收口质量门禁与后续测试工作流
 
 依赖：T002。
-
-实施规格：`tasks/T003_quality_gate_closure.md`
 
 目标：基于瘦身后的测试资产检查 CI/质量门禁是否仍与新的长期测试策略一致，删除只服务于已移除细粒度测试的 TestKit/fixture/辅助代码，并执行完整 Release 质量门禁。
 
@@ -86,3 +84,5 @@
 - 临时测试的创建与删除规则已经可以被 Codex 实际遵循；
 - 后续核心功能/核心 Bug 可以优先采用 test-first，但 Agent 可以根据风险选择更合适的验证方式；
 - 完整 Release build 与全部保留测试通过。
+
+完成成果：五个测试项目均保留有效的核心契约，Quality Matrix 的项目入口继续有效；删除未被代码读取的旧窗口显示环境变量，未缩小默认测试范围。剩余 TestKit helper 和 TestAssets 均有实际引用，没有遗留 Visual Review 截图设施或临时脚本。`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore` 与 `dotnet test -c Release --no-build` 均通过，Release build 0 warning，所有测试均无 skip；WPF 隔离 Desktop 检查保持 fail closed。首次全量测试曾报告一次 WPF collection cleanup 异常并以非零码退出，随后详细重跑和规定原命令重跑均通过，尚未复现，作为后续观察风险。
