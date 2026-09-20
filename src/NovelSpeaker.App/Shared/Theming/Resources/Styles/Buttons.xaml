@@ -23,9 +23,6 @@
         <Setter Property="PressedBorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
         <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Text}" />
-            </Trigger>
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Text}" />
             </Trigger>
@@ -121,7 +118,6 @@
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
-                <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="MouseOverBackground" Value="Transparent" />
@@ -229,7 +225,6 @@
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
-                <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="MouseOverBackground" Value="Transparent" />
@@ -330,14 +325,9 @@
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
-                <!-- Keep the fixed Low elevation; Hover must not lift the button. -->
-                <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
-                <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
-                <!-- Pressed is a normal interaction surface, not Accent.Subtle. -->
-                <Setter Property="Effect" Value="{StaticResource App.Elevation.Low}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />

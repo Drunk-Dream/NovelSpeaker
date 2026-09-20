@@ -176,10 +176,9 @@ public sealed class ButtonStyleTests
             pressed.Elements(),
             setter => (string?)setter.Attribute("Property") == "Foreground" &&
                       (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Pressed}");
-        Assert.Contains(
+        Assert.DoesNotContain(
             pressed.Elements(),
-            setter => (string?)setter.Attribute("Property") == "PressedForeground" &&
-                      (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Pressed}");
+            setter => (string?)setter.Attribute("Property") == "PressedForeground");
     }
 
     private void Floating_icon_button_style_owns_the_complete_interaction_surface()
@@ -233,13 +232,14 @@ public sealed class ButtonStyleTests
         Assert.Contains(hover.Elements(), setter =>
             (string?)setter.Attribute("Property") == "Foreground" &&
             (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Hover}");
-        Assert.Contains(hover.Elements(), setter =>
-            (string?)setter.Attribute("Property") == "Effect" &&
-            (string?)setter.Attribute("Value") == "{StaticResource App.Elevation.Low}");
+        Assert.DoesNotContain(hover.Elements(), setter =>
+            (string?)setter.Attribute("Property") == "Effect");
         var pressed = triggers.Single(trigger => (string?)trigger.Attribute("Property") == "IsPressed");
         Assert.Contains(pressed.Elements(), setter =>
             (string?)setter.Attribute("Property") == "Foreground" &&
             (string?)setter.Attribute("Value") == "{DynamicResource App.Brush.Interaction.Foreground.Pressed}");
+        Assert.DoesNotContain(pressed.Elements(), setter =>
+            (string?)setter.Attribute("Property") is "Effect" or "PressedForeground");
         Assert.DoesNotContain(pressed.Elements(), setter =>
             setter.Attribute("Value")?.Value.Contains("Accent", StringComparison.Ordinal) == true);
     }
@@ -488,7 +488,9 @@ public sealed class ButtonStyleTests
                     continue;
                 }
 
-                var expectedTriggers = new[] { "IsEnabled", "IsMouseOver", "IsPressed" };
+                var expectedTriggers = key == "App.Button.Primary"
+                    ? new[] { "IsEnabled", "IsPressed" }
+                    : new[] { "IsEnabled", "IsMouseOver", "IsPressed" };
                 Assert.Equal(
                     expectedTriggers,
                     button.Style.Triggers

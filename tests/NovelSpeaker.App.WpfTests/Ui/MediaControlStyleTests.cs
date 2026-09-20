@@ -177,15 +177,13 @@ public sealed class MediaControlStyleTests
         Assert.Equal("Transparent", setters["PressedBackground"]);
         Assert.Equal("Transparent", setters["MouseOverBorderBrush"]);
         Assert.Equal("Transparent", setters["PressedBorderBrush"]);
-        Assert.Equal(
-            "{DynamicResource App.Brush.Interaction.Foreground.Pressed}",
-            setters["PressedForeground"]);
+        Assert.DoesNotContain("PressedForeground", setters.Keys);
 
         var triggers = style.Elements().Single(element => element.Name.LocalName == "Style.Triggers")
             .Elements()
             .Select(trigger => (string?)trigger.Attribute("Property") ?? string.Empty)
             .ToArray();
-        Assert.Equal(["IsMouseOver", "IsPressed", "IsEnabled"], triggers);
+        Assert.Equal(["IsMouseOver", "IsPressed"], triggers);
         Assert.DoesNotContain(
             style.Elements().Single(element => element.Name.LocalName == "Style.Triggers").Elements(),
             trigger => trigger.Elements().Any(setter =>
