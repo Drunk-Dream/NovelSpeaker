@@ -16,9 +16,10 @@ namespace NovelSpeaker.Infrastructure.Diagnostics;
 /// </summary>
 public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryService, IObservabilityConsumer, IAsyncDisposable
 {
-    private const int SchemaVersion = 1;
-    private const int SchemaVersionValue = SchemaVersion;
+    private const int ExportSchemaVersion = 1;
+    private const int WindowSchemaVersion = 2;
     private static readonly TimeSpan WindowSize = TimeSpan.FromMinutes(1);
+    private static readonly TimeSpan ResourceSampleInterval = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan Retention = TimeSpan.FromDays(30);
     private static readonly TimeSpan ExportRange = TimeSpan.FromDays(14);
     private const long MaxFileBytes = 8L * 1024 * 1024;
@@ -29,6 +30,8 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
     private readonly IAppStoragePathResolver _pathResolver;
     private readonly IAppSettingsService _settings;
     private readonly TimeProvider _timeProvider;
+    private readonly string _processInstanceId;
+    private readonly ITimer _resourceTimer;
     private readonly PerformanceMetricRegistry _registry;
     private readonly IDiagnosticFailureReporter? _failureReporter;
     private readonly DiagnosticBundleWriter _bundleWriter = new();
@@ -49,7 +52,9 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
     private bool _writerCompleted;
     private bool _degraded;
     private long _droppedWindowCount;
-    private ProcessCpuSample _lastCpuSample;
+    private ProcessCpuSample? _lastCpuSample;
+    private long _resourceSamplingStartTimestamp;
+    private long _sampledResourcePeriods;
     private int _collectionEnabled;
     private int _disposed;
 
@@ -57,6 +62,7 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         IAppDataDirectoryProvider directories,
         IAppSettingsService settings,
         TimeProvider timeProvider,
+        IObservabilityContextAccessor contextAccessor,
         PerformanceMetricRegistry? registry = null,
         IAppStoragePathResolver? pathResolver = null,
         IDiagnosticFailureReporter? failureReporter = null)
@@ -65,27 +71,74 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         _pathResolver = pathResolver ?? new AppStoragePathResolver(_directories);
         _settings = settings ?? throw new ArgumentNullException(nameof(settings));
         _timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        _processInstanceId = (contextAccessor ?? throw new ArgumentNullException(nameof(contextAccessor)))
+            .Current.ProcessInstanceId;
         _registry = registry ?? PerformanceMetricRegistry.Default;
         _failureReporter = failureReporter;
-        _lastCpuSample = CaptureCpuSample(_timeProvider.GetUtcNow());
-        _collectionEnabled = _settings.Current.EnablePerformanceTelemetry ? 1 : 0;
+        _resourceTimer = _timeProvider.CreateTimer(
+            static state => ((LocalPerformanceTelemetryStore)state!).SampleProcessResources(),
+            this,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
         _writerTask = Task.Run(WriterLoopAsync);
+        SetCollectionEnabled(_settings.Current.EnablePerformanceTelemetry);
     }
 
     public bool IsEnabled => Volatile.Read(ref _collectionEnabled) != 0;
 
     public void SetCollectionEnabled(bool enabled)
     {
-        Volatile.Write(ref _collectionEnabled, enabled ? 1 : 0);
-        if (enabled)
+        lock (_gate)
         {
-            TryApplyRetention(_timeProvider.GetUtcNow());
+            if (Volatile.Read(ref _disposed) != 0 || IsEnabled == enabled)
+            {
+                return;
+            }
+
+            if (enabled)
+            {
+                try
+                {
+                    _lastCpuSample = CaptureCpuSample();
+                }
+                catch
+                {
+                    _lastCpuSample = null;
+                    Volatile.Write(ref _degraded, true);
+                }
+
+                _resourceSamplingStartTimestamp = _timeProvider.GetTimestamp();
+                _sampledResourcePeriods = 0;
+                Volatile.Write(ref _collectionEnabled, 1);
+                TryChangeResourceTimer(ResourceSampleInterval, ResourceSampleInterval);
+            }
+            else
+            {
+                Volatile.Write(ref _collectionEnabled, 0);
+                TryChangeResourceTimer(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                _lastCpuSample = null;
+            }
         }
     }
 
     internal bool IsDegraded => Volatile.Read(ref _degraded);
 
     internal long DroppedWindowCount => Interlocked.Read(ref _droppedWindowCount);
+
+    private void TryChangeResourceTimer(TimeSpan dueTime, TimeSpan period)
+    {
+        try
+        {
+            if (!_resourceTimer.Change(dueTime, period))
+            {
+                Volatile.Write(ref _degraded, true);
+            }
+        }
+        catch
+        {
+            Volatile.Write(ref _degraded, true);
+        }
+    }
 
     public void OnOperationStarted(OperationStarted operation)
     {
@@ -108,6 +161,11 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         {
             lock (_gate)
             {
+                if (!IsEnabled || Volatile.Read(ref _disposed) != 0)
+                {
+                    return;
+                }
+
                 var timestamp = operation.CompletedAtUtc;
                 AdvanceWindowLocked(timestamp);
                 var outcome = operation.Result.Outcome switch
@@ -127,7 +185,6 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
                     _registry.Get("operation.duration"),
                     Math.Max(0d, operation.Duration.TotalMilliseconds),
                     tags);
-                AddProcessGaugesLocked(timestamp);
             }
         }
         catch
@@ -154,6 +211,10 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
                         File.Delete(_pathResolver.ResolvePath(path));
                     }
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch
             {
@@ -185,7 +246,7 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
             var telemetryJson = JsonSerializer.Serialize(
                 new
                 {
-                    schemaVersion = SchemaVersion,
+                    schemaVersion = ExportSchemaVersion,
                     generatedAtUtc = now,
                     rangeStartUtc = rangeStart,
                     rangeEndUtc = now,
@@ -197,7 +258,7 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
             var environmentJson = JsonSerializer.Serialize(
                 new
                 {
-                    schemaVersion = SchemaVersion,
+                    schemaVersion = ExportSchemaVersion,
                     appVersion,
                     osDescription = Environment.OSVersion.VersionString,
                     frameworkDescription = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
@@ -280,9 +341,26 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
             return;
         }
 
+        Volatile.Write(ref _collectionEnabled, 0);
+
+        var timerDrained = true;
         try
         {
-            await FlushAsync(CancellationToken.None).ConfigureAwait(false);
+            await _resourceTimer.DisposeAsync().AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+        }
+        catch
+        {
+            timerDrained = false;
+            Volatile.Write(ref _degraded, true);
+        }
+
+        try
+        {
+            if (timerDrained)
+            {
+                await FlushAsync(CancellationToken.None).ConfigureAwait(false);
+            }
         }
         catch
         {
@@ -305,17 +383,17 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         var start = FloorWindow(timestamp.UtcDateTime);
         if (_currentWindow is null)
         {
-            _currentWindow = new TelemetryWindowRecord(start, start + WindowSize, ResolveVersion());
+            _currentWindow = new TelemetryWindowRecord(start, start + WindowSize, ResolveVersion(), _processInstanceId);
             return;
         }
 
-        if (start <= _currentWindow.WindowStartUtc)
+        if (start == _currentWindow.WindowStartUtc)
         {
             return;
         }
 
         EnqueueWindow(_currentWindow);
-        _currentWindow = new TelemetryWindowRecord(start, start + WindowSize, ResolveVersion());
+        _currentWindow = new TelemetryWindowRecord(start, start + WindowSize, ResolveVersion(), _processInstanceId);
     }
 
     private void AddSampleLocked(
@@ -360,18 +438,49 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
         }
     }
 
-    private void AddProcessGaugesLocked(DateTimeOffset timestamp)
+    private void SampleProcessResources()
     {
-        var sample = CaptureCpuSample(timestamp);
-        var elapsed = (sample.TimestampUtc - _lastCpuSample.TimestampUtc).TotalSeconds;
-        var cpuPercent = elapsed > 0d
-            ? (sample.TotalProcessorTime - _lastCpuSample.TotalProcessorTime).TotalSeconds /
-              elapsed / Math.Max(1, Environment.ProcessorCount) * 100d
-            : 0d;
-        _lastCpuSample = sample;
-        AddSampleLocked(_registry.Get("process.cpu.percent"), Math.Clamp(cpuPercent, 0d, 100d));
-        AddSampleLocked(_registry.Get("process.working-set.bytes"), sample.WorkingSetBytes);
-        AddSampleLocked(_registry.Get("process.managed-heap.bytes"), GC.GetTotalMemory(forceFullCollection: false));
+        try
+        {
+            lock (_gate)
+            {
+                if (!IsEnabled || Volatile.Read(ref _disposed) != 0)
+                {
+                    return;
+                }
+
+                var samplingElapsed = _timeProvider.GetElapsedTime(_resourceSamplingStartTimestamp);
+                var elapsedPeriods = samplingElapsed.Ticks / ResourceSampleInterval.Ticks;
+                if (elapsedPeriods <= _sampledResourcePeriods)
+                {
+                    return;
+                }
+
+                var timestamp = _timeProvider.GetUtcNow();
+                var sample = CaptureCpuSample();
+                var managedHeapBytes = GC.GetTotalMemory(forceFullCollection: false);
+                AdvanceWindowLocked(timestamp);
+                _sampledResourcePeriods = elapsedPeriods;
+                if (_lastCpuSample is { } baseline)
+                {
+                    var elapsed = _timeProvider.GetElapsedTime(baseline.Timestamp, sample.Timestamp).TotalSeconds;
+                    if (elapsed > 0d)
+                    {
+                        var cpuPercent = (sample.TotalProcessorTime - baseline.TotalProcessorTime).TotalSeconds /
+                            elapsed / Math.Max(1, Environment.ProcessorCount) * 100d;
+                        AddSampleLocked(_registry.Get("process.cpu.percent"), Math.Clamp(cpuPercent, 0d, 100d));
+                    }
+                }
+
+                _lastCpuSample = sample;
+                AddSampleLocked(_registry.Get("process.working-set.bytes"), sample.WorkingSetBytes);
+                AddSampleLocked(_registry.Get("process.managed-heap.bytes"), managedHeapBytes);
+            }
+        }
+        catch
+        {
+            Volatile.Write(ref _degraded, true);
+        }
     }
 
     private void EnqueueWindow(TelemetryWindowRecord window)
@@ -639,10 +748,10 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
     private static DateTime FloorWindow(DateTime timestampUtc) =>
         new(timestampUtc.Year, timestampUtc.Month, timestampUtc.Day, timestampUtc.Hour, timestampUtc.Minute, 0, DateTimeKind.Utc);
 
-    private static ProcessCpuSample CaptureCpuSample(DateTimeOffset timestamp)
+    private ProcessCpuSample CaptureCpuSample()
     {
         using var process = Process.GetCurrentProcess();
-        return new ProcessCpuSample(timestamp, process.TotalProcessorTime, process.WorkingSet64);
+        return new ProcessCpuSample(_timeProvider.GetTimestamp(), process.TotalProcessorTime, process.WorkingSet64);
     }
 
     private string GetTelemetryDirectory() =>
@@ -702,24 +811,30 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
     }
 
     private sealed record ProcessCpuSample(
-        DateTimeOffset TimestampUtc,
+        long Timestamp,
         TimeSpan TotalProcessorTime,
         long WorkingSetBytes);
 
     private sealed class TelemetryWindowRecord
     {
-        public TelemetryWindowRecord(DateTimeOffset windowStartUtc, DateTimeOffset windowEndUtc, string appVersion)
+        public TelemetryWindowRecord(
+            DateTimeOffset windowStartUtc,
+            DateTimeOffset windowEndUtc,
+            string appVersion,
+            string? processInstanceId)
         {
-            SchemaVersion = SchemaVersionValue;
+            SchemaVersion = WindowSchemaVersion;
             WindowStartUtc = windowStartUtc;
             WindowEndUtc = windowEndUtc;
             AppVersion = appVersion;
+            ProcessInstanceId = processInstanceId;
         }
 
         public int SchemaVersion { get; set; }
         public DateTimeOffset WindowStartUtc { get; set; }
         public DateTimeOffset WindowEndUtc { get; set; }
         public string AppVersion { get; set; }
+        public string? ProcessInstanceId { get; set; }
         public Dictionary<string, MetricAggregateRecord> Metrics { get; set; } = new(StringComparer.Ordinal);
     }
 
