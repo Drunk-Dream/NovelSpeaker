@@ -37,7 +37,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="12,8" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
-        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="SelectionBrush" Value="{DynamicResource App.Brush.Accent}" />
         <Setter Property="SelectionTextBrush" Value="{DynamicResource App.Brush.Accent.Text}" />
@@ -92,7 +92,7 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Padding" Value="12,8" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
-        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">

@@ -242,6 +242,69 @@ public sealed class InputStyleContractTests
         });
     }
 
+    [Fact]
+    public void Short_text_inputs_keep_the_editable_host_across_the_empty_right_side()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            GalleryThemeRuntime.EnsureProviderResources();
+            var application = Assert.IsAssignableFrom<global::System.Windows.Application>(
+                global::System.Windows.Application.Current);
+            var controls = new Control[]
+            {
+                new WpfTextBox
+                {
+                    Text = "短文本",
+                    Style = Assert.IsType<Style>(application.FindResource("App.Input.TextBox.Standard"))
+                },
+                new WpfTextBox
+                {
+                    Text = "短文本",
+                    Style = Assert.IsType<Style>(application.FindResource("App.Input.TextBox.Compact"))
+                },
+                new WpfPasswordBox
+                {
+                    Style = Assert.IsType<Style>(application.FindResource("App.Input.PasswordBox.Standard"))
+                },
+                new WpfPasswordBox
+                {
+                    Style = Assert.IsType<Style>(application.FindResource("App.Input.PasswordBox.Compact"))
+                }
+            };
+            ((WpfPasswordBox)controls[2]).Password = "short";
+            ((WpfPasswordBox)controls[3]).Password = "short";
+
+            var panel = new StackPanel();
+            foreach (var control in controls)
+            {
+                panel.Children.Add(control);
+            }
+
+            using var host = WpfWindowHost.Show(new Window
+            {
+                Content = panel,
+                Width = 360,
+                Height = 240,
+                WindowStyle = WindowStyle.ToolWindow
+            });
+            host.Window.UpdateLayout();
+
+            foreach (var control in controls)
+            {
+                var contentHost = Assert.IsAssignableFrom<FrameworkElement>(
+                    control.Template.FindName("PART_ContentHost", control));
+                var contentBounds = contentHost.TransformToAncestor(control)
+                    .TransformBounds(new Rect(new Point(), contentHost.RenderSize));
+                var rightSideInsidePadding = control.ActualWidth - control.Padding.Right -
+                                             control.BorderThickness.Right - 4;
+
+                Assert.True(contentBounds.Contains(new Point(rightSideInsidePadding, contentBounds.Top +
+                    contentBounds.Height / 2)), $"{control.GetType().Name} content host ends at {contentBounds.Right}, " +
+                    $"before the empty right side at {rightSideInsidePadding}.");
+            }
+        });
+    }
+
     private void Checked_toggle_hover_keeps_the_accent_track_state()
     {
         var path = Path.Combine(
