@@ -48,8 +48,10 @@ public sealed class RollingFileLoggerProviderTests
                 Assert.True(definition.Id > 0);
                 Assert.False(string.IsNullOrWhiteSpace(definition.EventName));
                 Assert.False(string.IsNullOrWhiteSpace(definition.Category));
-                Assert.NotNull(definition.Operation);
-                Assert.False(string.IsNullOrWhiteSpace(definition.Operation!.Id.Value));
+                if (definition.Operation is { } operation)
+                {
+                    Assert.False(string.IsNullOrWhiteSpace(operation.Id.Value));
+                }
                 Assert.False(string.IsNullOrWhiteSpace(definition.Description));
             });
     }

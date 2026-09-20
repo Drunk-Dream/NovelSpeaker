@@ -24,7 +24,7 @@ public partial class CacheAndDataPage : System.Windows.Controls.Page, INavigatio
 
     public async Task OnNavigatedToAsync()
     {
-        using var operation = _eventOperations.StartCriticalLoad();
+        using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiCacheLoad);
         var activation = _activation.Activate();
         ViewModel.Activate(activation);
         activation.Register(ViewModel.Deactivate);

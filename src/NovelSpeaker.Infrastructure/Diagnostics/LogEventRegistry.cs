@@ -12,7 +12,7 @@ public static class LogEventRegistry
         1000,
         "event.unclassified",
         "diagnostics",
-        OperationCatalog.StorageQuery,
+        null,
         LogLevel.Information,
         "A caller supplied no registered event definition.");
 
@@ -76,7 +76,7 @@ public static class LogEventRegistry
         1201,
         "cache.operation.failed",
         "cache",
-        OperationCatalog.CacheOperation,
+        OperationCatalog.CacheAudioGeneration,
         LogLevel.Error,
         "A cache operation failed.");
 
@@ -84,7 +84,7 @@ public static class LogEventRegistry
         1202,
         "cache.completeness.unavailable",
         "cache",
-        OperationCatalog.CacheOperation,
+        OperationCatalog.CacheCompletenessCheck,
         LogLevel.Warning,
         "Cache completeness information was unavailable.");
 
@@ -168,7 +168,7 @@ public static class LogEventRegistry
         int id,
         string eventName,
         string category,
-        OperationDefinition operation,
+        OperationDefinition? operation,
         LogLevel defaultLevel,
         string description) =>
         new(id, eventName, category, operation, defaultLevel, description);

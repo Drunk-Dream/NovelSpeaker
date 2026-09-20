@@ -49,7 +49,7 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
 
     public async Task OnNavigatedToAsync()
     {
-        using var operation = _eventOperations.StartCriticalLoad();
+        using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiLibraryLoad);
         var activation = _activation.Activate();
         ViewModel.HandleNavigatedTo();
         activation.Register(ViewModel.HandleNavigatedFrom);

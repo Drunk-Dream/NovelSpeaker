@@ -632,7 +632,10 @@ public sealed class LocalPerformanceTelemetryStore : IPerformanceTelemetryServic
                     $"{window.AppVersion}|{date}|{metric.Name}",
                     metric.Type,
                     metric.Unit,
-                    metric.Tags);
+                    metric.Tags) +
+                    (string.Equals(metric.Type, PerformanceMetricType.Histogram.ToString(), StringComparison.Ordinal)
+                        ? $"|buckets={string.Join(",", metric.HistogramBuckets.Select(bucket => bucket.ToString("R", System.Globalization.CultureInfo.InvariantCulture)))}"
+                        : string.Empty);
                 if (!merged.TryGetValue(key, out var result))
                 {
                     result = new ExportMetric(

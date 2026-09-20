@@ -213,9 +213,9 @@ public sealed class LocalPerformanceTelemetryStoreTests
 
         Assert.Equal(2, duration.GetProperty("count").GetInt64());
         Assert.Equal(1, duration.GetProperty("approximateP50").GetDouble());
-        Assert.Equal(10_000, duration.GetProperty("approximateP95").GetDouble());
-        Assert.Equal(10_000, duration.GetProperty("approximateP99").GetDouble());
-        Assert.Equal(13, duration.GetProperty("buckets").GetArrayLength());
+        Assert.Equal(20_000, duration.GetProperty("approximateP95").GetDouble());
+        Assert.Equal(20_000, duration.GetProperty("approximateP99").GetDouble());
+        Assert.Equal(20, duration.GetProperty("buckets").GetArrayLength());
     }
 
     [Fact]

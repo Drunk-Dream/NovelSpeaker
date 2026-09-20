@@ -44,7 +44,7 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
         Action<AudioGenerationProgress>? progressCallback,
         CancellationToken cancellationToken)
     {
-        using var operation = _observability.StartOperation(OperationCatalog.CacheOperation);
+        using var operation = _observability.StartOperation(OperationCatalog.CacheAudioGeneration);
         try
         {
             var result = await GetAudioCoreAsync(request, priority, progressCallback, cancellationToken)

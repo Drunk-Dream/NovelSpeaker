@@ -35,7 +35,7 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
 
     public async Task OnNavigatedToAsync()
     {
-        using var operation = _eventOperations.StartCriticalLoad();
+        using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiRulesLoad);
         var activation = _activation.Activate();
         activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
