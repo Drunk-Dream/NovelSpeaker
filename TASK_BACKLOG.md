@@ -2,105 +2,80 @@
 
 ## 1. 阶段定位
 
-Observability、生产日志、性能遥测与诊断系统的第一版已经完成，当前进入 **稳定化与职责收敛阶段**。
+当前进入 **测试体系收敛阶段**。
 
-当前代码基线：`5b9889e3175ee653ed6c4c7eb60050489ac7cde0`（`dev`，`fix(diagnostics): bound reparse checks to data root`）。
+当前代码基线：`925d53b4966f012c9b1de98fe1223e7d4aefee77`（`dev`，`fix(ui): extend text input hit area across empty space`）。
 
-本轮不增加新的诊断产品范围，目标是从架构层解决第一版暴露出的稳定性问题：
+本轮不新增产品功能。目标是把现有测试从“广泛锁定实现细节”收敛为“少量、稳定、面向核心契约的回归保护”，并让后续 Codex 开发默认遵循新的测试准则：
 
-1. 建立唯一的存储信任边界，正确支持 Scoop 等 Data-root Junction；
-2. 收敛诊断会话运行态 owner，并实现真正的紧凑悬浮录制控制条；
-3. 修复高频 instrumentation 与诊断 writer 压力策略，避免诊断系统自身制造故障；
-4. 统一普通诊断/问题诊断导出基础设施，增加原子输出、自诊断日志和时间戳命名；
-5. 补齐真实安装布局、跨重启、并发导出和压力场景的自动回归。
+- 永久测试只保护核心用户流程、数据/兼容性/安全边界和关键架构契约；
+- 非核心改动默认不新增永久测试；
+- 可以建立临时测试用于复现、研究或验证，但使用完成后必须删除；
+- 对核心功能和核心 Bug 推荐 test-first/TDD，但不把 TDD 设为强制流程；
+- 测试本身不是产品需求来源，不为保留旧测试而冻结实现。
 
-长期目标见：
+长期规则见：
 
-- `docs/01_SYSTEM_ARCHITECTURE.md`
-- `docs/05_DATA_AND_COMPATIBILITY.md`
-- `docs/07_OBSERVABILITY_AND_DIAGNOSTICS.md`
 - `docs/08_QUALITY_AND_TESTING.md`
+- `AGENTS.md`
 
-每个任务详细实施合同位于 `tasks/Txxx_*.md`。Agent 不应只根据本 Backlog 简述自行补全实现。
+本轮生产代码原则上不主动重构。只有删除/合并过度测试后暴露出真正的核心回归，或为了让核心测试能够以稳定行为边界验证而必须进行的最小生产代码调整，才允许修改生产代码。
 
-## 2. 状态
+## 2. 状态与执行规则
 
 - `[ ]` 未开始
 - `[-]` 进行中
 - `[x]` 已完成，追加简短“完成成果”
 - `[!]` 阻塞，记录会影响产品/架构/隐私/路线的真实冲突
 
-默认一次执行一个任务；如果调用明确要求连续执行，可按依赖顺序继续。**人工验收永远是可选项，不阻塞任务完成或下一任务执行。**
+默认按 T001 → T003 串行执行。如果调用明确要求连续执行整个 Backlog，可以在每个任务自动验收完成后继续，不等待人工验收。
 
-完成任务后：
+人工验收永远是可选补充，不阻塞任务完成或下一任务。
 
-1. 满足对应 task spec 的强制自动验收；
-2. 更新本文件状态与完成成果；
-3. 删除该任务对应 `tasks/Txxx_*.md`；
-4. 不等待人工验收。
+每个未完成任务的详细实施合同位于 `tasks/`。完成任务后：
 
----
-
-# 已完成：Observability 第一版
-
-## [x] T001–T006
-
-第一版已完成薄 Observability API、生产日志、普通性能遥测、诊断会话、诊断 UI/导出与首轮质量收口。
-
-当前稳定化工作不回退这些能力，而是修正第一版暴露出的边界不一致和真实运行风险。
+1. 满足 task spec 中的自动验收；
+2. 删除所有当前任务临时测试、fixture、脚本和诊断产物；
+3. 更新本文件状态与“完成成果”；
+4. 删除对应 `tasks/Txxx_*.md`；
+5. 不等待人工验收。
 
 ---
 
-# Phase F：存储与诊断基础设施稳定化
+# Phase A：测试资产收敛
 
-## [x] T007（P0）：统一应用存储信任边界并修复 Data-root reparse point
+## [ ] T001（P0）：审计永久测试并建立保留/删除判定
 
-依赖：T001–T006。
+实施规格：`tasks/T001_test_suite_audit.md`
 
-目标：从架构层统一 reparse-point 与数据根归属规则。最终选定的数据根作为可信锚点，允许 Data root 自身或其祖先为 Junction/Symlink；严格拒绝数据根内部链接逃逸。覆盖真实 Scoop `current\Data -> persist\novelspeaker\Data` 布局，并删除 Diagnostics/Storage 中重复或冲突的路径判断。
+目标：对现有 Domain / Application / Presentation / Infrastructure / WPF 测试按新的永久测试准入标准分类。重点识别锁定实现细节、重复覆盖、低价值 UI/XAML 结构断言和过细 ViewModel/Architecture contract tests，形成可执行的删除、合并、重写清单。
 
-完成成果：统一逻辑数据根 containment 与 reparse-point 检查；支持 Data-root Junction 并拒绝根内链接逃逸。Infrastructure 集成测试 382/382、Architecture 测试 55/55、Release build 和格式验证通过。
+本任务以审计和最小验证为主，不进行大规模生产代码重构。
 
-## [x] T008（P0）：重构诊断录制运行态与悬浮控制条
+## [ ] T002（P0）：按核心契约瘦身现有测试体系
 
-依赖：T007。
+依赖：T001。
 
-实施规格：`tasks/T008_diagnostic_recording_controller.md`
+实施规格：`tasks/T002_reduce_test_suite.md`
 
-目标：将 Session 运行态从窗口/ViewModel 中抽离为明确 owner/controller；把当前页面式 ToolWindow 重构为真正紧凑的悬浮录制控制条。Active Session 跨重启恢复后自动恢复可见控制条，并从持久化 snapshot 恢复容量、停止状态和可恢复统计；容量 UI 使用 MB 等人类可读显示。
+目标：执行 T001 的审计结论，删除/合并/重写不符合长期准入标准的测试。优先收敛 WPF 与 Presentation 细粒度测试，再处理重复的 Application/Infrastructure 测试和过度的 Architecture rule contract tests。
 
-完成成果：诊断录制经单一 controller 投影 Session snapshot；恢复 Active 后自动显示紧凑悬浮控制条，并恢复容量、停止原因和记录量；Presentation、隔离 WPF 与 DI 定向验证通过。
+不得按目标测试数量机械删除测试；每个保留测试都应能说明其保护的核心能力或高风险边界。不得为了让旧测试继续通过而恢复旧实现。
 
-## [x] T009（P0）：收敛诊断采集压力策略与 instrumentation 语义
+## [ ] T003（P0）：收口质量门禁与后续测试工作流
 
-依赖：T008。
+依赖：T002。
 
-实施规格：`tasks/T009_diagnostic_pressure_and_instrumentation.md`
+实施规格：`tasks/T003_quality_gate_closure.md`
 
-目标：修正 `UiDispatcherStall` 等过宽采集语义；将诊断 writer 的瞬时 queue pressure 与真实 storage failure 分离。低价值高频记录可丢弃/聚合并计数，关键 Session/Marker 状态优先保留，避免一次 `TryWrite` 失败永久停止整次诊断。
+目标：基于瘦身后的测试资产检查 CI/质量门禁是否仍与新的长期测试策略一致，删除只服务于已移除细粒度测试的 TestKit/fixture/辅助代码，并执行完整 Release 质量门禁。
 
-完成成果：普通记录在固定优先级队列压力下丢弃并通过 snapshot/悬浮条显示本进程计数；lifecycle、Marker 与 capture-stopped 共享预留容量；普通 Dispatcher 调用不再记为 stall，真实 SQLite 写失败仍会进入 storage-failure/degraded。队列压力、真实故障、ViewModel、WPF 调度器及 Observability 合同定向测试通过。
+若现有 `.github/workflows/quality-matrix.yml` 在测试项目结构不变的情况下仍然合适，不为“看起来更简单”而修改 CI。只有存在实际重复、失效入口或已无任何长期测试的项目时才调整。
 
-## [x] T010（P0）：统一诊断导出与可观测失败边界
+完成后应保证：
 
-依赖：T007、T009。
-
-实施规格：`tasks/T010_diagnostics_export_reliability.md`
-
-目标：让普通诊断信息和问题诊断共享 Bundle/atomic-output 基础设施；Windows 保存文件对话框只选择最终 ZIP 目标；文件名使用本地时间戳；日志轮转/损坏文件 best effort；导出、恢复、截图、Marker 等诊断系统自身失败写入脱敏生产日志。当前“性能监测导出失败”若在基础设施重构后仍可复现，再根据新增日志单独建立后续修复任务，不在本任务中基于猜测增加特例。
-
-完成成果：普通诊断和问题诊断共用同目录临时 ZIP 与原子替换；建议文件名采用可测试的本地时间戳；日志读取支持轮转、锁定及坏行降级；导出、Session、Marker、截图失败写入含 operation/stage 与脱敏异常链的结构化日志，复制摘要不再包含完整目录路径。基础设施定向 27 项、Presentation/Architecture 定向 29 项、WPF DI 1 项、完整 Release 构建及格式验证通过。
-
----
-
-# Phase G：稳定化收口
-
-## [x] T011（P0）：完成真实环境回归与全量质量门禁
-
-依赖：T007–T010。
-
-实施规格：`tasks/T011_diagnostics_stabilization_closure.md`
-
-目标：对存储信任边界、Scoop Junction、跨重启悬浮控制条、writer 压力、并发日志导出、原子 ZIP、隐私和诊断自记录进行系统回归；清理稳定化过程产生的重复实现和一次性产物，执行完整 Release 质量门禁。
-
-完成成果：完成 T007–T010 跨模块审计；Windows 回归实际执行 Scoop Data-root Junction、Session 跨进程恢复、队列压力、日志轮转导出、共享原子 ZIP 与脱敏失败日志覆盖，未发现需修改的生产实现或遗留一次性产物。定向测试 98/98、完整测试 1034/1034（均无跳过）；锁定还原、格式验证及 Release 构建通过，构建 0 警告、0 错误。
+- 全量剩余永久测试均保护核心契约或明确高风险边界；
+- 非核心改动没有“必须配永久测试”的默认要求；
+- 临时测试的创建与删除规则已经可以被 Codex 实际遵循；
+- 后续核心功能/核心 Bug 可以优先采用 test-first，但 Agent 可以根据风险选择更合适的验证方式；
+- 完整 Release build 与全部保留测试通过。
