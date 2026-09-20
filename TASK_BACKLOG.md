@@ -95,13 +95,13 @@
 
 # Phase B：诊断导出交互与性能遥测可分析性
 
-## [ ] T004（P1）：修正问题诊断会话选择器的目录状态
+## [x] T004（P1）：修正问题诊断会话选择器的目录状态
 
 依赖：T001–T003 已完成。
 
-实施规格：`tasks/T004_diagnostic_session_picker_directory.md`
-
 目标：设置页导出已有问题诊断会话时，第一个 OpenFileDialog 每次直接进入应用 `Diagnostics` 目录，并使用独立 persisted-state profile；随后 SaveFileDialog 不继承该目录/状态，继续使用 Windows 对普通保存位置的记忆。扩展现有通用 file-dialog abstraction，不在 Diagnostics 页面直接创建平台对话框。
+
+完成成果：通用文件对话框选项新增可选初始目录和状态 GUID，WPF 层映射到系统对话框；旧诊断会话选择器等待目录加载后，使用当前 Diagnostics 目录及固定独立 GUID，两个 ZIP 保存入口维持普通 Windows 保存状态。Release build、format 和受影响 Presentation focused tests 通过；临时选项语义测试通过后已删除。未恢复已删除的细粒度永久测试；无旧兼容残留或长期文档冲突。人工点击未执行，系统对话框实际显示仍可选验收。
 
 ## [ ] T005（P0）：提升普通性能遥测的长期可分析性
 

@@ -15,7 +15,9 @@ public sealed class WpfPresentationFileDialogService : IPresentationFileDialogSe
         {
             Filter = options.Filter,
             Multiselect = false,
-            FileName = options.SuggestedFileName ?? string.Empty
+            FileName = options.SuggestedFileName ?? string.Empty,
+            InitialDirectory = options.InitialDirectory ?? string.Empty,
+            ClientGuid = options.ClientGuid
         };
 
         return Task.FromResult(dialog.ShowDialog() == true ? dialog.FileName : null);
@@ -31,7 +33,9 @@ public sealed class WpfPresentationFileDialogService : IPresentationFileDialogSe
         var dialog = new SaveFileDialog
         {
             Filter = options.Filter,
-            FileName = options.SuggestedFileName ?? string.Empty
+            FileName = options.SuggestedFileName ?? string.Empty,
+            InitialDirectory = options.InitialDirectory ?? string.Empty,
+            ClientGuid = options.ClientGuid
         };
 
         return Task.FromResult(dialog.ShowDialog() == true ? dialog.FileName : null);
