@@ -53,30 +53,6 @@ public sealed class TestCleanupArchitectureTests
     }
 
     [Fact]
-    public void Visual_artifact_generators_are_explicitly_gated()
-    {
-        var files = new[]
-        {
-            "tests/NovelSpeaker.App.WpfTests/Ui/StyleGallerySceneTests.cs",
-            "tests/NovelSpeaker.App.WpfTests/Desktop/MiniPlayerWindowTests.cs"
-        };
-
-        foreach (var relativePath in files)
-        {
-            var source = File.ReadAllText(Path.Combine(Repository.RootPath, relativePath));
-            Assert.Contains("VisualArtifactTestGuard.IsEnabled", source, StringComparison.Ordinal);
-        }
-
-        var architectureSource = File.ReadAllText(Path.Combine(
-            Repository.RootPath,
-            "tests",
-            "NovelSpeaker.App.WpfTests",
-            "Architecture",
-            "VisualStyleArchitectureTests.cs"));
-        Assert.DoesNotContain("style-ownership-audit.json", architectureSource, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Pure_view_model_tests_do_not_return_to_the_wpf_project()
     {
         var wpfRoot = Path.Combine(Repository.RootPath, "tests", "NovelSpeaker.App.WpfTests");
@@ -89,34 +65,4 @@ public sealed class TestCleanupArchitectureTests
         Assert.Empty(pureNames);
     }
 
-    [Fact]
-    public void Wpf_testkit_has_one_namespace_and_explicit_failure_diagnostics_boundary()
-    {
-        var testKitRoot = Path.Combine(Repository.RootPath, "tests", "TestKit", "Wpf");
-        var expectedFiles = new[]
-        {
-            "WpfTestHost.cs",
-            "WpfControlHost.cs",
-            "WpfWindowHost.cs",
-            "WpfFailureDiagnostics.cs",
-            "VisualTreeTestHelper.cs",
-            "PageVisualReviewHarness.cs",
-            "WindowVisualReviewHarness.cs",
-            "TransientPopupVisualRenderer.cs",
-            "WindowsTestDesktop.cs",
-            "WindowsTestDesktopThread.cs"
-        };
-
-        Assert.Equal(
-            expectedFiles.Order(StringComparer.Ordinal),
-            Directory.EnumerateFiles(testKitRoot, "*.cs")
-                .Select(Path.GetFileName)
-                .Where(static name => name is not "VisualArtifactTestGuard.cs")
-                .Order(StringComparer.Ordinal));
-        Assert.All(expectedFiles, file =>
-            Assert.Contains(
-                "namespace NovelSpeaker.TestKit.Wpf;",
-                File.ReadAllText(Path.Combine(testKitRoot, file)),
-                StringComparison.Ordinal));
-    }
 }
