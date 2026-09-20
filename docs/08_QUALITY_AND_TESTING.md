@@ -118,11 +118,17 @@ Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例�
 
 - Logging / Telemetry / Diagnostics 失败不使业务失败；
 - 性能遥测默认关闭并可开关/清除；
+- 性能遥测的 Operation 指标与进程资源采样彼此独立，空闲期间仍能以低频资源窗口反映长期 CPU/内存趋势；
+- 普通性能遥测导出保留可解释的 metric definitions、便捷 aggregates 和约一分钟 windows，并能区分不同 app version / process instance；
 - 诊断会话可以 Start → Marker → End；
 - Active Session 能够完成必要的跨正常重启恢复；
 - hard cap 等核心容量边界生效；
 - 普通诊断和问题诊断能够产生有效导出；
 - 隐私边界和用户主动截图例外不被突破。
+
+永久测试只保护上述稳定语义，不把 60 秒常量、具体 Histogram bucket 数组、内部 DTO 字段顺序、具体 timer 类型或每日 JSONL 文件布局冻结成长期测试合同。需要验证这些当前实现参数时可以使用 focused/临时测试，任务结束前删除不具备长期价值的测试。
+
+“选择旧 `.nsdiag` 时从 Diagnostics 打开、随后保存 ZIP 时尊重普通 Windows 保存位置”属于明确交互行为，但不要求因此恢复大量 DiagnosticsAboutViewModel/WPF 细节测试；优先通过通用 file-dialog abstraction 的稳定行为验证、静态检查或任务内临时测试确认。
 
 内部 queue pressure 的每一种中间状态、所有投影字段、具体 writer 调度方式和 UI 显示细节默认不形成永久测试合同。
 

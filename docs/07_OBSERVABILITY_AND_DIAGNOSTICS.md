@@ -62,13 +62,41 @@ Production Logging ── correlation ──┘
 
 ### 数据模型
 
-普通遥测保存 Counter、Histogram 与 Gauge 的低开销聚合，不保存每次原始普通事件。运行时形成稀疏窗口 JSONL，只保存真正有样本的指标。
+普通遥测保存 Counter、Histogram 与 Gauge 的低开销聚合，不保存每次原始普通事件。内部仍按约 1 分钟窗口写入 JSONL，运行时持久化格式与导出交换格式保持分离。
 
-指标围绕稳定用户/系统操作边界，不围绕内部方法。`UiDispatcherStall` 只代表具有“等待/阻塞异常”语义的调度器观测，不得把每一次普通 Dispatcher 调用都记录成 stall。
+Operation 指标继续由稳定操作完成事件驱动：
 
-标签低基数且由 Registry 声明，禁止 BookId、ChapterIndex、路径、URL、SQL text、用户内容等高基数标签。
+- `operation.count` 记录稳定操作完成次数；
+- `operation.duration` 记录稳定操作耗时；
+- operation 名称必须准确描述实际被测边界，不能用“query”等名称描述实际上只覆盖 connection open 的操作；
+- 需要区分主要页面、Cache 等功能边界时，优先使用有限、稳定且语义明确的 operation vocabulary，而不是记录任意 Route、BookId、ChapterId 或其他高基数标签。
+
+进程资源指标与 Operation 采集解耦：
+
+- 性能遥测开启期间，以**约 60 秒**为内部采样周期独立读取 CPU、Working Set 与 Managed Heap；
+- 即使期间没有 Navigation、TTS、Cache 等 Operation，也继续低频采样并形成只有资源指标的一分钟窗口；
+- 不再在每次 Operation 完成时附带读取 CPU/内存；
+- 开启或重新开启遥测时重新建立 CPU 计算基线，不把关闭期间的时间纳入下一次 CPU 利用率；
+- 60 秒属于当前内部低频策略，不在 UI 暴露为用户可配置项。
+
+每个新写入的一分钟窗口至少保留：
+
+- `windowStartUtc` / `windowEndUtc`；
+- `appVersion`；
+- 当前进程的匿名 `processInstanceId`；
+- 当前窗口实际有样本的 metric aggregates。
+
+`processInstanceId` 只用于区分一次应用进程生命周期和进行时间关联，不作为 Metric tag，不代表用户身份，也不得跨进程复用。
+
+Histogram bucket 应覆盖亚毫秒级本地存储操作到数十秒级网络/TTS/Cache 操作。具体 bucket 是实现策略，可以随实际数据调整，不形成 UI 或外部长期合同。
+
+`UiDispatcherStall` 只代表具有“等待/阻塞异常”语义的调度器观测，不得把每一次普通 Dispatcher 调用都记录成 stall。
+
+标签和 operation vocabulary 必须保持低基数并由 Registry 统一声明，禁止 BookId、ChapterIndex、路径、URL、SQL text、用户内容等高基数或敏感数据。
 
 ### 本地保留
+
+内部策略采用：
 
 - 按日 JSONL；
 - 单文件大小分卷；
@@ -76,9 +104,13 @@ Production Logging ── correlation ──┘
 - 总目录约 64 MiB 上限；
 - 从最旧文件开始清理。
 
+进程资源低频采样会使“遥测开启但应用空闲”的时间段也产生资源窗口，因此不再要求所有窗口都必须由用户操作触发。目录 retention/capacity 继续作为总体大小边界。
+
+具体限制属于内部策略，不在 UI 展示，也不给用户配置。
+
 ## 5. “诊断信息”导出
 
-用于常规优化的诊断信息固定汇总已有数据，不让用户选择复杂时间范围。
+用于常规优化的诊断信息导出**当前本地仍保留的全部性能遥测**，不再额外人为截取固定 14 天范围，也不让用户选择复杂时间范围。
 
 用户点击导出后打开 Windows **保存文件对话框**，只用于选择最终 ZIP 的保存位置和文件名；应用自行读取内部 Telemetry/Logs 数据，不要求用户选择内部诊断文件或目录。
 
@@ -88,7 +120,7 @@ Production Logging ── correlation ──┘
 NovelSpeaker-Diagnostics-yyyyMMdd-HHmmss.zip
 ```
 
-ZIP：
+ZIP 保持简单：
 
 ```text
 NovelSpeaker-Diagnostics-*.zip
@@ -98,7 +130,40 @@ NovelSpeaker-Diagnostics-*.zip
 └─ environment.json
 ```
 
-导出可靠性要求：
+### `telemetry.json`
+
+不再把 summary、schema 和一分钟时间序列拆成多个性能遥测文件。单个版本化 `telemetry.json` 同时保存：
+
+```text
+telemetry.json
+├─ schemaVersion
+├─ generatedAtUtc
+├─ coverage
+├─ collection
+├─ metricDefinitions
+├─ aggregates
+└─ windows
+```
+
+其中：
+
+- `coverage`：此次实际导出的最早/最晚遥测时间及涉及版本等覆盖信息；
+- `collection`：窗口大小、资源采样间隔、窗口数、dropped window count、degraded 状态等采集元数据；
+- `metricDefinitions`：指标名称、类型、单位、描述、Histogram bucket 和允许的有限维度，用于让人或 AI 正确解释数据；
+- `aggregates`：按版本/日期/稳定 metric/operation 等形成的便捷汇总视图，避免每次分析都重新计算全部窗口；
+- `windows`：保留原有约 1 分钟时间结构，包括 `appVersion`、`processInstanceId` 和该窗口的 metric aggregates。
+
+`aggregates` 和 `windows` 是同一份遥测事实的不同导出视图，不是两套运行时真值。内部仍只维护现有窗口持久化数据。
+
+旧版本内部窗口缺少新字段时，导出读取必须安全降级；不得伪造 `processInstanceId`。未发布的内部遥测 JSONL schema 不承诺长期兼容，但升级不能因为旧记录而导致整个导出失败。
+
+### 关联日志与摘要
+
+- `logs.jsonl` 继续只提供异常、降级和必要生命周期事实，不把“性能慢”自动转换为 Warning。
+- 日志优先按照实际导出的遥测 coverage 和 `processInstanceId` 进行关联；不为了性能分析新增高频性能日志。
+- `summary.md` 只提供客观 coverage、版本、进程数、窗口数、dropped/degraded 等概况，不自动判断性能问题原因。
+
+### 导出可靠性
 
 - 先写同目录临时文件，成功完成并关闭 ZIP 后再原子替换/移动到目标文件。
 - 读取正在轮转或存在单条损坏记录的日志时采用 best effort；单个日志文件不可读不得使整个导出失败。
@@ -166,7 +231,21 @@ Problem Marker 表示用户认为问题发生在该时间点附近。Marker 写�
 
 ## 8. 问题诊断导出
 
-刚结束 Session 时源 `.nsdiag` 已知，用户只通过保存文件对话框选择最终 ZIP 位置；以后从 Settings 导出旧会话时，先选择 `.nsdiag`，再选择 ZIP 保存位置。
+刚结束 Session 时源 `.nsdiag` 已知，用户只通过保存文件对话框选择最终 ZIP 位置；以后从 Settings 导出旧会话时，需要先选择 `.nsdiag`，再选择 ZIP 保存位置。
+
+设置页“导出问题诊断”的两个文件对话框具有不同目录语义：
+
+1. **选择已有 `.nsdiag` 的 OpenFileDialog**
+   - 每次打开都直接进入 NovelSpeaker 的 `Diagnostics` 目录，因为该目录就是应用管理的诊断会话来源；
+   - 使用独立、固定的 file-dialog persisted-state profile（例如独立 `ClientGuid`），避免浏览诊断会话时改变其他打开/保存对话框的 Windows 记忆状态；
+   - 用户仍可在对话框中主动浏览到其他位置选择兼容的 `.nsdiag`。
+
+2. **选择导出 ZIP 位置的 SaveFileDialog**
+   - 不强制进入 `Diagnostics`；
+   - 不继承“诊断会话选择器”的初始目录或 persisted-state profile；
+   - 继续使用 Windows 对普通保存对话框的既有目录记忆，让用户决定导出包保存位置。
+
+文件对话框的通用 Presentation abstraction 可以支持可选的初始目录和 persisted-state profile，但不得在 Diagnostics ViewModel 中直接创建 Microsoft.Win32 对话框或复制一套平台实现。
 
 默认文件名使用本地时间：
 

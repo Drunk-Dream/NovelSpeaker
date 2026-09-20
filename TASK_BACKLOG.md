@@ -2,24 +2,28 @@
 
 ## 1. 阶段定位
 
-当前进入 **测试体系收敛阶段**。
+当前进入 **Observability 使用体验与性能遥测可分析性优化阶段**。
 
-当前代码基线：`925d53b4966f012c9b1de98fe1223e7d4aefee77`（`dev`，`fix(ui): extend text input hit area across empty space`）。
+当前代码基线：`8994f16d73816ec65c0f105bb9369496552440b2`（`dev`，`fix(ui): prevent compact navigation item clipping`）。
 
-本轮不新增产品功能。目标是把现有测试从“广泛锁定实现细节”收敛为“少量、稳定、面向核心契约的回归保护”，并让后续 Codex 开发默认遵循新的测试准则：
+上一阶段已经完成测试体系收敛。本轮只处理两个已经确认的问题，不扩张到新的诊断产品范围：
 
-- 永久测试只保护核心用户流程、数据/兼容性/安全边界和关键架构契约；
-- 非核心改动默认不新增永久测试；
-- 可以建立临时测试用于复现、研究或验证，但使用完成后必须删除；
-- 对核心功能和核心 Bug 推荐 test-first/TDD，但不把 TDD 设为强制流程；
-- 测试本身不是产品需求来源，不为保留旧测试而冻结实现。
+1. 设置页导出已有问题诊断会话时，第一个 `.nsdiag` 选择器应直接进入 `Diagnostics`，且不能污染随后 ZIP 保存对话框的 Windows 目录记忆；
+2. 普通性能遥测当前虽然能够做宏观汇总，但缺少连续时间结构、进程边界和稳定功能上下文，CPU/内存又绑定到 Operation 完成时采样，不利于后续长期性能分析。
+
+本轮目标：
+
+- 修正问题诊断导出的两阶段文件对话框目录语义；
+- 将进程 CPU/内存改为遥测开启期间约 60 秒一次的独立低频采样；
+- 保留约 1 分钟时间窗口与 process instance，使空闲和长时间运行趋势可分析；
+- 将单个 `telemetry.json` 扩展为 definitions + aggregates + windows 的自解释交换格式；
+- 审计现有 operation vocabulary，使导出的性能事实能够回答“什么时候、哪个稳定功能边界发生了变化”，而不是增加高频原始事件或复杂 profiler。
 
 长期规则见：
 
+- `docs/07_OBSERVABILITY_AND_DIAGNOSTICS.md`
 - `docs/08_QUALITY_AND_TESTING.md`
 - `AGENTS.md`
-
-本轮生产代码原则上不主动重构。只有删除/合并过度测试后暴露出真正的核心回归，或为了让核心测试能够以稳定行为边界验证而必须进行的最小生产代码调整，才允许修改生产代码。
 
 ## 2. 状态与执行规则
 
@@ -28,7 +32,7 @@
 - `[x]` 已完成，追加简短“完成成果”
 - `[!]` 阻塞，记录会影响产品/架构/隐私/路线的真实冲突
 
-默认按 T001 → T003 串行执行。如果调用明确要求连续执行整个 Backlog，可以在每个任务自动验收完成后继续，不等待人工验收。
+默认按 T004 → T005 串行执行。如果调用明确要求连续执行整个 Backlog，可以在每个任务自动验收完成后继续，不等待人工验收。
 
 人工验收永远是可选补充，不阻塞任务完成或下一任务。
 
@@ -86,3 +90,25 @@
 - 完整 Release build 与全部保留测试通过。
 
 完成成果：五个测试项目均保留有效的核心契约，Quality Matrix 的项目入口继续有效；删除未被代码读取的旧窗口显示环境变量，未缩小默认测试范围。剩余 TestKit helper 和 TestAssets 均有实际引用，没有遗留 Visual Review 截图设施或临时脚本。`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore` 与 `dotnet test -c Release --no-build` 均通过，Release build 0 warning，所有测试均无 skip；WPF 隔离 Desktop 检查保持 fail closed。首次全量测试曾报告一次 WPF collection cleanup 异常并以非零码退出，随后详细重跑和规定原命令重跑均通过，尚未复现，作为后续观察风险。
+
+---
+
+# Phase B：诊断导出交互与性能遥测可分析性
+
+## [ ] T004（P1）：修正问题诊断会话选择器的目录状态
+
+依赖：T001–T003 已完成。
+
+实施规格：`tasks/T004_diagnostic_session_picker_directory.md`
+
+目标：设置页导出已有问题诊断会话时，第一个 OpenFileDialog 每次直接进入应用 `Diagnostics` 目录，并使用独立 persisted-state profile；随后 SaveFileDialog 不继承该目录/状态，继续使用 Windows 对普通保存位置的记忆。扩展现有通用 file-dialog abstraction，不在 Diagnostics 页面直接创建平台对话框。
+
+## [ ] T005（P0）：提升普通性能遥测的长期可分析性
+
+依赖：T004（仅调度顺序；无技术耦合）。
+
+实施规格：`tasks/T005_performance_telemetry_analysis_readiness.md`
+
+目标：将 CPU/Working Set/Managed Heap 从“每次 Operation 完成时附带采样”改为遥测开启期间约 60 秒一次的独立低频采样；保留空闲资源窗口、process instance 与一分钟时间结构；审计稳定 operation vocabulary；将单个 `telemetry.json` 扩展为 definitions + aggregates + windows 的自解释交换格式，并导出当前 retention 内全部遥测数据。
+
+T005 为本阶段收口任务，完成后执行完整 Release 质量门禁。
