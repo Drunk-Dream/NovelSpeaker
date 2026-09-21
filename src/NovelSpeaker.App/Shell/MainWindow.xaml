@@ -82,6 +82,7 @@
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
                                        Style="{StaticResource App.Navigation.Entry}"
+                                       HorizontalAlignment="Stretch"
                                        Click="PlaybackNavigationItem_OnClick"
                                        Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <ui:NavigationViewItem.Icon>
@@ -104,7 +105,8 @@
                             </ui:SymbolIcon.Style>
                         </ui:SymbolIcon>
                     </ui:NavigationViewItem.Icon>
-                    <StackPanel HorizontalAlignment="Stretch"
+                    <StackPanel Width="180"
+                                HorizontalAlignment="Left"
                                 Visibility="{Binding ElementName=RootNavigationView, Path=IsPaneOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Grid HorizontalAlignment="Stretch">
                             <Grid.ColumnDefinitions>

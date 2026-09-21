@@ -449,10 +449,11 @@ public sealed class MainWindowNavigationTests
         await WpfTestHost.RunInStaAsync(async () =>
         {
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+            const string longBookTitle = "这是一本非常非常长的书名用于验证卡片标题省略";
             var playback = new FakePlaybackCoordinator(new PlaybackSnapshot(
                 PlaybackState.Playing,
                 "book-1",
-                "示例小说",
+                longBookTitle,
                 0,
                 "第一章",
                 0,
@@ -485,9 +486,14 @@ public sealed class MainWindowNavigationTests
 
                 var entry = Assert.IsType<NavigationViewItem>(window.FindName("PlaybackNavigationItem"));
                 var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(window.FindName("ClearPlaybackButton"));
+                var title = Assert.Single(
+                    VisualTreeTestHelper.FindDescendants<System.Windows.Controls.TextBlock>(entry),
+                    textBlock => textBlock.Text == longBookTitle);
                 Assert.Equal(Visibility.Visible, entry.Visibility);
                 Assert.Equal("清除当前播放", AutomationProperties.GetName(clearButton));
                 Assert.Equal(Visibility.Collapsed, clearButton.Visibility);
+                Assert.Equal(TextTrimming.CharacterEllipsis, title.TextTrimming);
+                Assert.Equal(TextWrapping.NoWrap, title.TextWrapping);
                 var navigateCountBeforeClear = navigationService.NavigateCallCount;
 
                 navigationService.SetRoute(new PlayerRoute("book-1", AppRoutes.Library));
@@ -508,7 +514,6 @@ public sealed class MainWindowNavigationTests
                 window.UpdateLayout();
                 Assert.Equal(Visibility.Visible, clearButton.Visibility);
                 Assert.Equal(SymbolRegular.Dismiss24, Assert.IsType<SymbolIcon>(clearButton.Icon).Symbol);
-
                 clearButton.Focus();
                 InvokeClick(clearButton);
                 await DrainDispatcherAsync(window.Dispatcher);
@@ -607,22 +612,6 @@ public sealed class MainWindowNavigationTests
         Assert.True(
             reachedClosedLayout,
             $"Main-window navigation pane did not reach its closed layout within {maximumFrameCount} frames.");
-    }
-
-    private static T? FindVisualAncestor<T>(DependencyObject element)
-        where T : DependencyObject
-    {
-        for (var current = VisualTreeHelper.GetParent(element);
-             current is not null;
-             current = VisualTreeHelper.GetParent(current))
-        {
-            if (current is T match)
-            {
-                return match;
-            }
-        }
-
-        return null;
     }
 
     private static MainWindow CreateWindow(
