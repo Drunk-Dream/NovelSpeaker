@@ -4,6 +4,7 @@ using NovelSpeaker.App.Shell.Input;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using Wpf.Ui.Controls;
 
 namespace NovelSpeaker.App.Shell;
@@ -100,6 +101,7 @@ public partial class MainWindow : FluentWindow
             await _activationCoordinator.ActivateAsync(
                 CreateShellHostElements(),
                 ActualWidth).ConfigureAwait(true);
+            _viewModel.SetPlayerPageActive(_activationCoordinator.IsPlayerPageActive);
             ApplyPaneState(_shellLayoutController.IsPaneOpen);
         }
         catch (OperationCanceledException) when (
@@ -185,6 +187,13 @@ public partial class MainWindow : FluentWindow
 
     private async void PlaybackNavigationItem_OnClick(object sender, System.Windows.RoutedEventArgs e)
     {
+        if (!_viewModel.IsNowPlayingVisible ||
+            IsClearPlaybackButtonSource(e.OriginalSource))
+        {
+            e.Handled = true;
+            return;
+        }
+
         try
         {
             if (_activationCoordinator.IsShutdownRequested)
@@ -206,6 +215,31 @@ public partial class MainWindow : FluentWindow
         {
             _feedbackService.ShowProjectedNotification("打开正在播放失败", _feedbackService.Project(exception));
         }
+    }
+
+    private void ClearPlaybackButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private bool IsClearPlaybackButtonSource(object source)
+    {
+        if (source is not DependencyObject current)
+        {
+            return false;
+        }
+
+        while (current is not null)
+        {
+            if (ReferenceEquals(current, ClearPlaybackButton))
+            {
+                return true;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return false;
     }
 
     private void ActiveCacheNavigationItem_OnClick(object sender, RoutedEventArgs e)
@@ -256,6 +290,7 @@ public partial class MainWindow : FluentWindow
     private void OnRootNavigationViewNavigated(object sender, EventArgs e)
     {
         _activationCoordinator.HandleNavigated(e);
+        _viewModel.SetPlayerPageActive(_activationCoordinator.IsPlayerPageActive);
     }
 
     private ShellHostElements CreateShellHostElements()

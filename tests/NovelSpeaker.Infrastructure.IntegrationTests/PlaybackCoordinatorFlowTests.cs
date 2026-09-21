@@ -83,6 +83,102 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task ClearAsync_stops_and_releases_the_session_then_publishes_idle_without_erasing_progress()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore,
+            appSettingsStore: new FakeAppSettingsStore(AppSettings.Default with { PlaybackVolume = 0.35 }));
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", null, null, null, 10),
+            CancellationToken.None);
+        localCoordinator.SetPosition(512);
+
+        await coordinator.ClearAsync(CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
+        Assert.Null(coordinator.CurrentSnapshot.BookId);
+        Assert.Null(coordinator.CurrentSnapshot.BookTitle);
+        Assert.Equal(0.35, coordinator.CurrentSnapshot.Volume);
+        Assert.Equal(1, localCoordinator.StopCallCount);
+        Assert.Single(readingProgressStore.SavedProgress);
+        Assert.Equal(512, readingProgressStore.SavedProgress[0].AudioPositionMilliseconds);
+    }
+
+    [Fact]
+    public async Task ClearAsync_does_not_publish_idle_when_saving_progress_fails()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            SaveFailure = new InvalidOperationException("save failed")
+        };
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore);
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", null, null, null, 10),
+            CancellationToken.None);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => coordinator.ClearAsync(CancellationToken.None));
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal("book-1", coordinator.CurrentSnapshot.BookId);
+        Assert.Equal("示例小说", coordinator.CurrentSnapshot.BookTitle);
+        readingProgressStore.SaveFailure = null;
+    }
+
+    [Fact]
+    public async Task ClearAsync_cancellation_does_not_publish_idle()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(localCoordinator);
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", null, null, null, 10),
+            CancellationToken.None);
+        using var cancellationSource = new CancellationTokenSource();
+        cancellationSource.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => coordinator.ClearAsync(cancellationSource.Token));
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal("book-1", coordinator.CurrentSnapshot.BookId);
+    }
+
+    [Fact]
+    public async Task ClearAsync_preserves_a_volume_change_made_during_cleanup()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var readingProgressStore = new FakeReadingProgressStore
+        {
+            SaveGate = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously),
+            SaveGateCall = 1
+        };
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            readingProgressStore: readingProgressStore);
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", null, null, null, 10),
+            CancellationToken.None);
+        var clearTask = coordinator.ClearAsync(CancellationToken.None);
+        await readingProgressStore.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        coordinator.SetVolume(0.8);
+        readingProgressStore.SaveGate.TrySetResult(null);
+        await clearTask;
+
+        Assert.Equal(0.8, coordinator.CurrentSnapshot.Volume);
+    }
+
+    [Fact]
     public async Task PlaybackCompleted_advances_to_next_segment()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();

@@ -510,7 +510,8 @@ public sealed class ArchitectureTests
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerViewModel.cs",
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerInteractionController.cs",
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerSpeechControlController.cs",
-                "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsViewModel.cs"
+                "src/NovelSpeaker.App/Features/PlaybackSettings/PlaybackSettingsViewModel.cs",
+                "src/NovelSpeaker.App/Shell/MainWindowViewModel.cs"
             ],
             [
                 "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentController.cs",

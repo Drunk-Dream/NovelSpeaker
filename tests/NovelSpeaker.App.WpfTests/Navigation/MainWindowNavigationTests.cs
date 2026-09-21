@@ -438,9 +438,91 @@ public sealed class MainWindowNavigationTests
     {
         await Active_cache_footer_entry_opens_progress_flyout_and_survives_primary_navigation();
         await Chapter_export_footer_entry_opens_progress_flyout_and_survives_primary_navigation();
+        await Playback_entry_can_clear_the_current_session_without_navigating();
         await Closing_window_delegates_to_desktop_lifecycle_and_remains_open_when_exit_is_not_approved();
         await Closing_window_closes_after_guard_approval();
         await Closing_guard_failure_is_projected_and_keeps_window_open();
+    }
+
+    private async Task Playback_entry_can_clear_the_current_session_without_navigating()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
+            var playback = new FakePlaybackCoordinator(new PlaybackSnapshot(
+                PlaybackState.Playing,
+                "book-1",
+                "示例小说",
+                0,
+                "第一章",
+                0,
+                1,
+                1,
+                "默认规则",
+                10,
+                0,
+                1000,
+                null,
+                false,
+                false));
+            var navigationService = new FakeNavigationService();
+            var window = CreateWindow(
+                navigationService,
+                new FakeNavigationGuardService { NextResult = true },
+                new FakeAppFeedbackService(),
+                new FakeContentDialogService(),
+                new FakeNavigationViewPageProvider(),
+                new FakeSnackbarService(),
+                serviceProvider,
+                new FakeMainWindowAppearanceConfigurator(),
+                playbackSession: playback);
+            WpfWindowHost.Show(window);
+            try
+            {
+                var navigationView = GetNavigationView(window);
+                navigationView.IsPaneOpen = true;
+                window.UpdateLayout();
+
+                var entry = Assert.IsType<NavigationViewItem>(window.FindName("PlaybackNavigationItem"));
+                var clearButton = Assert.IsType<Wpf.Ui.Controls.Button>(window.FindName("ClearPlaybackButton"));
+                Assert.Equal(Visibility.Visible, entry.Visibility);
+                Assert.Equal("清除当前播放", AutomationProperties.GetName(clearButton));
+                Assert.Equal(Visibility.Collapsed, clearButton.Visibility);
+                var navigateCountBeforeClear = navigationService.NavigateCallCount;
+
+                navigationService.SetRoute(new PlayerRoute("book-1", AppRoutes.Library));
+                navigationView.RaiseEvent(new NavigatedEventArgs(NavigationView.NavigatedEvent, navigationView)
+                {
+                    Page = new object()
+                });
+                Assert.Equal(Visibility.Collapsed, entry.Visibility);
+
+                navigationService.SetRoute(AppRoutes.Settings);
+                navigationView.RaiseEvent(new NavigatedEventArgs(NavigationView.NavigatedEvent, navigationView)
+                {
+                    Page = new object()
+                });
+                Assert.Equal(Visibility.Visible, entry.Visibility);
+
+                entry.Focus();
+                window.UpdateLayout();
+                Assert.Equal(Visibility.Visible, clearButton.Visibility);
+                Assert.Equal(SymbolRegular.Dismiss24, Assert.IsType<SymbolIcon>(clearButton.Icon).Symbol);
+
+                clearButton.Focus();
+                InvokeClick(clearButton);
+                await DrainDispatcherAsync(window.Dispatcher);
+
+                Assert.Equal(1, playback.ClearCallCount);
+                Assert.Equal(Visibility.Collapsed, entry.Visibility);
+                Assert.Equal(navigateCountBeforeClear, navigationService.NavigateCallCount);
+            }
+            finally
+            {
+                window.Close();
+                await DrainDispatcherAsync(window.Dispatcher);
+            }
+        });
     }
 
     [Fact]
@@ -576,7 +658,8 @@ public sealed class MainWindowNavigationTests
         IActiveCacheCoordinator? activeCacheCoordinator = null,
         IChapterExportCoordinator? chapterExportCoordinator = null,
         Func<CancellationToken, Task>? requestCloseAsync = null,
-        Func<bool>? isExitApproved = null)
+        Func<bool>? isExitApproved = null,
+        IPlaybackSession? playbackSession = null)
     {
         var layoutController = new ShellLayoutController();
         var platformAdapter = new WpfShellPlatformAdapter(
@@ -594,7 +677,7 @@ public sealed class MainWindowNavigationTests
 
         var window = new MainWindow(
             new MainWindowViewModel(
-                new FakePlaybackCoordinator(),
+                playbackSession ?? new FakePlaybackCoordinator(),
                 new ShellActiveCacheController(
                     activeCacheCoordinator ?? new FakeActiveCacheCoordinator(),
                     feedbackService),
@@ -736,6 +819,11 @@ public sealed class MainWindowNavigationTests
             return Task.FromResult(true);
         }
 
+        public void SetRoute(AppRoute route)
+        {
+            CurrentRoute = route;
+        }
+
         public void Initialize(
             INavigationView navigationView,
             NavigationViewItem libraryItem,
@@ -875,18 +963,23 @@ public sealed class MainWindowNavigationTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource
+    private sealed class FakePlaybackCoordinator : IPlaybackSession
     {
-        public PlaybackSnapshot CurrentSnapshot { get; } = PlaybackSnapshot.Idle;
-
-        public event EventHandler<PlaybackSnapshot>? SnapshotChanged
+        public FakePlaybackCoordinator(PlaybackSnapshot? snapshot = null)
         {
-            add
-            {
-            }
-            remove
-            {
-            }
+            CurrentSnapshot = snapshot ?? PlaybackSnapshot.Idle;
+        }
+
+        public PlaybackSnapshot CurrentSnapshot { get; private set; }
+
+        public int ClearCallCount { get; private set; }
+
+        public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
+
+        public void Publish(PlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+            SnapshotChanged?.Invoke(this, snapshot);
         }
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
@@ -900,6 +993,12 @@ public sealed class MainWindowNavigationTests
         public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ClearAsync(CancellationToken cancellationToken)
+        {
+            ClearCallCount++;
+            Publish(PlaybackSnapshot.Idle with { Volume = CurrentSnapshot.Volume });
+            return Task.CompletedTask;
+        }
 
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -921,6 +1020,7 @@ public sealed class MainWindowNavigationTests
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+        public void SetVolume(double volume) { }
 
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;

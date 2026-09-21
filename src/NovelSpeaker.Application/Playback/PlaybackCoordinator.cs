@@ -170,6 +170,11 @@ public sealed class PlaybackCoordinator :
         return RunSerializedAsync(StopCoreAsync, cancellationToken);
     }
 
+    public Task ClearAsync(CancellationToken cancellationToken)
+    {
+        return RunSerializedAsync(ClearCoreAsync, cancellationToken);
+    }
+
     public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -572,7 +577,43 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        var session = _currentSession;
+        await StopAndDisposeCurrentSessionAsync(cancellationToken).ConfigureAwait(false);
+
+        PublishSnapshot(_currentSnapshot with
+        {
+            State = PlaybackState.Stopped,
+            PositionMilliseconds = 0,
+            DurationMilliseconds = _audioController.CurrentSnapshot.DurationMilliseconds,
+            Message = "已停止当前播放。",
+            CanRetry = false
+        });
+    }
+
+    private async Task ClearCoreAsync(CancellationToken cancellationToken)
+    {
+        ThrowIfDisposed();
+
+        if (_currentSession is not null)
+        {
+            await StopAndDisposeCurrentSessionAsync(cancellationToken).ConfigureAwait(false);
+            ClearCurrentBookContext();
+        }
+        else
+        {
+            _stopTimer.Cancel();
+            ClearProtectedPlaybackFile();
+            ClearCurrentBookContext();
+        }
+
+        PublishSnapshot(PlaybackSnapshot.Idle with { Volume = _audioController.Volume });
+    }
+
+    private async Task StopAndDisposeCurrentSessionAsync(CancellationToken cancellationToken)
+    {
+        _stopTimer.Cancel();
+
+        var session = _currentSession
+            ?? throw new InvalidOperationException("当前没有可清理的播放会话。");
         if (session.HasLoadedAudio)
         {
             session.UpdateAudio(_audioController.CurrentSnapshot);
@@ -583,7 +624,7 @@ public sealed class PlaybackCoordinator :
             _audioController.CurrentSnapshot);
         if (session.HasLoadedAudio)
         {
-            await _audioController.StopAsync(cancellationToken);
+            await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
             session.UpdateAudio(_audioController.CurrentSnapshot);
         }
 
@@ -591,19 +632,10 @@ public sealed class PlaybackCoordinator :
             session,
             positionBeforeStop,
             _audioController.CurrentSnapshot,
-            cancellationToken);
-        await _prefetchController.CancelAsync(session.SessionId, cancellationToken);
-        await DisposeSessionAsync();
+            cancellationToken).ConfigureAwait(false);
+        await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
         ClearProtectedPlaybackFile();
-
-        PublishSnapshot(_currentSnapshot with
-        {
-            State = PlaybackState.Stopped,
-            PositionMilliseconds = 0,
-            DurationMilliseconds = _audioController.CurrentSnapshot.DurationMilliseconds,
-            Message = "已停止当前播放。",
-            CanRetry = false
-        });
+        await DisposeSessionAsync().ConfigureAwait(false);
     }
 
     private async Task RefreshBookMetadataCoreAsync(string bookId, CancellationToken cancellationToken)
