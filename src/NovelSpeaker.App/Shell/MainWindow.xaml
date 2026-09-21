@@ -126,7 +126,7 @@
                             </StackPanel>
                             <ui:Button x:Name="ClearPlaybackButton"
                                        Grid.Column="1"
-                                       Margin="8,0,0,0"
+                                       Margin="8,0,12,0"
                                        Command="{Binding ClearPlaybackCommand}"
                                        Click="ClearPlaybackButton_OnClick"
                                        ToolTip="清除当前播放"
