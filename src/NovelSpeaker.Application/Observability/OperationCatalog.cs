@@ -23,7 +23,25 @@ public static class OperationCatalog
     public static OperationDefinition UiPageCriticalLoad { get; } = Create(
         "ui.page-critical-load",
         "Critical page load",
-        "A page reaches its first useful interactive state.");
+        "A page reaches its first useful interactive state when no stable surface-specific definition applies.");
+
+    public static OperationDefinition UiLibraryLoad { get; } = Create(
+        "ui.library-load", "Library load", "The Library surface reaches its first useful interactive state.");
+
+    public static OperationDefinition UiBookDetailsLoad { get; } = Create(
+        "ui.book-details-load", "Book details load", "The Book Details surface reaches its first useful interactive state.");
+
+    public static OperationDefinition UiPlayerLoad { get; } = Create(
+        "ui.player-load", "Player load", "The Player surface reaches its first useful interactive state.");
+
+    public static OperationDefinition UiSettingsLoad { get; } = Create(
+        "ui.settings-load", "Settings load", "The Settings surface reaches its first useful interactive state.");
+
+    public static OperationDefinition UiCacheLoad { get; } = Create(
+        "ui.cache-load", "Cache load", "The Cache surface reaches its first useful interactive state.");
+
+    public static OperationDefinition UiRulesLoad { get; } = Create(
+        "ui.rules-load", "Rules load", "The Rules surface reaches its first useful interactive state.");
 
     public static OperationDefinition UiDispatcherStall { get; } = Create(
         "ui.dispatcher-stall",
@@ -50,15 +68,20 @@ public static class OperationCatalog
         "TTS retry",
         "The application retries a text-to-speech request.");
 
-    public static OperationDefinition CacheOperation { get; } = Create(
-        "cache.operation",
-        "Cache operation",
-        "A stable cache operation is executed.");
+    public static OperationDefinition CacheAudioGeneration { get; } = Create(
+        "cache.audio-generation",
+        "Cache audio generation",
+        "Audio is generated for a cache request.");
 
-    public static OperationDefinition StorageQuery { get; } = Create(
-        "storage.query",
-        "Storage query",
-        "A stable application storage query is executed.");
+    public static OperationDefinition CacheCompletenessCheck { get; } = Create(
+        "cache.completeness-check",
+        "Cache completeness check",
+        "Cache completeness is queried or repaired.");
+
+    public static OperationDefinition StorageConnectionOpen { get; } = Create(
+        "storage.connection-open",
+        "Storage connection open",
+        "An application SQLite connection is opened and initialized.");
 
     public static OperationDefinition DiagnosticsAction { get; } = Create(
         "diagnostics.action",
@@ -71,13 +94,20 @@ public static class OperationCatalog
         AppShutdown,
         UiNavigation,
         UiPageCriticalLoad,
+        UiLibraryLoad,
+        UiBookDetailsLoad,
+        UiPlayerLoad,
+        UiSettingsLoad,
+        UiCacheLoad,
+        UiRulesLoad,
         UiDispatcherStall,
         PlaybackStart,
         PlaybackChapterSwitch,
         TtsRequest,
         TtsRetry,
-        CacheOperation,
-        StorageQuery,
+        CacheAudioGeneration,
+        CacheCompletenessCheck,
+        StorageConnectionOpen,
         DiagnosticsAction
     ]);
 

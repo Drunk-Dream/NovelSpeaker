@@ -82,6 +82,7 @@
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="PlaybackNavigationItem"
                                        Style="{StaticResource App.Navigation.Entry}"
+                                       HorizontalAlignment="Stretch"
                                        Click="PlaybackNavigationItem_OnClick"
                                        Visibility="{Binding IsNowPlayingVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <ui:NavigationViewItem.Icon>
@@ -104,12 +105,51 @@
                             </ui:SymbolIcon.Style>
                         </ui:SymbolIcon>
                     </ui:NavigationViewItem.Icon>
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
-                                   Text="{Binding NowPlayingTitle}" />
-                        <TextBlock FontSize="12"
-                                   Style="{StaticResource App.Typography.Caption}"
-                                   Text="{Binding NowPlayingStatus}" />
+                    <StackPanel Width="180"
+                                HorizontalAlignment="Left"
+                                Visibility="{Binding ElementName=RootNavigationView, Path=IsPaneOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource App.Typography.ItemTitle}"
+                                           TextWrapping="NoWrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           Text="{Binding NowPlayingTitle}" />
+                                <TextBlock FontSize="12"
+                                           Style="{StaticResource App.Typography.Caption}"
+                                           TextWrapping="NoWrap"
+                                           TextTrimming="CharacterEllipsis"
+                                           Text="{Binding NowPlayingStatus}" />
+                            </StackPanel>
+                            <ui:Button x:Name="ClearPlaybackButton"
+                                       Grid.Column="1"
+                                       Margin="8,0,12,0"
+                                       Command="{Binding ClearPlaybackCommand}"
+                                       Click="ClearPlaybackButton_OnClick"
+                                       ToolTip="清除当前播放"
+                                       AutomationProperties.Name="清除当前播放"
+                                       Icon="{ui:SymbolIcon Symbol=Dismiss24}">
+                                <ui:Button.Style>
+                                    <Style TargetType="ui:Button"
+                                           BasedOn="{StaticResource App.Button.Icon}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type ui:NavigationViewItem}}, Path=IsMouseOver}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType={x:Type ui:NavigationViewItem}}, Path=IsKeyboardFocusWithin}"
+                                                         Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                            </ui:Button>
+                        </Grid>
                     </StackPanel>
                 </ui:NavigationViewItem>
                 <ui:NavigationViewItem x:Name="ThemeToggleNavigationItem"

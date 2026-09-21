@@ -330,6 +330,7 @@ public sealed class MediaControlCoordinatorTests
             throw new NotSupportedException();
 
         public Task StopAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task ClearAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => throw new NotSupportedException();

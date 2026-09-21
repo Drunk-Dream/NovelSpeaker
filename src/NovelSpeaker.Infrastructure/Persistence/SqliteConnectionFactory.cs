@@ -22,7 +22,7 @@ public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
     public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        using var operation = _observability.StartOperation(OperationCatalog.StorageQuery);
+        using var operation = _observability.StartOperation(OperationCatalog.StorageConnectionOpen);
 
         var connection = new SqliteConnection($"Data Source={_directories.DatabasePath}")
         {

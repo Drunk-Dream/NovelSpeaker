@@ -143,6 +143,8 @@ public sealed class NavigationPageLifecycleTests
             StopCallCount++;
             return Task.CompletedTask;
         }
+
+        public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;

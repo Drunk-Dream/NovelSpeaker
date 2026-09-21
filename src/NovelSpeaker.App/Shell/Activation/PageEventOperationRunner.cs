@@ -37,8 +37,8 @@ public sealed class PageEventOperationRunner
         _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
     }
 
-    public IOperationScope StartCriticalLoad() =>
-        _observability.StartOperation(OperationCatalog.UiPageCriticalLoad);
+    public IOperationScope StartCriticalLoad(OperationDefinition? operation = null) =>
+        _observability.StartOperation(operation ?? OperationCatalog.UiPageCriticalLoad);
 
     public async Task RunAsync(
         PageActivationController activationController,

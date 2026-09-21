@@ -23,7 +23,7 @@ public partial class SettingsPage : System.Windows.Controls.Page, INavigationAwa
     public Task OnNavigatedToAsync()
     {
         _activation.Activate();
-        using var operation = _eventOperations.StartCriticalLoad();
+        using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiSettingsLoad);
         operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
         return Task.CompletedTask;
     }

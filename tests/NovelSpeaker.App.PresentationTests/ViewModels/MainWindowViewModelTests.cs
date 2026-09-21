@@ -30,6 +30,76 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public async Task Clearing_playback_returns_the_shell_to_idle_and_a_new_book_restores_the_entry()
+    {
+        var coordinator = new FakePlaybackCoordinator(CreatePlaybackSnapshot(
+            PlaybackState.Playing,
+            "book-1",
+            "示例小说"));
+        var viewModel = CreateViewModel(coordinator, new FakeNavigationService());
+
+        Assert.True(viewModel.IsNowPlayingVisible);
+
+        await viewModel.ClearPlaybackCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, coordinator.ClearCallCount);
+        Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
+        Assert.Null(coordinator.CurrentSnapshot.BookId);
+        Assert.False(viewModel.IsNowPlayingVisible);
+
+        coordinator.Publish(CreatePlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-2",
+            "另一本书"));
+
+        Assert.True(viewModel.IsNowPlayingVisible);
+        Assert.Equal("另一本书", viewModel.NowPlayingTitle);
+    }
+
+    [Fact]
+    public async Task Failed_clear_keeps_the_now_playing_entry_visible()
+    {
+        var coordinator = new FakePlaybackCoordinator(CreatePlaybackSnapshot(
+            PlaybackState.Playing,
+            "book-1",
+            "示例小说"))
+        {
+            ClearException = new InvalidOperationException("clear failed")
+        };
+        var feedback = new FakeAppFeedbackService();
+        var viewModel = new MainWindowViewModel(
+            coordinator,
+            new ShellActiveCacheController(new FakeActiveCacheCoordinator(), feedback),
+            CreateChapterExportProjection(),
+            new FakeNavigationService(),
+            new FakeThemeToggleService(AppTheme.Light),
+            feedback);
+
+        await viewModel.ClearPlaybackCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, coordinator.ClearCallCount);
+        Assert.Equal("book-1", coordinator.CurrentSnapshot.BookId);
+        Assert.True(viewModel.IsNowPlayingVisible);
+        Assert.Equal("清除当前播放失败", feedback.LastTitle);
+    }
+
+    [Fact]
+    public void Now_playing_entry_is_hidden_on_the_player_page_and_restored_after_leaving_it()
+    {
+        var coordinator = new FakePlaybackCoordinator(CreatePlaybackSnapshot(
+            PlaybackState.Paused,
+            "book-1",
+            "示例小说"));
+        var viewModel = CreateViewModel(coordinator, new FakeNavigationService());
+
+        viewModel.SetPlayerPageActive(true);
+        Assert.False(viewModel.IsNowPlayingVisible);
+
+        viewModel.SetPlayerPageActive(false);
+        Assert.True(viewModel.IsNowPlayingVisible);
+    }
+
+    [Fact]
     public async Task Theme_toggle_projection_tracks_effective_theme_and_executes_shell_toggle()
     {
         var themeService = new FakeThemeToggleService(AppTheme.Light);
@@ -295,7 +365,7 @@ public sealed class MainWindowViewModelTests
     }
 
     private static MainWindowViewModel CreateViewModel(
-        IPlaybackSnapshotSource playbackCoordinator,
+        IPlaybackSession playbackCoordinator,
         IAppNavigator navigator) =>
         new(
             playbackCoordinator,
@@ -313,21 +383,46 @@ public sealed class MainWindowViewModelTests
             new FakeAppFeedbackService(),
             new FakePresentationLauncher());
 
+    private static PlaybackSnapshot CreatePlaybackSnapshot(
+        PlaybackState state,
+        string bookId,
+        string bookTitle) => new(
+            state,
+            bookId,
+            bookTitle,
+            0,
+            "第一章",
+            0,
+            1,
+            1,
+            "默认规则",
+            10,
+            0,
+            1000,
+            null,
+            false,
+            false);
+
     private sealed class FakeAppFeedbackService : IAppFeedbackService
     {
+        public string? LastTitle { get; private set; }
+
         public ProjectedUiError Project(Exception exception) =>
             new("操作失败。", UiMessageSeverity.Error, false);
 
         public void ShowProjectedNotification(string title, ProjectedUiError projected)
         {
+            LastTitle = title;
         }
 
         public void ShowSuccess(string title, string message)
         {
+            LastTitle = title;
         }
 
         public void ShowWarning(string title, string message)
         {
+            LastTitle = title;
         }
 
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(
@@ -430,7 +525,7 @@ public sealed class MainWindowViewModelTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource
+    private sealed class FakePlaybackCoordinator : IPlaybackSession
     {
         public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
         {
@@ -438,6 +533,10 @@ public sealed class MainWindowViewModelTests
         }
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
+
+        public int ClearCallCount { get; private set; }
+
+        public Exception? ClearException { get; init; }
 
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
@@ -459,6 +558,18 @@ public sealed class MainWindowViewModelTests
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task ClearAsync(CancellationToken cancellationToken)
+        {
+            ClearCallCount++;
+            if (ClearException is not null)
+            {
+                return Task.FromException(ClearException);
+            }
+
+            Publish(PlaybackSnapshot.Idle with { Volume = CurrentSnapshot.Volume });
+            return Task.CompletedTask;
+        }
+
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -479,6 +590,10 @@ public sealed class MainWindowViewModelTests
         public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public void SetVolume(double volume)
+        {
+        }
 
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;

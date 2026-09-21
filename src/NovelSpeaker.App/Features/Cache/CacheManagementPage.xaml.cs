@@ -31,7 +31,7 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
 
     public async Task OnNavigatedToAsync()
     {
-        using var operation = _eventOperations.StartCriticalLoad();
+        using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiCacheLoad);
         var activation = _activation.Activate();
         activation.Register(ViewModel.HandleNavigatedFrom);
         try

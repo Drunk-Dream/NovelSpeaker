@@ -197,9 +197,7 @@ public sealed partial class PlayerViewTests
 
         public IRelayCommand CancelStopTimerCommand { get; } = new RelayCommand(() => { });
 
-        public IRelayCommand EnterActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
-
-        public IRelayCommand CancelActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
+        public IRelayCommand ToggleActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand StartActiveCacheCommand { get; } = new RelayCommand(() => { });
 
@@ -356,6 +354,7 @@ public sealed partial class PlayerViewTests
         public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken)
         {

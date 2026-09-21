@@ -14,6 +14,7 @@ namespace NovelSpeaker.App.Shell;
 /// </summary>
 public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 {
+    private readonly IPlaybackSession _playbackSession;
     private readonly IAppNavigator _navigator;
     private readonly IUiScheduler _uiScheduler;
     private readonly IThemeToggleService _themeToggleService;
@@ -21,9 +22,11 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly OwnedTaskRegistry _processTasks = new();
     private string? _currentBookId;
+    private PlaybackState _currentPlaybackState;
+    private bool _isPlayerPageActive;
 
     public MainWindowViewModel(
-        IPlaybackSnapshotSource playbackCoordinator,
+        IPlaybackSession playbackSession,
         ShellActiveCacheController activeCache,
         ShellChapterExportController chapterExport,
         IAppNavigator navigator,
@@ -31,6 +34,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         IAppFeedbackService feedbackService,
         IUiScheduler? uiScheduler = null)
     {
+        _playbackSession = playbackSession ?? throw new ArgumentNullException(nameof(playbackSession));
         ActiveCache = activeCache;
         ChapterExport = chapterExport;
         _navigator = navigator;
@@ -40,9 +44,9 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
         ToggleLightDarkThemeCommand = new AsyncRelayCommand(
             ToggleLightDarkThemeAsync,
             AsyncRelayCommandOptions.AllowConcurrentExecutions);
-        ApplySnapshot(playbackCoordinator.CurrentSnapshot);
+        ApplySnapshot(_playbackSession.CurrentSnapshot);
         RefreshThemeToggleProjection();
-        playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
+        _playbackSession.SnapshotChanged += OnSnapshotChanged;
         _themeToggleService.EffectiveThemeChanged += OnEffectiveThemeChanged;
     }
 
@@ -69,6 +73,17 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private ThemeToggleVisualState themeToggleVisualState = ThemeToggleVisualState.SwitchToDark;
+
+    public void SetPlayerPageActive(bool isActive)
+    {
+        if (_isPlayerPageActive == isActive)
+        {
+            return;
+        }
+
+        _isPlayerPageActive = isActive;
+        RefreshNowPlayingVisibility();
+    }
 
     [RelayCommand]
     private async Task NavigateToNowPlayingAsync(CancellationToken cancellationToken)
@@ -109,8 +124,27 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             cancellationToken).ConfigureAwait(false);
     }
 
+    [RelayCommand]
+    private async Task ClearPlaybackAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _playbackSession.ClearAsync(cancellationToken).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _feedbackService.ShowProjectedNotification(
+                "清除当前播放失败",
+                _feedbackService.Project(exception));
+        }
+    }
+
     public void Dispose()
     {
+        _playbackSession.SnapshotChanged -= OnSnapshotChanged;
         _themeToggleService.EffectiveThemeChanged -= OnEffectiveThemeChanged;
         _lifetimeCancellation.Cancel();
         _lifetimeCancellation.Dispose();
@@ -150,7 +184,7 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
     private void ApplySnapshot(PlaybackSnapshot snapshot)
     {
         _currentBookId = snapshot.BookId;
-        IsNowPlayingVisible = !string.IsNullOrWhiteSpace(snapshot.BookId) && snapshot.State != PlaybackState.Idle;
+        _currentPlaybackState = snapshot.State;
         NowPlayingTitle = snapshot.BookTitle ?? string.Empty;
         NowPlayingStatus = BuildStatus(snapshot);
         NowPlayingVisualState = snapshot.State switch
@@ -160,6 +194,14 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             PlaybackState.Faulted => NowPlayingVisualState.Faulted,
             _ => NowPlayingVisualState.Inactive
         };
+        RefreshNowPlayingVisibility();
+    }
+
+    private void RefreshNowPlayingVisibility()
+    {
+        IsNowPlayingVisible = !_isPlayerPageActive &&
+                              !string.IsNullOrWhiteSpace(_currentBookId) &&
+                              _currentPlaybackState != PlaybackState.Idle;
     }
 
     private static string BuildStatus(PlaybackSnapshot snapshot)

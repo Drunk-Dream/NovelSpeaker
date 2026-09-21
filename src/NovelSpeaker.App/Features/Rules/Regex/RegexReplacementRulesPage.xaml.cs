@@ -35,7 +35,7 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
 
     public async Task OnNavigatedToAsync()
     {
-        using var operation = _eventOperations.StartCriticalLoad();
+        using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiRulesLoad);
         var activation = _activation.Activate();
         activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));

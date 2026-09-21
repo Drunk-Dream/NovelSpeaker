@@ -22,7 +22,7 @@ public partial class GeneralSettingsPage : System.Windows.Controls.Page, INaviga
 
     public async Task OnNavigatedToAsync()
     {
-        using var operation = _eventOperations.StartCriticalLoad();
+        using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiSettingsLoad);
         var activation = _activation.Activate();
         ViewModel.Activate(activation);
         activation.Register(ViewModel.Deactivate);

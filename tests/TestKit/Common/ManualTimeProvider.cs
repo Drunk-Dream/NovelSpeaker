@@ -8,6 +8,8 @@ internal sealed class ManualTimeProvider : TimeProvider
     private readonly HashSet<ManualTimer> _timers = [];
     private TaskCompletionSource _timerStateChanged = CreateSignal();
     private DateTimeOffset _utcNow;
+    private TimeSpan _utcOffset;
+    private long _timestampTicks;
 
     public ManualTimeProvider(DateTimeOffset? initialUtcNow = null)
     {
@@ -18,11 +20,29 @@ internal sealed class ManualTimeProvider : TimeProvider
     {
         lock (_syncRoot)
         {
-            return _utcNow;
+            return _utcNow + _utcOffset;
         }
     }
 
     public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+
+    public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+    public override long GetTimestamp()
+    {
+        lock (_syncRoot)
+        {
+            return _timestampTicks;
+        }
+    }
+
+    public void AdjustUtcOffset(TimeSpan delta)
+    {
+        lock (_syncRoot)
+        {
+            _utcOffset += delta;
+        }
+    }
 
     public int PendingTimerCount
     {
@@ -108,11 +128,13 @@ internal sealed class ManualTimeProvider : TimeProvider
 
                 if (nextDue == DateTimeOffset.MaxValue)
                 {
+                    _timestampTicks += delta.Ticks;
                     _utcNow = target;
                     return;
                 }
 
                 delta = target - nextDue;
+                _timestampTicks += (nextDue - _utcNow).Ticks;
                 _utcNow = nextDue;
                 dueTimers = _timers
                     .Where(timer => timer.TryGetNextDue(out var due) && due == nextDue)

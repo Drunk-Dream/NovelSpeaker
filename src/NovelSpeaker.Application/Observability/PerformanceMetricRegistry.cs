@@ -37,7 +37,12 @@ public sealed class PerformanceMetricRegistry
             ["operation"] = OperationCatalog.All.Select(operation => operation.Id.Value).ToArray(),
             ["outcome"] = ["succeeded", "failed", "cancelled"]
         };
-        double[] durationBuckets = [1d, 5d, 10d, 25d, 50d, 100d, 250d, 500d, 1000d, 2500d, 5000d, 10000d];
+        double[] durationBuckets =
+        [
+            0.1d, 0.25d, 0.5d,
+            1d, 2.5d, 5d, 10d, 25d, 50d, 100d, 250d, 500d,
+            1000d, 2500d, 5000d, 10000d, 20000d, 30000d, 60000d
+        ];
 
         return new PerformanceMetricRegistry(
         [

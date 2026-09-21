@@ -12,6 +12,9 @@ namespace NovelSpeaker.App.Features.Diagnostics;
 
 public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModelBase
 {
+    private static readonly Guid DiagnosticSessionPickerClientGuid =
+        new("6e56f7fd-296e-4f73-975b-f47df133a845");
+
     private readonly IAppDiagnosticsService _diagnosticsService;
     private readonly IAppSettingsService _settingsService;
     private readonly IPresentationClipboard _clipboard;
@@ -60,6 +63,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
     private string logsDirectoryPath = string.Empty;
 
     [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(ExportProblemDiagnosticsCommand))]
     private string diagnosticsDirectoryPath = string.Empty;
 
     [ObservableProperty]
@@ -74,7 +78,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         _isLoading = true;
         try
         {
-            var snapshot = await _diagnosticsService.GetSnapshotAsync(cancellationToken).ConfigureAwait(false);
+            var snapshot = await _diagnosticsService.GetSnapshotAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             var settings = _settingsService.Current;
 
@@ -240,13 +244,16 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
         }
     }
 
-    [RelayCommand(AllowConcurrentExecutions = false)]
+    [RelayCommand(AllowConcurrentExecutions = false, CanExecute = nameof(CanExportProblemDiagnostics))]
     private async Task ExportProblemDiagnosticsAsync(CancellationToken cancellationToken)
     {
         try
         {
             var sourcePath = await _fileDialogs.PickOpenFileAsync(
-                new PresentationFileDialogOptions("NovelSpeaker diagnostic (*.nsdiag)|*.nsdiag"),
+                new PresentationFileDialogOptions(
+                    "NovelSpeaker diagnostic (*.nsdiag)|*.nsdiag",
+                    InitialDirectory: DiagnosticsDirectoryPath,
+                    ClientGuid: DiagnosticSessionPickerClientGuid),
                 cancellationToken).ConfigureAwait(false);
             if (string.IsNullOrWhiteSpace(sourcePath))
             {
@@ -278,6 +285,8 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
             ShowSaveFailure("导出问题诊断失败", exception);
         }
     }
+
+    private bool CanExportProblemDiagnostics() => !string.IsNullOrWhiteSpace(DiagnosticsDirectoryPath);
 
     partial void OnSelectedLogLevelChanged(string value)
     {

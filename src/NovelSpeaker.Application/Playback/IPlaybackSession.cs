@@ -10,6 +10,7 @@ public interface IPlaybackSession : IPlaybackSnapshotSource
     Task PauseAsync(CancellationToken cancellationToken);
     Task ResumeAsync(CancellationToken cancellationToken);
     Task StopAsync(CancellationToken cancellationToken);
+    Task ClearAsync(CancellationToken cancellationToken);
     Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken);
     Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken);
     Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken);

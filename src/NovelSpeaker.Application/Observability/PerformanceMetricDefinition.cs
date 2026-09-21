@@ -67,7 +67,7 @@ public sealed class PerformanceMetricDefinition
         {
             ValidateTagName(pair.Key);
             var values = pair.Value?.ToArray() ?? throw new ArgumentException("Tag values cannot be null.", nameof(allowedTags));
-            if (values.Length == 0 || values.Length > 16 || values.Any(value => !IsStableTagValue(value)))
+            if (values.Length == 0 || values.Length > 32 || values.Any(value => !IsStableTagValue(value)))
             {
                 throw new ArgumentException("Tags must declare finite lower-case values.", nameof(allowedTags));
             }

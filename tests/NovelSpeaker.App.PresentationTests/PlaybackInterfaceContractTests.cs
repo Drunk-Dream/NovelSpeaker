@@ -26,6 +26,7 @@ public sealed class PlaybackInterfaceContractTests
             [
                 "ChangeRuleAsync",
                 "ChangeSpeedAsync",
+                "ClearAsync",
                 "CurrentSnapshot",
                 "JumpToAsync",
                 "JumpToChapterAsync",

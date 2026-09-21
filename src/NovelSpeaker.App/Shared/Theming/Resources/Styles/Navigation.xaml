@@ -14,6 +14,9 @@
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Style.Triggers>
+            <Trigger Property="IsPaneOpen" Value="False">
+                <Setter Property="Margin" Value="0,2" />
+            </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
             </Trigger>

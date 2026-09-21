@@ -114,6 +114,8 @@ public sealed partial class PlayerViewModelTests
         public Task StopAsync(CancellationToken cancellationToken) =>
             _invalidation.StopAsync(cancellationToken);
 
+        public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
         public ValueTask DisposeAsync() => _invalidation.DisposeAsync();
     }
 
@@ -349,6 +351,12 @@ public sealed partial class PlayerViewModelTests
         public Task StopAsync(CancellationToken cancellationToken)
         {
             Publish(CurrentSnapshot with { State = PlaybackState.Stopped });
+            return Task.CompletedTask;
+        }
+
+        public Task ClearAsync(CancellationToken cancellationToken)
+        {
+            Publish(PlaybackSnapshot.Idle with { Volume = CurrentSnapshot.Volume });
             return Task.CompletedTask;
         }
 

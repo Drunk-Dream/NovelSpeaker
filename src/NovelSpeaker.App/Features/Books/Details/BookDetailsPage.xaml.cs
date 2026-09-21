@@ -52,7 +52,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     public async Task OnNavigatedToAsync()
     {
-        using var operation = _eventOperations.StartCriticalLoad();
+        using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiBookDetailsLoad);
         var activation = _activation.Activate();
         var initialLocatorVersion = ++_initialLocatorVersion;
         _initialLocatorPending = true;
