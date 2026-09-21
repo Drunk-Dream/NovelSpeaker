@@ -104,9 +104,9 @@
                             </ui:SymbolIcon.Style>
                         </ui:SymbolIcon>
                     </ui:NavigationViewItem.Icon>
-                    <StackPanel MaxWidth="180"
+                    <StackPanel HorizontalAlignment="Stretch"
                                 Visibility="{Binding ElementName=RootNavigationView, Path=IsPaneOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Grid>
+                        <Grid HorizontalAlignment="Stretch">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
