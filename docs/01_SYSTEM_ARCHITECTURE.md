@@ -18,7 +18,7 @@ NovelSpeaker.App
 
 - **Domain**：纯业务值、规则和不依赖技术实现的模型。
 - **Application**：业务用例、稳定模块边界、端口、read model、状态 owner 与编排。
-- **Infrastructure**：SQLite、文件、HTTP、Jint、NAudio、诊断持久化等技术实现。
+- **Infrastructure**：SQLite、文件、HTTP、WebSocket、Jint、NAudio、诊断持久化等技术实现。
 - **App**：WPF Shell、Page/ViewModel、桌面平台桥接、主题与组合根。
 
 不再按 Books/Playback/Cache 等继续拆程序集。模块压力通过层内稳定业务边界和职责收敛处理。
@@ -52,10 +52,33 @@ Desktop  → Playback
 - Cache 是一级模块，不是 Playback 子系统。
 - Books、Speech、Settings 不依赖 Cache-specific invalidation、Coverage 或物理存储 API。
 - Cache 不依赖 Playback mutable session state。
-- Playback 可以消费 Cache 的稳定 query/role。
+- Playback 可以消费 Cache 与 Speech 的稳定角色接口。
 - Desktop 只消费稳定角色接口，不拥有 Playback/Cache mutable truth。
 
 跨模块变化使用窄的 typed snapshot/change source/role port；源模块只表达“自身发生了什么变化”，派生消费者在自己的边界解释影响。禁止为此引入通用 EventBus/Messenger。
+
+### Speech Provider 边界
+
+Speech 以 Provider Type + Provider Instance 建模。
+
+```text
+Playback / Prefetch / Active Cache / Test
+                    ↓
+             Provider Runtime
+             ↙             ↘
+      HTTP Provider      Edge Provider
+             ↓             ↓
+       HTTP transport   Edge transport
+```
+
+长期原则：
+
+- 上层消费 Provider Runtime，不直接依赖 `HttpTtsRule`、HTTP transport 或 Edge 协议。
+- HTTP、Microsoft Edge、未来 Local Provider 在管理层级上等价，但各自拥有 typed config 和独立 editor/runtime。
+- 不建立万能 `ProviderConfig` 字典、通用脚本插件平台或提前设计的 capability framework。
+- Provider Type 分派保持简单，直到更多真实类型产生扩展压力。
+- Provider Runtime 返回稳定音频结果/错误语义；具体网络协议只存在于 Infrastructure。
+- 每个 Provider Type 自己定义会影响音频结果的版本化 synthesis fingerprint。
 
 ## 3. App Feature
 
@@ -69,8 +92,10 @@ Features/
 │  └─ Shared/
 ├─ Playback/
 ├─ Cache/
+├─ Speech/
+│  ├─ Providers/
+│  └─ Shared/
 ├─ Rules/
-│  ├─ Tts/
 │  ├─ Chapter/
 │  ├─ Regex/
 │  └─ Shared/
@@ -86,7 +111,8 @@ Shared/
 
 - Feature 不形成双向依赖。
 - Feature-local controller/projector 默认留在 Feature 内。
-- `Rules/Shared` 只共享规则编辑生命周期，不抽象不同规则业务模型。
+- `Rules/Shared` 只共享真正属于规则编辑的生命周期，不抽象不同规则业务模型。
+- Speech Provider 编辑器只共享 Draft/Dirty/Save/Cancel/Test 等生命周期语义，不共享一套万能配置字段。
 - 全局 `Shared` 只保存真实跨多个业务域复用的 presentation/lifecycle/platform primitive。
 - `Shared` 不依赖任何 Feature。
 
@@ -97,6 +123,8 @@ Shared/
 | 状态 | Owner | 生命周期 |
 |---|---|---|
 | 当前播放会话与位置 | Playback session owner | Playback session / process |
+| 当前 Provider Id | Settings process service | Persistent |
+| Provider 列表、排序与类型配置 | Speech Provider persistence/use case | Persistent |
 | ReadingProgress checkpoint | Application progress use case + persistence | Persistent |
 | 当前设置 snapshot | Settings process service | Process |
 | 当前路由 | Shell navigation owner | Process |
@@ -118,6 +146,7 @@ ViewModel 不复制 process/session/background owner 的 mutable truth。跨页�
 
 - Playback session owner；
 - Settings process owner；
+- Speech Provider persistence/runtime resolver；
 - Cache invalidation/repair/active-cache/export coordinator；
 - Shell navigation；
 - desktop lifecycle；
@@ -209,6 +238,7 @@ thin Observability API
 - 通用 EventBus/Messenger。
 - Service Locator。
 - 万能 Manager/Helper/Utils。
+- 万能 Provider Config 或提前设计的插件框架。
 - 通过 Shared 隐藏 Feature/Application 循环。
 - 为内部重构长期保留 Old/New/V2/Compat/forwarding wrapper。
 - 通过 singleton Page/ViewModel 或 Navigation cache 保存长期业务状态。

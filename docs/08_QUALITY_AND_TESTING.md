@@ -37,6 +37,7 @@
 除非它们本身构成明确产品契约，以下内容默认不建立永久测试：
 
 - UI 微调、圆角、边距、具体颜色、精确尺寸和控件排列；
+- Provider 拖拽指示线的具体像素、颜色或 Margin；
 - XAML 资源 Key 的顺序、Setter 顺序、具体模板组成和 BasedOn 路径；
 - ViewModel/Service 内部调用顺序或精确调用次数；
 - 私有类、局部 helper、内部 DTO 和可自由重构的数据投影形状；
@@ -81,24 +82,42 @@ TDD 是推荐方法，不是强制流程。Agent 可以根据任务性质选择�
 - 书籍导入、打开和基本书库读取；
 - 播放开始、暂停、恢复；
 - 显式切章、切段和阅读进度保存/恢复；
-- 代表性的 TTS 规则解析与请求流程；
+- Provider 选择、解析与代表性的音频生成流程；
+- HTTP Provider 模板编译、请求构造与安全边界；
 - 缓存生成、读取、失效和删除；
 - 章节/缓存等正式导出路径。
 
 同一核心流程优先用较高层、行为导向的少量测试覆盖，不把一个正常流程拆成大量内部状态微测试。
 
-### 6.2 数据与兼容性
+### 6.2 Speech Provider
+
+长期测试只保护稳定且高风险的 Provider 契约：
+
+- Provider 名称唯一与统一排序持久化；
+- CurrentProvider 不存在/删除/隐藏/失去必要配置时安全变为 None；
+- 切换 Provider 或保存新配置不打断当前句，下一句使用新状态；
+- Active Cache 在任务开始时冻结 Provider/config，不产生混合 Provider 批次；
+- ProviderSynthesisFingerprint 不因名称/排序变化而变化，真实合成配置变化会变化；
+- HTTP Provider 的 JSON/Form/Raw Body、GET Body 拒绝、Header 安全和模板 sandbox；
+- HTTP Provider 多项导入的重复、同名、部分失败与单项导出 round-trip；
+- Edge Provider 的实验功能创建/隐藏/恢复和 Voice 必要配置；
+- Edge transport 持续 CI 测试使用 fake/in-memory transport，不以真实外部服务作为 CI 前提；首次实现的任务验收另需至少一次真实在线合成及可解码结果，不把在线调用做成永久 CI 测试。
+
+不为 Provider Editor 的字段排列、当前状态图标、选择器精确宽度或拖拽横线位置建立永久测试。
+
+### 6.3 数据与兼容性
 
 长期保护：
 
 - 已发布 SQLite migration 与关键持久化兼容；
+- TTS Rule → Provider 一次性 migration 的有效数据转换、重名处理、不可转换项报告及 CurrentProvider 映射；
 - 用户外部 TXT 不被修改；
 - Cache identity 和必要的数据一致性；
 - 数据根信任边界，包括 Scoop 等 Data-root Junction；
 - 数据根内部 reparse-point 逃逸必须拒绝；
 - 对用户数据有风险的原子写入/替换语义。
 
-### 6.3 关键架构边界
+### 6.4 关键架构边界
 
 Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例如：
 
@@ -106,13 +125,15 @@ Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例�
 2. Application 不依赖 WPF 或 Infrastructure 具体实现；
 3. 关键模块不形成循环依赖；
 4. 关键 mutable state 只有一个权威 owner；
-5. 不新增 Service Locator 或通用 EventBus/Messenger；
-6. 存储信任边界只有一个权威实现；
-7. Observability 不向业务层泄露 Infrastructure store 类型。
+5. Playback/Cache 不直接依赖 HTTP/Edge 具体 Provider transport；
+6. 不新增 Service Locator 或通用 EventBus/Messenger；
+7. 不把 Provider 扩展做成万能 Config/Plugin framework；
+8. 存储信任边界只有一个权威实现；
+9. Observability 不向业务层泄露 Infrastructure store 类型。
 
 不要为 architecture test 检测器自身建立大量穷举式 parser/语法边界测试；只保留足以证明规则有效的代表性 contract tests。
 
-### 6.4 Observability 与 Diagnostics
+### 6.5 Observability 与 Diagnostics
 
 长期测试保护产品级行为：
 
@@ -126,11 +147,7 @@ Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例�
 - 普通诊断和问题诊断能够产生有效导出；
 - 隐私边界和用户主动截图例外不被突破。
 
-永久测试只保护上述稳定语义，不把 60 秒常量、具体 Histogram bucket 数组、内部 DTO 字段顺序、具体 timer 类型或每日 JSONL 文件布局冻结成长期测试合同。需要验证这些当前实现参数时可以使用 focused/临时测试，任务结束前删除不具备长期价值的测试。
-
-“选择旧 `.nsdiag` 时从 Diagnostics 打开、随后保存 ZIP 时尊重普通 Windows 保存位置”属于明确交互行为，但不要求因此恢复大量 DiagnosticsAboutViewModel/WPF 细节测试；优先通过通用 file-dialog abstraction 的稳定行为验证、静态检查或任务内临时测试确认。
-
-内部 queue pressure 的每一种中间状态、所有投影字段、具体 writer 调度方式和 UI 显示细节默认不形成永久测试合同。
+永久测试只保护上述稳定语义，不把具体实现参数冻结成长期测试合同。
 
 ## 7. 各测试层职责
 
@@ -142,7 +159,7 @@ Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例�
 
 ### Infrastructure Integration
 
-只对真实基础设施风险保留集成测试，例如 migration、关键 SQLite 行为、文件/路径边界、HTTP/TTS、缓存持久化、正式导出和诊断持久化。
+只对真实基础设施风险保留集成测试，例如 migration、关键 SQLite 行为、文件/路径边界、HTTP/Provider transport、缓存持久化、正式导出和诊断持久化。
 
 ### Presentation
 
@@ -158,7 +175,7 @@ WPF 自动测试必须非常克制，只用于确实依赖 WPF 才能验证的�
 - 关键 focus/hit-testing/virtualization 行为确实影响核心可用性；
 - 隔离 Desktop 与 fail-closed 边界。
 
-样式细节、资源结构、精确像素和大部分视觉变化默认不做永久自动测试。Style Gallery、截图和人工视觉检查可以作为开发工具或可选验收，但不是核心自动门禁。
+Provider 选择器 Stretch、CurrentItem 外观、拖拽插入横线等视觉优化默认使用任务内临时验证，不新增长期像素/Visual Tree 测试。
 
 ## 8. WPF 隔离 Desktop
 

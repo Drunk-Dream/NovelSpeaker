@@ -8,7 +8,7 @@ TXT source
 → normalized chapter text
 → text processing / segmentation
 → Speech Plan
-→ TTS / cache
+→ Speech Provider / cache
 → Playback
 → Reading Progress
 ```
@@ -72,13 +72,14 @@ matching PlaybackSnapshot
 - 页面不得直接写 ReadingProgress。
 - 不进行逐毫秒高频 SQLite 写入。
 
-## 6. Audio 与 TTS
+## 6. Audio 与 Speech Provider
 
-- Playback 通过稳定 Speech/TTS 能力请求音频，不自行解析 TTS 规则字符串。
-- HTTP TTS 的精确规则与执行合同见 `specs/HTTP_TTS.md`。
+- Playback 通过稳定 Provider Runtime 请求音频，不自行解析 HTTP Provider 模板或判断具体 Provider Type。
+- Provider、HTTP 模板、Edge Provider、试听与导入导出的精确合同见 `specs/HTTP_TTS.md`。
 - 本地播放资源只有一个明确 owner；Page 不持有/释放 NAudio 资源。
-- TTS 请求失败、取消、空音频等必须按稳定错误分类处理，不能错误推进大量阅读进度。
-- 当前播放、prefetch 和 Active Cache 共享稳定 TTS admission/rate-limit 语义，但拥有不同生命周期。
+- Provider 请求失败、取消、空音频等必须按稳定错误分类处理，不能错误推进大量阅读进度。
+- 当前播放、prefetch 和 Active Cache 共享稳定 Speech admission 语义，但拥有不同生命周期。
+- 全局语速属于 Speech/Playback 统一控制；播放音量属于本地 Audio Playback，不作为 Provider 配置发送。
 
 ## 7. Prefetch
 
@@ -94,11 +95,19 @@ Current Playback
 
 Prefetch 可以复用 Cache/Speech 的稳定能力，但不成为 Cache background owner，也不与 Active Cache 共享 mutable lifecycle。
 
-## 8. Rules 与播放
+Provider 或其有效合成配置变化后，尚未开始的新预取使用最新状态；旧配置已经生成的音频可以保留在缓存中，但不得因身份错误继续命中。
 
-- 播放页只在已启用 TTS 规则中选择当前规则。
-- 当前规则被禁用或删除后清空选择，不隐式回退到另一规则。
-- 新建、导入或重新启用规则不自动成为当前规则。
+## 8. Provider 与播放
+
+- CurrentProvider 是全局设置，值为 ProviderId 或 None。
+- 播放页是主动改变 CurrentProvider 的唯一入口。
+- 播放页只列出已完成必要配置且当前可见的 Provider，并使用 Provider 的统一排序。
+- 不把 None 作为常用切换项展示。
+- 删除当前 Provider、隐藏当前实验性 Provider、或使当前 Provider 失去必要配置时，CurrentProvider 清空为 None，不自动回退。
+- Provider 恢复可用后不自动恢复 CurrentProvider。
+- 切换 Provider、保存当前 Provider 新配置、或 CurrentProvider 变为 None 均不打断已经开始播放的当前语句。
+- 下一条尚未开始的语句使用最新 CurrentProvider 与最新已保存 Provider 配置。
+- 不建立 Provider fallback 链。
 - 影响 SpeechText 的 Regex/Text 配置变化根据来源位置和新的 Speech Plan 解析最接近可播放段，不简单复用旧数组索引。
 - 只影响 DisplayText 的变化尽量不打断音频。
 
@@ -109,13 +118,15 @@ Library、BookDetails、Player 从稳定 read model/snapshot 构造 presentation
 - Library 只更新受影响卡片，不因播放位置变化重新查询整个书库。
 - BookDetails 的 catalog 与动态 decoration 分离。
 - Player XAML 继续绑定一个页面 ViewModel，但内部可以使用 Feature-local controller 分离目录、正文、缓存 decoration 与交互。
+- Provider 选择器使用管理页同一 SortOrder，只展示名称；CurrentProvider 以整项选中视觉表达，不额外显示“当前”文字。
 - 用户主动定位优先于后台 decoration。
 
 ## 10. 必须保护的行为
 
 - 当前活动位置与持久化 checkpoint 不冲突。
 - 失败/取消的跳转不提交目标位置。
-- 迟到的 HTTP/cache/audio 结果不能覆盖新 session。
+- 迟到的 Provider/cache/audio 结果不能覆盖新 session。
+- 当前句与下一句之间的 Provider/config 切换语义稳定。
 - 页面生命周期不能销毁 Playback session。
 - 主窗口、MiniPlayer、SMTC 共用同一播放状态。
 - 超长章节目录仍可连续定位、滚动和播放。

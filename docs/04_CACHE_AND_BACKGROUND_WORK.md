@@ -53,7 +53,7 @@ Coverage 查询只读，不在 query 内启动后台副作用。
 - active 页面只重读当前可见/需要的最小 read model。
 - 同类刷新保持 single-flight，刷新中再次失效只标记 dirty，完成后补一轮。
 
-Settings/TTS/Regex 等源模块只发布自身 typed semantic change，由 Cache-owned integration 判断是否映射为 Coverage/Plan 失效。源模块不直接调用 Cache invalidation API。
+Settings/Speech Provider/Regex 等源模块只发布自身 typed semantic change，由 Cache-owned integration 判断是否映射为 Coverage/Plan 失效。源模块不直接调用 Cache invalidation API。
 
 ## 5. Speech Plan
 
@@ -70,14 +70,28 @@ Settings/TTS/Regex 等源模块只发布自身 typed semantic change，由 Cache
 
 ## 6. 缓存身份与写入
 
-缓存身份必须反映稳定段身份、最终 SpeechText 语义和版本化 synthesis profile，不使用仅运行时稳定的 SegmentIndex 作为唯一缓存身份。
+缓存身份必须反映：
+
+- 稳定段身份；
+- 最终 SpeechText；
+- Provider Type 自己定义的版本化 `ProviderSynthesisFingerprint`；
+- 全局语速与其它真正影响音频结果的统一合成参数。
+
+不得使用 ProviderId、Provider 名称、SortOrder、最近使用时间或 HTTP 请求频率限制代替合成语义。
+
+结果：
+
+- Provider 重命名或排序不使缓存失效。
+- 两个有效合成配置完全相同的 HTTP Provider 可以复用同一音频缓存。
+- 修改 Voice、URL/Header/Body 等真正影响合成的配置后，旧物理文件可以保留，但新配置不得错误命中。
+- 切换 Provider 后旧缓存可以保留；切回未改变的原配置时允许重新命中。
 
 写入：
 
 ```text
 resolve current plan
 → cache lookup
-→ TTS admission
+→ Provider admission
 → synthesize
 → validate audio
 → atomic file write
@@ -90,18 +104,21 @@ resolve current plan
 
 Playback Prefetch 属于 Playback session，不属于 Cache process background job。
 
-它使用 Cache/Speech 的稳定能力并遵守共同 TTS admission 优先级：
+它使用 Cache/Speech 的稳定能力并遵守共同 admission 优先级：
 
 ```text
 Current Playback > Playback Prefetch > Active Cache
 ```
+
+Provider 或有效配置改变后，未开始的后续预取使用最新配置。旧配置已经完成的结果可以保留，但 fingerprint 不匹配时不得继续使用。
 
 Cache 不通过 Prefetch 反向依赖 Playback mutable session。
 
 ## 8. Active Cache
 
 - 全应用最多一个 Active Cache batch。
-- batch 创建时冻结章节集合和必要配置快照。
+- batch 创建时冻结章节集合、Provider Instance、Provider typed config、全局语速以及其它影响合成的必要配置快照。
+- 运行中的 batch 不因用户切换 CurrentProvider、编辑 Provider 或调整后续播放配置而混入新的合成配置。
 - coordinator 拥有 CTS、Task、进度和终态。
 - 页面切换、播放切章和主窗口隐藏不取消已提交 batch。
 - 取消停止未开始工作，已经生成的有效 cache 保留。
@@ -114,7 +131,7 @@ Export 是 Cache 相关的独立 process background job：
 
 - 全应用最多一个导出批次。
 - 提交时冻结书籍/章节集合与目标目录。
-- 只导出当前配置下可验证完整的章节。
+- 只导出当前 Provider、全局语速和文本处理配置下可验证完整的章节。
 - 每章一个 MP3。
 - 安全处理目录/文件名，同名使用编号后缀，不覆盖。
 - 导出期间持有必要 cache protection/lease。
