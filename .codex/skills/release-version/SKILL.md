@@ -265,7 +265,7 @@ git push --force-with-lease=refs/tags/vX.Y.Z:<old_tag_sha> origin refs/tags/vX.Y
 - 对应 `.sha256` 资产存在；
 - 资产可访问。
 
-如环境允许，可下载 ZIP 与 `.sha256` 到临时目录验证校验和；完成后删除临时文件。具体包内文件合同仍由 `.github/workflows/release.yml` 维护，不在 Skill 中复制。
+不下载 ZIP 或 `.sha256` 到本地做校验和验证；只依据 `gh release view` 返回的远端 Release、资产存在性、状态、大小、digest 和可访问性完成核对。具体包内文件合同仍由 `.github/workflows/release.yml` 维护，不在 Skill 中复制。
 
 资产缺失或不可访问时，不宣告发布完成。
 
