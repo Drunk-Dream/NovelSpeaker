@@ -29,7 +29,7 @@
 
 ## 数据迁移
 
-新增 append-only SQLite migration，对当前 `HttpTtsRules` 逐项进行一次性转换；只迁移能按新 HTTP Provider 合同安全表达的配置，不建立旧格式运行时兼容。
+新增 append-only SQLite v8 migration，对当前 `HttpTtsRules` 逐项转换；不建立旧格式运行时兼容。可安全表达的规则迁移为 HTTP Provider；无法转换的规则直接跳过，升级继续进行。
 
 建议目标形态：
 
@@ -43,14 +43,14 @@ SpeechProviders
 
 迁移原则：
 
-- 尽量保留旧 HTTP Rule 名称和有效请求配置。转换后必须通过新 Provider 的本地校验；依赖已移除的 `source` / `java.*`、无法按新 Body / Header 语义等价表达或数据损坏的项应跳过，不以 compatibility 字段或旧编译器继续执行。
+- 尽量保留旧 HTTP Rule 名称和有效请求配置。转换后必须通过新 Provider 的本地校验；依赖已移除的 `source` / `java.*`、无法按新 Body / Header 语义等价表达或数据损坏的项直接跳过，不以 compatibility 字段或旧编译器继续执行。
 - 旧表不保证名称唯一；按旧管理页稳定查询顺序处理，遇到大小写不敏感的重名时生成确定性的唯一名称，不因此跳过可转换项。
 - 旧排序若实际不存在稳定 SortOrder，则按旧管理页当前稳定查询顺序生成新 SortOrder。
 - 旧 `IsEnabled` 不进入新 Provider 状态；原本禁用但可转换的规则会成为普通 HTTP Provider，但不自动成为 CurrentProvider。
-- 旧 SelectedTtsRuleId 只有在对应规则能够成功迁移并原本可供播放时才映射为 CurrentProvider；否则为 None。
+- 旧 SelectedTtsRuleId 仅在对应规则成功迁移且原本可供播放时映射为 CurrentProvider；否则为 None。设置文件与 SQLite 不能共享事务，成功转换后的设置写入须可恢复、可重试。
 - 不为 LastUpdateTime、旧 Legado 兼容状态建立新字段。
-- 升级后向用户展示一次迁移结果：成功和跳过数量，以及每个跳过项的旧规则标识和简短原因。报告只服务于本次升级，不成为长期旧规则查询或恢复接口；日志、遥测和诊断中仅可记录不含配置内容的汇总与原因码，不记录 URL、Header、Body 或凭据。
-- migration 后旧表是否保留由 SQLite 安全与简洁性决定；运行代码不得继续双读/双写旧表。
+- v8 不新增迁移报告、跳过项或其它没有长期业务用途的临时表，也不展示或持久化跳过结果。在同一 SQLite 事务中写入可转换 Provider 并删除旧 `HttpTtsRules`；被跳过的旧规则随旧表删除而丢失。事务本身失败时不写入 v8 版本记录，不删除旧表。
+- T006 完成后旧 TTS 管理、播放和缓存入口可暂时不可用；T007–T010 保持原任务边界，T010 完成后整体恢复可用。T006 不为旧入口建立过渡适配、双读或双写。
 - 不建立 Old/New/V2/Compat forwarding wrapper。
 
 ## 与现有 Cache 的关系
@@ -63,8 +63,8 @@ SpeechProviders
 
 永久测试只增加/更新核心边界：
 
-- migration 后有效旧 HTTP 配置成为 HTTP Provider；
-- 重名规则确定性改名；不可转换项跳过并产生用户可见的迁移结果；原本禁用的有效规则不成为 CurrentProvider；
+- 可转换的旧 HTTP 配置成为 HTTP Provider，无法转换项静默丢弃，v8 删除 `HttpTtsRules` 且不创建报告表；
+- 重名规则确定性改名；原本禁用的有效规则不成为 CurrentProvider；真正的 SQLite 事务失败时，v7 schema、规则、版本号保持不变；
 - CurrentProvider 映射正确；
 - Provider 名称唯一与 SortOrder 持久化；
 - Provider Runtime 能按 Type 解析实例，缺失/不可用 Provider 安全返回不可用状态；

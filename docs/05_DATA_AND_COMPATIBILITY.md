@@ -41,7 +41,7 @@
 - schema 变化必须有升级测试。
 - 内部 namespace/API/目录重构不得产生无意义 migration。
 - 已发布用户数据兼容与内部代码兼容是两个不同问题；项目不为内部 compatibility 长期保留 wrapper。
-- 开发阶段从旧 HTTP TTS Rule 模型迁移到 Speech Provider 时，使用一次性 migration 转换能按新合同安全表达的配置；不可转换项跳过，并向用户展示一次成功/跳过数量与逐项原因。迁移完成后删除旧运行路径，不双读、不双写，也不保留旧格式恢复接口。
+- 开发阶段从旧 HTTP TTS Rule 模型迁移到 Speech Provider 时，v8 migration 只转换能按新合同安全表达的配置；不可转换项静默丢弃，不新增迁移报告或跳过项表。成功迁移后删除旧规则表；旧运行路径在本阶段后续任务中清理，不双读、不双写，也不保留旧格式恢复接口。
 - 旧 TTS Rule 的 `IsEnabled`、Legado 兼容字段等没有新 Provider 对等语义时，不为它们建立长期兼容状态；原本禁用的可转换项迁移为普通 Provider，但不自动成为 CurrentProvider。旧名称发生大小写不敏感冲突时，确定性生成唯一名称。
 
 ## 4. Speech Provider 数据

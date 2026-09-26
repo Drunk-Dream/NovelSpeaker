@@ -99,7 +99,7 @@
 
 实施规格：`tasks/T006_speech_provider_foundation.md`
 
-目标：建立 Provider Type / Provider Instance、统一排序、CurrentProvider、typed config 与 Provider Runtime；通过一次性 migration 转换可安全映射的旧 HTTP TTS Rule，跳过异常项并向用户报告，不保留长期双读/双写兼容路径。
+目标：建立 Provider Type / Provider Instance、统一排序、CurrentProvider、typed config 与 Provider Runtime；v7→v8 只新增长期需要的 Provider 表，将可转换的旧 HTTP TTS Rule 迁入并静默丢弃不可转换项，删除不再需要的旧表，不新增一次性报告表。T006 后语音相关入口可暂时不可用，T010 后整体恢复可用。
 
 ## [ ] T007（P0）：将 HTTP TTS Rule 收敛为 HTTP Provider
 
