@@ -95,11 +95,11 @@
 
 # Phase C：Speech Provider 重构
 
-## [ ] T006（P0）：建立 Provider 核心模型、持久化与 Runtime 边界
-
-实施规格：`tasks/T006_speech_provider_foundation.md`
+## [x] T006（P0）：建立 Provider 核心模型、持久化与 Runtime 边界
 
 目标：建立 Provider Type / Provider Instance、统一排序、CurrentProvider、typed config 与 Provider Runtime；v7→v8 只新增长期需要的 Provider 表，将可转换的旧 HTTP TTS Rule 迁入并静默丢弃不可转换项，删除不再需要的旧表，不新增一次性报告表。T006 后语音相关入口可暂时不可用，T010 后整体恢复可用。
+
+完成成果：Provider 核心契约、SQLite v8 持久化与旧 HTTP Rule 一次性迁移、CurrentProvider 设置恢复重试和 Runtime/Resolver 边界已完成；无效旧项静默丢弃，旧表随迁移事务删除。
 
 ## [ ] T007（P0）：将 HTTP TTS Rule 收敛为 HTTP Provider
 

@@ -365,6 +365,6 @@ Provider 化是开发阶段的模型重构，不长期保留旧 `TtsRule`/Legado
 - 旧 NovelSpeaker TTS Rule 导入格式不形成新 Provider 格式兼容承诺。
 - Legado HTTP TTS Rule 导入兼容移除。
 - `source`、`java.*` 等仅为 Legado 兼容存在的模板 API 移除。
-- 现有本地 HTTP TTS 规则通过一次性 migration 逐项转换：能按新请求语义安全表达且通过本地校验的项迁移为 HTTP Provider，依赖已移除模板 API、无法等价转换或数据损坏的项跳过。旧表重名时确定性改名；旧禁用状态不迁移，原本禁用的规则不能自动成为 CurrentProvider。升级后向用户展示一次迁移数量与跳过项原因；不为跳过项保留旧格式运行或恢复接口。迁移完成后删除旧运行路径，不维持双读/双写。
+- 现有本地 HTTP TTS 规则通过一次性 migration 逐项转换：能按新请求语义安全表达且通过本地校验的项迁移为 HTTP Provider，依赖已移除模板 API、无法等价转换或数据损坏的项静默跳过，不展示或持久化跳过数量与原因。旧表重名时确定性改名；旧禁用状态不迁移，原本禁用的规则不能自动成为 CurrentProvider。不为跳过项保留旧格式运行或恢复接口。迁移完成后删除旧运行路径，不维持双读/双写。
 - 已存在音频缓存文件不要求删除；Provider synthesis identity 不匹配时保留但不作为当前配置可用缓存。
 - 新 Provider 交换格式从 schemaVersion 1 开始独立演进。
