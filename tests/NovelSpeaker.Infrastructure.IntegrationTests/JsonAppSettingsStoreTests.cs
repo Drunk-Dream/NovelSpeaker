@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
 using NovelSpeaker.TestKit.Common;
@@ -45,7 +46,7 @@ public sealed class JsonAppSettingsStoreTests
         {
             EnableLongParagraphSplitting = false,
             LongParagraphThreshold = 42,
-            SelectedTtsRuleId = 42,
+            CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(42),
             ReadChapterTitle = true,
             CacheLimitBytes = 512L * 1024 * 1024,
             PlaybackVolume = 0.35,
@@ -62,7 +63,7 @@ public sealed class JsonAppSettingsStoreTests
 
         Assert.False(reloaded.EnableLongParagraphSplitting);
         Assert.Equal(50, reloaded.LongParagraphThreshold);
-        Assert.Equal(42, reloaded.SelectedTtsRuleId);
+        Assert.Equal(ProviderId.FromLegacyHttpTtsRuleId(42), reloaded.CurrentProviderId);
         Assert.True(reloaded.ReadChapterTitle);
         Assert.Equal(512L * 1024 * 1024, reloaded.CacheLimitBytes);
         Assert.Equal(0.35, reloaded.PlaybackVolume);
@@ -72,6 +73,26 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(456.25, reloaded.MiniPlayerTop);
         Assert.True(reloaded.MiniPlayerTopmost);
         Assert.Equal("《{{name}}》 - {{author}}", reloaded.BookFileNameTemplate);
+    }
+
+    [Fact]
+    public async Task LoadAsync_migrates_legacy_selected_rule_to_current_provider_and_rewrites_settings()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var directories = new AppDataDirectoryProvider(temporaryDirectory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        await File.WriteAllTextAsync(
+            directories.SettingsPath,
+            """{"SelectedTtsRuleId":42,"Theme":"Dark"}""",
+            CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        var settings = await store.LoadAsync(CancellationToken.None);
+        var persisted = await File.ReadAllTextAsync(directories.SettingsPath, CancellationToken.None);
+
+        Assert.Equal(ProviderId.FromLegacyHttpTtsRuleId(42), settings.CurrentProviderId);
+        Assert.Contains("CurrentProviderId", persisted, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectedTtsRuleId", persisted, StringComparison.Ordinal);
     }
 
     [Fact]

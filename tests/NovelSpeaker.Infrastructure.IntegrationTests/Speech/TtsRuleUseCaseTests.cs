@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Infrastructure.Speech.Legado;
 using Xunit;
 
@@ -32,7 +33,7 @@ public sealed class TtsRuleUseCaseTests
         Assert.Equal(1, result.SkippedCount);
         Assert.Equal(2, result.FailedCount);
         Assert.DoesNotContain(repository.Rules, rule => rule.Name == "同名 (2)");
-        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
+        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.CurrentProviderId);
     }
 
     [Fact]
@@ -75,13 +76,13 @@ public sealed class TtsRuleUseCaseTests
     }
 
     [Fact]
-    public async Task Editor_editing_selected_rule_invalidates_coverage_even_when_id_is_unchanged()
+    public async Task Legacy_rule_edit_does_not_invalidate_provider_coverage()
     {
         var repository = new FakeRepository([Rule(4, "原规则", "https://example.com/original")]);
         using var provider = CreateProvider(
             repository,
             new FakeSourceAdapter(new([], null)),
-            AppSettings.Default with { SelectedTtsRuleId = 4 });
+            AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(4) });
         var invalidationCoordinator = provider.GetRequiredService<ICacheInvalidationCoordinator>();
         var batches = new List<CacheInvalidationBatch>();
         invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
@@ -93,9 +94,7 @@ public sealed class TtsRuleUseCaseTests
             CancellationToken.None);
         await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
 
-        var change = Assert.Single(Assert.Single(batches).Changes);
-        Assert.IsType<CacheInvalidationScope.Global>(change.Scope);
-        Assert.Equal(CacheInvalidationAspect.Coverage, change.Aspects);
+        Assert.Empty(batches);
     }
 
     [Theory]
@@ -115,40 +114,20 @@ public sealed class TtsRuleUseCaseTests
     }
 
     [Fact]
-    public async Task Selection_protects_and_clears_current_rule_when_disabling_or_deleting()
+    public async Task Legacy_selection_and_mutations_are_unavailable_during_provider_migration()
     {
         var repository = new FakeRepository([Rule(1, "当前", "https://example.com/a"), Rule(2, "候选", "https://example.com/b")]);
-        using var provider = CreateProvider(repository, new FakeSourceAdapter(new([], null)), AppSettings.Default with { SelectedTtsRuleId = 1 });
+        var currentProviderId = ProviderId.FromLegacyHttpTtsRuleId(1);
+        using var provider = CreateProvider(repository, new FakeSourceAdapter(new([], null)), AppSettings.Default with { CurrentProviderId = currentProviderId });
         var selection = provider.GetRequiredService<ITtsRuleSelectionUseCase>();
 
-        var protection = await selection.GetRuleProtectionAsync(1, TtsRuleMutationAction.Disable, CancellationToken.None);
-        var disabled = await selection.ApplyRuleMutationAsync(new(1, TtsRuleMutationAction.Disable, null, true), CancellationToken.None);
-
-        Assert.False(protection.CanApplyDirectly);
-        Assert.Null(disabled.SelectedRuleId);
-        Assert.False(repository.Rules.Single(rule => rule.Id == 1).IsEnabled);
-
-        await selection.SelectRuleAsync(2, CancellationToken.None);
-        await selection.ApplyRuleMutationAsync(new(2, TtsRuleMutationAction.Delete, null, true), CancellationToken.None);
-        Assert.DoesNotContain(repository.Rules, rule => rule.Id == 2);
-        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
-    }
-
-    [Fact]
-    public async Task Queries_and_editor_export_emit_canonical_structured_json()
-    {
-        var rule = Rule(7, "结构化", "https://example.com") with
-        {
-            Headers = new Dictionary<string, string> { ["X-Test"] = "1" },
-            RequestMethod = "POST",
-            RequestBody = "{\"text\":\"{{speakText}}\"}",
-            RequestBodyIsJsonStructure = true
-        };
-        using var provider = CreateProvider(new FakeRepository([rule]), new FakeSourceAdapter(new([], null)), AppSettings.Default);
-
-        var json = await provider.GetRequiredService<ITtsRuleQueries>().ExportRuleJsonAsync(7, CancellationToken.None);
-
-        Assert.Equal("""{"name":"结构化","url":"https://example.com","isEnabled":true,"header":"{\"X-Test\":\"1\"}","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}}}""", json);
+        await Assert.ThrowsAsync<NotSupportedException>(() =>
+            selection.GetRuleProtectionAsync(1, TtsRuleMutationAction.Disable, CancellationToken.None));
+        await Assert.ThrowsAsync<NotSupportedException>(() => selection.ApplyRuleMutationAsync(
+            new(1, TtsRuleMutationAction.Disable, null, true), CancellationToken.None));
+        await Assert.ThrowsAsync<NotSupportedException>(() => selection.SelectRuleAsync(2, CancellationToken.None));
+        Assert.All(repository.Rules, rule => Assert.True(rule.IsEnabled));
+        Assert.Equal(currentProviderId, provider.GetRequiredService<IAppSettingsService>().Current.CurrentProviderId);
     }
 
     [Theory]
@@ -175,68 +154,27 @@ public sealed class TtsRuleUseCaseTests
     }
 
     [Fact]
-    public async Task Selection_sets_current_updates_last_used_and_rejects_invalid_replacement()
+    public async Task Legacy_selection_does_not_write_provider_settings_or_rule_usage()
     {
         var repository = new FakeRepository([Rule(1, "当前", "https://example.com/a"), Rule(2, "禁用", "https://example.com/b") with { IsEnabled = false }]);
         using var provider = CreateProvider(repository, new FakeSourceAdapter(new([], null)), AppSettings.Default);
         var selection = provider.GetRequiredService<ITtsRuleSelectionUseCase>();
 
-        await selection.SelectRuleAsync(1, CancellationToken.None);
-        Assert.Equal(1, provider.GetRequiredService<IAppSettingsService>().Current.SelectedTtsRuleId);
-        Assert.NotNull(repository.Rules.Single(rule => rule.Id == 1).LastUsedAt);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => selection.ApplyRuleMutationAsync(
-            new(1, TtsRuleMutationAction.Disable, 2, false), CancellationToken.None));
-    }
-
-    [Theory]
-    [InlineData(
-        "https://username:password@例子.测试:8443/private/path?token=secret#fragment",
-        "POST · https://xn--fsqu00a.xn--0zwm56d:8443")]
-    [InlineData(
-        "http://username:password@[2001:db8::1]:8080/private/path?token=secret#fragment",
-        "POST · http://[2001:db8::1]:8080")]
-    [InlineData(
-        "https://username:password@example.com:443/private/path?token=secret#fragment",
-        "POST · https://example.com")]
-    public async Task Queries_builds_safe_request_summary_from_scheme_host_and_non_default_port(
-        string url,
-        string expectedSummary)
-    {
-        var rule = Rule(1, "摘要规则", url) with { RequestMethod = "post" };
-        using var provider = CreateProvider(
-            new FakeRepository([rule]),
-            new FakeSourceAdapter(new([], null)),
-            AppSettings.Default);
-
-        var summary = Assert.Single(
-            await provider.GetRequiredService<ITtsRuleQueries>().GetRulesAsync(CancellationToken.None));
-
-        Assert.Equal(expectedSummary, summary.RequestSummary);
-        Assert.DoesNotContain("username", summary.RequestSummary, StringComparison.Ordinal);
-        Assert.DoesNotContain("password", summary.RequestSummary, StringComparison.Ordinal);
-        Assert.DoesNotContain("private", summary.RequestSummary, StringComparison.Ordinal);
-        Assert.DoesNotContain("token", summary.RequestSummary, StringComparison.Ordinal);
-        Assert.DoesNotContain("secret", summary.RequestSummary, StringComparison.Ordinal);
-        Assert.DoesNotContain("fragment", summary.RequestSummary, StringComparison.Ordinal);
+        await Assert.ThrowsAsync<NotSupportedException>(() => selection.SelectRuleAsync(1, CancellationToken.None));
+        Assert.Null(provider.GetRequiredService<IAppSettingsService>().Current.CurrentProviderId);
+        Assert.Null(repository.Rules.Single(rule => rule.Id == 1).LastUsedAt);
     }
 
     [Fact]
-    public async Task Canonical_json_import_export_roundtrip_preserves_bytes_and_structure()
+    public async Task Legacy_rule_queries_return_unavailable_data_during_provider_migration()
     {
-        const string canonical =
-            """{"name":"结构化","url":"https://example.com","isEnabled":false,"header":"{\"Authorization\":\"Bearer demo\"}","requestOptions":{"method":"POST","body":{"text":"{{speakText}}"}},"lastUpdateTime":123}""";
-        var repository = new FakeRepository([]);
-        var adapter = new LegadoRuleSourceAdapter(new LegadoRuleSourceParser(), new LegadoRuleConverter());
-        using var provider = CreateProvider(repository, adapter, AppSettings.Default);
+        using var provider = CreateProvider(
+            new FakeRepository([Rule(1, "旧规则", "https://example.com")]),
+            new FakeSourceAdapter(new([], null)),
+            AppSettings.Default);
 
-        var imported = await provider.GetRequiredService<ITtsRuleImportUseCase>()
-            .ImportJsonTextAsync(canonical, "export.json", CancellationToken.None);
-        var exported = await provider.GetRequiredService<ITtsRuleQueries>()
-            .ExportRuleJsonAsync(imported.FirstImportedRuleId!.Value, CancellationToken.None);
-
-        Assert.Equal(canonical, exported);
-        Assert.True(repository.Rules.Single().RequestBodyIsJsonStructure);
+        Assert.Empty(await provider.GetRequiredService<ITtsRuleQueries>().GetRulesAsync(CancellationToken.None));
+        Assert.Null(await provider.GetRequiredService<ITtsRuleQueries>().ExportRuleJsonAsync(1, CancellationToken.None));
     }
 
     [Fact]

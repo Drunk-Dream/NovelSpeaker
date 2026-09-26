@@ -18,7 +18,6 @@ public sealed class AppRouteNavigationTests
                      (new PlayerRoute("book-1", AppRoutes.Library), typeof(PlayerPage)),
                      (AppRoutes.Settings, typeof(SettingsPage)),
                      (AppRoutes.PlaybackSettings, typeof(PlaybackSettingsPage)),
-                     (AppRoutes.TtsRules, typeof(TtsRulesPage)),
                      (AppRoutes.ImportTextSettings, typeof(ImportTextSettingsPage)),
                      (AppRoutes.RegexReplacementRules, typeof(RegexReplacementRulesPage)),
                      (AppRoutes.ChapterRules, typeof(ChapterRulesPage)),
@@ -144,7 +143,6 @@ public sealed class AppRouteNavigationTests
                  {
                      (new BookDetailsRoute("book-42"), AppRoutes.Library),
                      (AppRoutes.PlaybackSettings, AppRoutes.Settings),
-                     (AppRoutes.TtsRules, AppRoutes.Settings),
                      (AppRoutes.ImportTextSettings, AppRoutes.Settings),
                      (AppRoutes.ChapterRules, AppRoutes.Settings),
                      (AppRoutes.CacheAndData, AppRoutes.Settings),

@@ -348,12 +348,6 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            <Button Margin="0,12,0,0"
-                                    Padding="14,8"
-                                    Style="{StaticResource App.Button.Secondary}"
-                                    HorizontalAlignment="Left"
-                                    Command="{Binding OpenRulesManagementCommand}"
-                                    Content="前往规则管理" />
                     </StackPanel>
                 </Border>
             </Popup>
@@ -1009,7 +1003,7 @@
                                             Status="Empty"
                                             Icon="SpeakerMute24"
                                             Title="尚无可用的朗读规则"
-                                            Description="先前往 TTS 规则页选择或导入一条可用规则，再回到当前书籍位置继续准备播放。">
+                                            Description="朗读播放将在语音 Provider 迁移完成后恢复。">
                 <feedbackControls:AppStatusView.Style>
                     <Style TargetType="feedbackControls:AppStatusView"
                            BasedOn="{StaticResource {x:Type feedbackControls:AppStatusView}}">
@@ -1021,12 +1015,6 @@
                         </Style.Triggers>
                     </Style>
                 </feedbackControls:AppStatusView.Style>
-                <feedbackControls:AppStatusView.PrimaryAction>
-                    <ui:Button Margin="0,16,0,0"
-                            Style="{StaticResource App.Button.Primary}"
-                            Command="{Binding OpenRulesManagementCommand}"
-                            Content="前往 TTS 规则" />
-                </feedbackControls:AppStatusView.PrimaryAction>
             </feedbackControls:AppStatusView>
         </Grid>
     </Grid>

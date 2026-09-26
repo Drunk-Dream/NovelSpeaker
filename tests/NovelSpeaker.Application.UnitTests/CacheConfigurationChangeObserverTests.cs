@@ -2,9 +2,9 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Domain.Speech;
 using Xunit;
 
@@ -13,15 +13,14 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class CacheConfigurationChangeObserverTests
 {
     [Fact]
-    public void Observer_maps_only_cache_relevant_settings_and_selected_rule_changes()
+    public void Observer_maps_only_cache_relevant_settings_and_current_provider_changes()
     {
-        var settings = new FakeSettingsService(AppSettings.Default with { SelectedTtsRuleId = 4 });
-        var ttsRules = new FakeTtsRuleEditor();
+        var selectedProvider = ProviderId.New();
+        var settings = new FakeSettingsService(AppSettings.Default with { CurrentProviderId = selectedProvider });
         var regexRules = new FakeRegexRuleWorkspace();
         var invalidations = new List<CacheInvalidation>();
         using var observer = new CacheConfigurationChangeObserver(
             settings,
-            ttsRules,
             regexRules,
             invalidations.Add);
 
@@ -29,8 +28,7 @@ public sealed class CacheConfigurationChangeObserverTests
         Assert.Empty(invalidations);
 
         settings.Raise(settings.Current with { DefaultSpeakSpeed = settings.Current.DefaultSpeakSpeed + 1 });
-        ttsRules.Raise(3);
-        ttsRules.Raise(4);
+        settings.Raise(settings.Current with { CurrentProviderId = ProviderId.New() });
         regexRules.Raise(RegexReplacementRulesChangeKind.Saved, affectsSpeechProfile: false);
         Assert.Equal(2, invalidations.Count);
         regexRules.Raise(RegexReplacementRulesChangeKind.Saved, affectsSpeechProfile: true);
@@ -47,12 +45,10 @@ public sealed class CacheConfigurationChangeObserverTests
     public void Observer_maps_regex_changes_and_unsubscribes_on_dispose()
     {
         var settings = new FakeSettingsService(AppSettings.Default);
-        var ttsRules = new FakeTtsRuleEditor();
         var regexRules = new FakeRegexRuleWorkspace();
         var invalidations = new List<CacheInvalidation>();
         var observer = new CacheConfigurationChangeObserver(
             settings,
-            ttsRules,
             regexRules,
             invalidations.Add);
 
@@ -62,7 +58,6 @@ public sealed class CacheConfigurationChangeObserverTests
         observer.Dispose();
         regexRules.Raise(RegexReplacementRulesChangeKind.Saved);
         settings.Raise(settings.Current with { ReadChapterTitle = true });
-        ttsRules.Raise(1);
 
         Assert.Single(invalidations);
     }
@@ -82,31 +77,6 @@ public sealed class CacheConfigurationChangeObserverTests
             Current = next;
             Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, next));
         }
-    }
-
-    private sealed class FakeTtsRuleEditor : ITtsRuleEditorUseCase
-    {
-        public event EventHandler<TtsRuleChangedEventArgs>? Changed;
-
-        public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<TtsRuleValidationResult> ValidateEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<TtsRuleDraftPreparationResult> PrepareDraftAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public void Raise(long ruleId) => Changed?.Invoke(this, new TtsRuleChangedEventArgs(ruleId));
     }
 
     private sealed class FakeRegexRuleWorkspace : IRegexReplacementRuleWorkspaceService

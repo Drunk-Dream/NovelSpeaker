@@ -12,7 +12,6 @@ using NovelSpeaker.App.Features.Playback;
 using NovelSpeaker.App.Features.PlaybackSettings;
 using NovelSpeaker.App.Features.Rules.Regex;
 using NovelSpeaker.App.Features.Settings;
-using NovelSpeaker.App.Features.Rules.Tts;
 using NovelSpeaker.Application.Observability;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
@@ -30,7 +29,6 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             [AppRouteId.Player] = typeof(PlayerPage),
             [AppRouteId.Settings] = typeof(SettingsPage),
             [AppRouteId.PlaybackSettings] = typeof(PlaybackSettingsPage),
-            [AppRouteId.TtsRules] = typeof(TtsRulesPage),
             [AppRouteId.ImportTextSettings] = typeof(ImportTextSettingsPage),
             [AppRouteId.RegexReplacementRules] = typeof(RegexReplacementRulesPage),
             [AppRouteId.ChapterRules] = typeof(ChapterRulesPage),
@@ -224,7 +222,6 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             ParameterlessAppRoute parameterless => parameterless.Id switch
             {
                 AppRouteId.PlaybackSettings or
-                AppRouteId.TtsRules or
                 AppRouteId.ImportTextSettings or
                 AppRouteId.ChapterRules or
                 AppRouteId.CacheAndData or
@@ -329,7 +326,6 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
     {
         return routeId is AppRouteId.Settings
             or AppRouteId.PlaybackSettings
-            or AppRouteId.TtsRules
             or AppRouteId.ImportTextSettings
             or AppRouteId.RegexReplacementRules
             or AppRouteId.ChapterRules

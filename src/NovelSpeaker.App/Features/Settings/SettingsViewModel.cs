@@ -18,7 +18,6 @@ public sealed partial class SettingsViewModel : ObservableObject
                 "常用",
                 [
                     new SettingsNavigationItemViewModel("播放设置", SettingsNavigationIcon.Playback, OpenPlaybackSettingsCommand),
-                    new SettingsNavigationItemViewModel("TTS 规则", SettingsNavigationIcon.TtsRules, OpenTtsRulesCommand),
                     new SettingsNavigationItemViewModel("常规", SettingsNavigationIcon.General, OpenGeneralSettingsCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
@@ -43,12 +42,6 @@ public sealed partial class SettingsViewModel : ObservableObject
     private Task OpenPlaybackSettingsAsync(CancellationToken cancellationToken)
     {
         return _navigator.NavigateAsync(AppRoutes.PlaybackSettings, cancellationToken);
-    }
-
-    [RelayCommand]
-    private Task OpenTtsRulesAsync(CancellationToken cancellationToken)
-    {
-        return _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken);
     }
 
     [RelayCommand]

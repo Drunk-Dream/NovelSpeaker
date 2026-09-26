@@ -75,9 +75,7 @@ public sealed class ExportChaptersService : IExportChaptersService
         var selectedRule = await _selectedRuleProvider
             .GetSelectedRuleAsync(cancellationToken)
             .ConfigureAwait(false);
-        if (selectedRule is null ||
-            settings.SelectedTtsRuleId is null ||
-            selectedRule.RuleId != settings.SelectedTtsRuleId.Value)
+        if (selectedRule is null)
         {
             return ExportChaptersResult.Failed(ExportChaptersStatus.SelectedRuleUnavailable);
         }

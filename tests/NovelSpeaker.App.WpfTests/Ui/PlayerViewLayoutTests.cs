@@ -189,11 +189,10 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var emptyStateButton = Assert.IsType<WpfUiButton>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
             var noRuleFooter = Assert.IsType<AppStatusView>(view.FindName("NoRuleStatusView"));
             var backButton = FindUiButtonByAutomationName(view, "返回");
 
-            Assert.Equal(Visibility.Visible, emptyStateButton.Visibility);
+            Assert.Null(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
             Assert.Equal(Visibility.Visible, noRuleFooter.Visibility);
             Assert.True(GetBoundsRelativeToRoot(noRuleFooter, view).Bottom <= view.ActualHeight);
             Assert.True(GetBoundsRelativeToRoot(backButton, view).Top >= 0);

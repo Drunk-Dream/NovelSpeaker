@@ -1,6 +1,7 @@
 namespace NovelSpeaker.Application.Settings;
 
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 
 /// <summary>
 /// Describes a partial settings update where unspecified fields keep their current value.
@@ -23,9 +24,9 @@ public sealed record AppSettingsUpdate
 
     public long? CacheLimitBytes { get; init; }
 
-    public long? SelectedTtsRuleId { get; init; }
+    public ProviderId? CurrentProviderId { get; init; }
 
-    public bool ClearSelectedTtsRuleId { get; init; }
+    public bool ClearCurrentProvider { get; init; }
 
     public MainWindowCloseBehavior? MainWindowCloseBehavior { get; init; }
 

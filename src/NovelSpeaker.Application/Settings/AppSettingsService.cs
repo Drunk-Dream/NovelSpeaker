@@ -1,5 +1,6 @@
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 
 namespace NovelSpeaker.Application.Settings;
 
@@ -73,7 +74,7 @@ public sealed class AppSettingsService :
             CacheLimitBytes = update.CacheLimitBytes ?? current.CacheLimitBytes,
             PlaybackVolume = update.PlaybackVolume ?? current.PlaybackVolume,
             EnablePerformanceTelemetry = update.EnablePerformanceTelemetry ?? current.EnablePerformanceTelemetry,
-            SelectedTtsRuleId = update.ClearSelectedTtsRuleId ? null : update.SelectedTtsRuleId ?? current.SelectedTtsRuleId,
+            CurrentProviderId = update.ClearCurrentProvider ? null : update.CurrentProviderId ?? current.CurrentProviderId,
             MainWindowCloseBehavior = update.MainWindowCloseBehavior ?? current.MainWindowCloseBehavior,
             StartMinimizedToTray = update.StartMinimizedToTray ?? current.StartMinimizedToTray,
             ReadChapterTitle = update.ReadChapterTitle ?? current.ReadChapterTitle,

@@ -38,7 +38,6 @@ public sealed class SettingsPageViewTests
             var expectedRoutes = new[]
             {
                 AppRoutes.PlaybackSettings,
-                AppRoutes.TtsRules,
                 AppRoutes.GeneralSettings,
                 AppRoutes.ImportTextSettings,
                 AppRoutes.ChapterRules,

@@ -7,7 +7,6 @@ public enum AppRouteId
     Player,
     Settings,
     PlaybackSettings,
-    TtsRules,
     ImportTextSettings,
     RegexReplacementRules,
     ChapterRules,
@@ -110,7 +109,6 @@ public static class AppRoutes
     public static AppRoute Library { get; } = new ParameterlessAppRoute(AppRouteId.Library);
     public static AppRoute Settings { get; } = new ParameterlessAppRoute(AppRouteId.Settings);
     public static AppRoute PlaybackSettings { get; } = new ParameterlessAppRoute(AppRouteId.PlaybackSettings);
-    public static AppRoute TtsRules { get; } = new ParameterlessAppRoute(AppRouteId.TtsRules);
     public static AppRoute ImportTextSettings { get; } = new ParameterlessAppRoute(AppRouteId.ImportTextSettings);
     public static AppRoute RegexReplacementRules { get; } = new ParameterlessAppRoute(AppRouteId.RegexReplacementRules);
     public static AppRoute ChapterRules { get; } = new ParameterlessAppRoute(AppRouteId.ChapterRules);

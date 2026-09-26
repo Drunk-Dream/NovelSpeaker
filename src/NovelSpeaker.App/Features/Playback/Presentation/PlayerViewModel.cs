@@ -648,13 +648,6 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         IsStopTimerMenuOpen = false;
     }
 
-    [RelayCommand]
-    private async Task OpenRulesManagementAsync(CancellationToken cancellationToken)
-    {
-        CloseTransientPanels();
-        await _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken).ConfigureAwait(true);
-    }
-
     [RelayCommand(AllowConcurrentExecutions = false)]
     private Task OpenMiniPlayerAsync(CancellationToken cancellationToken) =>
         _miniPlayerLauncher.OpenMiniPlayerAsync(cancellationToken);

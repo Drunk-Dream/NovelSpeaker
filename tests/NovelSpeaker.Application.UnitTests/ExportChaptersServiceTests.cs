@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.TestKit.Speech;
 using Xunit;
 
@@ -29,7 +30,7 @@ public sealed class ExportChaptersServiceTests
         var service = CreateService(metadata, planStore, writer, AppSettings.Default with
         {
             DefaultSpeakSpeed = 12,
-            SelectedTtsRuleId = 7
+            CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7)
         });
 
         var result = await service.ExportAsync(
@@ -68,7 +69,7 @@ public sealed class ExportChaptersServiceTests
             metadata,
             planStore,
             writer,
-            AppSettings.Default with { SelectedTtsRuleId = 7 });
+            AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) });
         var progress = new CaptureProgress();
 
         await service.ExportAsync(
@@ -94,7 +95,7 @@ public sealed class ExportChaptersServiceTests
             writer,
             AppSettings.Default with
             {
-                SelectedTtsRuleId = 7,
+                CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7),
                 ReadChapterTitle = true
             });
 
@@ -136,7 +137,7 @@ public sealed class ExportChaptersServiceTests
             metadata,
             planStore,
             withoutTitleWriter,
-            AppSettings.Default with { SelectedTtsRuleId = 7, DefaultSpeakSpeed = 10 });
+            AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7), DefaultSpeakSpeed = 10 });
         await withoutTitle.ExportAsync(
             new ExportChaptersRequest("book-1", [0], @"D:\exports"),
             CancellationToken.None);
@@ -148,7 +149,7 @@ public sealed class ExportChaptersServiceTests
             withTitleWriter,
             AppSettings.Default with
             {
-                SelectedTtsRuleId = 7,
+                CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7),
                 DefaultSpeakSpeed = 10,
                 ReadChapterTitle = true
             });
@@ -180,7 +181,7 @@ public sealed class ExportChaptersServiceTests
                 metadata,
                 missingPlanStore,
                 missingWriter,
-                AppSettings.Default with { SelectedTtsRuleId = 7 })
+                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                 CancellationToken.None);
@@ -203,7 +204,7 @@ public sealed class ExportChaptersServiceTests
                 metadata,
                 notReadyPlanStore,
                 notReadyWriter,
-                AppSettings.Default with { SelectedTtsRuleId = 7 })
+                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                 CancellationToken.None);
@@ -228,7 +229,7 @@ public sealed class ExportChaptersServiceTests
                 CreateMetadata(),
                 planStore,
                 writer,
-                AppSettings.Default with { SelectedTtsRuleId = 7 })
+                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                 CancellationToken.None);
@@ -263,7 +264,7 @@ public sealed class ExportChaptersServiceTests
                 CreateMetadata(),
                 planStore,
                 writer,
-                AppSettings.Default with { SelectedTtsRuleId = 7 },
+                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) },
                 [currentRule])
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
@@ -291,7 +292,7 @@ public sealed class ExportChaptersServiceTests
                 writer,
                 AppSettings.Default with
                 {
-                    SelectedTtsRuleId = 7,
+                    CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7),
                     ReadChapterTitle = true
                 })
             .ExportAsync(
@@ -315,14 +316,14 @@ public sealed class ExportChaptersServiceTests
     {
         var settings = new FakeAppSettingsService(AppSettings.Default with
         {
-            SelectedTtsRuleId = 7,
+            CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7),
             DefaultSpeakSpeed = 12
         });
         var planStore = new FakeChapterSpeechPlanStore
         {
             BeforeGet = () => settings.CurrentValue = settings.CurrentValue with
             {
-                SelectedTtsRuleId = 8,
+                CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(8),
                 DefaultSpeakSpeed = 5,
                 ReadChapterTitle = true
             },
@@ -369,7 +370,7 @@ public sealed class ExportChaptersServiceTests
                 CreateMetadata(),
                 planStore,
                 writer,
-                AppSettings.Default with { SelectedTtsRuleId = 7 })
+                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                 CancellationToken.None);
@@ -400,7 +401,7 @@ public sealed class ExportChaptersServiceTests
                     CreateMetadata(),
                     planStore,
                     writer,
-                    AppSettings.Default with { SelectedTtsRuleId = 7 })
+                    AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
                 .ExportAsync(
                     new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                     cancellation.Token));
@@ -417,7 +418,7 @@ public sealed class ExportChaptersServiceTests
             metadata,
             planStore,
             new FakeRegexReplacementRuleRepository(regexRules ?? []),
-            new FakeSelectedTtsRuleProvider(settings.SelectedTtsRuleId),
+            new FakeSelectedTtsRuleProvider(settings.CurrentProviderId is null ? null : 7),
             new FakeAppSettingsService(settings),
             new ExportFileNameSanitizer(),
             writer);

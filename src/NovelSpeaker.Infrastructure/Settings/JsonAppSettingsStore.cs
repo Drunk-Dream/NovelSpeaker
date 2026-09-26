@@ -3,6 +3,7 @@ using System.Text.Json;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Infrastructure.FileSystem;
 
 namespace NovelSpeaker.Infrastructure.Settings;
@@ -60,21 +61,62 @@ public sealed class JsonAppSettingsStore : IAppSettingsStore
 
         try
         {
-            await using var stream = await Task.Run(
-                () => _files.OpenRead(settingsPath),
-                cancellationToken).ConfigureAwait(false);
-            var settings = await JsonSerializer.DeserializeAsync<AppSettings>(
-                stream,
-                SerializerOptions,
-                cancellationToken).ConfigureAwait(false);
+            AppSettings normalized;
+            bool hasLegacySelection;
+            await using (var stream = await Task.Run(
+                             () => _files.OpenRead(settingsPath),
+                             cancellationToken).ConfigureAwait(false))
+            {
+                using var document = await JsonDocument.ParseAsync(
+                    stream,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+                var settings = JsonSerializer.Deserialize<AppSettings>(
+                    document.RootElement.GetRawText(),
+                    SerializerOptions) ?? AppSettings.Default;
+                hasLegacySelection = TryGetProperty(document.RootElement, "SelectedTtsRuleId", out var legacySelection);
+                if (settings.CurrentProviderId is null &&
+                    legacySelection.ValueKind == JsonValueKind.Number &&
+                    legacySelection.TryGetInt64(out var selectedRuleId))
+                {
+                    settings = settings with
+                    {
+                        CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(selectedRuleId)
+                    };
+                }
 
-            return (settings ?? AppSettings.Default).Normalize();
+                normalized = settings.Normalize();
+            }
+
+            if (hasLegacySelection)
+            {
+                await SaveAsync(normalized, cancellationToken).ConfigureAwait(false);
+            }
+
+            return normalized;
         }
         catch (JsonException)
         {
             await IsolateCorruptFileAsync(cancellationToken).ConfigureAwait(false);
             return AppSettings.Default;
         }
+    }
+
+    private static bool TryGetProperty(JsonElement element, string propertyName, out JsonElement value)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in element.EnumerateObject())
+            {
+                if (property.Name.Equals(propertyName, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = property.Value;
+                    return true;
+                }
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     public async Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)

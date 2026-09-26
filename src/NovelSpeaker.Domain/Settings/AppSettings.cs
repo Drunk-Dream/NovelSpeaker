@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Speech.Providers;
 
 namespace NovelSpeaker.Domain.Settings;
 
@@ -14,7 +15,7 @@ public sealed record AppSettings(
     string Theme = "System",
     string? BookFileNameTemplate = "{{name}} 作者：{{author}}",
     long CacheLimitBytes = 2L * 1024 * 1024 * 1024,
-    long? SelectedTtsRuleId = null,
+    ProviderId? CurrentProviderId = null,
     MainWindowCloseBehavior MainWindowCloseBehavior = MainWindowCloseBehavior.MinimizeToTray,
     bool StartMinimizedToTray = false,
     double? MiniPlayerLeft = null,
