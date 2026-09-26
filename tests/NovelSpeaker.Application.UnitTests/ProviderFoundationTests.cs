@@ -80,6 +80,19 @@ public sealed class ProviderFoundationTests
     }
 
     [Fact]
+    public async Task Runtime_resolver_reports_missing_runtime_as_unavailable()
+    {
+        var provider = CreateProvider(ProviderId.New(), "Voice", 0);
+        var resolver = new ProviderRuntimeResolver(new FakeProviderStore(provider));
+
+        var result = await resolver.ResolveAsync(provider.Id, CancellationToken.None);
+
+        Assert.False(result.IsAvailable);
+        Assert.Equal(provider, result.Provider);
+        Assert.Equal(ProviderRuntimeUnavailableReason.RuntimeUnavailable, result.UnavailableReason);
+    }
+
+    [Fact]
     public async Task Runtime_resolver_marks_invalid_provider_configuration_unavailable()
     {
         var provider = CreateProvider(ProviderId.New(), "Voice", 0) with

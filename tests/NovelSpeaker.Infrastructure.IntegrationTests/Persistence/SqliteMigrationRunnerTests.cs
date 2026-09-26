@@ -8,7 +8,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 public sealed class SqliteMigrationRunnerTests
 {
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_7()
+    public async Task InitializeAsync_creates_current_schema_as_version_8()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -19,7 +19,7 @@ public sealed class SqliteMigrationRunnerTests
             SELECT COUNT(*)
             FROM sqlite_master
             WHERE type = 'table'
-              AND name IN ('SchemaVersion', 'AppMetadata', 'Books', 'Chapters', 'ChapterRules', 'HttpTtsRules', 'ReadingProgress', 'AudioCacheEntries', 'RegexReplacementRules', 'BookOperations', 'ChapterSpeechPlans', 'ChapterSpeechPlanSegments', 'SynthesisProfiles');
+              AND name IN ('SchemaVersion', 'AppMetadata', 'Books', 'Chapters', 'ChapterRules', 'ReadingProgress', 'AudioCacheEntries', 'RegexReplacementRules', 'BookOperations', 'ChapterSpeechPlans', 'ChapterSpeechPlanSegments', 'SynthesisProfiles', 'SpeechProviders', 'HttpSpeechProviderConfigs');
             """;
 
         var tableCount = Convert.ToInt32(await tableCommand.ExecuteScalarAsync(CancellationToken.None));
@@ -28,12 +28,12 @@ public sealed class SqliteMigrationRunnerTests
         versionCommand.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
-        Assert.Equal(13, tableCount);
-        Assert.Equal(7, version);
+        Assert.Equal(14, tableCount);
+        Assert.Equal(8, version);
     }
 
     [Fact]
-    public async Task InitializeAsync_creates_latest_book_columns_audio_cache_indexes_and_tts_rule_columns()
+    public async Task InitializeAsync_creates_latest_book_columns_audio_cache_indexes_and_provider_columns()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -62,19 +62,34 @@ public sealed class SqliteMigrationRunnerTests
 
         Assert.DoesNotContain("Content", chapterColumns);
 
-        var ttsRulePragma = connection.CreateCommand();
-        ttsRulePragma.CommandText = "PRAGMA table_info(HttpTtsRules);";
-        await using var ttsRuleReader = await ttsRulePragma.ExecuteReaderAsync(CancellationToken.None);
-        var ttsRuleColumns = new List<string>();
-        while (await ttsRuleReader.ReadAsync(CancellationToken.None))
+        var providerPragma = connection.CreateCommand();
+        providerPragma.CommandText = "PRAGMA table_info(SpeechProviders);";
+        await using var providerReader = await providerPragma.ExecuteReaderAsync(CancellationToken.None);
+        var providerColumns = new List<string>();
+        while (await providerReader.ReadAsync(CancellationToken.None))
         {
-            ttsRuleColumns.Add(ttsRuleReader.GetString(1));
+            providerColumns.Add(providerReader.GetString(1));
         }
 
-        Assert.Contains("Url", ttsRuleColumns);
-        Assert.Contains("RequestOptionsJson", ttsRuleColumns);
-        Assert.DoesNotContain("RuleJson", ttsRuleColumns);
-        Assert.DoesNotContain("CompatibilityStatus", ttsRuleColumns);
+        Assert.Contains("Type", providerColumns);
+        Assert.Contains("NameKey", providerColumns);
+        Assert.Contains("SortOrder", providerColumns);
+
+        var configPragma = connection.CreateCommand();
+        configPragma.CommandText = "PRAGMA table_info(HttpSpeechProviderConfigs);";
+        await using var configReader = await configPragma.ExecuteReaderAsync(CancellationToken.None);
+        var configColumns = new List<string>();
+        while (await configReader.ReadAsync(CancellationToken.None))
+        {
+            configColumns.Add(configReader.GetString(1));
+        }
+
+        Assert.Contains("UrlTemplate", configColumns);
+        Assert.Contains("HeadersJson", configColumns);
+        Assert.Contains("BodyTemplate", configColumns);
+        Assert.DoesNotContain("HttpTtsRules", await GetTableNamesAsync(connection));
+        Assert.DoesNotContain("ProviderMigrationReports", await GetTableNamesAsync(connection));
+        Assert.DoesNotContain("ProviderMigrationSkippedItems", await GetTableNamesAsync(connection));
 
         var indexCommand = connection.CreateCommand();
         indexCommand.CommandText =
@@ -201,7 +216,7 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(7, version);
+        Assert.Equal(8, version);
     }
 
     [Fact]
@@ -274,32 +289,32 @@ public sealed class SqliteMigrationRunnerTests
             () => runner.InitializeAsync(CancellationToken.None));
         Assert.Equal(3, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(7, exception.CurrentVersion);
-        Assert.Equal(7, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 7", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(8, exception.CurrentVersion);
+        Assert.Equal(8, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 8", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task InitializeAsync_rejects_newer_version_8_database_without_changing_it()
+    public async Task InitializeAsync_rejects_newer_version_9_database_without_changing_it()
     {
-        var (factory, _) = await CreateDatabaseAtVersionAsync(8);
+        var (factory, _) = await CreateDatabaseAtVersionAsync(9);
         var runner = new SqliteMigrationRunner(factory);
 
         var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
             () => runner.InitializeAsync(CancellationToken.None));
 
-        Assert.Equal(8, exception.DetectedVersion);
+        Assert.Equal(9, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(7, exception.CurrentVersion);
-        Assert.Equal(7, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 7", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(8, exception.CurrentVersion);
+        Assert.Equal(8, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 8", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
         var command = connection.CreateCommand();
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
-        Assert.Equal(8, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
+        Assert.Equal(9, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
     }
 
     [Fact]
@@ -473,6 +488,20 @@ public sealed class SqliteMigrationRunnerTests
 
         await initializer.InitializeAsync(CancellationToken.None);
         return factory;
+    }
+
+    private static async Task<IReadOnlyList<string>> GetTableNamesAsync(SqliteConnection connection)
+    {
+        var command = connection.CreateCommand();
+        command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
+        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+        var names = new List<string>();
+        while (await reader.ReadAsync(CancellationToken.None))
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
     }
 
     private static async Task<(SqliteConnectionFactory Factory, AppDataDirectoryProvider Directories)> CreateDatabaseAtVersionAsync(int version)

@@ -1,4 +1,6 @@
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Infrastructure.Persistence.Books;
 
 namespace NovelSpeaker.Infrastructure.Persistence;
@@ -14,6 +16,8 @@ public sealed class StartupDatabaseInitializer : IDatabaseInitializer
     private readonly BookOperationRecoveryService? _operationRecovery;
     private readonly AppStoragePathMigrationService? _pathMigration;
     private readonly AudioCacheFormatResetService? _audioCacheFormatReset;
+    private readonly IAppSettingsService? _settingsService;
+    private readonly IProviderStore? _providerStore;
 
     public StartupDatabaseInitializer(
         IAppDataDirectoryProvider directories,
@@ -21,7 +25,9 @@ public sealed class StartupDatabaseInitializer : IDatabaseInitializer
         DefaultChapterRuleSeeder chapterRuleSeeder,
         BookOperationRecoveryService? operationRecovery = null,
         AppStoragePathMigrationService? pathMigration = null,
-        AudioCacheFormatResetService? audioCacheFormatReset = null)
+        AudioCacheFormatResetService? audioCacheFormatReset = null,
+        IAppSettingsService? settingsService = null,
+        IProviderStore? providerStore = null)
     {
         _directories = directories;
         _migrationRunner = migrationRunner;
@@ -29,12 +35,15 @@ public sealed class StartupDatabaseInitializer : IDatabaseInitializer
         _operationRecovery = operationRecovery;
         _pathMigration = pathMigration;
         _audioCacheFormatReset = audioCacheFormatReset;
+        _settingsService = settingsService;
+        _providerStore = providerStore;
     }
 
     public async Task InitializeAsync(CancellationToken cancellationToken)
     {
         await _directories.EnsureCreatedAsync(cancellationToken);
         await _migrationRunner.InitializeAsync(cancellationToken);
+        await ReconcileCurrentProviderAsync(cancellationToken);
         if (_pathMigration is not null)
         {
             await _pathMigration.MigrateAsync(cancellationToken);
@@ -51,5 +60,20 @@ public sealed class StartupDatabaseInitializer : IDatabaseInitializer
         }
 
         await _chapterRuleSeeder.SeedAsync(cancellationToken);
+    }
+
+    private async Task ReconcileCurrentProviderAsync(CancellationToken cancellationToken)
+    {
+        if (_settingsService?.Current.CurrentProviderId is not { } currentProviderId || _providerStore is null)
+        {
+            return;
+        }
+
+        if (await _providerStore.GetByIdAsync(currentProviderId, cancellationToken).ConfigureAwait(false) is null)
+        {
+            await _settingsService.UpdateAsync(
+                new AppSettingsUpdate { ClearCurrentProvider = true },
+                cancellationToken).ConfigureAwait(false);
+        }
     }
 }

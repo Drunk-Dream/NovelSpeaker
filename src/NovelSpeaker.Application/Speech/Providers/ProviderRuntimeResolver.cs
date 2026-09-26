@@ -5,12 +5,12 @@ namespace NovelSpeaker.Application.Speech.Providers;
 public sealed class ProviderRuntimeResolver : IProviderRuntimeResolver
 {
     private readonly IProviderStore _providers;
-    private readonly IProviderRuntime _httpRuntime;
+    private readonly IProviderRuntime? _httpRuntime;
 
-    public ProviderRuntimeResolver(IProviderStore providers, IProviderRuntime httpRuntime)
+    public ProviderRuntimeResolver(IProviderStore providers, IProviderRuntime? httpRuntime = null)
     {
         _providers = providers ?? throw new ArgumentNullException(nameof(providers));
-        _httpRuntime = httpRuntime ?? throw new ArgumentNullException(nameof(httpRuntime));
+        _httpRuntime = httpRuntime;
     }
 
     public async Task<ProviderRuntimeResolution> ResolveAsync(
@@ -34,7 +34,17 @@ public sealed class ProviderRuntimeResolver : IProviderRuntimeResolver
             return Unavailable(ProviderRuntimeUnavailableReason.ProviderNotConfigured, provider);
         }
 
-        if (provider.Type != SpeechProviderType.Http || _httpRuntime.Type != provider.Type)
+        if (provider.Type != SpeechProviderType.Http)
+        {
+            return Unavailable(ProviderRuntimeUnavailableReason.UnsupportedProviderType, provider);
+        }
+
+        if (_httpRuntime is null)
+        {
+            return Unavailable(ProviderRuntimeUnavailableReason.RuntimeUnavailable, provider);
+        }
+
+        if (_httpRuntime.Type != provider.Type)
         {
             return Unavailable(ProviderRuntimeUnavailableReason.UnsupportedProviderType, provider);
         }

@@ -220,7 +220,17 @@ public sealed class ArchitectureTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["HttpTtsRule.cs", "TtsErrorKind.cs"], speechFiles);
+        Assert.Equal(
+            [
+                "HttpTtsRule.cs",
+                "ProviderId.cs",
+                "SpeechProviderConfiguration.cs",
+                "SpeechProviderInstance.cs",
+                "SpeechProviderNameRules.cs",
+                "SpeechProviderType.cs",
+                "TtsErrorKind.cs"
+            ],
+            speechFiles);
         Assert.DoesNotContain(domainFiles, file =>
             file.Content.Contains("ParsedTtsRequest", StringComparison.Ordinal) ||
             file.Content.Contains("TtsRequestPreview", StringComparison.Ordinal) ||

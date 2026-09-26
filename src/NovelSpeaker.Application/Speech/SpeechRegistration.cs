@@ -4,6 +4,7 @@ using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Testing;
+using NovelSpeaker.Application.Speech.Providers;
 
 namespace NovelSpeaker.Application.Speech;
 
@@ -24,6 +25,7 @@ public static class SpeechRegistration
         services.TryAddSingleton<ITtsRuleImportUseCase, TtsRuleImportUseCase>();
         services.TryAddSingleton<IHttpTtsClient, TtsExecutionService>();
         services.TryAddSingleton<ITtsRuleTestService, TtsRuleTestService>();
+        services.TryAddSingleton<IProviderRuntimeResolver, ProviderRuntimeResolver>();
         return services;
     }
 }
