@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Security;
 using System.Text.RegularExpressions;
 using NovelSpeaker.Application.Speech.Execution;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Speech;
 
 namespace NovelSpeaker.Application.Speech.Compilation;
@@ -72,9 +73,9 @@ public sealed partial class TtsRequestCompiler : ITtsRequestCompiler
             return Failure(TtsErrorKind.ScriptError, "模板求值失败，请检查规则模板后重试。");
         }
 
-        if (!Uri.TryCreate(urlText, UriKind.Absolute, out var url))
+        if (!HttpProviderUriValidator.TryCreateAbsoluteHttpUri(urlText, out var url))
         {
-            return Failure(TtsErrorKind.InvalidRule, "规则 URL 不是有效的绝对地址。");
+            return Failure(TtsErrorKind.InvalidRule, "规则 URL 不是有效的绝对 HTTP 或 HTTPS 地址。");
         }
 
         var bodyElementResult = ParseBody(requestBodyText, rule.RequestBodyIsJsonStructure);

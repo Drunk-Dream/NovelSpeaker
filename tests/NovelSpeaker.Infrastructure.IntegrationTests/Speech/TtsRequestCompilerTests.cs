@@ -81,6 +81,25 @@ public sealed class TtsRequestCompilerTests
         Assert.Equal("POST", result.Request!.Method);
     }
 
+    [Theory]
+    [InlineData("https://example.com/tts", true)]
+    [InlineData("file:///tmp/voice.wav", false)]
+    public async Task CompileAsync_validates_the_evaluated_URL_scheme(
+        string evaluatedUrl,
+        bool expectedSuccess)
+    {
+        var rule = CreateRule("Dynamic URL", "{{speakText}}");
+        var context = new TtsRuleContext(evaluatedUrl, 10, rule);
+
+        var result = await _compiler.CompileAsync(rule.Normalize(), context, CancellationToken.None);
+
+        Assert.Equal(expectedSuccess, result.IsSuccess);
+        if (!expectedSuccess)
+        {
+            Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
+        }
+    }
+
     [Fact]
     public async Task CompileAsync_projects_malformed_structured_body_as_safe_invalid_rule()
     {
