@@ -21,7 +21,7 @@ public sealed record AppSettings(
     double? MiniPlayerLeft = null,
     double? MiniPlayerTop = null,
     bool MiniPlayerTopmost = false,
-    bool ReadChapterTitle = false,
+    bool ReadChapterTitle = true,
     double PlaybackVolume = 1d,
     bool EnablePerformanceTelemetry = false)
 {
@@ -58,7 +58,7 @@ public sealed record AppSettings(
             null,
             null,
             false,
-            false,
+            true,
             DefaultPlaybackVolumeValue,
             false);
 

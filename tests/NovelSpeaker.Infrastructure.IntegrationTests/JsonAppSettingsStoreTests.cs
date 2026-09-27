@@ -25,7 +25,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(300, settings.LongParagraphThreshold);
         Assert.Equal(10, settings.DefaultSpeakSpeed);
         Assert.Equal(2, settings.PrefetchCount);
-        Assert.False(settings.ReadChapterTitle);
+        Assert.True(settings.ReadChapterTitle);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
         Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
