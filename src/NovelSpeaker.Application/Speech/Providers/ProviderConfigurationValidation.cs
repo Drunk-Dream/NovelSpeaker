@@ -76,6 +76,14 @@ public static partial class ProviderConfigurationValidator
                 errors.Add("HTTP Provider Header 模板格式无效。");
                 break;
             }
+
+            if (header.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase) &&
+                !header.Value.Contains("{{", StringComparison.Ordinal) &&
+                !System.Net.Http.Headers.MediaTypeHeaderValue.TryParse(header.Value, out _))
+            {
+                errors.Add("HTTP Provider Content-Type 无效。");
+                break;
+            }
         }
 
         if (configuration.BodyTemplate is not null && !IsValidTemplate(configuration.BodyTemplate))
@@ -83,7 +91,7 @@ public static partial class ProviderConfigurationValidator
             errors.Add("HTTP Provider Body 模板格式无效。");
         }
 
-        if (configuration.Method == "GET" && !string.IsNullOrWhiteSpace(configuration.BodyTemplate))
+        if (configuration.Method == "GET" && configuration.BodyTemplate is not null)
         {
             errors.Add("GET 请求不能携带 Body。");
         }

@@ -157,7 +157,7 @@ public sealed class HttpTtsClientTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_rejects_cookie_header_before_sending_request()
+    public async Task ExecuteAsync_sends_configured_cookie_header()
     {
         await using var server = new LocalHttpTtsTestServer();
         using var client = CreateClient();
@@ -171,10 +171,9 @@ public sealed class HttpTtsClientTests
 
         var result = await client.ExecuteAsync(request, CancellationToken.None);
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
-        Assert.Contains("Cookie/LoginInfo", result.Failure.Message, StringComparison.Ordinal);
-        Assert.Equal(0, server.GetRequestCount("/cookie-required"));
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, server.GetRequestCount("/cookie-required"));
+        await result.Audio!.DisposeAsync();
     }
 
     [Fact]

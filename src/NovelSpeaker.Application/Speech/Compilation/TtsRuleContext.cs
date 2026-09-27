@@ -8,4 +8,4 @@ namespace NovelSpeaker.Application.Speech.Compilation;
 public sealed record TtsRuleContext(
     string SpeakText,
     int SpeakSpeed,
-    HttpTtsRule Source);
+    HttpTtsRule? Source = null);

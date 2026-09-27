@@ -25,12 +25,12 @@ public sealed class JintTemplateEvaluatorTests
             context,
             CancellationToken.None);
         var objectResult = await _evaluator.EvaluateAsync(
-            NormalizedTemplate.Parse("{{({ text: speakText, speed: speakSpeed, ruleName: source.name })}}"),
+            NormalizedTemplate.Parse("{{({ text: speakText, speed: speakSpeed })}}"),
             context,
             CancellationToken.None);
 
         Assert.Equal("你好 世界|12", textResult);
-        Assert.Equal("""{"text":"你好 世界","speed":12,"ruleName":"示例规则"}""", objectResult);
+        Assert.Equal("""{"text":"你好 世界","speed":12}""", objectResult);
     }
 
     [Fact]
@@ -70,6 +70,21 @@ public sealed class JintTemplateEvaluatorTests
             NormalizedTemplate.Parse("{{'x'.repeat(9000)}}"),
             context,
             CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task EvaluateAsync_supports_base64_functions_without_exposing_CLR()
+    {
+        var context = new TtsRuleContext("hello", 10);
+        var encoded = await _evaluator.EvaluateAsync(
+            NormalizedTemplate.Parse("{{btoa('ABC')}}"), context, CancellationToken.None);
+        var decoded = await _evaluator.EvaluateAsync(
+            NormalizedTemplate.Parse("{{atob('QUJD')}}"), context, CancellationToken.None);
+
+        Assert.Equal("QUJD", encoded);
+        Assert.Equal("ABC", decoded);
+        await Assert.ThrowsAnyAsync<Exception>(() => _evaluator.EvaluateAsync(
+            NormalizedTemplate.Parse("{{btoa.GetType()}}"), context, CancellationToken.None));
     }
 
     private static HttpTtsRule CreateRule(

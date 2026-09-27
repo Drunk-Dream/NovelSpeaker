@@ -9,6 +9,7 @@ using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.Infrastructure.Speech.Legado;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
+using NovelSpeaker.Application.Speech.Providers;
 
 namespace NovelSpeaker.Infrastructure.DependencyInjection;
 
@@ -24,6 +25,7 @@ public static class SpeechRegistration
         services.TryAddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
         services.TryAddSingleton<ITtsCompilationFailureReporter, TtsCompilationFailureReporter>();
         services.TryAddSingleton<ITtsRateLimiter, TtsRateLimiter>();
+        services.TryAddSingleton<IProviderRequestLimiter, ProviderRequestLimiter>();
         services.TryAddSingleton<ITtsHttpTransport, HttpTtsClient>();
         services.TryAddSingleton<ITtsRetryPolicy, TtsRetryPolicy>();
         services.TryAddSingleton<ITtsResponseValidator, TtsResponseValidator>();
