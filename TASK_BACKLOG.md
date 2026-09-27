@@ -102,13 +102,13 @@
 
 完成成果：Provider 核心契约、SQLite v8 持久化与旧 HTTP Rule 一次性迁移、CurrentProvider 设置恢复重试和 Runtime/Resolver 边界已完成；无效旧项静默丢弃，旧表随迁移事务删除。
 
-## [ ] T007（P0）：将 HTTP TTS Rule 收敛为 HTTP Provider
+## [x] T007（P0）：将 HTTP TTS Rule 收敛为 HTTP Provider
 
 依赖：T006。
 
-实施规格：`tasks/T007_http_provider.md`
-
 目标：保留成熟 HTTP 请求/模板/响应验证能力，建立 NovelSpeaker 自有 HTTP Provider 模板语言、结构化请求频率限制和新版 Provider 导入/导出格式，并清理 Legado 兼容接口和旧 TTS Rule 外部格式。
+
+完成成果：HTTP Provider Runtime 已注册并复用安全模板、限流、HTTP 传输和音频验证；支持 Draft 试听、本地保存与编辑、逐项导入及凭据提示后导出 schemaVersion 1 Provider 文件。Legado 解析/转换、旧规则导入和外部序列化已删除；旧规则页导入入口移除，新语音服务管理 UI 由 T008 接入。
 
 ## [ ] T008（P1）：重构语音服务管理 UI 并统一拖拽排序
 

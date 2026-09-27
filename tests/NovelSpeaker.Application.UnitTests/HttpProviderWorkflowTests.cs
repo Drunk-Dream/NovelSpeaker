@@ -259,6 +259,16 @@ public sealed class HttpProviderWorkflowTests
         Assert.Equal(ProviderExportStatus.Ready, exported.Status);
         Assert.Equal("session=secret", Assert.Single(ProviderEnvelopeCodec.Read(exported.Json!).Items)
             .Configuration!.Headers["Cookie"]);
+
+        var importedStore = new RecordingProviderStore();
+        var imported = await new HttpProviderWorkspace(importedStore, TimeProvider.System)
+            .ImportAsync(exported.Json!, CancellationToken.None);
+        Assert.Equal(1, imported.ImportedCount);
+        var copy = Assert.Single(importedStore.Items);
+        Assert.NotEqual(provider.Id, copy.Id);
+        Assert.True(HttpProviderConfigurationComparer.IsSamePortableProvider(
+            provider.Name, (HttpSpeechProviderConfiguration)provider.Configuration,
+            copy.Name, (HttpSpeechProviderConfiguration)copy.Configuration));
     }
 
     private static SpeechProviderInstance CreateProvider(string name) =>
