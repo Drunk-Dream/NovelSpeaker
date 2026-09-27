@@ -26,6 +26,7 @@ public static class SpeechRegistration
         services.TryAddSingleton<ITtsCompilationFailureReporter, TtsCompilationFailureReporter>();
         services.TryAddSingleton<ITtsRateLimiter, TtsRateLimiter>();
         services.TryAddSingleton<IProviderRequestLimiter, ProviderRequestLimiter>();
+        services.TryAddSingleton<IProviderPreviewAudioPlayer, ProviderPreviewAudioPlayer>();
         services.TryAddSingleton<ITtsHttpTransport, HttpTtsClient>();
         services.TryAddSingleton<ITtsRetryPolicy, TtsRetryPolicy>();
         services.TryAddSingleton<ITtsResponseValidator, TtsResponseValidator>();

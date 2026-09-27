@@ -61,7 +61,7 @@ public sealed class HttpProviderRuntime(
             var stream = new FileStream(audio.FilePath, FileMode.Open, FileAccess.Read,
                 FileShare.Read | FileShare.Delete, 4096, FileOptions.Asynchronous);
             return new ProviderSynthesisResult(new ProviderAudioStream(stream, audio),
-                audio.ResponseContentType, null);
+                audio.ResponseContentType, null, audio.DetectedAudioFormat);
         }
         catch
         {

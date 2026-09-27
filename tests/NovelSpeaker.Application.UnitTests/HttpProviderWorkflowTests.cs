@@ -151,22 +151,27 @@ public sealed class HttpProviderWorkflowTests
             DefaultSpeakSpeed = 13
         });
         var runtime = new CapturingRuntime();
-        var service = new HttpProviderDraftPreviewService([runtime], settings);
+        var player = new CapturingPreviewPlayer();
+        var service = new HttpProviderDraftPreviewService([runtime], settings, player);
+        string? playbackFailure = null;
+        service.PlaybackFailed += (_, args) => playbackFailure = args.Message;
         var draft = CreateProvider("Unsaved") with
         {
             Configuration = new HttpSpeechProviderConfiguration(
                 "https://example.com/unsaved", "GET", new Dictionary<string, string>(), null, null)
         };
 
-        var result = await service.PreviewAsync(draft, CancellationToken.None);
+        var failure = await service.PlayAsync(draft, CancellationToken.None);
 
-        Assert.True(result.IsSuccess);
+        Assert.Null(failure);
         Assert.Same(draft, runtime.Provider);
         Assert.Equal(HttpProviderDraftPreviewService.PreviewText, runtime.Request!.Text);
         Assert.Equal(13, runtime.Request.SpeakSpeed);
         Assert.Equal(current, settings.Current.CurrentProviderId);
         Assert.Equal(0, settings.UpdateCount);
-        await result.Audio!.DisposeAsync();
+        Assert.Equal(1, player.PlayCount);
+        player.RaiseFailure();
+        Assert.Equal("试听播放中断。", playbackFailure);
     }
 
     private static SpeechProviderInstance CreateProvider(string name) =>
@@ -207,5 +212,23 @@ public sealed class HttpProviderWorkflowTests
             UpdateCount++;
             return Task.FromResult(Current);
         }
+    }
+
+    private sealed class CapturingPreviewPlayer : IProviderPreviewAudioPlayer
+    {
+        public int PlayCount { get; private set; }
+        public event EventHandler<ProviderPreviewPlaybackFailedEventArgs>? PlaybackFailed;
+
+        public Task<ProviderPreviewPlaybackResult> PlayAsync(
+            Stream audio, string? audioFormat, CancellationToken cancellationToken)
+        {
+            PlayCount++;
+            return Task.FromResult(new ProviderPreviewPlaybackResult(true, null));
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public void RaiseFailure() =>
+            PlaybackFailed?.Invoke(this, new ProviderPreviewPlaybackFailedEventArgs("试听播放中断。"));
     }
 }
