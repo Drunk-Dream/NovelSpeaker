@@ -174,6 +174,93 @@ public sealed class HttpProviderWorkflowTests
         Assert.Equal("试听播放中断。", playbackFailure);
     }
 
+    [Fact]
+    public async Task Workspace_creates_an_unsaved_unique_draft_and_saves_new_and_existing_providers()
+    {
+        var existing = CreateProvider("HTTP Provider") with { SortOrder = 4 };
+        var store = new RecordingProviderStore(existing);
+        var workspace = new HttpProviderWorkspace(store, TimeProvider.System);
+
+        var draft = await workspace.CreateDraftAsync(CancellationToken.None);
+        Assert.Equal("HTTP Provider (2)", draft.Name);
+        Assert.Single(store.Items);
+
+        var configured = draft with { Configuration = existing.Configuration };
+        var saved = await workspace.SaveAsync(configured, true, CancellationToken.None);
+        Assert.Equal(5, saved.SortOrder);
+        Assert.NotEqual(draft.Id, saved.Id);
+        Assert.Equal(2, store.Items.Count);
+
+        var edited = await workspace.SaveAsync(saved with { Name = "Renamed", SortOrder = 99 },
+            false, CancellationToken.None);
+        Assert.Equal(saved.Id, edited.Id);
+        Assert.Equal(saved.CreatedAt, edited.CreatedAt);
+        Assert.Equal(5, edited.SortOrder);
+        Assert.Equal("Renamed", store.Items.Single(item => item.Id == saved.Id).Name);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => workspace.SaveAsync(
+            edited with { Name = "http provider" }, false, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Workspace_import_continues_after_one_save_fails_and_retries_same_portable_item()
+    {
+        var store = new RecordingProviderStore(CreateProvider("Existing") with { SortOrder = 3 })
+        {
+            FailNextSave = true
+        };
+        var workspace = new HttpProviderWorkspace(store, TimeProvider.System);
+        var json = """
+            {
+              "schemaVersion": 1,
+              "providers": [
+                { "providerType": "http", "name": "Voice", "configuration": {
+                  "urlTemplate": "https://example.com/voice", "method": "GET", "headers": {}
+                } },
+                { "providerType": "edge", "name": "Unsupported", "configuration": {} },
+                { "providerType": "http", "name": "Voice", "configuration": {
+                  "urlTemplate": "https://example.com/voice", "method": "get", "headers": {}
+                } },
+                { "providerType": "http", "name": "Voice", "configuration": {
+                  "urlTemplate": "https://example.com/voice", "method": "GET", "headers": {}
+                } }
+              ]
+            }
+            """;
+
+        var result = await workspace.ImportAsync(json, CancellationToken.None);
+
+        Assert.Null(result.Error);
+        Assert.Equal(1, result.ImportedCount);
+        Assert.Equal(1, result.DuplicateCount);
+        Assert.Equal(2, result.FailedCount);
+        Assert.Equal(ProviderImportExecutionStatus.Failed, result.Items[0].Status);
+        Assert.Equal(ProviderImportExecutionStatus.Imported, result.Items[2].Status);
+        Assert.Equal("Voice", store.Items.Single(item => item.Name == "Voice").Name);
+        Assert.Equal(4, store.Items.Single(item => item.Name == "Voice").SortOrder);
+    }
+
+    [Fact]
+    public async Task Workspace_requires_credential_warning_before_exporting_full_configuration()
+    {
+        var provider = CreateProvider("Secret") with
+        {
+            Configuration = new HttpSpeechProviderConfiguration(
+                "https://example.com/audio", "GET",
+                new Dictionary<string, string> { ["Cookie"] = "session=secret" }, null, null)
+        };
+        var workspace = new HttpProviderWorkspace(new RecordingProviderStore(provider), TimeProvider.System);
+
+        var warning = await workspace.ExportAsync(provider.Id, false, CancellationToken.None);
+        var exported = await workspace.ExportAsync(provider.Id, true, CancellationToken.None);
+
+        Assert.Equal(ProviderExportStatus.ConfirmationRequired, warning.Status);
+        Assert.Null(warning.Json);
+        Assert.Contains("Cookie", warning.Message);
+        Assert.Equal(ProviderExportStatus.Ready, exported.Status);
+        Assert.Equal("session=secret", Assert.Single(ProviderEnvelopeCodec.Read(exported.Json!).Items)
+            .Configuration!.Headers["Cookie"]);
+    }
+
     private static SpeechProviderInstance CreateProvider(string name) =>
         new(ProviderId.New(), name, 0,
             new HttpSpeechProviderConfiguration("https://example.com/audio", "GET",
@@ -230,5 +317,33 @@ public sealed class HttpProviderWorkflowTests
 
         public void RaiseFailure() =>
             PlaybackFailed?.Invoke(this, new ProviderPreviewPlaybackFailedEventArgs("试听播放中断。"));
+    }
+
+    private sealed class RecordingProviderStore(params SpeechProviderInstance[] initial) : IProviderStore
+    {
+        public List<SpeechProviderInstance> Items { get; } = [.. initial];
+        public bool FailNextSave { get; set; }
+
+        public Task<IReadOnlyList<SpeechProviderInstance>> GetAllAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<SpeechProviderInstance>>(Items.ToList());
+
+        public Task<SpeechProviderInstance?> GetByIdAsync(ProviderId providerId, CancellationToken cancellationToken) =>
+            Task.FromResult(Items.FirstOrDefault(item => item.Id == providerId));
+
+        public Task SaveAsync(SpeechProviderInstance provider, CancellationToken cancellationToken)
+        {
+            if (FailNextSave)
+            {
+                FailNextSave = false;
+                throw new InvalidOperationException("Simulated store failure");
+            }
+
+            Items.RemoveAll(item => item.Id == provider.Id);
+            Items.Add(provider);
+            return Task.CompletedTask;
+        }
+
+        public Task DeleteAsync(ProviderId providerId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
     }
 }

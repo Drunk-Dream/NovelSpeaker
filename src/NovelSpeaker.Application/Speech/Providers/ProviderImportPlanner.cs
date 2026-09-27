@@ -24,6 +24,8 @@ public sealed record ProviderImportPlan(
     public int InvalidCount => Items.Count(item => item.Status == ProviderImportPlanStatus.Invalid);
 }
 
+internal sealed record PortableProviderIdentity(string Name, HttpSpeechProviderConfiguration Configuration);
+
 /// <summary>Plans independent Provider imports against one current Provider snapshot.</summary>
 public static class ProviderImportPlanner
 {
@@ -39,54 +41,58 @@ public static class ProviderImportPlanner
             return new ProviderImportPlan([], document.Error);
         }
 
-        var namesInUse = new HashSet<string>(existing.Select(provider => provider.Name),
-            StringComparer.OrdinalIgnoreCase);
-        var portableInputs = existing
-            .Where(provider => provider.Configuration is HttpSpeechProviderConfiguration)
-            .Select(provider => (provider.Name, Configuration: (HttpSpeechProviderConfiguration)provider.Configuration))
-            .ToList();
-        var nextSortOrder = existing.Count == 0 ? 0L : (long)existing.Max(provider => provider.SortOrder) + 1;
+        var accepted = existing.ToList();
+        var portableInputs = new List<PortableProviderIdentity>();
         var items = new List<ProviderImportPlanItem>(document.Items.Count);
         foreach (var source in document.Items)
         {
-            if (!source.IsValid)
+            var item = PlanOne(source, accepted, portableInputs, now);
+            items.Add(item);
+            if (item.Candidate is { } candidate)
             {
-                items.Add(new ProviderImportPlanItem(source.Index, ProviderImportPlanStatus.Invalid,
-                    null, source.Error));
-                continue;
-            }
-
-            var name = source.Name!;
-            var config = source.Configuration!;
-            if (portableInputs.Any(entry => HttpProviderConfigurationComparer.IsSamePortableProvider(
-                    entry.Name, entry.Configuration, name, config)))
-            {
-                items.Add(new ProviderImportPlanItem(source.Index, ProviderImportPlanStatus.Duplicate,
-                    null, "名称与配置均相同，已跳过。"));
-                continue;
-            }
-
-            if (nextSortOrder > int.MaxValue)
-            {
-                items.Add(new ProviderImportPlanItem(source.Index, ProviderImportPlanStatus.Invalid,
-                    null, "Provider 排序空间不足。"));
-                continue;
-            }
-
-            var uniqueName = MakeUniqueName(name, namesInUse);
-            var candidate = new SpeechProviderInstance(
-                ProviderId.New(), uniqueName, (int)nextSortOrder++,
-                config, now, now);
-            items.Add(new ProviderImportPlanItem(source.Index, ProviderImportPlanStatus.Ready, candidate, null));
-            namesInUse.Add(uniqueName);
-            portableInputs.Add((name, config));
-            if (!string.Equals(uniqueName, name, StringComparison.OrdinalIgnoreCase))
-            {
-                portableInputs.Add((uniqueName, config));
+                accepted.Add(candidate);
+                portableInputs.Add(new PortableProviderIdentity(source.Name!, source.Configuration!));
             }
         }
 
         return new ProviderImportPlan(items, null);
+    }
+
+    internal static ProviderImportPlanItem PlanOne(
+        ProviderEnvelopeItem source,
+        IReadOnlyList<SpeechProviderInstance> accepted,
+        IReadOnlyList<PortableProviderIdentity> successfulInputs,
+        DateTimeOffset now)
+    {
+        if (!source.IsValid)
+        {
+            return new ProviderImportPlanItem(source.Index, ProviderImportPlanStatus.Invalid, null, source.Error);
+        }
+
+        var name = source.Name!;
+        var config = source.Configuration!;
+        if (accepted.Any(provider => provider.Configuration is HttpSpeechProviderConfiguration http &&
+                HttpProviderConfigurationComparer.IsSamePortableProvider(provider.Name, http, name, config)) ||
+            successfulInputs.Any(input => HttpProviderConfigurationComparer.IsSamePortableProvider(
+                input.Name, input.Configuration, name, config)))
+        {
+            return new ProviderImportPlanItem(source.Index, ProviderImportPlanStatus.Duplicate,
+                null, "名称与配置均相同，已跳过。");
+        }
+
+        var nextSortOrder = accepted.Count == 0 ? 0L : (long)accepted.Max(provider => provider.SortOrder) + 1;
+        if (nextSortOrder > int.MaxValue)
+        {
+            return new ProviderImportPlanItem(source.Index, ProviderImportPlanStatus.Invalid,
+                null, "Provider 排序空间不足。");
+        }
+
+        var namesInUse = new HashSet<string>(accepted.Select(provider => provider.Name),
+            StringComparer.OrdinalIgnoreCase);
+        var uniqueName = MakeUniqueName(name, namesInUse);
+        var candidate = new SpeechProviderInstance(
+            ProviderId.New(), uniqueName, (int)nextSortOrder, config, now, now);
+        return new ProviderImportPlanItem(source.Index, ProviderImportPlanStatus.Ready, candidate, null);
     }
 
     public static string MakeUniqueName(string requestedName, IReadOnlySet<string> namesInUse)
