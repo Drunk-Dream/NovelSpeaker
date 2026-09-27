@@ -92,6 +92,56 @@ public sealed class HttpProviderWorkflowTests
     }
 
     [Fact]
+    public void Import_plan_skips_exact_duplicates_and_appends_valid_items_in_file_order()
+    {
+        var existing = CreateProvider("Voice") with
+        {
+            SortOrder = 7,
+            Configuration = new HttpSpeechProviderConfiguration(
+                "https://example.com/old", "GET",
+                new Dictionary<string, string> { ["X-Key"] = "secret" }, null, null)
+        };
+        var json = """
+            {
+              "schemaVersion": 1,
+              "providers": [
+                { "providerType": "http", "name": "voice", "configuration": {
+                  "urlTemplate": "https://example.com/old", "method": "get",
+                  "headers": { "x-key": "secret" }
+                } },
+                { "providerType": "http", "name": "Voice", "configuration": {
+                  "urlTemplate": "https://example.com/new", "method": "GET", "headers": {}
+                } },
+                { "providerType": "http", "name": "Another", "configuration": {
+                  "urlTemplate": "https://example.com/new", "method": "GET", "headers": {}
+                } },
+                { "providerType": "http", "name": "Voice", "configuration": {
+                  "urlTemplate": "https://example.com/new", "method": "GET", "headers": {}
+                } },
+                { "providerType": "http", "name": "Voice (2)", "configuration": {
+                  "urlTemplate": "https://example.com/new", "method": "GET", "headers": {}
+                } },
+                { "providerType": "edge", "name": "Unsupported", "configuration": {} }
+              ]
+            }
+            """;
+
+        var plan = ProviderImportPlanner.Plan(json, [existing], DateTimeOffset.UnixEpoch);
+
+        Assert.Null(plan.Error);
+        Assert.Equal(2, plan.ReadyCount);
+        Assert.Equal(3, plan.DuplicateCount);
+        Assert.Equal(1, plan.InvalidCount);
+        var firstAdded = Assert.IsType<SpeechProviderInstance>(plan.Items[1].Candidate);
+        var secondAdded = Assert.IsType<SpeechProviderInstance>(plan.Items[2].Candidate);
+        Assert.Equal("Voice (2)", firstAdded.Name);
+        Assert.Equal(8, firstAdded.SortOrder);
+        Assert.Equal("Another", secondAdded.Name);
+        Assert.Equal(9, secondAdded.SortOrder);
+        Assert.Equal(7, existing.SortOrder);
+    }
+
+    [Fact]
     public async Task Draft_preview_uses_unsaved_config_and_current_speed_without_changing_selection()
     {
         var current = ProviderId.New();
