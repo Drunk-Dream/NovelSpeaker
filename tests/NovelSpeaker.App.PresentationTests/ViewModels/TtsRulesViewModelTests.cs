@@ -45,98 +45,7 @@ public sealed class TtsRulesViewModelTests
         Assert.Equal(2, viewModel.HighlightedRuleId);
     }
 
-    private async Task ImportJsonTextAsync_refreshes_rules_without_opening_imported_rule()
-    {
-        var useCases = new TtsRuleUseCaseStub(
-            [new TtsRuleSummary(1, "旧规则", true, false, null)],
-            new TtsRuleEditorModel(
-                1,
-                "旧规则",
-                true,
-                "https://example.com/old",
-                null,
-                null,
-                null,
-                [],
-                new TtsRuleRequestOptionsEditor("GET", null)))
-        {
-            ImportResult = new TtsRuleImportResult(1, 1, 3)
-            {
-                FailedCount = 1,
-                FirstImportedRuleId = 2
-            },
-            RulesAfterImport =
-            [
-                new TtsRuleSummary(1, "旧规则", true, false, null),
-                new TtsRuleSummary(2, "新导入规则", true, true, null)
-            ],
-            EditorsById =
-            {
-                [2] = new TtsRuleEditorModel(
-                    2,
-                    "新导入规则",
-                    true,
-                    "https://example.com/imported",
-                    null,
-                    null,
-                    null,
-                    [],
-                    new TtsRuleRequestOptionsEditor("GET", null))
-            }
-        };
-        var feedback = new FakeFeedbackService();
-        var documents = new FakeRuleDocumentInteraction
-        {
-            ClipboardDocument = new RuleImportDocument(
-                """{"name":"新导入规则","url":"https://example.com/imported"}""",
-                "剪贴板")
-        };
-        var viewModel = CreateViewModel(
-            useCases: useCases,
-            feedbackService: feedback,
-            ruleDocuments: documents);
-
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
-
-        Assert.Equal(2, viewModel.Rules.Count);
-        Assert.Null(viewModel.HighlightedRuleId);
-        Assert.False(viewModel.HasEditor);
-        Assert.Equal("部分规则导入失败", feedback.LastTitle);
-        Assert.Contains("新增 1 条", feedback.LastMessage);
-    }
-
-    private async Task ImportJsonTextAsync_shows_safe_cookie_login_info_warning_with_mixed_counts()
-    {
-        var incompatibleRule = CreateImportItem(
-            0,
-            false,
-            "当前版本不支持 Cookie/LoginInfo；该规则不能导入。");
-        var compatibleRule = CreateImportItem(1, true, "可以导入。");
-        var useCases = new TtsRuleUseCaseStub([], null)
-        {
-            ImportPreview = new TtsRuleImportPreview("剪贴板", [incompatibleRule, compatibleRule], null),
-            ImportResult = new TtsRuleImportResult(1, 0, 2) { FailedCount = 1 }
-        };
-        var feedback = new FakeFeedbackService();
-        var documents = new FakeRuleDocumentInteraction
-        {
-            ClipboardDocument = new RuleImportDocument("[]", "剪贴板")
-        };
-        var viewModel = CreateViewModel(
-            useCases: useCases,
-            feedbackService: feedback,
-            ruleDocuments: documents);
-
-        await viewModel.ImportRulesFromClipboardAsync(CancellationToken.None);
-
-        Assert.Equal("部分规则不兼容", feedback.LastTitle);
-        Assert.Contains("当前版本不支持 Cookie/LoginInfo", feedback.LastMessage);
-        Assert.Contains("新增 1 条，失败 1 条，跳过 0 条", feedback.LastMessage);
-        Assert.DoesNotContain("secret", feedback.LastMessage);
-    }
-
-    private async Task SaveDraftAsync_shows_explicit_validation_warning_for_cookie_header()
+    private async Task SaveDraftAsync_shows_validation_warning_without_saving()
     {
         var editor = new TtsRuleEditorModel(
             1,
@@ -154,36 +63,17 @@ public sealed class TtsRulesViewModelTests
         {
             ValidationResult = new TtsRuleValidationResult(
                 false,
-                ["当前版本不支持 Cookie/LoginInfo；请移除相关依赖。"],
+                ["请求 URL 无效。"],
                 editor)
         };
         var feedback = new FakeFeedbackService();
         var viewModel = CreateViewModel(useCases: useCases, feedbackService: feedback);
         await LoadAndSelectAsync(viewModel, 1);
-        viewModel.AddHeaderEntryCommand.Execute(null);
-        viewModel.HeaderEntries[0].Key = "Cookie";
-        viewModel.HeaderEntries[0].Value = "session=secret";
-
         await viewModel.SaveDraftCommand.ExecuteAsync(null);
 
-        Assert.Equal("规则不兼容", feedback.LastTitle);
-        Assert.Contains("Cookie/LoginInfo", feedback.LastMessage);
-        Assert.DoesNotContain("secret", feedback.LastMessage);
+        Assert.Equal("无法保存规则", feedback.LastTitle);
+        Assert.Contains("请求 URL 无效", feedback.LastMessage);
         Assert.Equal(0, useCases.SaveCallCount);
-    }
-
-    private async Task ExportRuleAsync_uses_the_tts_rule_file_name()
-    {
-        var useCases = new TtsRuleUseCaseStub(
-            [new TtsRuleSummary(3, "规则", true, false, null)],
-            CreateEditor(3, "规则", true));
-        var documents = new FakeRuleDocumentInteraction();
-        var viewModel = CreateViewModel(useCases: useCases, ruleDocuments: documents);
-        await viewModel.LoadAsync(CancellationToken.None);
-
-        await viewModel.ExportRuleAsync(viewModel.Rules.Single(), CancellationToken.None);
-
-        Assert.Equal("tts-rule.json", documents.ExportedFileName);
     }
 
     private async Task SelectRuleAsync_with_unsaved_changes_saves_before_leaving_when_requested()
@@ -234,18 +124,15 @@ public sealed class TtsRulesViewModelTests
     }
 
     [Fact]
-    public async Task Tts_rule_creation_and_import_contracts_cover_save_refresh_and_safe_warnings()
+    public async Task Tts_rule_creation_contract_covers_save_refresh()
     {
         await NewRuleAsync_does_not_add_item_until_saved();
-        await ImportJsonTextAsync_refreshes_rules_without_opening_imported_rule();
-        await ImportJsonTextAsync_shows_safe_cookie_login_info_warning_with_mixed_counts();
     }
 
     [Fact]
-    public async Task Tts_rule_editing_contracts_cover_validation_export_and_unsaved_selection()
+    public async Task Tts_rule_editing_contracts_cover_validation_and_unsaved_selection()
     {
-        await SaveDraftAsync_shows_explicit_validation_warning_for_cookie_header();
-        await ExportRuleAsync_uses_the_tts_rule_file_name();
+        await SaveDraftAsync_shows_validation_warning_without_saving();
         await SelectRuleAsync_with_unsaved_changes_saves_before_leaving_when_requested();
     }
 
@@ -280,7 +167,6 @@ public sealed class TtsRulesViewModelTests
             useCases ??= new TtsRuleUseCaseStub([], null),
             useCases,
             useCases,
-            useCases,
             ruleTestService ?? new FakeTtsRuleTestService(),
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
@@ -289,37 +175,7 @@ public sealed class TtsRulesViewModelTests
             ruleDocuments ?? new FakeRuleDocumentInteraction());
     }
 
-    private static TtsRuleImportItem CreateImportItem(int index, bool canImport, string statusMessage)
-    {
-        var utcNow = DateTime.UtcNow.ToString("O");
-        return new TtsRuleImportItem(
-            index,
-            $"规则 {index}",
-            "https://example.com/tts",
-            canImport ? TtsRuleCompatibilityStatus.Compatible : TtsRuleCompatibilityStatus.NeedsManualAdjustment,
-            [],
-            canImport,
-            canImport,
-            false,
-            false,
-            statusMessage,
-            TestHttpTtsRules.Create(
-                0,
-                $"规则 {index}",
-                "https://example.com/tts",
-                null,
-                null,
-                null,
-                null,
-                null,
-                true,
-                null,
-                utcNow,
-                utcNow));
-    }
-
     private sealed class TtsRuleUseCaseStub :
-        ITtsRuleImportUseCase,
         ITtsRuleEditorUseCase,
         ITtsRuleSelectionUseCase,
         ITtsRuleQueries
@@ -338,10 +194,6 @@ public sealed class TtsRulesViewModelTests
             DefaultEditor = defaultEditor;
         }
 
-        public TtsRuleImportResult ImportResult { get; set; } = new(0, 0, 0);
-
-        public TtsRuleImportPreview? ImportPreview { get; set; }
-
         public TtsRuleValidationResult? ValidationResult { get; set; }
 
         public int SaveCallCount { get; private set; }
@@ -349,8 +201,6 @@ public sealed class TtsRulesViewModelTests
         public TaskCompletionSource? SetEnabledGate { get; init; }
 
         public TaskCompletionSource SetEnabledEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public IReadOnlyList<TtsRuleSummary>? RulesAfterImport { get; set; }
 
         public TtsRuleEditorModel? DefaultEditor { get; }
 
@@ -363,39 +213,9 @@ public sealed class TtsRulesViewModelTests
             return Task.FromResult(_rules);
         }
 
-        public Task<TtsRuleImportPreview> CreateImportPreviewAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(ImportPreview ?? new TtsRuleImportPreview(sourceDescription, [], null));
-        }
-
-        public Task<TtsRuleImportResult> ImportJsonTextAsync(string jsonText, string sourceDescription, CancellationToken cancellationToken)
-        {
-            if (RulesAfterImport is not null)
-            {
-                _rules = RulesAfterImport;
-            }
-
-            return Task.FromResult(ImportResult);
-        }
-
-        public Task<TtsRuleImportResult> ImportAsync(TtsRuleImportPreview preview, CancellationToken cancellationToken)
-        {
-            if (RulesAfterImport is not null)
-            {
-                _rules = RulesAfterImport;
-            }
-
-            return Task.FromResult(ImportResult);
-        }
-
         public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken)
         {
             return Task.FromResult<string?>("""{"name":"规则"}""");
-        }
-
-        public Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
-        {
-            return Task.FromResult($$"""{"name":"{{editor.Name}}","url":"{{editor.Url}}"}""");
         }
 
         public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken)

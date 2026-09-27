@@ -16,13 +16,12 @@ using NovelSpeaker.Domain.Speech;
 namespace NovelSpeaker.App.Features.Rules.Tts;
 
 /// <summary>
-/// Drives the TTS rules workspace, including list selection, draft editing, import, and audition flows.
+/// Drives the TTS rules workspace, including list selection, draft editing, and audition flows.
 /// </summary>
 public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEscapeHandler
 {
     private const string FixedTestText = "你好，欢迎试听。";
 
-    private readonly ITtsRuleImportUseCase _ruleImport;
     private readonly ITtsRuleEditorUseCase _ruleEditor;
     private readonly ITtsRuleSelectionUseCase _ruleSelection;
     private readonly ITtsRuleQueries _ruleQueries;
@@ -35,12 +34,10 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     private CancellationTokenSource? _testOperationCts;
     private readonly EditorSession<long?, TtsRuleEditorModel> _editorSession = new(EditorsEqual);
     private readonly RuleSelectionController<long> _selection = new();
-    private readonly RuleImportSession _importSession = new();
     private readonly ResettableObservableCollection<TtsRuleListItemViewModel> _rules = [];
     private int _defaultSpeakSpeed = 10;
 
     public TtsRulesViewModel(
-        ITtsRuleImportUseCase ruleImport,
         ITtsRuleEditorUseCase ruleEditor,
         ITtsRuleSelectionUseCase ruleSelection,
         ITtsRuleQueries ruleQueries,
@@ -51,7 +48,6 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
         IAppNavigator navigator,
         IRuleDocumentInteraction ruleDocuments)
     {
-        _ruleImport = ruleImport;
         _ruleEditor = ruleEditor;
         _ruleSelection = ruleSelection;
         _ruleQueries = ruleQueries;
@@ -141,19 +137,6 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
         IsHelpDrawerOpen = false;
         return true;
     }
-
-    public Task ImportRuleFileAsync(CancellationToken cancellationToken) =>
-        ImportDocumentAsync(
-            token => _ruleDocuments.PickImportAsync(token),
-            "规则导入失败",
-            cancellationToken);
-
-    public Task ImportRulesFromClipboardAsync(CancellationToken cancellationToken) =>
-        ImportDocumentAsync(
-            token => _ruleDocuments.ReadClipboardAsync(token),
-            "从剪贴板导入失败",
-            cancellationToken,
-            warnWhenMissing: true);
 
     [RelayCommand]
     public async Task ExportRuleAsync(TtsRuleListItemViewModel? rule, CancellationToken cancellationToken)
@@ -488,79 +471,6 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     partial void OnDraftRequestBodyChanged(string value) => NotifyDraftChanged();
     partial void OnDraftConcurrentRateChanged(string value) => NotifyDraftChanged();
 
-    private async Task ImportDocumentAsync(
-        Func<CancellationToken, Task<RuleImportDocument?>> readDocument,
-        string failureTitle,
-        CancellationToken cancellationToken,
-        bool warnWhenMissing = false)
-    {
-        try
-        {
-            var execution = await _importSession.RunAsync(
-                readDocument,
-                (document, token) => ImportJsonTextAsyncCore(document.Json, document.SourceDescription, token),
-                ConfirmLeaveAsync,
-                () => IsBusy,
-                SetBusy,
-                cancellationToken,
-                reportMissingDocument: warnWhenMissing
-                    ? () => _feedbackService.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。")
-                    : null);
-            if (execution is null || execution.Result is null)
-            {
-                return;
-            }
-
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            HandleProjectedError(failureTitle, exception);
-        }
-    }
-
-    private async Task<RuleImportResult?> ImportJsonTextAsyncCore(
-        string jsonText,
-        string sourceDescription,
-        CancellationToken cancellationToken)
-    {
-        var preview = await _ruleImport.CreateImportPreviewAsync(
-            jsonText,
-            sourceDescription,
-            cancellationToken);
-        if (preview.ErrorMessage is not null)
-        {
-            _feedbackService.ShowWarning("无法导入", preview.ErrorMessage);
-            return null;
-        }
-
-        var hasCookieLoginInfoDependency = preview.Items.Any(item =>
-            !item.CanImport &&
-            item.StatusMessage.Contains("Cookie/LoginInfo", StringComparison.OrdinalIgnoreCase));
-        var result = await _ruleImport.ImportAsync(preview, cancellationToken);
-        await RefreshRulesAsync(null, openEditorIfNeeded: false, cancellationToken);
-        var statusMessage = BuildImportStatusMessage(result);
-        if (hasCookieLoginInfoDependency)
-        {
-            _feedbackService.ShowWarning(
-                "部分规则不兼容",
-                $"当前版本不支持 Cookie/LoginInfo。{statusMessage}");
-        }
-        else if (result.FailedCount > 0)
-        {
-            _feedbackService.ShowWarning("部分规则导入失败", statusMessage);
-        }
-        else
-        {
-            _feedbackService.ShowSuccess("规则导入完成", statusMessage);
-        }
-
-        return new RuleImportResult(
-            result.ImportedCount,
-            result.SkippedCount,
-            result.TotalCount,
-            result.FailedCount);
-    }
-
     private async Task RefreshRulesAsync(long? preferredRuleId, bool openEditorIfNeeded, CancellationToken cancellationToken)
     {
         var rules = await _ruleQueries.GetRulesAsync(cancellationToken);
@@ -790,11 +700,7 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
             if (!validation.IsValid)
             {
                 var validationMessage = string.Join(" ", validation.Errors);
-                var title = validation.Errors.Any(error =>
-                    error.Contains("Cookie/LoginInfo", StringComparison.OrdinalIgnoreCase))
-                    ? "规则不兼容"
-                    : "无法保存规则";
-                _feedbackService.ShowWarning(title, validationMessage);
+                _feedbackService.ShowWarning("无法保存规则", validationMessage);
                 return null;
             }
 
@@ -949,11 +855,6 @@ public sealed partial class TtsRulesViewModel : ObservableObject, ITransientEsca
     {
         DiscardCurrentDraft();
         return true;
-    }
-
-    private static string BuildImportStatusMessage(TtsRuleImportResult result)
-    {
-        return $"新增 {result.ImportedCount} 条，失败 {result.FailedCount} 条，跳过 {result.SkippedCount} 条。";
     }
 
     private void HandleProjectedError(string title, Exception exception)

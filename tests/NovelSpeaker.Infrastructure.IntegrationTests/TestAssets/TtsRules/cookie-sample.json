@@ -1,6 +1,0 @@
-{
-  "name": "Cookie Sample",
-  "url": "https://example.com/tts?text={{encodeURIComponent(speakText)}}",
-  "contentType": "audio/wav",
-  "enabledCookieJar": true
-}

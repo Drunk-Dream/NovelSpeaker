@@ -37,18 +37,6 @@
                             ToolTip="新建规则"
                             AutomationProperties.Name="新建规则"
                             Icon="{ui:SymbolIcon Symbol=DocumentAdd24}" />
-                    <ui:Button Margin="0,0,8,0"
-                            Style="{StaticResource App.Button.Icon}"
-                            Click="ImportRuleFileButton_OnClick"
-                            ToolTip="从文件导入"
-                            AutomationProperties.Name="从文件导入"
-                            Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
-                    <ui:Button Margin="0,0,8,0"
-                            Style="{StaticResource App.Button.Icon}"
-                            Click="ImportRulesFromClipboardButton_OnClick"
-                            ToolTip="从剪切板导入"
-                            AutomationProperties.Name="从剪切板导入"
-                            Icon="{ui:SymbolIcon Symbol=ClipboardPaste24}" />
                     <ui:Button Style="{StaticResource App.Button.Icon}"
                             Command="{Binding OpenHelpCommand}"
                             ToolTip="规则编写帮助"
@@ -85,7 +73,7 @@
                             </Style>
                         </Border.Style>
                         <TextBlock Style="{StaticResource App.Typography.Secondary}"
-                                   Text="还没有规则，请使用页首操作新建或导入。"
+                                   Text="还没有规则，请使用页首操作新建。"
                                    TextWrapping="Wrap" />
                     </Border>
 
@@ -360,14 +348,14 @@
                                            Text="字段怎么填" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource App.Typography.Secondary}"
-                                           Text="名称和 URL 必填，URL 必须是绝对地址。Content-Type 声明期望返回的音频类型；请求体只用于 POST。"
+                                           Text="HTTP Provider 的 URL 必须是绝对 HTTP/HTTPS 地址；请求体只用于 POST。JSON 与表单请求体由 Content-Type Header 决定，响应音频格式会自动识别。"
                                            TextWrapping="Wrap" />
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource App.Typography.ItemTitle}"
                                            Text="Header、请求体与限流" />
                                 <TextBlock Margin="0,8,0,0"
                                            Style="{StaticResource App.Typography.Secondary}"
-                                           Text="Header 可填写鉴权信息，但不要将密钥放入日志或反馈。并发限制支持 1000 或 2/1000 这类格式。"
+                                           Text="模板可使用 speakText、speakSpeed、encodeURI、encodeURIComponent、btoa、atob、JSON、Math 和 Date。Header 可填写鉴权信息；请妥善保管导出的配置。HTTP Provider 限流按最多 N 次 / M 毫秒设置。"
                                            TextWrapping="Wrap" />
                                 <TextBlock Margin="0,18,0,0"
                                            Style="{StaticResource App.Typography.ItemTitle}"

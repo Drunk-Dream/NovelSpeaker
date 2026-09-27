@@ -370,7 +370,6 @@ public sealed class TtsRuleTestServiceTests
             CancellationToken cancellationToken) =>
             Task.FromResult(new TtsRuleValidationResult(true, [], editor));
 
-        public Task<string> ExportEditorJsonAsync(TtsRuleEditorModel model, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<TtsRuleEditorModel?> GetEditorAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<HttpTtsRule> SaveEditorAsync(TtsRuleEditorModel model, CancellationToken cancellationToken)
         {

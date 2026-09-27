@@ -6,7 +6,6 @@ using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.Infrastructure.Speech.Http;
-using NovelSpeaker.Infrastructure.Speech.Legado;
 using NovelSpeaker.Infrastructure.Speech.Rules;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
 using NovelSpeaker.Application.Speech.Providers;
@@ -19,9 +18,6 @@ public static class SpeechRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<LegadoRuleConverter>();
-        services.TryAddSingleton<LegadoRuleSourceParser>();
-        services.TryAddSingleton<ITtsRuleSourceAdapter, LegadoRuleSourceAdapter>();
         services.TryAddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
         services.TryAddSingleton<ITtsCompilationFailureReporter, TtsCompilationFailureReporter>();
         services.TryAddSingleton<ITtsRateLimiter, TtsRateLimiter>();

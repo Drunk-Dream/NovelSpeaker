@@ -89,17 +89,4 @@ internal sealed class TtsRuleEditorUseCase(
         return new TtsRuleDraftPreparationResult(validation, candidate);
     }
 
-    public async Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken)
-    {
-        var validation = await ValidateEditorAsync(editor, cancellationToken);
-        if (!validation.IsValid)
-        {
-            throw new InvalidOperationException(string.Join(" ", validation.Errors));
-        }
-        var existing = validation.NormalizedModel.Id is > 0
-            ? await repository.GetByIdAsync(validation.NormalizedModel.Id.Value, cancellationToken)
-            : null;
-        return TtsRuleJsonSerializer.Serialize(TtsRuleModelMapper.BuildRule(validation.NormalizedModel, existing, timeProvider.GetUtcNow()));
-    }
-
 }

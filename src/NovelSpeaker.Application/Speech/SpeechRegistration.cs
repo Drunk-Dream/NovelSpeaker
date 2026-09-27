@@ -22,7 +22,6 @@ public static class SpeechRegistration
         services.TryAddSingleton<ITtsRuleSelectionUseCase, TtsRuleSelectionUseCase>();
         services.TryAddSingleton<ISelectedTtsRuleProvider, SelectedTtsRuleProvider>();
         services.TryAddSingleton<ITtsRuleEditorUseCase, TtsRuleEditorUseCase>();
-        services.TryAddSingleton<ITtsRuleImportUseCase, TtsRuleImportUseCase>();
         services.TryAddSingleton<IHttpTtsClient, TtsExecutionService>();
         services.TryAddSingleton<ITtsRuleTestService, TtsRuleTestService>();
         services.TryAddSingleton<IProviderRuntimeResolver, ProviderRuntimeResolver>();

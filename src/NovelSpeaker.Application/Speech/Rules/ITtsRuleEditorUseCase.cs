@@ -17,5 +17,4 @@ public interface ITtsRuleEditorUseCase
 
     Task SetRuleEnabledAsync(long ruleId, bool isEnabled, CancellationToken cancellationToken);
 
-    Task<string> ExportEditorJsonAsync(TtsRuleEditorModel editor, CancellationToken cancellationToken);
 }

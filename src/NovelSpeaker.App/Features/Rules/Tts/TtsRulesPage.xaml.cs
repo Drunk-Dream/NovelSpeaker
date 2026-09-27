@@ -1,4 +1,3 @@
-using System.Windows;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui.Abstractions.Controls;
@@ -62,20 +61,4 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
         return Task.CompletedTask;
     }
 
-    private async void ImportRuleFileButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        await RunEventOperationAsync("导入规则失败", ViewModel.ImportRuleFileAsync);
-    }
-
-    private async void ImportRulesFromClipboardButton_OnClick(object sender, RoutedEventArgs e)
-    {
-        await RunEventOperationAsync("从剪贴板导入失败", ViewModel.ImportRulesFromClipboardAsync);
-    }
-
-    private Task RunEventOperationAsync(
-        string failureTitle,
-        Func<CancellationToken, Task> operation)
-    {
-        return _eventOperations.RunAsync(_activation, failureTitle, operation);
-    }
 }

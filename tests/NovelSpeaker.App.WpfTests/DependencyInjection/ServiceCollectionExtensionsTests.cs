@@ -136,7 +136,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());
                 Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
                     provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
-                Assert.IsAssignableFrom<ITtsRuleImportUseCase>(provider.GetRequiredService<ITtsRuleImportUseCase>());
                 Assert.IsAssignableFrom<ITtsRuleEditorUseCase>(provider.GetRequiredService<ITtsRuleEditorUseCase>());
                 Assert.IsAssignableFrom<ITtsRuleSelectionUseCase>(provider.GetRequiredService<ITtsRuleSelectionUseCase>());
                 Assert.IsAssignableFrom<ITtsRuleQueries>(provider.GetRequiredService<ITtsRuleQueries>());
@@ -369,7 +368,6 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(ITtsRuleQueries),
             typeof(ITtsRuleSelectionUseCase),
             typeof(ITtsRuleEditorUseCase),
-            typeof(ITtsRuleImportUseCase),
             typeof(IHttpTtsClient),
             typeof(ITtsRuleTestService),
             typeof(IBookPlaybackContentService),

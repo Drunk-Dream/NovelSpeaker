@@ -11,7 +11,7 @@ public sealed class ArchitectureTests
     private void InfrastructurePublicTtsSourceApiDoesNotExposeJsonElement()
     {
         var jsonElementType = typeof(System.Text.Json.JsonElement);
-        var exposedMembers = typeof(NovelSpeaker.Infrastructure.Speech.Legado.LegadoRuleConverter)
+        var exposedMembers = typeof(NovelSpeaker.Infrastructure.Speech.Http.HttpTtsClient)
             .Assembly
             .GetExportedTypes()
             .Where(type => type.Namespace?.StartsWith("NovelSpeaker.Infrastructure.Speech", StringComparison.Ordinal) == true)
