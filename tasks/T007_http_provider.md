@@ -2,7 +2,15 @@
 
 ## 目标
 
-保留现有成熟 HTTP 请求、模板、限流、错误分类和音频验证能力，但把它们正式定义为 HTTP Provider，并删除 Legado/旧 TTS Rule 兼容包袱。
+保留现有成熟 HTTP 请求、模板、限流、错误分类和音频验证能力，但把它们正式定义为 HTTP Provider；实现并注册 HTTP Provider Runtime，供后续调用方通过统一 Provider Runtime 合成，并删除 Legado/旧 TTS Rule 兼容包袱。
+
+## HTTP Provider Runtime
+
+- 实现 `IProviderRuntime` 的 HTTP 类型运行时，并在 Infrastructure 注册，使 `IProviderRuntimeResolver` 能解析已配置的 HTTP Provider。
+- 运行时使用 Provider 的 typed HTTP configuration 和统一 synthesis request，复用现有安全模板执行、请求频率限制、HTTP 执行、响应验证及稳定失败语义。
+- 请求执行能力不得继续要求 Playback、Cache 或 Export 持有/读取 `HttpTtsRule`；这些调用方将在 T010 接入统一 Provider Runtime。
+- 未保存 Draft 的试听复用同一 HTTP Provider 合成能力，不另建一条绕过运行时实现的 HTTP 请求链路；试听不得改变 CurrentProvider 或进入章节缓存。
+- 增加针对运行时解析、合成结果和失败映射的核心行为验证；不以仅注册接口或仅通过编译作为完成依据。
 
 ## HTTP Provider 模型
 
@@ -120,6 +128,7 @@ Current Playback > Playback Prefetch > Active Cache
 - 同配置不同名新增，名称大小写差异且配置相同跳过；
 - 单 Provider 导出后重新导入的 round-trip；
 - Draft 试听使用 Draft + 当前全局语速且不改变 CurrentProvider。
+- HTTP Provider Runtime 可由 Resolver 解析，能通过现有 HTTP transport 完成合成，并将不可用/失败映射为统一 Speech 结果。
 
 不要恢复已删除的细粒度 ViewModel/XAML 测试。
 

@@ -46,7 +46,7 @@ Voice 列表：
 
 ## Runtime / Infrastructure
 
-- Edge 只通过 Provider Runtime 暴露给上层。
+- 实现 `IProviderRuntime` 的 Edge 类型运行时并注册到 `IProviderRuntimeResolver`；Edge 只通过统一 Provider Runtime 暴露给上层，不能只完成独立 transport 而留下不可调用的 Provider 类型。
 - transport 放在 Infrastructure。
 - 实现前先验证当前 Edge Read Aloud 接口所需协议和依赖，不把未经验证的第三方示例直接固化为架构。
 - 本任务完成前，必须用实际 Edge transport 对真实服务至少成功合成一次，并确认结果可解码；记录脱敏的验证环境、结果和日期作为任务完成证据，不保存文本、完整请求或音频为长期测试资产。仅有 fake/in-memory transport 测试不足以宣称 Edge Provider 可用。
@@ -58,6 +58,7 @@ Voice 列表：
 - Playback Volume 不发送给 Edge。
 - `ProviderSynthesisFingerprint` 至少包含 VoiceId 与 Edge 合成协议/映射合同版本。
 - Edge 外部协议失败应映射为现有稳定 Speech 错误语义，不让实验 Provider 破坏 Playback 状态机。
+- Runtime 接受统一 Provider synthesis request，负责把 typed Edge configuration、Voice 与语速映射到 transport；协议 DTO 不泄露到 Application 公共合同。
 
 ## 自动验收
 

@@ -11,6 +11,7 @@
 本阶段目标：
 
 - 明确区分 Provider Type 与 Provider Instance；
+- T006 暂时断开的 TTS 调用链由后续任务重新接通：T007/T009 提供并注册各 Provider Runtime，T010 将 Playback/Prefetch/Active Cache 接回 Runtime，并让 Coverage/Export 使用 Provider 与 fingerprint 合同；
 - 用统一 Provider Runtime 替代 Playback/Cache 对 `HttpTtsRule` 的直接依赖；
 - 把现有 HTTP 请求能力收敛为 HTTP Provider，并清理 Legado/旧 TTS Rule 兼容包袱；
 - 统一 Provider 排序，并让管理页与播放页使用同一顺序；
@@ -131,6 +132,6 @@
 
 实施规格：`tasks/T010_provider_playback_cache_cleanup.md`
 
-目标：让 Playback、Prefetch、Active Cache、Coverage、Export 和播放页全部以 Provider 为唯一语音服务模型；完成 ProviderSynthesisFingerprint、播放页 Provider 选择器和旧 TTS Rule 代码/术语清理；最后执行完整 Release 质量门禁。
+目标：将 T006 暂时断开的 TTS 生产调用链接回已注册的 Provider Runtime，让 Playback、Prefetch、Active Cache、Coverage、Export 和播放页全部恢复 Provider 语音服务能力；完成 ProviderSynthesisFingerprint、播放页 Provider 选择器和旧 TTS Rule 代码/术语清理；最后执行完整 Release 质量门禁。T010 验收前不得留下仅有接口/模型、生产调用方仍未接通的状态。
 
 T010 为本阶段收口任务。

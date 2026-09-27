@@ -2,7 +2,16 @@
 
 ## 目标
 
-让 Playback、Prefetch、Active Cache、Coverage、Export 和播放页 UI 全部以 Provider 为唯一语音服务模型，并删除旧 TTS Rule 顶层模型、旧术语和兼容路径。
+将 T006 暂时断开的 TTS 生产调用链重新接到 T007/T009 已实现并注册的 Provider Runtime，让 Playback、Prefetch、Active Cache、Coverage、Export 和播放页 UI 全部恢复 Provider 语音服务能力，并删除旧 TTS Rule 顶层模型、旧术语和兼容路径。本任务完成前，语音服务不得停留在“核心模型和接口已存在、生产调用方尚未接通”的中间状态。
+
+## 恢复 Provider Runtime 调用链
+
+- 盘点并接通现有语音生产入口；Playback、Prefetch 和 Active Cache 使用 `IProviderRuntimeResolver` / `IProviderRuntime` 解析并调用当前 Provider，不再依赖旧 TTS Rule 选择或执行接口。Coverage 和 Export 通过 Provider 配置、`ProviderSynthesisFingerprint` 与 Cache-owned integration 工作，不直接调用合成 Runtime。
+- Provider Runtime 的生产实现必须由 T007/T009 提供并在应用启动时注册；不得用空实现、仅测试替身或临时直连旧执行服务满足接线要求。
+- Runtime 调用方把持久化的 Provider typed configuration、语速和所需文本配置转换为统一 synthesis request，并沿用各自既有生命周期、取消和错误处理边界。
+- Provider 缺失、未配置或 Runtime 不可用时，播放与合成后台任务保持可理解的稳定状态，不静默回退到旧 TTS Rule 或其它 Provider。
+- HTTP 与 Edge 的试听、章节合成、预取和活动缓存通过 Provider Runtime 合成；试听不进入章节缓存。Coverage 与 Export 使用当前 Provider synthesis fingerprint，Export 只消费符合该 fingerprint 的可验证缓存。
+- 验收必须覆盖真实应用组合路径：已注册的 Provider Runtime 被生产调用方解析并调用，合成结果进入原有播放/缓存/导出流程。仅验证接口、Resolver、Runtime 单体或 UI 展示不足以证明已恢复。
 
 ## 播放页 Provider 选择器
 
@@ -99,6 +108,7 @@ HTTP Provider 内部仍可正常使用“请求规则”“模板规则”等普
 - Active Cache snapshot 冻结；
 - Provider fingerprint 缓存复用/失效；
 - Playback / Prefetch / Export 通过 Provider Runtime 工作；
+- 已注册 Runtime 贯通生产 Playback、Active Cache 和 Export 调用链，且缺失/未配置状态不会回退到旧执行链；
 - 播放页在 CurrentProvider=None / 无可用 Provider 时保持核心可用状态。
 
 完成后执行完整质量门禁：
