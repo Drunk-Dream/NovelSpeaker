@@ -160,6 +160,8 @@ Wpf.Ui provider
 - 应用级不为标准控件建立 NovelSpeaker 隐式样式接管。
 - 标准控件完整 ControlTemplate 替换只允许局部、明确且有 WPF 合同测试的场景。
 
+文本框、密码框和下拉框统一采用桌面输入密度：Standard 最小高度 32 DIP、内边距 `10,4`，Compact 最小高度 28 DIP、内边距 `8,2`，由全局 Input Token 和显式 `App.Input.*` 样式控制。文字使用正文大小；文本输入保持左对齐，多行输入随内容增高，页面可以按编辑需求声明更大的最小高度。按钮与开关继续使用各自的点击区域约定。
+
 ## 10. Shared Controls
 
 全局 Shared 只包含真实跨 Feature 复用的应用自有 UI primitive，例如：

@@ -21,13 +21,17 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="ProviderSurface" TargetType="Border" BasedOn="{StaticResource App.Selection.CardItem}">
+            <Setter Property="MinHeight" Value="72" />
+            <Setter Property="Padding" Value="14,12" />
+        </Style>
         <Style x:Key="ProviderCard" TargetType="speech:SpeechProviderListItemView">
             <Setter Property="MinHeight" Value="72" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="speech:SpeechProviderListItemView">
                         <Grid Margin="0,4,0,4" Background="Transparent">
-                            <Border x:Name="Surface" Style="{StaticResource App.Selection.ListItem}" Padding="14,12">
+                            <Border x:Name="Surface" Style="{StaticResource ProviderSurface}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -39,7 +43,7 @@
                                             Command="{Binding Tag.SelectProviderCommand, RelativeSource={RelativeSource TemplatedParent}}"
                                             CommandParameter="{TemplateBinding CommandParameter}"
                                             AutomationProperties.Name="{Binding Name}" />
-                                    <StackPanel IsHitTestVisible="False" Margin="0,0,16,0">
+                                    <StackPanel IsHitTestVisible="False" Margin="0,0,16,0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
                                                    Style="{StaticResource ProviderTitle}" />
                                         <TextBlock Text="{Binding TypeDisplayName}" Margin="0,4,0,0"
@@ -194,11 +198,34 @@
             </commonControls:AppSectionSurface>
 
             <commonControls:AppSectionSurface x:Name="EditorSurface"
-                                              Grid.Column="2"
-                                              Header="语音服务配置"
-                                              Description="修改请求字段后可直接试听编辑副本，再保存更改。">
+                                              Grid.Column="2">
                 <Grid MinHeight="0">
-                    <feedbackControls:AppStatusView HorizontalAlignment="Stretch"
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="语音服务配置" VerticalAlignment="Center"
+                                   Style="{StaticResource App.Typography.SectionTitle}" />
+                        <ui:Button Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                                   Style="{StaticResource App.Button.Icon}" Command="{Binding OpenHelpCommand}"
+                                   IsEnabled="{Binding CanManage}"
+                                   Visibility="{Binding IsHttpEditor, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                   ToolTip="HTTP 模板帮助" AutomationProperties.Name="HTTP 模板帮助"
+                                   Icon="{ui:SymbolIcon Symbol=QuestionCircle24}" />
+                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,4,0,0"
+                                   Text="修改请求字段后可直接试听编辑副本，再保存更改。"
+                                   Style="{StaticResource App.Typography.Secondary}" />
+                    </Grid>
+                    <feedbackControls:AppStatusView Grid.Row="1" HorizontalAlignment="Stretch"
                                                     VerticalAlignment="Center"
                                                     Status="Empty"
                                                     Icon="DocumentEdit24"
@@ -218,6 +245,7 @@
                     </feedbackControls:AppStatusView>
 
                     <ScrollViewer x:Name="RuleEditorScrollViewer"
+                                  Grid.Row="1" Margin="0,16,0,0"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ScrollViewer.Style>
@@ -232,10 +260,6 @@
                         </ScrollViewer.Style>
 
                         <StackPanel IsEnabled="{Binding CanManage}">
-                            <ui:Button HorizontalAlignment="Right" Margin="0,0,0,12"
-                                       Style="{StaticResource App.Button.Icon}" Command="{Binding OpenHelpCommand}"
-                                       ToolTip="HTTP 模板帮助" AutomationProperties.Name="HTTP 模板帮助"
-                                       Icon="{ui:SymbolIcon Symbol=QuestionCircle24}" />
                             <formControls:AppFormField Label="名称" Required="True">
                                 <TextBox Style="{StaticResource App.Input.TextBox.Standard}"
                                          Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}"

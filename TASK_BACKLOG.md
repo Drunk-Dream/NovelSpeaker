@@ -135,3 +135,11 @@
 目标：将 T006 暂时断开的 TTS 生产调用链接回已注册的 Provider Runtime，让 Playback、Prefetch、Active Cache、Coverage、Export 和播放页全部恢复 Provider 语音服务能力；完成 ProviderSynthesisFingerprint、播放页 Provider 选择器和旧 TTS Rule 代码/术语清理；最后执行完整 Release 质量门禁。T010 验收前不得留下仅有接口/模型、生产调用方仍未接通的状态。
 
 T010 为本阶段收口任务。
+
+## [x] T011（P1）：修正语音服务卡片并统一输入密度
+
+依赖：T008；本项按用户反馈独立修复，不重新激活 T008。
+
+目标：设置常用入口按常规、播放设置、语音服务排序；语音服务卡片沿用规则卡片的边框和交互语义；帮助按钮与编辑标题同行；从全局样式约定统一收紧文本框、密码框和下拉框。
+
+完成成果：常用入口已按指定顺序排列；Provider 卡片共用 CardItem 表面状态并采用规则卡片几何，帮助按钮移至编辑标题同行。文本框、密码框和下拉框使用全局 Input Token，Standard 为 32 DIP / `10,4`，Compact 为 28 DIP / `8,2`；保留 Stretch 内容布局，文本显式左对齐，多行输入顶部对齐。长期视觉约定同步更新；设置键盘导航核心测试已适配，未新增永久视觉结构测试。focused tests、Release build、format 及隔离桌面 Light/Dark 临时布局和交互验证通过，临时代码和产物已清理。
