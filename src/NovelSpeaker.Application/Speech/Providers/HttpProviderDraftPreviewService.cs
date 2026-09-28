@@ -18,6 +18,8 @@ public sealed class HttpProviderDraftPreviewService(
         remove => player.PlaybackFailed -= value;
     }
 
+    public Task StopAsync(CancellationToken cancellationToken) => player.StopAsync(cancellationToken);
+
     public Task<ProviderSynthesisResult> PreviewAsync(
         SpeechProviderInstance draft,
         CancellationToken cancellationToken)

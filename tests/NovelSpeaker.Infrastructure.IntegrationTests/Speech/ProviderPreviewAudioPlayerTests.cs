@@ -47,8 +47,9 @@ public sealed class ProviderPreviewAudioPlayerTests
                 Assert.Equal("试听播放中断，请检查音频设备。", playbackFailure);
 
                 var lastPath = fake.LastLoadedPath;
-                await preview.DisposeAsync();
+                await preview.StopAsync(CancellationToken.None);
                 Assert.False(File.Exists(lastPath));
+                await preview.DisposeAsync();
             }
         }
         finally

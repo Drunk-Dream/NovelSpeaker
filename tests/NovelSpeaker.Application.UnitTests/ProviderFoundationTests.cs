@@ -277,6 +277,12 @@ public sealed class ProviderFoundationTests
 
         public Task SaveAsync(SpeechProviderInstance provider, CancellationToken cancellationToken) => Task.CompletedTask;
 
+        public Task InsertAfterAsync(SpeechProviderInstance provider, ProviderId precedingId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task UpdateSortOrderAsync(IReadOnlyList<ProviderId> orderedIds, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
         public Task DeleteAsync(ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 

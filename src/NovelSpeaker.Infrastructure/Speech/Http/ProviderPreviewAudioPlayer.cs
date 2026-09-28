@@ -80,6 +80,19 @@ internal sealed class ProviderPreviewAudioPlayer : IProviderPreviewAudioPlayer
         }
     }
 
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await ResetPlayerSafelyAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _gate.WaitAsync().ConfigureAwait(false);

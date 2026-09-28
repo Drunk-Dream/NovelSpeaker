@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.Application.Settings;
 
 namespace NovelSpeaker.Application.Speech.Providers;
 
@@ -36,8 +37,8 @@ public sealed record ProviderExportResult(
     string? Json,
     string Message);
 
-/// <summary>Owns HTTP Provider draft saves, independent imports, and export confirmation.</summary>
-public sealed class HttpProviderWorkspace(IProviderStore store, TimeProvider timeProvider)
+/// <summary>Owns Provider management mutations, HTTP drafts, imports, and export confirmation.</summary>
+public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider timeProvider, IAppSettingsService settings)
 {
     public const string ExportWarning =
         "导出文件可能包含 API Key、Token、Cookie 等凭据。请确认保存位置或剪贴板接收方可信。";
@@ -182,6 +183,97 @@ public sealed class HttpProviderWorkspace(IProviderStore store, TimeProvider tim
             ? new ProviderExportResult(ProviderExportStatus.Ready,
                 ProviderEnvelopeCodec.Write(provider), string.Empty)
             : new ProviderExportResult(ProviderExportStatus.ConfirmationRequired, null, ExportWarning);
+    }
+
+    public async Task<SpeechProviderInstance> CopyAsync(ProviderId sourceId, CancellationToken cancellationToken)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var existing = await store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+            var source = existing.FirstOrDefault(provider => provider.Id == sourceId);
+            if (source?.Configuration is not HttpSpeechProviderConfiguration http)
+            {
+                throw new InvalidOperationException("该语音服务不可复制。");
+            }
+            var names = existing.Select(provider => provider.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var now = timeProvider.GetUtcNow();
+            var copy = source with
+            {
+                Id = ProviderId.New(),
+                Name = ProviderImportPlanner.MakeUniqueName($"{source.Name} (副本)", names),
+                Configuration = http with { Headers = new Dictionary<string, string>(http.Headers, StringComparer.OrdinalIgnoreCase) },
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            await store.InsertAfterAsync(copy, source.Id, cancellationToken).ConfigureAwait(false);
+            return await store.GetByIdAsync(copy.Id, cancellationToken).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("复制的语音服务不可用。");
+        }
+        finally
+        {
+            _mutationGate.Release();
+        }
+    }
+
+    public async Task ReorderAsync(IReadOnlyList<ProviderId> orderedIds, CancellationToken cancellationToken)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var existing = await store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+            if (orderedIds.Count != existing.Count || orderedIds.Distinct().Count() != orderedIds.Count ||
+                !existing.Select(provider => provider.Id).ToHashSet().SetEquals(orderedIds))
+            {
+                throw new InvalidOperationException("语音服务列表已变化，请刷新后重试。");
+            }
+
+            await store.UpdateSortOrderAsync(orderedIds, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _mutationGate.Release();
+        }
+    }
+
+    public async Task DeleteAsync(ProviderId providerId, CancellationToken cancellationToken)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var provider = await store.GetByIdAsync(providerId, cancellationToken).ConfigureAwait(false);
+            if (provider?.Type != SpeechProviderType.Http)
+            {
+                throw new InvalidOperationException("该语音服务不可删除。");
+            }
+
+            // Clear selection before deleting: settings failures must not leave a deleted current Provider.
+            var wasCurrent = settings.Current.CurrentProviderId == providerId;
+            if (wasCurrent)
+            {
+                await settings.UpdateAsync(new AppSettingsUpdate { ClearCurrentProvider = true }, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            try
+            {
+                await store.DeleteAsync(providerId, cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                if (wasCurrent && settings.Current.CurrentProviderId is null)
+                {
+                    await settings.UpdateAsync(new AppSettingsUpdate { CurrentProviderId = providerId },
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+
+                throw;
+            }
+        }
+        finally
+        {
+            _mutationGate.Release();
+        }
     }
 
     private static int NextSortOrder(IReadOnlyList<SpeechProviderInstance> existing)

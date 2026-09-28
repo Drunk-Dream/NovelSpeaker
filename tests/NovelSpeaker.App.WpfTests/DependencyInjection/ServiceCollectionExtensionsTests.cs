@@ -115,7 +115,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<PlayerViewModel>(provider.GetRequiredService<PlayerViewModel>());
                 Assert.IsType<RegexReplacementRulesViewModel>(provider.GetRequiredService<RegexReplacementRulesViewModel>());
                 Assert.IsType<SettingsViewModel>(provider.GetRequiredService<SettingsViewModel>());
-                Assert.IsType<TtsRulesViewModel>(provider.GetRequiredService<TtsRulesViewModel>());
+                Assert.IsType<SpeechServicesViewModel>(provider.GetRequiredService<SpeechServicesViewModel>());
                 Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>());
                 Assert.IsType<SettingsPage>(provider.GetRequiredService<SettingsPage>());
                 Assert.IsType<CacheAndDataPage>(provider.GetRequiredService<CacheAndDataPage>());
@@ -124,7 +124,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<AppearanceSettingsPage>(provider.GetRequiredService<AppearanceSettingsPage>());
                 Assert.IsType<DiagnosticsAboutPage>(provider.GetRequiredService<DiagnosticsAboutPage>());
                 Assert.IsType<PlayerPage>(provider.GetRequiredService<PlayerPage>());
-                Assert.IsType<TtsRulesPage>(provider.GetRequiredService<TtsRulesPage>());
+                Assert.IsType<SpeechServicesPage>(provider.GetRequiredService<SpeechServicesPage>());
                 Assert.IsType<ChapterRulesPage>(provider.GetRequiredService<ChapterRulesPage>());
                 Assert.IsType<BookDetailsPage>(provider.GetRequiredService<BookDetailsPage>());
                 Assert.IsType<CacheManagementPage>(provider.GetRequiredService<CacheManagementPage>());
@@ -284,8 +284,8 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<DiagnosticsAboutViewModel>(),
                     provider.GetRequiredService<DiagnosticsAboutViewModel>());
                 Assert.NotSame(
-                    provider.GetRequiredService<TtsRulesViewModel>(),
-                    provider.GetRequiredService<TtsRulesViewModel>());
+                    provider.GetRequiredService<SpeechServicesViewModel>(),
+                    provider.GetRequiredService<SpeechServicesViewModel>());
                 Assert.NotSame(
                     provider.GetRequiredService<LibraryPage>(),
                     provider.GetRequiredService<LibraryPage>());
@@ -320,8 +320,8 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<DiagnosticsAboutPage>(),
                     provider.GetRequiredService<DiagnosticsAboutPage>());
                 Assert.NotSame(
-                    provider.GetRequiredService<TtsRulesPage>(),
-                    provider.GetRequiredService<TtsRulesPage>());
+                    provider.GetRequiredService<SpeechServicesPage>(),
+                    provider.GetRequiredService<SpeechServicesPage>());
             }
             finally
             {

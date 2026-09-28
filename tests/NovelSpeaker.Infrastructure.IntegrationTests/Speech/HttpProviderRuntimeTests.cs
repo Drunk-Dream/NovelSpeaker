@@ -194,6 +194,12 @@ public sealed class HttpProviderRuntimeTests
         public Task SaveAsync(SpeechProviderInstance value, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task InsertAfterAsync(SpeechProviderInstance provider, ProviderId precedingId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task UpdateSortOrderAsync(IReadOnlyList<ProviderId> orderedIds, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
         public Task DeleteAsync(ProviderId providerId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

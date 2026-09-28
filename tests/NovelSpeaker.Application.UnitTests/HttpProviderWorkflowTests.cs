@@ -179,7 +179,7 @@ public sealed class HttpProviderWorkflowTests
     {
         var existing = CreateProvider("HTTP Provider") with { SortOrder = 4 };
         var store = new RecordingProviderStore(existing);
-        var workspace = new HttpProviderWorkspace(store, TimeProvider.System);
+        var workspace = new SpeechProviderWorkspace(store, TimeProvider.System, new FakeSettings(AppSettings.Default));
 
         var draft = await workspace.CreateDraftAsync(CancellationToken.None);
         Assert.Equal("HTTP Provider (2)", draft.Name);
@@ -208,7 +208,7 @@ public sealed class HttpProviderWorkflowTests
         {
             FailNextSave = true
         };
-        var workspace = new HttpProviderWorkspace(store, TimeProvider.System);
+        var workspace = new SpeechProviderWorkspace(store, TimeProvider.System, new FakeSettings(AppSettings.Default));
         var json = """
             {
               "schemaVersion": 1,
@@ -248,7 +248,7 @@ public sealed class HttpProviderWorkflowTests
                 "https://example.com/audio", "GET",
                 new Dictionary<string, string> { ["Cookie"] = "session=secret" }, null, null)
         };
-        var workspace = new HttpProviderWorkspace(new RecordingProviderStore(provider), TimeProvider.System);
+        var workspace = new SpeechProviderWorkspace(new RecordingProviderStore(provider), TimeProvider.System, new FakeSettings(AppSettings.Default));
 
         var warning = await workspace.ExportAsync(provider.Id, false, CancellationToken.None);
         var exported = await workspace.ExportAsync(provider.Id, true, CancellationToken.None);
@@ -261,7 +261,7 @@ public sealed class HttpProviderWorkflowTests
             .Configuration!.Headers["Cookie"]);
 
         var importedStore = new RecordingProviderStore();
-        var imported = await new HttpProviderWorkspace(importedStore, TimeProvider.System)
+        var imported = await new SpeechProviderWorkspace(importedStore, TimeProvider.System, new FakeSettings(AppSettings.Default))
             .ImportAsync(exported.Json!, CancellationToken.None);
         Assert.Equal(1, imported.ImportedCount);
         var copy = Assert.Single(importedStore.Items);
@@ -323,6 +323,8 @@ public sealed class HttpProviderWorkflowTests
             return Task.FromResult(new ProviderPreviewPlaybackResult(true, null));
         }
 
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
         public void RaiseFailure() =>
@@ -352,6 +354,12 @@ public sealed class HttpProviderWorkflowTests
             Items.Add(provider);
             return Task.CompletedTask;
         }
+
+        public Task InsertAfterAsync(SpeechProviderInstance provider, ProviderId precedingId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task UpdateSortOrderAsync(IReadOnlyList<ProviderId> orderedIds, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
 
         public Task DeleteAsync(ProviderId providerId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

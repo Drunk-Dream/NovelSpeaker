@@ -17,6 +17,7 @@ public sealed partial class SettingsViewModel : ObservableObject
             new SettingsNavigationGroupViewModel(
                 "常用",
                 [
+                    new SettingsNavigationItemViewModel("语音服务", SettingsNavigationIcon.SpeechServices, OpenSpeechServicesCommand),
                     new SettingsNavigationItemViewModel("播放设置", SettingsNavigationIcon.Playback, OpenPlaybackSettingsCommand),
                     new SettingsNavigationItemViewModel("常规", SettingsNavigationIcon.General, OpenGeneralSettingsCommand)
                 ]),
@@ -37,6 +38,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     public IReadOnlyList<SettingsNavigationGroupViewModel> Groups { get; }
+
+    [RelayCommand]
+    private Task OpenSpeechServicesAsync(CancellationToken cancellationToken) =>
+        _navigator.NavigateAsync(AppRoutes.SpeechServices, cancellationToken);
 
     [RelayCommand]
     private Task OpenPlaybackSettingsAsync(CancellationToken cancellationToken)

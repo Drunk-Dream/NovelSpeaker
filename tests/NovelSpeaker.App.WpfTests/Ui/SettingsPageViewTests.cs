@@ -37,6 +37,7 @@ public sealed class SettingsPageViewTests
             var rows = VisualTreeTestHelper.FindDescendants<AppSettingsNavigationRow>(page).ToArray();
             var expectedRoutes = new[]
             {
+                AppRoutes.SpeechServices,
                 AppRoutes.PlaybackSettings,
                 AppRoutes.GeneralSettings,
                 AppRoutes.ImportTextSettings,

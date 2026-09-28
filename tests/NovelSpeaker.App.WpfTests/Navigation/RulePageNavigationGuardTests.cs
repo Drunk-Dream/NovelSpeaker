@@ -77,9 +77,9 @@ public sealed class RulePageNavigationGuardTests
 
     private static (Page, object) CreateTtsPage(IServiceProvider provider, INavigationGuardService guard)
     {
-        var viewModel = provider.GetRequiredService<TtsRulesViewModel>();
+        var viewModel = provider.GetRequiredService<SpeechServicesViewModel>();
         return (
-            new TtsRulesPage(
+            new SpeechServicesPage(
                 viewModel,
                 guard,
                 provider.GetRequiredService<PageEventOperationRunner>()),
@@ -112,7 +112,7 @@ public sealed class RulePageNavigationGuardTests
     {
         return pageKind switch
         {
-            RulePageKind.Tts => ((TtsRulesPage)page).OnNavigatedFromAsync(),
+            RulePageKind.Tts => ((SpeechServicesPage)page).OnNavigatedFromAsync(),
             RulePageKind.Chapter => ((ChapterRulesPage)page).OnNavigatedFromAsync(),
             RulePageKind.RegexReplacement => ((RegexReplacementRulesPage)page).OnNavigatedFromAsync(),
             _ => throw new ArgumentOutOfRangeException(nameof(pageKind))
@@ -123,7 +123,7 @@ public sealed class RulePageNavigationGuardTests
     {
         return pageKind switch
         {
-            RulePageKind.Tts => ((TtsRulesPage)page).OnNavigatedToAsync(),
+            RulePageKind.Tts => ((SpeechServicesPage)page).OnNavigatedToAsync(),
             RulePageKind.Chapter => ((ChapterRulesPage)page).OnNavigatedToAsync(),
             RulePageKind.RegexReplacement => ((RegexReplacementRulesPage)page).OnNavigatedToAsync(),
             _ => throw new ArgumentOutOfRangeException(nameof(pageKind))

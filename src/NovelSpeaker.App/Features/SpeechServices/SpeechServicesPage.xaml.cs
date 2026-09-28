@@ -2,16 +2,16 @@ using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui.Abstractions.Controls;
 
-namespace NovelSpeaker.App.Features.Rules.Tts;
+namespace NovelSpeaker.App.Features.SpeechServices;
 
-public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<TtsRulesViewModel>
+public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<SpeechServicesViewModel>
 {
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
     private readonly PageEventOperationRunner _eventOperations;
 
-    public TtsRulesPage(
-        TtsRulesViewModel viewModel,
+    public SpeechServicesPage(
+        SpeechServicesViewModel viewModel,
         INavigationGuardService navigationGuardService,
         PageEventOperationRunner eventOperations)
         : this()
@@ -22,7 +22,7 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
         DataContext = ViewModel;
     }
 
-    internal TtsRulesPage()
+    internal SpeechServicesPage()
     {
         ViewModel = null!;
         _navigationGuardService = null!;
@@ -30,7 +30,7 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
         InitializeComponent();
     }
 
-    public TtsRulesViewModel ViewModel { get; }
+    public SpeechServicesViewModel ViewModel { get; }
 
     public async Task OnNavigatedToAsync()
     {
@@ -55,10 +55,10 @@ public partial class TtsRulesPage : System.Windows.Controls.Page, INavigationAwa
         }
     }
 
-    public Task OnNavigatedFromAsync()
+    public async Task OnNavigatedFromAsync()
     {
         _activation.Deactivate();
-        return Task.CompletedTask;
+        await ViewModel.FinishDeactivationAsync();
     }
 
 }

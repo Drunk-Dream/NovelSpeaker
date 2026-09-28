@@ -5,6 +5,8 @@ public interface IProviderPreviewAudioPlayer : IAsyncDisposable
 {
     event EventHandler<ProviderPreviewPlaybackFailedEventArgs>? PlaybackFailed;
 
+    Task StopAsync(CancellationToken cancellationToken);
+
     Task<ProviderPreviewPlaybackResult> PlayAsync(
         Stream audio,
         string? audioFormat,

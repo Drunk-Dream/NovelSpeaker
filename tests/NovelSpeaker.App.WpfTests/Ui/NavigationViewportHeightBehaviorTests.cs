@@ -22,7 +22,7 @@ public sealed class NavigationViewportHeightBehaviorTests
                 Page[] pages =
                 [
                     provider.GetRequiredService<BookDetailsPage>(),
-                    provider.GetRequiredService<TtsRulesPage>(),
+                    provider.GetRequiredService<SpeechServicesPage>(),
                     provider.GetRequiredService<ChapterRulesPage>(),
                     provider.GetRequiredService<RegexReplacementRulesPage>(),
                     provider.GetRequiredService<CacheManagementPage>()

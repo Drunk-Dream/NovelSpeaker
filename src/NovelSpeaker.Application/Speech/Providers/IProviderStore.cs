@@ -10,5 +10,9 @@ public interface IProviderStore
 
     Task SaveAsync(SpeechProviderInstance provider, CancellationToken cancellationToken);
 
+    Task InsertAfterAsync(SpeechProviderInstance provider, ProviderId precedingId, CancellationToken cancellationToken);
+
+    Task UpdateSortOrderAsync(IReadOnlyList<ProviderId> orderedIds, CancellationToken cancellationToken);
+
     Task DeleteAsync(ProviderId providerId, CancellationToken cancellationToken);
 }

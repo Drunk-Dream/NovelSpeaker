@@ -667,6 +667,7 @@ public sealed class ArchitectureTests
                      "PlaybackSettings",
                      "Rules",
                      "Settings",
+                     "SpeechServices",
                  })
         {
             Assert.True(
@@ -681,8 +682,7 @@ public sealed class ArchitectureTests
                      "Books/Shared",
                      "Rules/Chapter",
                      "Rules/Regex",
-                     "Rules/Shared",
-                     "Rules/Tts"
+                     "Rules/Shared"
                  })
         {
             Assert.True(

@@ -66,7 +66,13 @@ public sealed class SqliteProviderStore : IProviderStore
             : null;
     }
 
-    public async Task SaveAsync(SpeechProviderInstance provider, CancellationToken cancellationToken)
+    public Task SaveAsync(SpeechProviderInstance provider, CancellationToken cancellationToken) =>
+        SaveCoreAsync(provider, null, cancellationToken);
+
+    public Task InsertAfterAsync(SpeechProviderInstance provider, ProviderId precedingId, CancellationToken cancellationToken) =>
+        SaveCoreAsync(provider, precedingId, cancellationToken);
+
+    private async Task SaveCoreAsync(SpeechProviderInstance provider, ProviderId? precedingId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentOutOfRangeException.ThrowIfEqual(provider.Id.Value, Guid.Empty);
@@ -81,6 +87,26 @@ public sealed class SqliteProviderStore : IProviderStore
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
         try
         {
+            List<string>? insertionOrder = null;
+            if (precedingId is not null)
+            {
+                insertionOrder = [];
+                await using (var orderCommand = connection.CreateCommand())
+                {
+                    orderCommand.Transaction = transaction;
+                    orderCommand.CommandText = "SELECT Id FROM SpeechProviders ORDER BY SortOrder, Id;";
+                    await using var reader = await orderCommand.ExecuteReaderAsync(cancellationToken);
+                    while (await reader.ReadAsync(cancellationToken)) insertionOrder.Add(reader.GetString(0));
+                }
+                var sourceIndex = insertionOrder.IndexOf(precedingId.Value.ToString());
+                if (sourceIndex < 0 || insertionOrder.Contains(provider.Id.ToString()))
+                {
+                    throw new InvalidOperationException("语音服务列表已变化，请刷新后重试。");
+                }
+                provider = provider with { SortOrder = sourceIndex + 1 };
+                insertionOrder.Insert(sourceIndex + 1, provider.Id.ToString());
+            }
+
             await using (var providerCommand = connection.CreateCommand())
             {
                 providerCommand.Transaction = transaction;
@@ -131,11 +157,49 @@ public sealed class SqliteProviderStore : IProviderStore
                 await configurationCommand.ExecuteNonQueryAsync(cancellationToken);
             }
 
+            if (insertionOrder is not null)
+            {
+                await WriteSortOrderAsync(connection, transaction, insertionOrder, cancellationToken);
+            }
             await transaction.CommitAsync(cancellationToken);
         }
         catch (SqliteException exception) when (exception.SqliteErrorCode == 19)
         {
             throw new InvalidOperationException("Provider 名称必须全局唯一（忽略大小写）。", exception);
+        }
+    }
+
+    public async Task UpdateSortOrderAsync(IReadOnlyList<ProviderId> orderedIds, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(orderedIds);
+        if (orderedIds.Distinct().Count() != orderedIds.Count)
+        {
+            throw new ArgumentException("Provider order contains duplicate IDs.", nameof(orderedIds));
+        }
+
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+        await WriteSortOrderAsync(connection, transaction, orderedIds.Select(id => id.ToString()).ToArray(), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static async Task WriteSortOrderAsync(SqliteConnection connection, SqliteTransaction transaction,
+        IReadOnlyList<string> orderedIds, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "UPDATE SpeechProviders SET SortOrder = $order WHERE Id = $id;";
+        var idParameter = command.Parameters.Add("$id", SqliteType.Text);
+        var orderParameter = command.Parameters.Add("$order", SqliteType.Integer);
+        for (var index = 0; index < orderedIds.Count; index++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            idParameter.Value = orderedIds[index];
+            orderParameter.Value = index;
+            if (await command.ExecuteNonQueryAsync(cancellationToken) != 1)
+            {
+                throw new InvalidOperationException("语音服务列表已变化，请刷新后重试。");
+            }
         }
     }
 

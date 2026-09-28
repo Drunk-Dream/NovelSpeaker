@@ -1,6 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
-namespace NovelSpeaker.App.Features.Rules.Tts;
+namespace NovelSpeaker.App.Features.SpeechServices;
 
 public sealed partial class EditableKeyValueItemViewModel : ObservableObject
 {

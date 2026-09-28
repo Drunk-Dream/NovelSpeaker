@@ -178,6 +178,21 @@ public sealed class SpeechProviderPersistenceTests
         await store.SaveAsync(first with { Name = "Renamed", SortOrder = 3 }, CancellationToken.None);
         Assert.Equal(["Second", "Renamed"], (await store.GetAllAsync(CancellationToken.None)).Select(provider => provider.Name));
 
+        await store.UpdateSortOrderAsync([first.Id, second.Id], CancellationToken.None);
+        Assert.Equal(["Renamed", "Second"], (await store.GetAllAsync(CancellationToken.None)).Select(provider => provider.Name));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.UpdateSortOrderAsync(
+            [second.Id, ProviderId.New()], CancellationToken.None));
+        Assert.Equal(["Renamed", "Second"], (await new SqliteProviderStore(factory).GetAllAsync(CancellationToken.None)).Select(provider => provider.Name));
+
+        var copy = first with { Id = ProviderId.New(), Name = "Copy" };
+        await store.InsertAfterAsync(copy, first.Id, CancellationToken.None);
+        Assert.Equal([first.Id, copy.Id, second.Id], (await store.GetAllAsync(CancellationToken.None)).Select(provider => provider.Id));
+        var rejected = copy with { Id = ProviderId.New(), Name = "Another copy" };
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.InsertAfterAsync(rejected, ProviderId.New(), CancellationToken.None));
+        Assert.Null(await store.GetByIdAsync(rejected.Id, CancellationToken.None));
+        Assert.Equal([first.Id, copy.Id, second.Id], (await store.GetAllAsync(CancellationToken.None)).Select(provider => provider.Id));
+        await store.DeleteAsync(copy.Id, CancellationToken.None);
+
         await store.DeleteAsync(second.Id, CancellationToken.None);
         Assert.Null(await store.GetByIdAsync(second.Id, CancellationToken.None));
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);

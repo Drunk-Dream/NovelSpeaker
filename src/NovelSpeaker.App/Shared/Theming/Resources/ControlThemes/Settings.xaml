@@ -15,7 +15,7 @@
                             <Setter Property="Symbol" Value="PlayCircle24" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding}"
-                                     Value="{x:Static theming:SettingsNavigationIcon.TtsRules}">
+                                     Value="{x:Static theming:SettingsNavigationIcon.SpeechServices}">
                             <Setter Property="Symbol" Value="Speaker124" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding}"

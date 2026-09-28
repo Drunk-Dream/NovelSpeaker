@@ -15,7 +15,7 @@ using NovelSpeaker.App.Features.Playback;
 using NovelSpeaker.App.Features.PlaybackSettings;
 using NovelSpeaker.App.Features.Rules.Regex;
 using NovelSpeaker.App.Features.Settings;
-using NovelSpeaker.App.Features.Rules.Tts;
+using NovelSpeaker.App.Features.SpeechServices;
 using NovelSpeaker.App.Shared;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Activation;
@@ -50,6 +50,6 @@ public static class ServiceCollectionExtensions
             .AddPlaybackSettingsFeature()
             .AddRegexReplacementRulesFeature()
             .AddSettingsFeature()
-            .AddTtsRulesFeature();
+            .AddSpeechServicesFeature();
     }
 }

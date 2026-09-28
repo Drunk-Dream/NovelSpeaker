@@ -3,7 +3,7 @@ namespace NovelSpeaker.App.Shared.Theming;
 public enum SettingsNavigationIcon
 {
     Playback,
-    TtsRules,
+    SpeechServices,
     ImportText,
     ChapterRules,
     CacheAndData,

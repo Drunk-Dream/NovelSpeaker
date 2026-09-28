@@ -12,6 +12,7 @@ using NovelSpeaker.App.Features.Playback;
 using NovelSpeaker.App.Features.PlaybackSettings;
 using NovelSpeaker.App.Features.Rules.Regex;
 using NovelSpeaker.App.Features.Settings;
+using NovelSpeaker.App.Features.SpeechServices;
 using NovelSpeaker.Application.Observability;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
@@ -27,6 +28,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             [AppRouteId.Library] = typeof(LibraryPage),
             [AppRouteId.BookDetails] = typeof(BookDetailsPage),
             [AppRouteId.Player] = typeof(PlayerPage),
+            [AppRouteId.SpeechServices] = typeof(SpeechServicesPage),
             [AppRouteId.Settings] = typeof(SettingsPage),
             [AppRouteId.PlaybackSettings] = typeof(PlaybackSettingsPage),
             [AppRouteId.ImportTextSettings] = typeof(ImportTextSettingsPage),
@@ -221,6 +223,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             BookDetailsRoute => AppRoutes.Library,
             ParameterlessAppRoute parameterless => parameterless.Id switch
             {
+                AppRouteId.SpeechServices or
                 AppRouteId.PlaybackSettings or
                 AppRouteId.ImportTextSettings or
                 AppRouteId.ChapterRules or
@@ -324,7 +327,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
 
     private static bool IsSettingsContext(AppRouteId routeId)
     {
-        return routeId is AppRouteId.Settings
+        return routeId is AppRouteId.SpeechServices or AppRouteId.Settings
             or AppRouteId.PlaybackSettings
             or AppRouteId.ImportTextSettings
             or AppRouteId.RegexReplacementRules

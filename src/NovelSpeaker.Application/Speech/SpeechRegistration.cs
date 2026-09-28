@@ -28,7 +28,7 @@ public static class SpeechRegistration
         services.TryAddSingleton<HttpProviderRequestCompiler>();
         services.TryAddSingleton<IProviderRuntime, HttpProviderRuntime>();
         services.TryAddSingleton<HttpProviderDraftPreviewService>();
-        services.TryAddSingleton<HttpProviderWorkspace>();
+        services.TryAddSingleton<SpeechProviderWorkspace>();
         return services;
     }
 }
