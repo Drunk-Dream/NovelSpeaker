@@ -277,10 +277,10 @@ public sealed class ChapterRulesViewModelTests
 
     private async Task ReorderRuleCommand_honors_insertion_line_placement()
     {
-        foreach (var (placement, expectedOrder) in new[]
+        foreach (var (slot, expectedOrder) in new[]
                  {
-                     (RuleDropPlacement.Before, new[] { "custom:third", "custom:first", "custom:second" }),
-                     (RuleDropPlacement.After, new[] { "custom:first", "custom:third", "custom:second" })
+                     (0, new[] { "custom:third", "custom:first", "custom:second" }),
+                     (1, new[] { "custom:first", "custom:third", "custom:second" })
                  })
         {
             var workspace = new FakeChapterRuleWorkspaceService(
@@ -292,9 +292,8 @@ public sealed class ChapterRulesViewModelTests
             var viewModel = CreateViewModel(workspaceService: workspace);
             await viewModel.LoadAsync(CancellationToken.None);
             var source = viewModel.Rules.Single(rule => rule.Id == "custom:third");
-            var target = viewModel.Rules.Single(rule => rule.Id == "custom:first");
 
-            await viewModel.ReorderRuleCommand.ExecuteAsync(new RuleReorderRequest(source, target, placement));
+            await viewModel.ReorderRuleCommand.ExecuteAsync(new RuleReorderRequest(source, slot));
 
             Assert.Equal(expectedOrder, viewModel.Rules.Select(rule => rule.Id));
         }

@@ -223,49 +223,31 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     [RelayCommand] private Task MoveUpAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken) => MoveAsync(rule, -1, cancellationToken);
     [RelayCommand] private Task MoveDownAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken) => MoveAsync(rule, 1, cancellationToken);
 
-    public async Task ReorderByDropAsync(RegexReplacementRuleListItemViewModel? source, RegexReplacementRuleListItemViewModel? target, CancellationToken cancellationToken)
-    {
-        await ReorderRuleCoreAsync(source, target, RuleDropPlacement.Before, cancellationToken);
-    }
+    public Task ReorderByDropAsync(RegexReplacementRuleListItemViewModel? source, RegexReplacementRuleListItemViewModel? target, CancellationToken cancellationToken) =>
+        ReorderRuleCoreAsync(source, target is null ? -1 : Rules.IndexOf(target), cancellationToken);
 
     [RelayCommand]
-    private async Task ReorderRuleAsync(RuleReorderRequest? request, CancellationToken cancellationToken)
-    {
-        if (request?.Source is not RegexReplacementRuleListItemViewModel source ||
-            request.Target is not RegexReplacementRuleListItemViewModel target)
-        {
-            return;
-        }
-
-        await ReorderRuleCoreAsync(source, target, request.Placement, cancellationToken);
-    }
+    private Task ReorderRuleAsync(RuleReorderRequest? request, CancellationToken cancellationToken) =>
+        ReorderRuleCoreAsync(request?.Source as RegexReplacementRuleListItemViewModel, request?.SlotIndex ?? -1, cancellationToken);
 
     private async Task ReorderRuleCoreAsync(
         RegexReplacementRuleListItemViewModel? source,
-        RegexReplacementRuleListItemViewModel? target,
-        RuleDropPlacement placement,
+        int slotIndex,
         CancellationToken cancellationToken)
     {
-        if (source is null ||
-            target is null ||
-            placement == RuleDropPlacement.None ||
-            source.Id == target.Id ||
-            IsBusy)
+        if (source is null || !source.CanQuickActions || IsBusy)
         {
             ClearDragTarget();
             return;
         }
 
-        if (!RuleReorderController.TryMove(
-                Rules.Select(rule => rule.Id).ToArray(),
-                source.Id,
-                target.Id,
-                placement,
-                out var ids))
+        var order = Rules.Select(rule => rule.Id).ToArray();
+        if (!RuleReorderController.TryMoveToSlot(order, order, source.Id, slotIndex, out var ids))
         {
             ClearDragTarget();
             return;
         }
+
         await SaveOrderAsync(ids, cancellationToken);
     }
 

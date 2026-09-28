@@ -2,18 +2,6 @@ namespace NovelSpeaker.App.Shared.Presentation.Rules;
 
 public static class RuleDragGeometry
 {
-    public static RuleDropPlacement ResolvePlacement(double pointerY, double targetHeight)
-    {
-        if (!double.IsFinite(pointerY) || !double.IsFinite(targetHeight) || targetHeight <= 0)
-        {
-            return RuleDropPlacement.None;
-        }
-
-        return pointerY < targetHeight / 2
-            ? RuleDropPlacement.Before
-            : RuleDropPlacement.After;
-    }
-
     public static int ResolveEdgeScrollDirection(
         double pointerY,
         double viewportHeight,

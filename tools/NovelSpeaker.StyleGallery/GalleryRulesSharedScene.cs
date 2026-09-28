@@ -27,7 +27,7 @@ internal static class GalleryRulesSharedScene
         var header = new StackPanel { Margin = new Thickness(32, 28, 32, 20) };
         header.Children.Add(CreateText("Rules shared list items", "App.Typography.PageTitle"));
         header.Children.Add(CreateText(
-            "正式共享控件覆盖三类规则、独立 Toggle、ContextMenu、键盘焦点、长按拖动反馈和中心线插入位置。",
+            "正式共享控件覆盖三类规则、独立 Toggle、ContextMenu、键盘焦点、长按拖动反馈和单一插入槽位。",
             "App.Typography.Secondary",
             new Thickness(0, 6, 0, 0)));
         root.Children.Add(header);
@@ -97,16 +97,14 @@ internal static class GalleryRulesSharedScene
                 "插入到目标之前",
                 "目标中心线上方",
                 isEnabled: true,
-                isSortable: true,
-                dropPlacement: RuleDropPlacement.Before),
+                isSortable: true),
             CreateRule(
                 "rules-shared-regex-insert-after",
                 "Regex",
                 "插入到目标之后",
                 "目标中心线下方",
                 isEnabled: true,
-                isSortable: true,
-                dropPlacement: RuleDropPlacement.After));
+                isSortable: true));
         Grid.SetColumn(sortableColumn, 2);
         columns.Children.Add(sortableColumn);
         return root;
@@ -123,10 +121,13 @@ internal static class GalleryRulesSharedScene
             description,
             "App.Typography.Secondary",
             new Thickness(0, 4, 0, 12)));
+        var list = new ItemsControl { Background = System.Windows.Media.Brushes.Transparent };
+        RuleListDragBehavior.SetReorderCommand(list, FixtureCommand);
         foreach (var rule in rules)
         {
-            content.Children.Add(rule);
+            list.Items.Add(rule);
         }
+        content.Children.Add(list);
 
         var surface = new Border
         {
@@ -160,8 +161,7 @@ internal static class GalleryRulesSharedScene
         bool isSelected = false,
         bool isSortable = false,
         bool canMoveUp = true,
-        bool isDragging = false,
-        RuleDropPlacement dropPlacement = RuleDropPlacement.None)
+        bool isDragging = false)
     {
         var fixture = new GalleryRuleFixture(family, title, summary);
         var rule = new RuleListItemView
@@ -173,7 +173,6 @@ internal static class GalleryRulesSharedScene
             IsSortable = isSortable,
             CanMoveUp = canMoveUp,
             IsDragging = isDragging,
-            DropPlacement = dropPlacement,
             CommandParameter = fixture,
             SelectCommand = FixtureCommand,
             ToggleEnabledCommand = FixtureCommand,
@@ -181,8 +180,7 @@ internal static class GalleryRulesSharedScene
             CopyCommand = FixtureCommand,
             DeleteCommand = FixtureCommand,
             MoveUpCommand = FixtureCommand,
-            MoveDownCommand = FixtureCommand,
-            ReorderCommand = FixtureCommand
+            MoveDownCommand = FixtureCommand
         };
         AutomationProperties.SetAutomationId(rule, automationId);
         AutomationProperties.SetName(rule, $"{family} fixture · {title}");

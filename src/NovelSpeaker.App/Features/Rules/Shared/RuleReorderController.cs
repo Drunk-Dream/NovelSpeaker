@@ -1,5 +1,3 @@
-using NovelSpeaker.App.Shared.Presentation.Rules;
-
 namespace NovelSpeaker.App.Features.Rules.Shared;
 
 /// <summary>
@@ -7,40 +5,45 @@ namespace NovelSpeaker.App.Features.Rules.Shared;
 /// </summary>
 internal static class RuleReorderController
 {
-    public static bool TryMove<TId>(
+    /// <summary>Maps a visible slot into the complete order without moving hidden items independently.</summary>
+    public static bool TryMoveToSlot<TId>(
         IReadOnlyList<TId> currentOrder,
+        IReadOnlyList<TId> visibleOrder,
         TId sourceId,
-        TId targetId,
-        RuleDropPlacement placement,
+        int slotIndex,
         out IReadOnlyList<TId> reordered,
         IEqualityComparer<TId>? comparer = null)
     {
         ArgumentNullException.ThrowIfNull(currentOrder);
+        ArgumentNullException.ThrowIfNull(visibleOrder);
         comparer ??= EqualityComparer<TId>.Default;
-
-        if (placement is not (RuleDropPlacement.Before or RuleDropPlacement.After) ||
-            comparer.Equals(sourceId, targetId))
+        reordered = [];
+        if (slotIndex < 0 || slotIndex > visibleOrder.Count || visibleOrder.Count == 0 ||
+            IndexOf(visibleOrder, sourceId, comparer) < 0 ||
+            IndexOf(currentOrder, sourceId, comparer) < 0)
         {
-            reordered = [];
             return false;
         }
 
-        var sourceIndex = IndexOf(currentOrder, sourceId, comparer);
-        var targetIndex = IndexOf(currentOrder, targetId, comparer);
-        if (sourceIndex < 0 || targetIndex < 0)
+        // Every interior slot has exactly one anchor: the following visible item.
+        var atEnd = slotIndex == visibleOrder.Count;
+        var anchor = visibleOrder[atEnd ? slotIndex - 1 : slotIndex];
+        if (comparer.Equals(sourceId, anchor))
         {
-            reordered = [];
             return false;
         }
 
         var result = currentOrder.ToList();
-        result.RemoveAt(sourceIndex);
-        targetIndex = IndexOf(result, targetId, comparer);
-        var insertionIndex = placement == RuleDropPlacement.After ? targetIndex + 1 : targetIndex;
-        result.Insert(insertionIndex, sourceId);
+        result.RemoveAt(IndexOf(result, sourceId, comparer));
+        var anchorIndex = IndexOf(result, anchor, comparer);
+        if (anchorIndex < 0)
+        {
+            return false;
+        }
+
+        result.Insert(anchorIndex + (atEnd ? 1 : 0), sourceId);
         if (!HasOrderChanged(currentOrder, result, comparer))
         {
-            reordered = [];
             return false;
         }
 
