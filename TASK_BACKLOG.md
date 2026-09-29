@@ -68,13 +68,13 @@
 
 完成成果：Provider Popup 行改用无自身 Hover/Pressed Surface 的 `App.Button.InteractionHost`；WPF 测试上下文改为生产一致的 `Providers`，并保留真实打开 Popup、完成 Render 的单项核心回归。旧缺失资源可稳定复现为 XamlParseException，修复后通过。
 
-## [ ] T003（P0）：发布 NovelSpeaker v0.7.0
+## [x] T003（P0）：发布 NovelSpeaker v0.7.0
 
 依赖：T001、T002。
 
 目标：在发布前稳定性收口完成并通过完整质量门禁后，严格按照仓库 `release-version` Skill 发布指定版本 `v0.7.0`。本任务不夹带后续诊断系统重构；Release 成功后从最终发布主线建立新的 `feature/diagnostics-hardening` 分支继续 T004–T005。
 
-详细规格：`tasks/T003_RELEASE_V0_7_0.md`
+完成成果：通过 PR #13 发布 v0.7.0；Release workflow、Windows x64 ZIP、SHA-256 资产及中文 Release Note 均已验证。发布后已从最终 main 建立 `feature/diagnostics-hardening`。
 
 ---
 
