@@ -1,3 +1,6 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.App.PresentationTests.TestDoubles;
@@ -199,15 +202,14 @@ public sealed class MainWindowViewModelTests
             new FakeThemeToggleService(AppTheme.Light),
             new FakeAppFeedbackService());
 
-        playback.Publish(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        playback.Publish(new PlaybackSnapshot(PlaybackState.Paused,
             "book-2",
             "另一本书",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -246,22 +248,21 @@ public sealed class MainWindowViewModelTests
             var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
             var viewModel = CreateViewModel(coordinator, navigationService);
 
-            coordinator.Publish(new PlaybackSnapshot(
-                state,
-                "book-1",
-                title,
-                0,
-                "第一章",
-                0,
-                3,
-                1,
-                "默认规则",
-                10,
-                0,
-                1000,
-                "message",
-                false,
-                false));
+            coordinator.Publish(new PlaybackSnapshot(state,
+            "book-1",
+            title,
+            0,
+            "第一章",
+            0,
+            3,
+            TestSpeechProviders.Id(1),
+            "默认规则",
+            10,
+            0,
+            1000,
+            "message",
+            false,
+            false));
 
             Assert.True(viewModel.IsNowPlayingVisible);
             Assert.Equal(status, viewModel.NowPlayingStatus);
@@ -273,15 +274,14 @@ public sealed class MainWindowViewModelTests
     private async Task NavigateToNowPlayingCommand_uses_player_request_without_playback_control()
     {
         var navigationService = new FakeNavigationService();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-9",
             "示例小说",
             0,
             "第一章",
             0,
             3,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -305,15 +305,14 @@ public sealed class MainWindowViewModelTests
         {
             CurrentRoute = new BookDetailsRoute("book-9")
         };
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-9",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -338,8 +337,7 @@ public sealed class MainWindowViewModelTests
     private void Missing_rule_snapshot_still_shows_now_playing_entry_until_context_is_cleared()
     {
         var navigationService = new FakeNavigationService();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Stopped,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Stopped,
             "book-1",
             "示例小说",
             0,
@@ -351,7 +349,7 @@ public sealed class MainWindowViewModelTests
             10,
             0,
             0,
-            "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
+            "当前没有可用的 语音服务，请先前往语音服务管理完成配置。",
             false,
             false,
             "作者甲",
@@ -394,7 +392,7 @@ public sealed class MainWindowViewModelTests
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -587,7 +585,7 @@ public sealed class MainWindowViewModelTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
 
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
 

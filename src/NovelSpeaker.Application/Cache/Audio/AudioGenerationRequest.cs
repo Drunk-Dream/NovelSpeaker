@@ -1,4 +1,4 @@
-using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Domain.Books;
@@ -13,9 +13,7 @@ public sealed record AudioGenerationRequest(
     int ChapterIndex,
     int SegmentIndex,
     string SpeechText,
-    long RuleId,
-    HttpTtsRule SourceRule,
-    NormalizedHttpTtsRule NormalizedRule,
+    ResolvedSpeechProvider Provider,
     int SpeakSpeed,
     Guid SessionId)
 {
@@ -32,7 +30,7 @@ public sealed record AudioGenerationRequest(
         var segmentIdentity = StableSegmentIdentity ??
             throw new InvalidOperationException("播放音频请求缺少稳定段身份。");
         var synthesisProfile = SynthesisProfileFingerprint.Create(
-            TtsRuleFingerprint.Create(NormalizedRule),
+            ProviderSynthesisFingerprint.Create(Provider.Provider),
             SpeakSpeed);
         return AudioCacheIdentity.Create(
             chapterId,

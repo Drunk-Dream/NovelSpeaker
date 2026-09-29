@@ -1,3 +1,4 @@
+using NovelSpeaker.Domain.Speech.Providers;
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
@@ -19,7 +20,7 @@ public interface IPlaybackSession : IPlaybackSnapshotSource
     Task NextChapterAsync(CancellationToken cancellationToken);
     Task PreviousChapterAsync(CancellationToken cancellationToken);
     Task RetryCurrentSegmentAsync(CancellationToken cancellationToken);
-    Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken);
+    Task ChangeProviderAsync(ProviderId providerId, CancellationToken cancellationToken);
     Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken);
     void SetVolume(double volume);
 }

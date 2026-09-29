@@ -8,6 +8,6 @@ public enum ActiveCacheStartStatus
     Accepted,
     BatchAlreadyActive,
     BookNotFound,
-    SelectedRuleUnavailable,
+    SelectedProviderUnavailable,
     NoChaptersSelected
 }

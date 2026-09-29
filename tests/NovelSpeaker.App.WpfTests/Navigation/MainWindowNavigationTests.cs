@@ -1,3 +1,6 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.App.Features.Books.Details;
@@ -450,22 +453,21 @@ public sealed class MainWindowNavigationTests
         {
             using var serviceProvider = new Microsoft.Extensions.DependencyInjection.ServiceCollection().BuildServiceProvider();
             const string longBookTitle = "这是一本非常非常长的书名用于验证卡片标题省略";
-            var playback = new FakePlaybackCoordinator(new PlaybackSnapshot(
-                PlaybackState.Playing,
-                "book-1",
-                longBookTitle,
-                0,
-                "第一章",
-                0,
-                1,
-                1,
-                "默认规则",
-                10,
-                0,
-                1000,
-                null,
-                false,
-                false));
+            var playback = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Playing,
+            "book-1",
+            longBookTitle,
+            0,
+            "第一章",
+            0,
+            1,
+            TestSpeechProviders.Id(1),
+            "默认规则",
+            10,
+            0,
+            1000,
+            null,
+            false,
+            false));
             var navigationService = new FakeNavigationService();
             var window = CreateWindow(
                 navigationService,
@@ -1006,7 +1008,7 @@ public sealed class MainWindowNavigationTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
 
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public void SetVolume(double volume) { }

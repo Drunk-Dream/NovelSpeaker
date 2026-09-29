@@ -1,3 +1,6 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.Application.Playback;
 using Xunit;
@@ -337,7 +340,7 @@ public sealed class MediaControlCoordinatorTests
         public Task NextChapterAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task PreviousChapterAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => throw new NotSupportedException();
         public void SetVolume(double volume) => throw new NotSupportedException();
 

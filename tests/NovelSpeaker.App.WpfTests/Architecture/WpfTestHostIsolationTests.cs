@@ -7,6 +7,45 @@ namespace NovelSpeaker.App.WpfTests.Architecture;
 public sealed class WpfTestHostIsolationTests
 {
     [Fact]
+    public void Exited_dispatcher_cleanup_waits_for_busy_desktop_release_to_succeed()
+    {
+        var busy = true;
+        var nativeApi = new FakeWindowsTestDesktopNativeApi
+        {
+            LastError = 170,
+            CloseAttempt = () => { var success = !busy; busy = false; return success; }
+        };
+        using var desktop = WindowsTestDesktop.Attach(allowVisibleWindows: false, nativeApi);
+        desktop.PrepareThreadShutdown();
+        WpfTestHost.ReleaseDesktopAfterThreadExit(desktop, TimeSpan.FromSeconds(1));
+        Assert.True(desktop.IsDesktopHandleReleased);
+        Assert.True(desktop.Info.IsIsolated);
+    }
+
+    [Theory]
+    [InlineData(170)]
+    [InlineData(5)]
+    public void Exited_dispatcher_release_timeout_or_error_fails_closed_and_retains_the_handle(int error)
+    {
+        var nativeApi = new FakeWindowsTestDesktopNativeApi { CloseResult = false, LastError = error };
+        var desktop = WindowsTestDesktop.Attach(allowVisibleWindows: false, nativeApi);
+        try
+        {
+            desktop.PrepareThreadShutdown();
+            var exception = Assert.Throws<WindowsTestDesktopInitializationException>(() =>
+                WpfTestHost.ReleaseDesktopAfterThreadExit(desktop, TimeSpan.Zero));
+            Assert.Equal(error, exception.NativeErrorCode);
+            Assert.False(desktop.IsDesktopHandleReleased);
+            Assert.True(desktop.Info.IsIsolated);
+        }
+        finally
+        {
+            nativeApi.CloseResult = true;
+            desktop.Dispose();
+        }
+    }
+
+    [Fact]
     public void Default_host_binds_the_shared_dispatcher_to_an_isolated_desktop()
     {
         WpfTestHost.RunInSta(() =>
@@ -308,6 +347,8 @@ public sealed class WpfTestHostIsolationTests
 
         public bool CloseResult { get; set; } = true;
 
+        public Func<bool>? CloseAttempt { get; init; }
+
         public int LastError { get; init; } = 6;
 
         public int BindCallCount { get; private set; }
@@ -336,7 +377,7 @@ public sealed class WpfTestHostIsolationTests
         {
             CloseCallCount++;
             Closed = desktop;
-            return CloseResult;
+            return CloseAttempt?.Invoke() ?? CloseResult;
         }
 
         public int GetLastError() => LastError;

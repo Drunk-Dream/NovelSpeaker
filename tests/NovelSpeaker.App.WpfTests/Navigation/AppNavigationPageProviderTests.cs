@@ -1,3 +1,6 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -252,7 +255,7 @@ public sealed class AppNavigationPageProviderTests
         public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;

@@ -1,3 +1,5 @@
+using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.TestKit.Speech;
 using System.Diagnostics;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -409,7 +411,7 @@ public sealed partial class BookDetailsPageTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
 
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeProviderAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
 

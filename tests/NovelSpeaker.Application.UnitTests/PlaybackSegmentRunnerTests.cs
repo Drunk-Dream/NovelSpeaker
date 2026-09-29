@@ -1,3 +1,4 @@
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Speech.Execution;
@@ -94,27 +95,13 @@ public sealed class PlaybackSegmentRunnerTests
 
     private static AudioGenerationRequest CreateRequest()
     {
-        var rule = TestHttpTtsRules.Create(
-            1,
-            "默认规则",
-            "https://example.com/tts?text={{encodeURIComponent(speakText)}}",
-            "audio/mpeg",
-            null,
-            null,
-            null,
-            null,
-            true,
-            null,
-            "2026-06-24T00:00:00.0000000Z",
-            "2026-06-24T00:00:00.0000000Z");
+        var rule = TestSpeechProviders.Create(1, "默认规则", "https://example.com/tts?text={{encodeURIComponent(speakText)}}");
         return new AudioGenerationRequest(
             "book-1",
             0,
             0,
             "第一段",
-            rule.Id,
-            rule,
-            rule.Normalize(),
+            TestSpeechProviders.Resolve(rule),
             10,
             Guid.NewGuid())
         {

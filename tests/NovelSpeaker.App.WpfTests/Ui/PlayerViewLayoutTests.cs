@@ -18,7 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
@@ -182,17 +182,17 @@ public sealed partial class PlayerViewTests
                     chapters,
                     segments,
                     showPlaybackControls: false,
-                    showNoRuleState: true),
+                    showNoProviderState: true),
             };
 
             view.Measure(new Size(1280, 760));
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var noRuleFooter = Assert.IsType<AppStatusView>(view.FindName("NoRuleStatusView"));
+            var noRuleFooter = Assert.IsType<AppStatusView>(view.FindName("NoProviderStatusView"));
             var backButton = FindUiButtonByAutomationName(view, "返回");
 
-            Assert.Null(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
+            Assert.Null(FindVisibleDescendantByContent(view, "前往 语音服务"));
             Assert.Equal(Visibility.Visible, noRuleFooter.Visibility);
             Assert.True(GetBoundsRelativeToRoot(noRuleFooter, view).Bottom <= view.ActualHeight);
             Assert.True(GetBoundsRelativeToRoot(backButton, view).Top >= 0);
@@ -227,7 +227,7 @@ public sealed partial class PlayerViewTests
 
             Assert.NotNull(FindVisibleDescendantByContent(faultedView, "再次尝试"));
             Assert.True(IsEffectivelyVisible(
-                Assert.IsType<WpfUiButton>(faultedView.FindName("ErrorRuleMenuButton")),
+                Assert.IsType<WpfUiButton>(faultedView.FindName("ErrorProviderMenuButton")),
                 faultedView));
 
             var normalView = new PlayerView
@@ -241,7 +241,7 @@ public sealed partial class PlayerViewTests
 
             Assert.Null(FindVisibleDescendantByContent(normalView, "再次尝试"));
             Assert.False(IsEffectivelyVisible(
-                Assert.IsType<WpfUiButton>(normalView.FindName("ErrorRuleMenuButton")),
+                Assert.IsType<WpfUiButton>(normalView.FindName("ErrorProviderMenuButton")),
                 normalView));
         });
     }
@@ -299,7 +299,7 @@ public sealed partial class PlayerViewTests
             using var host = WpfWindowHost.Show(window);
             var surfaceStyle = Assert.IsType<Style>(view.FindResource("App.Feedback.PopupSurface"));
 
-            foreach (var popupName in new[] { "RuleMenuPopup", "SpeedMenuPopup" })
+            foreach (var popupName in new[] { "ProviderMenuPopup", "SpeedMenuPopup" })
             {
                 var popup = Assert.IsType<Popup>(view.FindName(popupName));
                 popup.IsOpen = true;

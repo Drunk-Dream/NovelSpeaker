@@ -1,3 +1,5 @@
+using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Domain.Books;
@@ -12,7 +14,7 @@ public sealed class PlaybackProgressControllerTests
     {
         var store = new CapturingProgressStore();
         var service = new PlaybackProgressController(store);
-        var session = new PlaybackSessionState(CreateBook(), 0, 1, rule: null, speakSpeed: 10);
+        var session = new PlaybackSessionState(CreateBook(), 0, 1, provider: null, speakSpeed: 10);
         var cancellationSource = new CancellationTokenSource();
         session.UpdateAudio(new LocalAudioPlaybackSnapshot(
             PlaybackState.Paused,
@@ -44,7 +46,7 @@ public sealed class PlaybackProgressControllerTests
         var expected = new InvalidOperationException("保存失败");
         var store = new CapturingProgressStore { SaveFailure = expected };
         var service = new PlaybackProgressController(store);
-        var session = new PlaybackSessionState(CreateBook(), 0, 0, rule: null, speakSpeed: 10);
+        var session = new PlaybackSessionState(CreateBook(), 0, 0, provider: null, speakSpeed: 10);
 
         var actual = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SaveAsync(
@@ -72,7 +74,7 @@ public sealed class PlaybackProgressControllerTests
     [Fact]
     public async Task Session_state_owns_audio_protection_and_cancels_old_session_resources()
     {
-        var session = new PlaybackSessionState(CreateBook(), 0, 0, rule: null, speakSpeed: 10);
+        var session = new PlaybackSessionState(CreateBook(), 0, 0, provider: null, speakSpeed: 10);
         var cancellationToken = session.CancellationToken;
         var protection = new TrackingDisposable();
         session.ReplaceAudioProtection(protection);

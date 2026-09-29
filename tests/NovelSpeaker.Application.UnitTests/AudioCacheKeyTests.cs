@@ -1,3 +1,5 @@
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
@@ -80,18 +82,9 @@ public sealed class AudioCacheKeyTests
 
     private static SynthesisProfileFingerprint CreateProfile(int speakSpeed = 10)
     {
-        var normalizedRule = new NormalizedHttpTtsRule(
-            42,
-            "测试规则",
-            NormalizedTemplate.Parse("https://example.test/tts?text={{speakText}}"),
-            new Dictionary<string, NormalizedTemplate>(),
-            "GET",
-            null,
-            false,
-            "audio/mpeg",
-            "2/s");
+        var configuration = new HttpSpeechProviderConfiguration("https://example.test/tts?text={{speakText}}", "GET", new Dictionary<string, string>(), null, null);
         return SynthesisProfileFingerprint.Create(
-            TtsRuleFingerprint.Create(normalizedRule),
+            ProviderSynthesisFingerprint.Create(configuration),
             speakSpeed);
     }
 }

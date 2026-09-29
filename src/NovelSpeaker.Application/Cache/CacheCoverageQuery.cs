@@ -2,7 +2,7 @@ using System.Text;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Compilation;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 
@@ -16,7 +16,7 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _metadataQuery;
-    private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
+    private readonly ICurrentSpeechProvider _providers;
     private readonly IAppSettingsService _settingsService;
     private readonly IRegexReplacementRuleRepository? _regexRuleRepository;
     private readonly ICacheCompletenessFailureReporter? _failureReporter;
@@ -24,14 +24,14 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
     public CacheCoverageQuery(
         IAudioCacheStore cacheStore,
         IBookPlaybackMetadataQuery metadataQuery,
-        ISelectedTtsRuleProvider selectedRuleProvider,
+        ICurrentSpeechProvider providers,
         IAppSettingsService settingsService,
         IRegexReplacementRuleRepository? regexRuleRepository = null,
         ICacheCompletenessFailureReporter? failureReporter = null)
     {
         _cacheStore = cacheStore;
         _metadataQuery = metadataQuery;
-        _selectedRuleProvider = selectedRuleProvider;
+        _providers = providers;
         _settingsService = settingsService;
         _regexRuleRepository = regexRuleRepository;
         _failureReporter = failureReporter;
@@ -51,10 +51,11 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
             return [];
         }
 
-        var selectedRule = await _selectedRuleProvider
-            .GetSelectedRuleAsync(cancellationToken)
+        var settings = _settingsService.Current;
+        var provider = await _providers
+            .GetConfigurationAsync(settings.CurrentProviderId, cancellationToken)
             .ConfigureAwait(false);
-        if (selectedRule is null)
+        if (provider is null)
         {
             return normalizedIndices
                 .Select(CreateConfigurationUnavailable)
@@ -70,7 +71,8 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
                 bookId,
                 normalizedIndices,
                 chapters,
-                selectedRule,
+                provider,
+                settings,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -102,10 +104,11 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
             return [];
         }
 
-        var selectedRule = await _selectedRuleProvider
-            .GetSelectedRuleAsync(cancellationToken)
+        var settings = _settingsService.Current;
+        var provider = await _providers
+            .GetConfigurationAsync(settings.CurrentProviderId, cancellationToken)
             .ConfigureAwait(false);
-        if (selectedRule is null)
+        if (provider is null)
         {
             return normalizedIndices
                 .Select(CreateConfigurationUnavailable)
@@ -118,7 +121,8 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
                 bookId,
                 normalizedIndices,
                 chapters,
-                selectedRule,
+                provider,
+                settings,
                 cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -138,14 +142,14 @@ public sealed class CacheCoverageQuery : ICacheCoverageQuery
         string bookId,
         IReadOnlyCollection<int> normalizedIndices,
         IReadOnlyCollection<PlaybackChapterMetadata> chapters,
-        SelectedPlaybackRule selectedRule,
+        NovelSpeaker.Domain.Speech.Providers.SpeechProviderInstance provider,
+        AppSettings settings,
         CancellationToken cancellationToken)
     {
-        var settings = _settingsService.Current;
         var textProfile = await GetCurrentTextProfileAsync(settings, cancellationToken)
             .ConfigureAwait(false);
         var synthesisProfile = SynthesisProfileFingerprint.Create(
-            TtsRuleFingerprint.Create(selectedRule.NormalizedRule),
+            ProviderSynthesisFingerprint.Create(provider),
             AppSettings.NormalizeSpeakSpeed(settings.DefaultSpeakSpeed));
         var queries = chapters
             .Where(chapter => !string.IsNullOrWhiteSpace(chapter.ChapterId))

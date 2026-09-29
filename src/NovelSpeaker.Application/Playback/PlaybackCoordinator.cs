@@ -1,8 +1,9 @@
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Speech.Execution;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Domain.Books;
@@ -25,7 +26,7 @@ public sealed class PlaybackCoordinator :
     internal static readonly TimeSpan VolumePersistenceDelay = TimeSpan.FromMilliseconds(300);
 
     private readonly IBookPlaybackContentService _bookContentService;
-    private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
+    private readonly ICurrentSpeechProvider _selectedProvider;
     private readonly PlaybackSegmentRunner _segmentRunner;
     private readonly PlaybackRecoveryPolicy _recoveryPolicy;
     private readonly IAudioCacheProtectionRegistry _audioCacheProtectionRegistry;
@@ -53,7 +54,7 @@ public sealed class PlaybackCoordinator :
     private bool _hasPendingVolumePersistence;
 
     // These accessors are aliases into the session owner. They intentionally do not
-    // cache a second book, rule, or protection handle in the coordinator.
+    // cache a second book, provider, or protection handle in the coordinator.
     private PlaybackBookContent? _currentBook
     {
         get => _currentSession?.Book;
@@ -66,15 +67,15 @@ public sealed class PlaybackCoordinator :
         }
     }
 
-    private SelectedPlaybackRule? _currentRule
+    private ResolvedSpeechProvider? _currentProvider
     {
-        get => _currentSession?.Rule;
-        set => _currentSession?.SetRule(value);
+        get => _currentSession?.Provider;
+        set => _currentSession?.SetProvider(value);
     }
 
     internal PlaybackCoordinator(
         IBookPlaybackContentService bookContentService,
-        ISelectedTtsRuleProvider selectedRuleProvider,
+        ICurrentSpeechProvider selectedProvider,
         PlaybackSegmentRunner segmentRunner,
         PlaybackRecoveryPolicy recoveryPolicy,
         IAudioCacheProtectionRegistry audioCacheProtectionRegistry,
@@ -86,7 +87,7 @@ public sealed class PlaybackCoordinator :
         IObservability? observability = null)
     {
         _bookContentService = bookContentService;
-        _selectedRuleProvider = selectedRuleProvider;
+        _selectedProvider = selectedProvider;
         _segmentRunner = segmentRunner;
         _recoveryPolicy = recoveryPolicy;
         _audioCacheProtectionRegistry = audioCacheProtectionRegistry;
@@ -216,9 +217,9 @@ public sealed class PlaybackCoordinator :
         return RunSerializedAsync(RetryCurrentSegmentCoreAsync, cancellationToken);
     }
 
-    public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken)
+    public Task ChangeProviderAsync(ProviderId providerId, CancellationToken cancellationToken)
     {
-        return RunSerializedAsync(ct => ChangeRuleCoreAsync(ruleId, ct), cancellationToken);
+        return RunSerializedAsync(ct => ChangeProviderCoreAsync(providerId, ct), cancellationToken);
     }
 
     public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken)
@@ -389,20 +390,20 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        var selectedRule = await _selectedRuleProvider.GetSelectedRuleAsync(cancellationToken).ConfigureAwait(false);
-        var speakSpeed = NormalizeSpeakSpeed(request.SpeakSpeedOverride ?? _currentSnapshot.SpeakSpeed);
+        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
+        var speakSpeed = NormalizeSpeakSpeed(request.SpeakSpeedOverride ?? _appSettingsService.Current.DefaultSpeakSpeed);
         var checkpointNewPosition = request.ChapterIndex is not null || request.SegmentIndex is not null;
 
-        if (selectedRule is null)
+        if (selectedProvider is null)
         {
             await OpenResolvedPositionAsync(
                 resolved.Value.Book,
                 resolved.Value.ChapterIndex,
                 resolved.Value.SegmentIndex,
                 resolved.Value.ResumePositionMilliseconds,
-                selectedRule,
+                selectedProvider,
                 speakSpeed,
-                "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
+                "尚未选择语音服务，请前往语音服务管理完成配置。",
                 cancellationToken,
                 checkpointNewPosition).ConfigureAwait(false);
             return;
@@ -413,7 +414,7 @@ public sealed class PlaybackCoordinator :
             resolved.Value.ChapterIndex,
             resolved.Value.SegmentIndex,
             resolved.Value.ResumePositionMilliseconds,
-            selectedRule,
+            selectedProvider,
             speakSpeed,
             forceInvalidate: false,
             playImmediately: true,
@@ -445,15 +446,15 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        var speakSpeed = NormalizeSpeakSpeed(request.SpeakSpeedOverride ?? _currentSnapshot.SpeakSpeed);
-        var selectedRule = await _selectedRuleProvider.GetSelectedRuleAsync(cancellationToken).ConfigureAwait(false);
+        var speakSpeed = NormalizeSpeakSpeed(request.SpeakSpeedOverride ?? _appSettingsService.Current.DefaultSpeakSpeed);
+        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
         var checkpointNewPosition = request.ChapterIndex is not null || request.SegmentIndex is not null;
         await OpenResolvedPositionAsync(
             resolved.Value.Book,
             resolved.Value.ChapterIndex,
             resolved.Value.SegmentIndex,
             resolved.Value.ResumePositionMilliseconds,
-            selectedRule,
+            selectedProvider,
             speakSpeed,
             "已恢复到当前位置，等待播放。",
             cancellationToken,
@@ -487,14 +488,14 @@ public sealed class PlaybackCoordinator :
         await _audioController.PauseAsync(cancellationToken);
         var pausedAudio = _audioController.CurrentSnapshot;
         _currentSession.UpdateAudio(pausedAudio);
-        if (_currentBook is not null && _currentRule is not null)
+        if (_currentBook is not null && _currentProvider is not null)
         {
             PublishSnapshot(BuildSnapshot(
                 PlaybackState.Paused,
                 _currentBook,
                 _currentSession.ChapterIndex,
                 _currentSession.SegmentIndex,
-                _currentRule,
+                _currentProvider,
                 _currentSession.SpeakSpeed,
                 pausedAudio.PositionMilliseconds,
                 pausedAudio.DurationMilliseconds,
@@ -521,12 +522,12 @@ public sealed class PlaybackCoordinator :
 
         if (!_currentSession.HasLoadedAudio)
         {
-            var rule = _currentRule ?? await _selectedRuleProvider.GetSelectedRuleAsync(cancellationToken).ConfigureAwait(false);
-            if (rule is null)
+            var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
+            if (provider is null)
             {
                 if (_currentBook is not null)
                 {
-                    PublishSnapshot(CreateRuleMissingSnapshot(
+                    PublishSnapshot(CreateProviderMissingSnapshot(
                         _currentBook,
                         _currentSession.ChapterIndex,
                         _currentSession.SegmentIndex,
@@ -536,7 +537,7 @@ public sealed class PlaybackCoordinator :
                 return;
             }
 
-            _currentRule = rule;
+            _currentProvider = provider;
             await PlayCurrentSegmentAsync(
                 _currentSession,
                 _currentSession.ResumePositionMilliseconds,
@@ -548,14 +549,14 @@ public sealed class PlaybackCoordinator :
         await _audioController.ResumeAsync(cancellationToken);
         var resumedAudio = _audioController.CurrentSnapshot;
         _currentSession.UpdateAudio(resumedAudio);
-        if (_currentBook is not null && _currentRule is not null)
+        if (_currentBook is not null && _currentProvider is not null)
         {
             PublishSnapshot(BuildSnapshot(
                 PlaybackState.Playing,
                 _currentBook,
                 _currentSession.ChapterIndex,
                 _currentSession.SegmentIndex,
-                _currentRule,
+                _currentProvider,
                 _currentSession.SpeakSpeed,
                 resumedAudio.PositionMilliseconds,
                 resumedAudio.DurationMilliseconds,
@@ -691,7 +692,7 @@ public sealed class PlaybackCoordinator :
             PlaybackPositionResolver.FindMappedSegmentIndex(replacement, characterOffset) < 0)
         {
             var target = await ResolveNearestAvailablePositionAsync(_currentBook, chapterIndex, cancellationToken).ConfigureAwait(false);
-            if (target is null || _currentRule is null)
+            if (target is null || _currentProvider is null)
             {
                 if (session.HasLoadedAudio)
                 {
@@ -716,7 +717,7 @@ public sealed class PlaybackCoordinator :
                 target.Value.ChapterIndex,
                 target.Value.SegmentIndex,
                 0,
-                _currentRule,
+                _currentProvider,
                 session.SpeakSpeed,
                 forceInvalidate: false,
                 playImmediately: wasPlaying,
@@ -742,7 +743,7 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        if (_currentRule is null)
+        if (_currentProvider is null)
         {
             return;
         }
@@ -752,7 +753,7 @@ public sealed class PlaybackCoordinator :
             chapterIndex,
             mappedIndex,
             0,
-            _currentRule,
+            _currentProvider,
             session.SpeakSpeed,
             forceInvalidate: false,
             playImmediately: wasPlaying,
@@ -807,14 +808,14 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        if (CurrentSnapshot.State == PlaybackState.Playing && _currentRule is not null)
+        if (CurrentSnapshot.State == PlaybackState.Playing && _currentProvider is not null)
         {
             await StartNewSessionAsync(
                 target.Value.Book,
                 target.Value.ChapterIndex,
                 target.Value.SegmentIndex,
                 0,
-                _currentRule,
+                _currentProvider,
                 GetCurrentSpeakSpeed(),
                 forceInvalidate: false,
                 playImmediately: true,
@@ -825,13 +826,13 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        var selectedRule = _currentRule ?? await _selectedRuleProvider.GetSelectedRuleAsync(cancellationToken).ConfigureAwait(false);
+        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
         await OpenResolvedPositionAsync(
             target.Value.Book,
             target.Value.ChapterIndex,
             target.Value.SegmentIndex,
             0,
-            selectedRule,
+            selectedProvider,
             GetCurrentSpeakSpeed(),
             "已跳转到目标段落，等待播放。",
             cancellationToken,
@@ -885,14 +886,14 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        if (CurrentSnapshot.State == PlaybackState.Playing && _currentRule is not null)
+        if (CurrentSnapshot.State == PlaybackState.Playing && _currentProvider is not null)
         {
             await StartNewSessionAsync(
                 target.Value.Book,
                 target.Value.ChapterIndex,
                 target.Value.SegmentIndex,
                 0,
-                _currentRule,
+                _currentProvider,
                 GetCurrentSpeakSpeed(),
                 forceInvalidate: false,
                 playImmediately: true,
@@ -903,13 +904,13 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        var selectedRule = _currentRule ?? await _selectedRuleProvider.GetSelectedRuleAsync(cancellationToken).ConfigureAwait(false);
+        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
         await OpenResolvedPositionAsync(
             target.Value.Book,
             target.Value.ChapterIndex,
             target.Value.SegmentIndex,
             0,
-            selectedRule,
+            selectedProvider,
             GetCurrentSpeakSpeed(),
             "已跳转到目标章节，等待播放。",
             cancellationToken,
@@ -924,11 +925,11 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        var rule = _currentRule ?? await _selectedRuleProvider.GetSelectedRuleAsync(cancellationToken);
-        if (rule is null)
+        var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken);
+        if (provider is null)
         {
             var current = GetCurrentPosition();
-            PublishSnapshot(CreateRuleMissingSnapshot(
+            PublishSnapshot(CreateProviderMissingSnapshot(
                 _currentBook,
                 current.ChapterIndex,
                 current.SegmentIndex,
@@ -949,7 +950,7 @@ public sealed class PlaybackCoordinator :
             currentPosition.ChapterIndex,
             currentPosition.SegmentIndex,
             0,
-            rule,
+            provider,
             GetCurrentSpeakSpeed(),
             forceInvalidate: retryDecision.ShouldInvalidateAudio,
             playImmediately: true,
@@ -959,73 +960,28 @@ public sealed class PlaybackCoordinator :
             initialConsecutiveFailureCount: previousFailureCount);
     }
 
-    private async Task ChangeRuleCoreAsync(long ruleId, CancellationToken cancellationToken)
+    private async Task ChangeProviderCoreAsync(ProviderId providerId, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
-        var rule = await _selectedRuleProvider.SelectRuleAsync(ruleId, cancellationToken);
-        if (rule is null)
+        var provider = await _selectedProvider.SelectProviderAsync(providerId, cancellationToken).ConfigureAwait(false);
+        if (provider is null) return;
+        // A loaded sentence owns its saved configuration until playback completes.
+        if (_currentSession is { HasLoadedAudio: true }) return;
+        _currentProvider = provider;
+        PublishSnapshot(_currentSnapshot with
         {
-            if (_currentBook is not null)
-            {
-                var current = GetCurrentPosition();
-                PublishSnapshot(CreateRuleMissingSnapshot(
-                    _currentBook,
-                    current.ChapterIndex,
-                    current.SegmentIndex,
-                    GetCurrentSpeakSpeed()));
-            }
-
-            return;
-        }
-
-        _currentRule = rule;
-        if (_currentBook is null)
-        {
-            PublishSnapshot(_currentSnapshot with
-            {
-                RuleId = rule.RuleId,
-                RuleName = rule.RuleName,
-                HasAvailableRule = true,
-                Message = $"已切换为规则：{rule.RuleName}"
-            });
-            return;
-        }
-
-        var currentPosition = GetCurrentPosition();
-        var currentBook = await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken).ConfigureAwait(false);
-        if (CurrentSnapshot.State == PlaybackState.Playing)
-        {
-            await StartNewSessionAsync(
-                currentBook,
-                currentPosition.ChapterIndex,
-                currentPosition.SegmentIndex,
-                0,
-                rule,
-                GetCurrentSpeakSpeed(),
-                forceInvalidate: false,
-                playImmediately: true,
-                pausedState: PlaybackState.Paused,
-                pausedMessage: "已恢复到当前位置，等待播放。",
-                cancellationToken);
-            return;
-        }
-
-        await OpenResolvedPositionAsync(
-            currentBook,
-            currentPosition.ChapterIndex,
-            currentPosition.SegmentIndex,
-            0,
-            rule,
-            GetCurrentSpeakSpeed(),
-            "已切换规则，等待播放。",
-            cancellationToken).ConfigureAwait(false);
+            ProviderId = provider.ProviderId,
+            ProviderName = provider.ProviderName,
+            HasAvailableProvider = true,
+            Message = "已选择语音服务。"
+        });
     }
 
     private async Task ChangeSpeedCoreAsync(int speakSpeed, CancellationToken cancellationToken)
     {
         ThrowIfDisposed();
         var normalizedSpeed = NormalizeSpeakSpeed(speakSpeed);
-        if (_currentBook is null || _currentRule is null)
+        if (_currentBook is null || _currentProvider is null)
         {
             PublishSnapshot(_currentSnapshot with
             {
@@ -1051,7 +1007,7 @@ public sealed class PlaybackCoordinator :
             currentPosition.ChapterIndex,
             currentPosition.SegmentIndex,
             0,
-            _currentRule,
+            _currentProvider,
             normalizedSpeed,
             "语速已调整，等待播放。",
             cancellationToken).ConfigureAwait(false);
@@ -1062,7 +1018,7 @@ public sealed class PlaybackCoordinator :
         int chapterIndex,
         int segmentIndex,
         long resumePositionMilliseconds,
-        SelectedPlaybackRule? selectedRule,
+        ResolvedSpeechProvider? selectedProvider,
         int speakSpeed,
         bool forceInvalidate,
         bool playImmediately,
@@ -1117,7 +1073,7 @@ public sealed class PlaybackCoordinator :
                 book,
                 chapterIndex,
                 segmentIndex,
-                selectedRule,
+                selectedProvider,
                 speakSpeed);
 
             session.SetResumePosition(resumePositionMilliseconds);
@@ -1152,14 +1108,14 @@ public sealed class PlaybackCoordinator :
         await DisposeSessionAsync();
         _currentSession = session;
         _currentBook = book;
-        _currentRule = selectedRule;
+        _currentProvider = selectedProvider;
         _lastFailureKind = null;
         _lastRecoveredCorruptSegmentKey = null;
 
-        if (selectedRule is null)
+        if (selectedProvider is null)
         {
             _currentBook = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken).ConfigureAwait(false);
-            PublishSnapshot(CreateRuleMissingSnapshot(
+            PublishSnapshot(CreateProviderMissingSnapshot(
                 _currentBook,
                 chapterIndex,
                 segmentIndex,
@@ -1174,7 +1130,7 @@ public sealed class PlaybackCoordinator :
                 book,
                 chapterIndex,
                 segmentIndex,
-                selectedRule,
+                selectedProvider,
                 speakSpeed,
                 0,
                 0,
@@ -1192,7 +1148,7 @@ public sealed class PlaybackCoordinator :
             _currentBook,
             chapterIndex,
             segmentIndex,
-            selectedRule,
+            selectedProvider,
             speakSpeed,
             resumePositionMilliseconds,
             0,
@@ -1214,7 +1170,7 @@ public sealed class PlaybackCoordinator :
 
         _currentSession = previousSession;
         _currentBook = previousSession.Book;
-        _currentRule = previousSession.Rule;
+        _currentProvider = previousSession.Provider;
         if (!previousAudioStopped)
         {
             return;
@@ -1244,8 +1200,13 @@ public sealed class PlaybackCoordinator :
         bool forceInvalidate,
         CancellationToken cancellationToken)
     {
-        if (_currentBook is null || _currentRule is null)
+        if (_currentBook is null) return;
+        var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
+        _currentProvider = provider;
+        if (provider is null)
         {
+            await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
+            PublishSnapshot(CreateProviderMissingSnapshot(_currentBook, session.ChapterIndex, session.SegmentIndex, session.SpeakSpeed));
             return;
         }
 
@@ -1299,9 +1260,7 @@ public sealed class PlaybackCoordinator :
             chapter.ChapterIndex,
             session.SegmentIndex,
             segment.SpeechText,
-            _currentRule.RuleId,
-            _currentRule.SourceRule,
-            _currentRule.NormalizedRule,
+            provider,
             session.SpeakSpeed,
             session.SessionId)
         {
@@ -1316,7 +1275,7 @@ public sealed class PlaybackCoordinator :
             _currentBook,
             chapter.ChapterIndex,
             session.SegmentIndex,
-            _currentRule,
+            provider,
             session.SpeakSpeed,
             0,
             0,
@@ -1337,7 +1296,7 @@ public sealed class PlaybackCoordinator :
                 forceInvalidate),
             progress =>
             {
-                if (!IsSessionCurrent(session.SessionId) || _currentBook is null || _currentRule is null)
+                if (!IsSessionCurrent(session.SessionId) || _currentBook is null || _currentProvider is null)
                 {
                     return;
                 }
@@ -1347,7 +1306,7 @@ public sealed class PlaybackCoordinator :
                     _currentBook,
                     chapter.ChapterIndex,
                     session.SegmentIndex,
-                    _currentRule,
+                    provider,
                     session.SpeakSpeed,
                     0,
                     0,
@@ -1395,7 +1354,7 @@ public sealed class PlaybackCoordinator :
             _currentBook,
             chapter.ChapterIndex,
             session.SegmentIndex,
-            _currentRule,
+            provider,
             session.SpeakSpeed,
             local.PositionMilliseconds,
             local.DurationMilliseconds,
@@ -1499,7 +1458,7 @@ public sealed class PlaybackCoordinator :
         int? maxCountOverride,
         CancellationToken cancellationToken)
     {
-        if (_currentBook is null || _currentRule is null)
+        if (_currentBook is null || _currentProvider is null)
         {
             return;
         }
@@ -1553,7 +1512,7 @@ public sealed class PlaybackCoordinator :
         int chapterIndex,
         int segmentIndex)
     {
-        if (_currentRule is null)
+        if (_currentProvider is null)
         {
             return;
         }
@@ -1575,9 +1534,7 @@ public sealed class PlaybackCoordinator :
             chapterIndex,
             segmentIndex,
             speechText,
-            _currentRule.RuleId,
-            _currentRule.SourceRule,
-            _currentRule.NormalizedRule,
+            _currentProvider,
             session.SpeakSpeed,
             session.SessionId)
         {
@@ -1740,7 +1697,7 @@ public sealed class PlaybackCoordinator :
         session.UpdateAudio(snapshot);
         if (error.Kind == PlaybackErrorKind.AudioDecode)
         {
-            var recoveryKey = $"{session.SessionId:N}:{session.ChapterIndex}:{session.SegmentIndex}:{session.RuleId}:{session.SpeakSpeed}";
+            var recoveryKey = $"{session.SessionId:N}:{session.ChapterIndex}:{session.SegmentIndex}:{session.ProviderId}:{session.SpeakSpeed}";
             var recoveryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
                 TtsErrorKind.AudioDecode,
                 error.Message,
@@ -1765,7 +1722,7 @@ public sealed class PlaybackCoordinator :
 
     private void ProcessSnapshotChanged(PlaybackSessionState session, LocalAudioPlaybackSnapshot snapshot)
     {
-        if (_currentBook is null || _currentRule is null)
+        if (_currentBook is null || _currentProvider is null)
         {
             return;
         }
@@ -1781,7 +1738,7 @@ public sealed class PlaybackCoordinator :
             _currentBook,
             session.ChapterIndex,
             session.SegmentIndex,
-            _currentRule,
+            _currentProvider,
             session.SpeakSpeed,
             snapshot.PositionMilliseconds,
             snapshot.DurationMilliseconds,
@@ -1866,7 +1823,7 @@ public sealed class PlaybackCoordinator :
         }
     }
 
-    private PlaybackSnapshot CreateRuleMissingSnapshot(
+    private PlaybackSnapshot CreateProviderMissingSnapshot(
         PlaybackBookContent book,
         int chapterIndex,
         int segmentIndex,
@@ -1881,7 +1838,7 @@ public sealed class PlaybackCoordinator :
             speakSpeed,
             0,
             0,
-            "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
+            "尚未选择语音服务，请前往语音服务管理完成配置。",
             false,
             false,
             SegmentCountOverride: 0,
@@ -1893,7 +1850,7 @@ public sealed class PlaybackCoordinator :
         PlaybackBookContent book,
         int chapterIndex,
         int segmentIndex,
-        SelectedPlaybackRule selectedRule,
+        ResolvedSpeechProvider selectedProvider,
         int speakSpeed,
         long positionMilliseconds,
         long durationMilliseconds,
@@ -1906,7 +1863,7 @@ public sealed class PlaybackCoordinator :
             book,
             chapterIndex,
             segmentIndex,
-            selectedRule,
+            selectedProvider,
             speakSpeed,
             positionMilliseconds,
             durationMilliseconds,
@@ -2251,25 +2208,25 @@ public sealed class PlaybackCoordinator :
         int chapterIndex,
         int segmentIndex,
         long resumePositionMilliseconds,
-        SelectedPlaybackRule? selectedRule,
+        ResolvedSpeechProvider? selectedProvider,
         int speakSpeed,
         string pausedMessage,
         CancellationToken cancellationToken,
         bool checkpointNewPosition = false)
     {
-        if (selectedRule is null)
+        if (selectedProvider is null)
         {
             await StartNewSessionAsync(
                 book,
                 chapterIndex,
                 segmentIndex,
                 resumePositionMilliseconds,
-                selectedRule: null,
+                selectedProvider: null,
                 speakSpeed: speakSpeed,
                 forceInvalidate: false,
                 playImmediately: false,
                 pausedState: PlaybackState.Stopped,
-                pausedMessage: "当前没有可用的 TTS 规则。",
+                pausedMessage: "尚未选择语音服务。",
                 cancellationToken,
                 checkpointNewPosition: checkpointNewPosition).ConfigureAwait(false);
             return;
@@ -2280,7 +2237,7 @@ public sealed class PlaybackCoordinator :
             chapterIndex,
             segmentIndex,
             resumePositionMilliseconds,
-            selectedRule,
+            selectedProvider,
             speakSpeed,
             forceInvalidate: false,
             playImmediately: false,
@@ -2310,14 +2267,14 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        if (_currentSnapshot.State == PlaybackState.Playing && _currentRule is not null)
+        if (_currentSnapshot.State == PlaybackState.Playing && _currentProvider is not null)
         {
             await StartNewSessionAsync(
                 target.Value.Book,
                 target.Value.ChapterIndex,
                 target.Value.SegmentIndex,
                 0,
-                _currentRule,
+                _currentProvider,
                 GetCurrentSpeakSpeed(),
                 forceInvalidate: false,
                 playImmediately: true,
@@ -2328,13 +2285,13 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        var selectedRule = _currentRule ?? await _selectedRuleProvider.GetSelectedRuleAsync(cancellationToken).ConfigureAwait(false);
+        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
         await OpenResolvedPositionAsync(
             target.Value.Book,
             target.Value.ChapterIndex,
             target.Value.SegmentIndex,
             0,
-            selectedRule,
+            selectedProvider,
             GetCurrentSpeakSpeed(),
             "已跳转到目标段落，等待播放。",
             cancellationToken,
@@ -2469,6 +2426,7 @@ public sealed class PlaybackCoordinator :
 
     private void PublishSnapshot(PlaybackSnapshot snapshot)
     {
+        snapshot = snapshot with { HasLoadedAudio = _currentSession?.HasLoadedAudio == true };
         _currentSnapshot = snapshot;
         SnapshotChanged?.Invoke(this, snapshot);
     }

@@ -1,3 +1,4 @@
+using NovelSpeaker.Domain.Speech.Providers;
 namespace NovelSpeaker.Application.Playback;
 
 /// <summary>
@@ -11,8 +12,8 @@ public sealed record PlaybackSnapshot(
     string? ChapterTitle,
     int SegmentIndex,
     int SegmentCount,
-    long? RuleId,
-    string? RuleName,
+    ProviderId? ProviderId,
+    string? ProviderName,
     int SpeakSpeed,
     long PositionMilliseconds,
     long DurationMilliseconds,
@@ -20,9 +21,10 @@ public sealed record PlaybackSnapshot(
     bool IsUsingCache,
     bool CanRetry,
     string? BookAuthor = null,
-    bool HasAvailableRule = true,
+    bool HasAvailableProvider = true,
     long ContentRevision = 0,
-    double Volume = PlaybackVolume.Default)
+    double Volume = PlaybackVolume.Default,
+    bool HasLoadedAudio = false)
 {
     public static PlaybackSnapshot Idle { get; } = new(
         PlaybackState.Idle,

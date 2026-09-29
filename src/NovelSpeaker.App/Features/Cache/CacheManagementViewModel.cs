@@ -14,7 +14,7 @@ namespace NovelSpeaker.App.Features.Cache;
 
 public sealed partial class CacheManagementViewModel : ObservableObject, ITransientEscapeHandler
 {
-    private const string CleanupImpactMessage = "此操作只会清理音频缓存，不会删除书籍、章节、阅读进度、TTS 规则或章节规则。";
+    private const string CleanupImpactMessage = "此操作只会清理音频缓存，不会删除书籍、章节、阅读进度、语音服务或章节规则。";
     private const int ChapterDecorationWindowSize = 32;
     private const int SelectionDecorationResetThreshold = 64;
 

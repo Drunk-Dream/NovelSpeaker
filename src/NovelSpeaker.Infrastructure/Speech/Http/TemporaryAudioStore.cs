@@ -1,10 +1,13 @@
+using NovelSpeaker.Application.Cache.Audio;
+using NovelSpeaker.Application.Speech.Execution;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Infrastructure.FileSystem;
 
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
 /// <summary>Owns temporary HTTP TTS response files and their cleanup.</summary>
-public sealed class TemporaryAudioStore
+public sealed class TemporaryAudioStore : IGeneratedAudioFileStore
 {
     private readonly IAppDataDirectoryProvider _directories;
     private readonly IAppStoragePathResolver _pathResolver;
@@ -30,6 +33,23 @@ public sealed class TemporaryAudioStore
         _directories = directories ?? throw new ArgumentNullException(nameof(directories));
         _fileOperations = fileOperations ?? throw new ArgumentNullException(nameof(fileOperations));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
+    }
+
+    public async Task<TtsAudioResponse> WriteAsync(ProviderSynthesisResult audio, CancellationToken cancellationToken)
+    {
+        var path = await WriteAsync(0, audio.Audio!, cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var extension = audio.AudioFormat?.ToLowerInvariant() switch
+            {
+                "mp3" => ".mp3",
+                "wav" => ".wav",
+                _ => ".audio"
+            };
+            var candidate = CreateCandidate(path, extension);
+            return new TtsAudioResponse(candidate, 200, audio.ContentType, audio.AudioFormat, TransferOwnership(candidate));
+        }
+        finally { Delete(path); }
     }
 
     public async Task<string> WriteAsync(long ruleId, Stream content, CancellationToken cancellationToken)

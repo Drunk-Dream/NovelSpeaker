@@ -128,15 +128,17 @@
 
 完成成果：通用 FeatureId 设置与“实验性功能”次级页已接入；Edge 固定单实例在首次启用时创建，停用保留配置/排序并原子清空必要的 CurrentProvider。独立 Edge Editor 支持离线 Voice 快照、内联搜索、绕过缓存刷新和未保存 Draft 试听；Catalog 仅在进程内缓存，失败/缺失 Voice 不取消已配置状态，加载不锁死编辑器。Infrastructure 使用固定 `edge-readaloud-144-v1` profile 和独立 WebSocket；2026-09-29 生产 Voice List、MP3 合成及现有解码路径验证成功。语速统一为 0–100/默认 50，移除 0 sentinel 与 HTTP 专属试听服务，不迁移旧设置或模板。核心生命周期、持久化、Runtime/协议、语速及 Draft 测试通过，Release build、format 和隔离桌面验证通过；临时验证入口/产物及本任务规格已删除。扩大检查时 Domain 15、Infrastructure 335、Presentation 206 项全通过；Application 197 项通过，4 项章节标题相关导出失败在任务起点 `2ddec3c` 同样复现，保留为已有问题。播放/缓存/导出生产接线与播放页 Provider 选择器由 T010 完成。
 
-## [ ] T010（P0）：完成 Playback/Cache/Export Provider 接入并清理旧体系
+## [x] T010（P0）：完成 Playback/Cache/Export Provider 接入并清理旧体系
 
 依赖：T006–T009。
-
-实施规格：`tasks/T010_provider_playback_cache_cleanup.md`
 
 目标：将 T006 暂时断开的 TTS 生产调用链接回已注册的 Provider Runtime，让 Playback、Prefetch、Active Cache、Coverage、Export 和播放页全部恢复 Provider 语音服务能力；完成 ProviderSynthesisFingerprint、播放页 Provider 选择器和旧 TTS Rule 代码/术语清理；全链路遵循 T009 已建立的 `SpeakSpeed 0–100` 合同并正确支持合法值 `0`；最后执行完整 Release 质量门禁。T010 验收前不得留下仅有接口/模型、生产调用方仍未接通的状态。
 
 T010 为本阶段收口任务。
+
+完成成果：Playback、Prefetch 和 Active Cache 已接通已注册的 HTTP/Edge Runtime；当前句保持原音频，下一句使用最新选择与已保存配置，缺失/隐藏/未配置/Runtime 不可用时稳定停止且不回退、不错误推进进度。预取逐请求读取最新 Provider/语速，活动缓存冻结 typed config、语速和文本配置。Speech 发布 typed semantic change，由 Cache 决定 Coverage invalidation；Coverage/Export 仅按 Provider synthesis profile 读取可验证缓存，不调用合成 Runtime。播放页选择器只列出已配置可见服务，统一排序、整项当前视觉、None 空选中和管理入口均已接入。
+
+旧顶层 TTS Rule 模型、选择/编辑/测试接口、执行编译器、仓储与用户术语已删除；README 已更新。历史设置读取和既有迁移保留原兼容行为，旧物理缓存不主动删除，没有数据库结构或数据迁移变更。旧模型细节测试移除，重复 fingerprint 测试合并到 Provider 契约测试；保留模板安全、HTTP transport、持久化、缓存/导出及架构核心测试，新增真实生产组合、句子生命周期、冻结配置、最新预取、429 重试、共享预取取消、空音频恢复、前台抢占和暂停音频可用性回归测试。测试 fixture 仅清理自身数据库连接池，滚动断言允许浮点舍入误差；隔离桌面在线程确认退出后对 Win32 170 做有限释放重试，超时和其他错误仍失败关闭并有核心安全测试保护。locked restore、format verify、Release build（零警告）和完整测试通过：Domain 15、Application 200、Infrastructure 314、Presentation 212、隔离桌面 WPF 96，共 837 项。无长期文档冲突，临时产物与本任务规格已清理。
 
 ## [x] T011（P1）：修正语音服务卡片并统一输入密度
 

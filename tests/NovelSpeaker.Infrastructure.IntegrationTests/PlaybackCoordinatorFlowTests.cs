@@ -77,7 +77,7 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal("示例小说", coordinator.CurrentSnapshot.BookTitle);
         Assert.Equal("第一章 开始", coordinator.CurrentSnapshot.ChapterTitle);
         Assert.Equal(12, coordinator.CurrentSnapshot.SpeakSpeed);
-        Assert.Equal("默认规则", coordinator.CurrentSnapshot.RuleName);
+        Assert.Equal("默认规则", coordinator.CurrentSnapshot.ProviderName);
         Assert.Equal("audio-1.mp3", localCoordinator.LastStartedRequest?.FilePath);
         Assert.Single(audioProvider.Requests);
     }

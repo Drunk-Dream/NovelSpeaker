@@ -4,7 +4,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Compilation;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech.Providers;
@@ -27,10 +27,10 @@ public sealed class ExportChaptersServiceTests
                 CreatePlanSegment(0, 0, "正文甲。")
             ]);
         var writer = new FakeChapterMp3ExportWriter();
-        var service = CreateService(metadata, planStore, writer, AppSettings.Default with
+        var service = CreateService(metadata, planStore, writer, (AppSettings.Default with { ReadChapterTitle = false }) with
         {
             DefaultSpeakSpeed = 12,
-            CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7)
+            CurrentProviderId = TestSpeechProviders.Id(7)
         });
 
         var result = await service.ExportAsync(
@@ -69,7 +69,7 @@ public sealed class ExportChaptersServiceTests
             metadata,
             planStore,
             writer,
-            AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) });
+            (AppSettings.Default with { ReadChapterTitle = false }) with { CurrentProviderId = TestSpeechProviders.Id(7) });
         var progress = new CaptureProgress();
 
         await service.ExportAsync(
@@ -93,9 +93,9 @@ public sealed class ExportChaptersServiceTests
             metadata,
             planStore,
             writer,
-            AppSettings.Default with
+            (AppSettings.Default with { ReadChapterTitle = false }) with
             {
-                CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7),
+                CurrentProviderId = TestSpeechProviders.Id(7),
                 ReadChapterTitle = true
             });
 
@@ -137,7 +137,7 @@ public sealed class ExportChaptersServiceTests
             metadata,
             planStore,
             withoutTitleWriter,
-            AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7), DefaultSpeakSpeed = 10 });
+            (AppSettings.Default with { ReadChapterTitle = false }) with { CurrentProviderId = TestSpeechProviders.Id(7), DefaultSpeakSpeed = 10 });
         await withoutTitle.ExportAsync(
             new ExportChaptersRequest("book-1", [0], @"D:\exports"),
             CancellationToken.None);
@@ -147,9 +147,9 @@ public sealed class ExportChaptersServiceTests
             metadata,
             planStore,
             withTitleWriter,
-            AppSettings.Default with
+            (AppSettings.Default with { ReadChapterTitle = false }) with
             {
-                CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7),
+                CurrentProviderId = TestSpeechProviders.Id(7),
                 DefaultSpeakSpeed = 10,
                 ReadChapterTitle = true
             });
@@ -181,7 +181,7 @@ public sealed class ExportChaptersServiceTests
                 metadata,
                 missingPlanStore,
                 missingWriter,
-                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
+                (AppSettings.Default with { ReadChapterTitle = false }) with { CurrentProviderId = TestSpeechProviders.Id(7) })
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                 CancellationToken.None);
@@ -204,7 +204,7 @@ public sealed class ExportChaptersServiceTests
                 metadata,
                 notReadyPlanStore,
                 notReadyWriter,
-                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
+                (AppSettings.Default with { ReadChapterTitle = false }) with { CurrentProviderId = TestSpeechProviders.Id(7) })
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                 CancellationToken.None);
@@ -229,7 +229,7 @@ public sealed class ExportChaptersServiceTests
                 CreateMetadata(),
                 planStore,
                 writer,
-                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
+                (AppSettings.Default with { ReadChapterTitle = false }) with { CurrentProviderId = TestSpeechProviders.Id(7) })
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                 CancellationToken.None);
@@ -243,7 +243,7 @@ public sealed class ExportChaptersServiceTests
     {
         var currentRule = new RegexReplacementRule(
             Guid.Parse("11111111-1111-1111-1111-111111111111"),
-            "当前规则",
+            "当前正文替换规则",
             true,
             0,
             "原文",
@@ -264,7 +264,7 @@ public sealed class ExportChaptersServiceTests
                 CreateMetadata(),
                 planStore,
                 writer,
-                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) },
+                (AppSettings.Default with { ReadChapterTitle = false }) with { CurrentProviderId = TestSpeechProviders.Id(7) },
                 [currentRule])
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
@@ -290,9 +290,9 @@ public sealed class ExportChaptersServiceTests
                 CreateMetadata(),
                 planStore,
                 writer,
-                AppSettings.Default with
+                (AppSettings.Default with { ReadChapterTitle = false }) with
                 {
-                    CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7),
+                    CurrentProviderId = TestSpeechProviders.Id(7),
                     ReadChapterTitle = true
                 })
             .ExportAsync(
@@ -314,16 +314,16 @@ public sealed class ExportChaptersServiceTests
     [Fact]
     public async Task ExportAsync_keeps_the_starting_synthesis_profile_when_settings_change_during_plan_reads()
     {
-        var settings = new FakeAppSettingsService(AppSettings.Default with
+        var settings = new FakeAppSettingsService((AppSettings.Default with { ReadChapterTitle = false }) with
         {
-            CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7),
+            CurrentProviderId = TestSpeechProviders.Id(7),
             DefaultSpeakSpeed = 12
         });
         var planStore = new FakeChapterSpeechPlanStore
         {
             BeforeGet = () => settings.CurrentValue = settings.CurrentValue with
             {
-                CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(8),
+                CurrentProviderId = TestSpeechProviders.Id(8),
                 DefaultSpeakSpeed = 5,
                 ReadChapterTitle = true
             },
@@ -337,7 +337,7 @@ public sealed class ExportChaptersServiceTests
             CreateMetadata(),
             planStore,
             new FakeRegexReplacementRuleRepository([]),
-            new FakeSelectedTtsRuleProvider(7),
+            new FakeCurrentSpeechProvider(7),
             settings,
             new ExportFileNameSanitizer(),
             writer);
@@ -370,7 +370,7 @@ public sealed class ExportChaptersServiceTests
                 CreateMetadata(),
                 planStore,
                 writer,
-                AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
+                (AppSettings.Default with { ReadChapterTitle = false }) with { CurrentProviderId = TestSpeechProviders.Id(7) })
             .ExportAsync(
                 new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                 CancellationToken.None);
@@ -401,7 +401,7 @@ public sealed class ExportChaptersServiceTests
                     CreateMetadata(),
                     planStore,
                     writer,
-                    AppSettings.Default with { CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(7) })
+                    (AppSettings.Default with { ReadChapterTitle = false }) with { CurrentProviderId = TestSpeechProviders.Id(7) })
                 .ExportAsync(
                     new ExportChaptersRequest("book-1", [0], @"D:\exports"),
                     cancellation.Token));
@@ -418,7 +418,7 @@ public sealed class ExportChaptersServiceTests
             metadata,
             planStore,
             new FakeRegexReplacementRuleRepository(regexRules ?? []),
-            new FakeSelectedTtsRuleProvider(settings.CurrentProviderId is null ? null : 7),
+            new FakeCurrentSpeechProvider(settings.CurrentProviderId is null ? null : 7),
             new FakeAppSettingsService(settings),
             new ExportFileNameSanitizer(),
             writer);
@@ -471,18 +471,9 @@ public sealed class ExportChaptersServiceTests
 
     private static SynthesisProfileFingerprint ExpectedProfile(int speakSpeed)
     {
-        var rule = new NormalizedHttpTtsRule(
-            7,
-            "当前规则",
-            NormalizedTemplate.Parse("https://cache-key.invalid/7"),
-            new Dictionary<string, NormalizedTemplate>(),
-            "GET",
-            null,
-            false,
-            "audio/mpeg",
-            null);
+        var rule = new HttpSpeechProviderConfiguration("https://cache-key.invalid/7", "GET", new Dictionary<string, string>(), null, null);
         return SynthesisProfileFingerprint.Create(
-            TtsRuleFingerprint.Create(rule),
+            ProviderSynthesisFingerprint.Create(rule),
             speakSpeed);
     }
 
@@ -557,43 +548,18 @@ public sealed class ExportChaptersServiceTests
             throw new NotSupportedException();
     }
 
-    private sealed class FakeSelectedTtsRuleProvider(long? ruleId) : ISelectedTtsRuleProvider
+    private sealed class FakeCurrentSpeechProvider(long? providerNumber) : TestCurrentSpeechProvider
     {
-        public Task<SelectedPlaybackRule?> GetSelectedRuleAsync(CancellationToken cancellationToken)
+        public override Task<ResolvedSpeechProvider?> GetSelectedProviderAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(
-                ruleId is null
+                providerNumber is null
                     ? null
-                    : new SelectedPlaybackRule(
-                        ruleId.Value,
-                        "当前规则",
-                        TestHttpTtsRules.Create(
-                            ruleId.Value,
-                            "当前规则",
-                            "https://cache-key.invalid/7",
-                            "audio/mpeg",
-                            null,
-                            null,
-                            null,
-                            null,
-                            true,
-                            null,
-                            "2026-07-20T00:00:00.0000000Z",
-                            "2026-07-20T00:00:00.0000000Z"),
-                        new NormalizedHttpTtsRule(
-                            ruleId.Value,
-                            "当前规则",
-                            NormalizedTemplate.Parse("https://cache-key.invalid/7"),
-                            new Dictionary<string, NormalizedTemplate>(),
-                            "GET",
-                            null,
-                            false,
-                            "audio/mpeg",
-                            null)));
+                    : TestSpeechProviders.Resolve(TestSpeechProviders.Create(providerNumber.Value, "当前语音服务", "https://cache-key.invalid/7")));
         }
 
-        public Task<SelectedPlaybackRule?> SelectRuleAsync(long selectedRuleId, CancellationToken cancellationToken) =>
+        public override Task<ResolvedSpeechProvider?> SelectProviderAsync(ProviderId selectedProviderId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }
 

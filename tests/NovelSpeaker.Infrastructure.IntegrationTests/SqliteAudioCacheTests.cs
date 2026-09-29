@@ -407,7 +407,7 @@ public sealed class SqliteAudioCacheTests
         Assert.Equal(key.Identity.SpeechTextHash.ToArray(), reader.GetFieldValue<byte[]>(1));
         Assert.Equal(key.Identity.SynthesisProfile.Value.ToArray(), reader.GetFieldValue<byte[]>(2));
         Assert.Equal(key.Identity.SynthesisProfile.SchemaVersion, reader.GetInt32(3));
-        Assert.Equal(key.Identity.SynthesisProfile.TtsRule.Value.ToArray(), reader.GetFieldValue<byte[]>(4));
+        Assert.Equal(key.Identity.SynthesisProfile.Provider.Value.ToArray(), reader.GetFieldValue<byte[]>(4));
         Assert.Equal(key.Identity.SynthesisProfile.SpeakSpeed, reader.GetInt32(5));
     }
 
@@ -895,7 +895,7 @@ public sealed class SqliteAudioCacheTests
         command.Parameters.AddWithValue("$profile", profile.Value.ToArray());
         command.Parameters.AddWithValue("$schemaVersion", profile.SchemaVersion);
         command.Parameters.AddWithValue("$ruleId", 7);
-        command.Parameters.AddWithValue("$ruleFingerprint", profile.TtsRule.Value.ToArray());
+        command.Parameters.AddWithValue("$ruleFingerprint", profile.Provider.Value.ToArray());
         command.Parameters.AddWithValue("$speakSpeed", profile.SpeakSpeed);
         command.Parameters.AddWithValue("$optionsJson", (object?)profile.OptionsJson ?? DBNull.Value);
         command.Parameters.AddWithValue("$now", now);

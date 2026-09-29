@@ -26,7 +26,7 @@ internal sealed class PlayerPlaybackProjection
                 ? fallbackChapterTitle
                 : snapshot.ChapterTitle,
             isFaulted,
-            snapshot.HasAvailableRule,
+            snapshot.HasAvailableProvider,
             isFaulted ? snapshot.Message ?? "播放失败。" : string.Empty,
             snapshot.State == PlaybackState.Playing ? "暂停" : "播放",
             AppSettings.NormalizeSpeakSpeed(
@@ -44,7 +44,7 @@ internal sealed record PlayerSnapshotViewState(
     string Author,
     string ChapterTitle,
     bool IsFaulted,
-    bool HasAvailableRule,
+    bool HasAvailableProvider,
     string ErrorText,
     string PrimaryActionText,
     int SpeakSpeed,

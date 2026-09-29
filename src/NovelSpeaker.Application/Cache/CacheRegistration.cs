@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Speech.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Cache.ActiveCache;
@@ -28,7 +29,8 @@ public static class CacheRegistration
                 new CacheConfigurationChangeObserver(
                     provider.GetRequiredService<IAppSettingsService>(),
                     regexWorkspace,
-                    coordinator.Publish));
+                    coordinator.Publish,
+                    provider.GetService<ICurrentSpeechProvider>()));
             return coordinator;
         });
         services.TryAddSingleton<ICacheCatalog, CacheCatalog>();

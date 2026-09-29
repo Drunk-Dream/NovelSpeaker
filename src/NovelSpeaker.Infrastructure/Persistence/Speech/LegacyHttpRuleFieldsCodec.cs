@@ -1,9 +1,9 @@
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-namespace NovelSpeaker.Infrastructure.Speech.Rules;
+namespace NovelSpeaker.Infrastructure.Persistence.Speech;
 
-internal static class TtsRuleStructuredFieldsCodec
+internal static class LegacyHttpRuleFieldsCodec
 {
     public static IReadOnlyDictionary<string, string> ParseHeaders(string? json)
     {

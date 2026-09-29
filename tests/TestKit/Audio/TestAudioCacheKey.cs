@@ -1,3 +1,5 @@
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
@@ -33,16 +35,7 @@ internal static class TestAudioCacheKey
 
     private static SynthesisProfileFingerprint CreateProfile(long ruleId, int speakSpeed)
     {
-        var rule = new NormalizedHttpTtsRule(
-            ruleId,
-            "test",
-            NormalizedTemplate.Parse($"https://cache-key.invalid/{ruleId}"),
-            new Dictionary<string, NormalizedTemplate>(),
-            "GET",
-            null,
-            false,
-            "audio/mpeg",
-            null);
-        return SynthesisProfileFingerprint.Create(TtsRuleFingerprint.Create(rule), speakSpeed);
+        var rule = new HttpSpeechProviderConfiguration($"https://cache-key.invalid/{ruleId}", "GET", new Dictionary<string, string>(), null, null);
+        return SynthesisProfileFingerprint.Create(ProviderSynthesisFingerprint.Create(rule), speakSpeed);
     }
 }

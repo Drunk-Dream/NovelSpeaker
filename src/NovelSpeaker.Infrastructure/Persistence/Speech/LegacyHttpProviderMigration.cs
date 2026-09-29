@@ -6,7 +6,6 @@ using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Speech.Providers;
-using NovelSpeaker.Infrastructure.Speech.Rules;
 
 namespace NovelSpeaker.Infrastructure.Persistence.Speech;
 
@@ -159,10 +158,10 @@ internal static class LegacyHttpProviderMigration
         bool structuredBody;
         try
         {
-            headers = TtsRuleStructuredFieldsCodec.ParseHeaders(legacy.Header);
-            requestMethod = TtsRuleStructuredFieldsCodec.ParseRequestMethod(legacy.RequestOptionsJson);
-            body = TtsRuleStructuredFieldsCodec.ParseRequestBody(legacy.RequestOptionsJson);
-            structuredBody = TtsRuleStructuredFieldsCodec.IsRequestBodyJsonStructure(legacy.RequestOptionsJson);
+            headers = LegacyHttpRuleFieldsCodec.ParseHeaders(legacy.Header);
+            requestMethod = LegacyHttpRuleFieldsCodec.ParseRequestMethod(legacy.RequestOptionsJson);
+            body = LegacyHttpRuleFieldsCodec.ParseRequestBody(legacy.RequestOptionsJson);
+            structuredBody = LegacyHttpRuleFieldsCodec.IsRequestBodyJsonStructure(legacy.RequestOptionsJson);
         }
         catch (Exception exception) when (exception is JsonException or ArgumentException or InvalidOperationException)
         {

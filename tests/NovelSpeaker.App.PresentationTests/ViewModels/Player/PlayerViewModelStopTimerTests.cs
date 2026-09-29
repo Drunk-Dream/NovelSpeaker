@@ -1,3 +1,5 @@
+using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache.ActiveCache;
@@ -153,7 +155,7 @@ public sealed partial class PlayerViewModelTests
         "第一章",
         0,
         1,
-        1,
+        TestSpeechProviders.Id(1),
         "默认规则",
         10,
         0,

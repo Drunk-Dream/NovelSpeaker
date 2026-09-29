@@ -137,7 +137,7 @@ internal sealed class SqliteAudioCacheIndex
         await EnsureSynthesisProfileAsync(
             connection,
             request.Key.Identity.SynthesisProfile,
-            request.RuleId,
+            request.LegacyRuleId,
             now,
             cancellationToken).ConfigureAwait(false);
 
@@ -936,7 +936,7 @@ internal sealed class SqliteAudioCacheIndex
         command.Parameters.AddWithValue("$fingerprint", profile.Value.ToArray());
         command.Parameters.AddWithValue("$schemaVersion", profile.SchemaVersion);
         command.Parameters.AddWithValue("$ruleId", ruleId);
-        command.Parameters.AddWithValue("$ruleFingerprint", profile.TtsRule.Value.ToArray());
+        command.Parameters.AddWithValue("$ruleFingerprint", profile.Provider.Value.ToArray());
         command.Parameters.AddWithValue("$speakSpeed", profile.SpeakSpeed);
         command.Parameters.AddWithValue("$optionsJson", (object?)profile.OptionsJson ?? DBNull.Value);
         command.Parameters.AddWithValue("$createdAt", now);

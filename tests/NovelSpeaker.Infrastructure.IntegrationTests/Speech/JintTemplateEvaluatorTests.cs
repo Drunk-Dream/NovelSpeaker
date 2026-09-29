@@ -1,3 +1,5 @@
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Infrastructure.Speech.Scripting;
@@ -12,13 +14,9 @@ public sealed class JintTemplateEvaluatorTests
     [Fact]
     public async Task EvaluateAsync_renders_strings_and_serializes_object_results()
     {
-        var rule = CreateRule(
-            "示例规则",
-            "https://example.com/tts?text={{encodeURIComponent(speakText)}}");
-        var context = new TtsRuleContext(
+        var context = new SpeechTemplateContext(
             "你好 世界",
-            12,
-            rule);
+            12);
 
         var textResult = await _evaluator.EvaluateAsync(
             NormalizedTemplate.Parse("{{speakText}}|{{speakSpeed}}"),
@@ -36,8 +34,7 @@ public sealed class JintTemplateEvaluatorTests
     [Fact]
     public async Task EvaluateAsync_rejects_infinite_loops_and_untrusted_system_access()
     {
-        var rule = CreateRule("安全规则", "https://example.com/tts");
-        var context = new TtsRuleContext("test", 10, rule);
+        var context = new SpeechTemplateContext("test", 10);
 
         await Assert.ThrowsAnyAsync<Exception>(() => _evaluator.EvaluateAsync(
             NormalizedTemplate.Parse("{{(() => { while (true) {} })()}}"),
@@ -63,8 +60,7 @@ public sealed class JintTemplateEvaluatorTests
     [Fact]
     public async Task EvaluateAsync_rejects_excessive_output()
     {
-        var rule = CreateRule("安全规则", "https://example.com/tts");
-        var context = new TtsRuleContext("test", 10, rule);
+        var context = new SpeechTemplateContext("test", 10);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => _evaluator.EvaluateAsync(
             NormalizedTemplate.Parse("{{'x'.repeat(9000)}}"),
@@ -75,7 +71,7 @@ public sealed class JintTemplateEvaluatorTests
     [Fact]
     public async Task EvaluateAsync_supports_base64_functions_without_exposing_CLR()
     {
-        var context = new TtsRuleContext("hello", 10);
+        var context = new SpeechTemplateContext("hello", 10);
         var encoded = await _evaluator.EvaluateAsync(
             NormalizedTemplate.Parse("{{btoa('ABC')}}"), context, CancellationToken.None);
         var decoded = await _evaluator.EvaluateAsync(
@@ -87,25 +83,4 @@ public sealed class JintTemplateEvaluatorTests
             NormalizedTemplate.Parse("{{btoa.GetType()}}"), context, CancellationToken.None));
     }
 
-    private static HttpTtsRule CreateRule(
-        string name,
-        string url,
-        string? header = null,
-        string? requestOptionsJson = null)
-    {
-        var utcNow = DateTime.UtcNow.ToString("O");
-        return TestHttpTtsRules.Create(
-            1,
-            name,
-            url,
-            "audio/mpeg",
-            null,
-            header,
-            requestOptionsJson,
-            null,
-            true,
-            null,
-            utcNow,
-            utcNow);
-    }
 }

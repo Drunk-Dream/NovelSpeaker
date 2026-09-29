@@ -71,7 +71,7 @@ internal sealed class PlaybackRecoveryPolicy
                 shouldPauseAfterEmptyResponse,
                 emptyResponseCount,
                 shouldPauseAfterEmptyResponse
-                    ? $"已连续 {emptyResponseCount} 段未生成音频，请重试、切换规则或停止。"
+                    ? $"已连续 {emptyResponseCount} 段未生成音频，请重试、切换语音服务或停止。"
                     : input.FailureMessage,
                 CanRetry: true);
         }

@@ -1,5 +1,5 @@
 using System.Text.Json;
-using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Speech.Compilation;
 
 namespace NovelSpeaker.Application.Cache;
@@ -9,32 +9,32 @@ namespace NovelSpeaker.Application.Cache;
 /// </summary>
 public sealed record SynthesisProfileFingerprint(
     int SchemaVersion,
-    TtsRuleFingerprint TtsRule,
+    ProviderSynthesisFingerprint Provider,
     int SpeakSpeed,
     string? OptionsJson,
     Fingerprint Value)
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 2;
 
     public ReadOnlyMemory<byte> Bytes => Value.Bytes;
 
     public string Hex => Value.Hex;
 
     public static SynthesisProfileFingerprint Create(
-        TtsRuleFingerprint ttsRule,
+        ProviderSynthesisFingerprint provider,
         int speakSpeed,
         string? optionsJson = null)
     {
-        ArgumentNullException.ThrowIfNull(ttsRule);
+        ArgumentNullException.ThrowIfNull(provider);
         var normalizedOptions = NormalizeOptionsJson(optionsJson);
         var writer = new CanonicalIdentityWriter();
         writer.Add("schema", CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        writer.Add("tts-rule", ttsRule.Hex);
+        writer.Add("provider-synthesis", provider.Hex);
         writer.Add("speak-speed", speakSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture));
         writer.Add("options", normalizedOptions);
         return new SynthesisProfileFingerprint(
             CurrentSchemaVersion,
-            ttsRule,
+            provider,
             speakSpeed,
             normalizedOptions,
             writer.Build());

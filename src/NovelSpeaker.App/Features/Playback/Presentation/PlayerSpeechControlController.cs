@@ -1,7 +1,8 @@
+using NovelSpeaker.Domain.Speech.Providers;
 using System.Globalization;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.Domain.Settings;
@@ -9,7 +10,7 @@ using NovelSpeaker.Domain.Settings;
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
 /// <summary>
-/// Coordinates the playback page's rule query and global speak-speed persistence.
+/// Coordinates the playback page's provider query and global speak-speed persistence.
 /// It does not own playback session state.
 /// </summary>
 internal sealed class PlayerSpeechControlController : IDisposable
@@ -17,7 +18,7 @@ internal sealed class PlayerSpeechControlController : IDisposable
     private static readonly TimeSpan SpeakSpeedStepDebounceDelay = TimeSpan.FromMilliseconds(500);
 
     private readonly IPlaybackSession _playbackSession;
-    private readonly ITtsRuleQueries _ruleQueries;
+    private readonly ICurrentSpeechProvider _providers;
     private readonly IAppSettingsService _settingsService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly TimeProvider _timeProvider;
@@ -27,13 +28,13 @@ internal sealed class PlayerSpeechControlController : IDisposable
 
     public PlayerSpeechControlController(
         IPlaybackSession playbackSession,
-        ITtsRuleQueries ruleQueries,
+        ICurrentSpeechProvider providers,
         IAppSettingsService settingsService,
         IAppFeedbackService feedbackService,
         TimeProvider timeProvider)
     {
         _playbackSession = playbackSession;
-        _ruleQueries = ruleQueries;
+        _providers = providers;
         _settingsService = settingsService;
         _feedbackService = feedbackService;
         _timeProvider = timeProvider;
@@ -47,18 +48,17 @@ internal sealed class PlayerSpeechControlController : IDisposable
         DefaultSpeakSpeed = _settingsService.Current.DefaultSpeakSpeed;
     }
 
-    public async Task<IReadOnlyList<PlayerRuleItemViewModel>> LoadRulesAsync(CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<PlayerProviderItemViewModel>> LoadProvidersAsync(CancellationToken cancellationToken)
     {
-        var rules = await _ruleQueries.GetRulesAsync(cancellationToken);
-        return rules
-            .Where(static rule => rule.IsEnabled)
-            .Select(rule => new PlayerRuleItemViewModel(rule.Id, rule.Name, rule.IsEnabled, rule.IsSelected))
+        var providers = await _providers.GetAvailableAsync(cancellationToken);
+        return providers
+            .Select(provider => new PlayerProviderItemViewModel(provider.Id, provider.Name, provider.Id == _settingsService.Current.CurrentProviderId))
             .ToArray();
     }
 
-    public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken)
+    public Task ChangeProviderAsync(ProviderId providerId, CancellationToken cancellationToken)
     {
-        return _playbackSession.ChangeRuleAsync(ruleId, cancellationToken);
+        return _playbackSession.ChangeProviderAsync(providerId, cancellationToken);
     }
 
     public bool TryParseSpeakSpeed(string text, out int parsedSpeed, out string errorText)

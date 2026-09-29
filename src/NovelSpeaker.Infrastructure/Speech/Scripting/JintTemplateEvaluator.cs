@@ -18,7 +18,7 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
 
     public Task<string> EvaluateAsync(
         NormalizedTemplate template,
-        TtsRuleContext context,
+        SpeechTemplateContext context,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -27,7 +27,7 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
 
     private static string EvaluateCore(
         NormalizedTemplate template,
-        TtsRuleContext context,
+        SpeechTemplateContext context,
         CancellationToken cancellationToken)
     {
         var engine = CreateEngine(context);
@@ -56,7 +56,7 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
         return builder.ToString();
     }
 
-    private static Engine CreateEngine(TtsRuleContext context)
+    private static Engine CreateEngine(SpeechTemplateContext context)
     {
         var engine = new Engine(options =>
         {

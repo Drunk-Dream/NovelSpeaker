@@ -16,7 +16,7 @@ namespace NovelSpeaker.App.Features.Cache;
 
 public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 {
-    private const string CleanupImpactMessage = "此操作只会清理音频缓存，不会删除书籍、章节、阅读进度、TTS 规则或章节规则。";
+    private const string CleanupImpactMessage = "此操作只会清理音频缓存，不会删除书籍、章节、阅读进度、语音服务或章节规则。";
     private const int DebounceDelayMilliseconds = 500;
     private const long Megabyte = 1024L * 1024;
     private const long Gigabyte = 1024L * 1024 * 1024;
@@ -288,7 +288,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         {
             var decision = await _dialogService.ShowConfirmationAsync(
                 "降低缓存上限",
-                "新的缓存上限低于当前占用。保存后会按最近最少使用顺序立即清理缓存；不会删除书籍、章节、阅读进度、TTS 规则或章节规则。",
+                "新的缓存上限低于当前占用。保存后会按最近最少使用顺序立即清理缓存；不会删除书籍、章节、阅读进度、语音服务或章节规则。",
                 "保存并清理",
                 "取消",
                 cancellationToken);

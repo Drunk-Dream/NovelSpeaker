@@ -130,14 +130,14 @@
                         ToolTip="迷你播放器"
                         AutomationProperties.Name="迷你播放器"
                         Icon="{ui:SymbolIcon Symbol=WindowNew24}" />
-                <ui:Button x:Name="RuleMenuButton"
+                <ui:Button x:Name="ProviderMenuButton"
                         Margin="12,0,0,0"
                         Width="44"
                         Height="44"
                         Style="{StaticResource App.Button.Icon}"
-                        Command="{Binding ToggleRuleMenuCommand}"
-                        ToolTip="切换规则"
-                        AutomationProperties.Name="切换规则"
+                        Command="{Binding ToggleProviderMenuCommand}"
+                        ToolTip="切换语音服务"
+                        AutomationProperties.Name="切换语音服务"
                         Icon="{ui:SymbolIcon Symbol=TextBulletListSquare24}" />
                 <ui:Button x:Name="StopTimerToolButton"
                         Margin="12,0,0,0"
@@ -279,75 +279,56 @@
                 </Border>
             </ui:Flyout>
 
-            <Popup x:Name="RuleMenuPopup"
+            <Popup x:Name="ProviderMenuPopup"
                    Style="{StaticResource App.Feedback.PopupHost}"
-                   PlacementTarget="{Binding ElementName=RuleMenuButton}"
+                   PlacementTarget="{Binding ElementName=ProviderMenuButton}"
                    Placement="Bottom"
                    HorizontalOffset="0"
                    VerticalOffset="8"
                    StaysOpen="False"
-                   IsOpen="{Binding IsRuleMenuOpen, Mode=TwoWay}">
+                   IsOpen="{Binding IsProviderMenuOpen, Mode=TwoWay}">
                 <Border Width="320"
                         Style="{StaticResource App.Feedback.PopupSurface}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
-                                       Text="切换规则" />
-                            <TextBlock Margin="0,8,0,0"
-                                       Style="{StaticResource App.Typography.Secondary}"
-                                       Text="当前规则仅在菜单中显示勾选。" />
+                                       Text="切换语音服务" />
                             <ItemsControl Margin="0,16,0,0"
-                                          ItemsSource="{Binding Rules}">
+                                          ItemsSource="{Binding Providers}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Margin="0,0,0,8"
-                                                Padding="12,8"
-                                                Style="{StaticResource App.Button.Subtle}"
+                                                Style="{StaticResource App.Button.Transparent}"
+                                                HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Stretch"
-                                                IsEnabled="{Binding IsEnabled}"
-                                                Command="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                Command="{Binding DataContext.SelectProviderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                 CommandParameter="{Binding}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Style="{StaticResource App.Typography.Body}"
-                                                           Text="{Binding Name}" />
-                                                <TextBlock Grid.Column="1"
-                                                           Margin="12,0,0,0"
-                                                           Text="当前">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock"
-                                                               BasedOn="{StaticResource App.Typography.Secondary}">
-                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                                                                    <Setter Property="Visibility" Value="Visible" />
-                                                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                            </Grid>
+                                            <Border Padding="12,8" CornerRadius="8">
+                                                <Border.Style>
+                                                    <Style TargetType="Border" BasedOn="{StaticResource App.Selection.CurrentItem}" />
+                                                </Border.Style>
+                                                <TextBlock Style="{StaticResource App.Typography.Body}" Text="{Binding Name}" />
+                                            </Border>
                                         </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                             <TextBlock Margin="0,12,0,0"
-                                       Text="尚无可用规则。">
+                                       Text="尚无可用的语音服务">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock"
                                            BasedOn="{StaticResource App.Typography.Secondary}">
                                         <Setter Property="Visibility" Value="Collapsed" />
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasRules}" Value="False">
+                                            <DataTrigger Binding="{Binding HasProviders}" Value="False">
                                                 <Setter Property="Visibility" Value="Visible" />
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
+                        <Button Margin="0,16,0,0" Style="{StaticResource App.Button.Subtle}"
+                                HorizontalAlignment="Stretch" Content="前往语音服务管理"
+                                Command="{Binding OpenSpeechServicesCommand}" />
                     </StackPanel>
                 </Border>
             </Popup>
@@ -367,7 +348,7 @@
                                        Text="调整语速" />
                             <TextBlock Margin="0,8,0,0"
                                        Style="{StaticResource App.Typography.Secondary}"
-                                       Text="输入后端实际使用的原始整数值。" />
+                                       Text="范围 0–100，默认语速为 50。" />
                             <Grid Margin="0,16,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -629,11 +610,11 @@
                                 AutomationProperties.Name="再次尝试" />
                     </feedbackControls:AppStatusView.PrimaryAction>
                     <feedbackControls:AppStatusView.SecondaryAction>
-                        <ui:Button x:Name="ErrorRuleMenuButton"
+                        <ui:Button x:Name="ErrorProviderMenuButton"
                                    Style="{StaticResource App.Button.Icon}"
-                                   Command="{Binding OpenRuleMenuCommand}"
-                                   ToolTip="切换规则"
-                                   AutomationProperties.Name="切换规则"
+                                   Command="{Binding OpenProviderMenuCommand}"
+                                   ToolTip="切换语音服务"
+                                   AutomationProperties.Name="切换语音服务"
                                    Icon="{ui:SymbolIcon Symbol=TextBulletListSquare24}" />
                     </feedbackControls:AppStatusView.SecondaryAction>
                 </feedbackControls:AppStatusView>
@@ -999,17 +980,17 @@
                 </Border>
             </ui:Flyout>
 
-            <feedbackControls:AppStatusView x:Name="NoRuleStatusView"
+            <feedbackControls:AppStatusView x:Name="NoProviderStatusView"
                                             Status="Empty"
                                             Icon="SpeakerMute24"
-                                            Title="尚无可用的朗读规则"
-                                            Description="朗读播放将在语音 Provider 迁移完成后恢复。">
+                                            Title="{Binding ProviderUnavailableTitle}"
+                                            Description="请选择语音服务，或前往语音服务管理完成配置。">
                 <feedbackControls:AppStatusView.Style>
                     <Style TargetType="feedbackControls:AppStatusView"
                            BasedOn="{StaticResource {x:Type feedbackControls:AppStatusView}}">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding ShowNoRuleState}" Value="True">
+                            <DataTrigger Binding="{Binding ShowNoProviderState}" Value="True">
                                 <Setter Property="Visibility" Value="Visible" />
                             </DataTrigger>
                         </Style.Triggers>

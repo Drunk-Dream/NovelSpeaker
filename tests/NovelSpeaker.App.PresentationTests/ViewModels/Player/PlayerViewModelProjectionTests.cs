@@ -1,9 +1,11 @@
+using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.TestKit.Speech;
 using System.Collections.Specialized;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
@@ -22,15 +24,14 @@ public sealed partial class PlayerViewModelTests
     private async Task CommitSegmentProgressAsync_same_segment_is_noop()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             1,
             3,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -72,15 +73,14 @@ public sealed partial class PlayerViewModelTests
     private async Task CommitSegmentProgressAsync_new_segment_jumps_once()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             3,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -141,15 +141,14 @@ public sealed partial class PlayerViewModelTests
     private async Task SelectSegmentCommand_current_segment_resumes_without_jump()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             1,
             3,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -187,15 +186,14 @@ public sealed partial class PlayerViewModelTests
     private async Task Segment_navigation_commands_resume_auto_center_after_success()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             1,
             3,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -236,15 +234,14 @@ public sealed partial class PlayerViewModelTests
     private async Task Chapter_navigation_commands_resume_auto_center_after_success()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             1,
             "第二章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -285,15 +282,14 @@ public sealed partial class PlayerViewModelTests
     private async Task Playback_snapshot_segment_change_keeps_manual_browsing_state()
     {
         var autoScrollCoordinator = new FakePlayerAutoScrollCoordinator();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Playing,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Playing,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             3,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -333,15 +329,14 @@ public sealed partial class PlayerViewModelTests
 
     private async Task Faulted_snapshot_shows_error_bar_and_retry_flow()
     {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Faulted,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Faulted,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,

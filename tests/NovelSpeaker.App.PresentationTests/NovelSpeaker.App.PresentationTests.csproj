@@ -7,7 +7,7 @@
     <Compile Include="..\TestKit\Cache\*.cs" Link="TestKit\Cache\%(Filename)%(Extension)" />
     <Compile Include="..\TestKit\Navigation\*.cs" Link="Navigation\%(Filename)%(Extension)" />
     <Compile Include="..\TestKit\Playback\*.cs" Link="TestKit\Playback\%(Filename)%(Extension)" />
-    <Compile Include="..\TestKit\Speech\TestHttpTtsRules.cs" Link="Speech\TestHttpTtsRules.cs" />
+    <Compile Include="..\TestKit\Speech\TestSpeechProviders.cs" Link="Speech\TestSpeechProviders.cs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

@@ -51,8 +51,9 @@ public sealed class HttpProviderRuntime(
                 limiter.ApplyRetryAfter(provider.Id, retryAfter);
             }
 
-            return Failure(MapFailure(execution.Failure?.Kind ?? TtsErrorKind.Unknown),
-                execution.Failure?.Message ?? "HTTP Provider 合成失败。");
+            return new ProviderSynthesisResult(null, null, new ProviderSynthesisFailure(
+                MapFailure(execution.Failure?.Kind ?? TtsErrorKind.Unknown),
+                execution.Failure?.Message ?? "HTTP Provider 合成失败。", execution.Failure?.RetryAfter));
         }
 
         var audio = execution.Audio!;
@@ -75,7 +76,9 @@ public sealed class HttpProviderRuntime(
         TtsErrorKind.InvalidRule or TtsErrorKind.ScriptError => ProviderSynthesisFailureKind.InvalidRequest,
         TtsErrorKind.Network => ProviderSynthesisFailureKind.Network,
         TtsErrorKind.Timeout => ProviderSynthesisFailureKind.Timeout,
-        TtsErrorKind.AudioDecode or TtsErrorKind.EmptyAudioResponse or TtsErrorKind.InvalidResponse =>
+        TtsErrorKind.RateLimited => ProviderSynthesisFailureKind.RateLimited,
+        TtsErrorKind.EmptyAudioResponse => ProviderSynthesisFailureKind.EmptyAudio,
+        TtsErrorKind.AudioDecode or TtsErrorKind.InvalidResponse =>
             ProviderSynthesisFailureKind.InvalidAudio,
         TtsErrorKind.Cancelled => ProviderSynthesisFailureKind.Cancelled,
         _ => ProviderSynthesisFailureKind.Unknown

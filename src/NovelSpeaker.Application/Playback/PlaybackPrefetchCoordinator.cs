@@ -1,6 +1,9 @@
 using System.Collections.Concurrent;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Cache.Audio;
+using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -10,11 +13,16 @@ namespace NovelSpeaker.Application.Playback;
 internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
 {
     private readonly IAudioGenerationProvider _audioProvider;
+    private readonly ICurrentSpeechProvider _providers;
+    private readonly IAppSettingsService _settings;
     private readonly ConcurrentDictionary<Guid, SessionState> _sessions = new();
 
-    public PlaybackPrefetchCoordinator(IAudioGenerationProvider audioProvider)
+    public PlaybackPrefetchCoordinator(IAudioGenerationProvider audioProvider, ICurrentSpeechProvider providers,
+        IAppSettingsService settings)
     {
         _audioProvider = audioProvider;
+        _providers = providers;
+        _settings = settings;
     }
 
     public Task SubmitAsync(PlaybackPrefetchWindow window, CancellationToken cancellationToken)
@@ -73,6 +81,9 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
 
             try
             {
+                var provider = await _providers.GetSelectedProviderAsync(state.ActiveRequestToken).ConfigureAwait(false);
+                if (provider is null) continue;
+                next = next with { Provider = provider, SpeakSpeed = AppSettings.NormalizeSpeakSpeed(_settings.Current.DefaultSpeakSpeed) };
                 await _audioProvider.GetAudioAsync(
                     next,
                     AudioGenerationPriority.Prefetch,
@@ -82,6 +93,10 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
             catch (OperationCanceledException)
             {
                 // Cancellation is the normal replacement/stop path for best-effort prefetch.
+            }
+            catch (Exception)
+            {
+                // Prefetch is best effort; foreground playback owns user-visible failures.
             }
             finally
             {

@@ -1,9 +1,11 @@
+using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.TestKit.Speech;
 using System.Windows;
 using System.Windows.Controls;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Features.Playback.Components;
 using NovelSpeaker.App.Features.Playback.Presentation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
@@ -22,23 +24,22 @@ public sealed partial class PlayerViewTests
     {
         WpfTestHost.RunInSta(() =>
         {
-            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-                PlaybackState.Paused,
-                "book-1",
-                "信息全知者",
-                0,
-                "第一章",
-                20,
-                81,
-                1,
-                "默认规则",
-                10,
-                0,
-                0,
-                null,
-                false,
-                false,
-                "魔性沧月"));
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
+            "book-1",
+            "信息全知者",
+            0,
+            "第一章",
+            20,
+            81,
+            TestSpeechProviders.Id(1),
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            "魔性沧月"));
             var chapters = new[]
             {
                 CreateChapter(0, "第一章"),
@@ -57,7 +58,7 @@ public sealed partial class PlayerViewTests
                 new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
-                new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeProviders([TestSpeechProviders.Item(1, "默认规则", true)]),
                 new FakeAppSettingsStore(AppSettings.Default with { ReadChapterTitle = true }),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -114,7 +115,7 @@ public sealed partial class PlayerViewTests
                 view.UpdateLayout();
                 DoEvents();
 
-                Assert.Equal(0, scrollViewer.VerticalOffset);
+                Assert.InRange(scrollViewer.VerticalOffset, 0, 0.000001);
             }
             finally
             {

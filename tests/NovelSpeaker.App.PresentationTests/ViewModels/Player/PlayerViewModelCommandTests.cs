@@ -1,9 +1,11 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Domain.Speech.Providers;
 using System.Collections.Specialized;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
@@ -19,6 +21,55 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Paused_session_without_current_provider_requires_selection_unless_audio_is_loaded(bool audioLoaded, bool hasOtherProvider)
+    {
+        var snapshot = PlaybackSnapshot.Idle with
+        {
+            State = PlaybackState.Paused,
+            BookId = "book",
+            ProviderId = TestSpeechProviders.Id(1),
+            HasAvailableProvider = true,
+            HasLoadedAudio = audioLoaded
+        };
+        var model = CreateViewModel(new FakePlaybackCoordinator(snapshot),
+            new FakeBookPlaybackContentService(null, null),
+            ruleService: new FakeProviders(hasOtherProvider ? [TestSpeechProviders.Item(2, "Other")] : []),
+            settingsService: new FakeAppSettingsService(AppSettings.Default));
+        await model.LoadAsync(CancellationToken.None);
+        Assert.Equal(!audioLoaded, model.ShowNoProviderState);
+        Assert.Equal(audioLoaded, model.CanTogglePlayPause);
+        Assert.All(model.Providers, provider => Assert.False(provider.IsSelected));
+        if (!audioLoaded)
+            Assert.Equal(hasOtherProvider ? "尚未选择语音服务" : "尚无可用的语音服务", model.ProviderUnavailableTitle);
+        model.OnPageNavigatedFrom();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task No_current_provider_preserves_navigation_and_exposes_available_choice_state(bool hasProvider)
+    {
+        var navigation = new FakeNavigationService();
+        var model = CreateViewModel(new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
+            new FakeBookPlaybackContentService(null, null),
+            ruleService: new FakeProviders(hasProvider ? [TestSpeechProviders.Item(1, "Service")] : []),
+            settingsService: new FakeAppSettingsService(AppSettings.Default), navigationService: navigation);
+        await model.LoadAsync(CancellationToken.None);
+        Assert.True(model.ShowNoProviderState);
+        Assert.False(model.CanTogglePlayPause);
+        Assert.Equal(hasProvider, model.HasProviders);
+        Assert.All(model.Providers, item => Assert.False(item.IsSelected));
+        Assert.Equal(hasProvider ? "尚未选择语音服务" : "尚无可用的语音服务", model.ProviderUnavailableTitle);
+        await model.OpenSpeechServicesCommand.ExecuteAsync(null);
+        Assert.Equal(AppRoutes.SpeechServices, navigation.LastNavigationRoute);
+        model.OnPageNavigatedFrom();
+    }
+
     private async Task OpenMiniPlayerCommand_uses_required_desktop_launcher()
     {
         var launcher = new FakeMiniPlayerLauncher();
@@ -32,17 +83,16 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(1, launcher.OpenCount);
     }
 
-    private async Task SelectRuleCommand_changes_rule_without_losing_context()
+    private async Task SelectProviderCommand_changes_rule_without_losing_context()
     {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -55,11 +105,11 @@ public sealed partial class PlayerViewModelTests
             new FakeBookPlaybackContentService(
                 new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                 PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
-            ruleService: new FakeTtsRuleQueries(
+            ruleService: new FakeProviders(
                 [
-                    new TtsRuleSummary(1, "默认规则", true, true, null),
-                    new TtsRuleSummary(2, "备用规则", true, false, null),
-                    new TtsRuleSummary(3, "已禁用规则", false, false, null)
+                    TestSpeechProviders.Item(1, "默认规则", true),
+                    TestSpeechProviders.Item(2, "备用规则", true),
+                    TestSpeechProviders.Item(3, "未配置服务", false)
                 ]));
 
         await viewModel.LoadAsync(CancellationToken.None);
@@ -67,24 +117,23 @@ public sealed partial class PlayerViewModelTests
             new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
-        Assert.DoesNotContain(viewModel.Rules, rule => rule.Id == 3);
-        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules[1]);
+        Assert.DoesNotContain(viewModel.Providers, rule => rule.Id == TestSpeechProviders.Id(3));
+        await viewModel.SelectProviderCommand.ExecuteAsync(viewModel.Providers[1]);
 
-        Assert.Equal(2, coordinator.LastChangedRuleId);
+        Assert.Equal(TestSpeechProviders.Id(2), coordinator.LastChangedProviderId);
         Assert.Equal("示例小说", viewModel.CurrentTitle);
     }
 
-    private async Task SelectRuleCommand_ignores_current_rule()
+    private async Task SelectProviderCommand_ignores_current_rule()
     {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -103,22 +152,21 @@ public sealed partial class PlayerViewModelTests
             new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
             CancellationToken.None);
 
-        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules[0]);
+        await viewModel.SelectProviderCommand.ExecuteAsync(viewModel.Providers[0]);
 
-        Assert.Null(coordinator.LastChangedRuleId);
+        Assert.Null(coordinator.LastChangedProviderId);
     }
 
     private async Task ApplySpeakSpeedCommand_changes_speed_with_current_context()
     {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -225,15 +273,14 @@ public sealed partial class PlayerViewModelTests
 
     private async Task CommitSpeakSpeedAsync_does_not_write_or_overwrite_state_after_activation_is_cancelled()
     {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -264,15 +311,14 @@ public sealed partial class PlayerViewModelTests
     private async Task IncreaseAndDecreaseSpeakSpeedCommands_debounce_and_apply_only_the_latest_speed()
     {
         var timeProvider = new ManualTimeProvider();
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -315,15 +361,14 @@ public sealed partial class PlayerViewModelTests
 
     private async Task HandleNavigationAsync_same_book_open_paused_request_keeps_real_time_session()
     {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Playing,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Playing,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,
@@ -348,8 +393,7 @@ public sealed partial class PlayerViewModelTests
 
     private async Task HandleNavigationAsync_restores_paused_session_when_rule_becomes_available_again()
     {
-        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-            PlaybackState.Stopped,
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Stopped,
             "book-1",
             "示例小说",
             0,
@@ -361,7 +405,7 @@ public sealed partial class PlayerViewModelTests
             10,
             0,
             0,
-            "当前没有可用的 TTS 规则，请先前往规则页选择或导入规则。",
+            "当前没有可用的 语音服务，请先前往语音服务管理完成配置。",
             false,
             false,
             "作者甲",
@@ -371,8 +415,8 @@ public sealed partial class PlayerViewModelTests
             new FakeBookPlaybackContentService(
                 new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                 PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])),
-            ruleService: new FakeTtsRuleQueries(
-                [new TtsRuleSummary(1, "默认规则", true, true, null)]));
+            ruleService: new FakeProviders(
+                [TestSpeechProviders.Item(1, "默认规则", true)]));
 
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.HandleNavigationAsync(
@@ -380,8 +424,8 @@ public sealed partial class PlayerViewModelTests
             CancellationToken.None);
 
         Assert.Equal(1, coordinator.OpenPausedCallCount);
-        Assert.True(viewModel.HasAvailableRule);
-        Assert.False(viewModel.ShowNoRuleState);
+        Assert.True(viewModel.HasAvailableProvider);
+        Assert.False(viewModel.ShowNoProviderState);
         Assert.True(viewModel.ShowPlaybackControls);
         Assert.Equal(PlaybackState.Paused, viewModel.CurrentPlaybackState);
     }
@@ -390,8 +434,8 @@ public sealed partial class PlayerViewModelTests
     public async Task Player_command_rule_and_desktop_contracts_cover_context_actions()
     {
         await OpenMiniPlayerCommand_uses_required_desktop_launcher();
-        await SelectRuleCommand_changes_rule_without_losing_context();
-        await SelectRuleCommand_ignores_current_rule();
+        await SelectProviderCommand_changes_rule_without_losing_context();
+        await SelectProviderCommand_ignores_current_rule();
     }
 
     [Fact]

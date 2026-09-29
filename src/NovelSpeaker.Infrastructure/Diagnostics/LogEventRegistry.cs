@@ -56,22 +56,6 @@ public static class LogEventRegistry
         LogLevel.Error,
         "A text-to-speech response could not be validated.");
 
-    public static LogEventDefinition TtsCompilationFailed { get; } = Define(
-        1103,
-        "tts.compilation.failed",
-        "speech",
-        OperationCatalog.TtsRequest,
-        LogLevel.Error,
-        "A text-to-speech rule could not be compiled.");
-
-    public static LogEventDefinition TtsRuleTestFailed { get; } = Define(
-        1104,
-        "tts.rule-test.failed",
-        "speech",
-        OperationCatalog.TtsRequest,
-        LogLevel.Error,
-        "A text-to-speech rule test failed.");
-
     public static LogEventDefinition CacheOperationFailed { get; } = Define(
         1201,
         "cache.operation.failed",
@@ -128,8 +112,6 @@ public static class LogEventRegistry
         LifecycleFailure,
         TtsRequestFailed,
         TtsResponseValidationFailed,
-        TtsCompilationFailed,
-        TtsRuleTestFailed,
         CacheOperationFailed,
         CacheCompletenessUnavailable,
         PlaybackContentUnavailable,

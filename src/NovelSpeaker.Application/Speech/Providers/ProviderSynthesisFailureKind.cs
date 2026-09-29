@@ -6,6 +6,8 @@ public enum ProviderSynthesisFailureKind
     InvalidRequest,
     Network,
     Timeout,
+    RateLimited,
+    EmptyAudio,
     InvalidAudio,
     Cancelled,
     Unknown

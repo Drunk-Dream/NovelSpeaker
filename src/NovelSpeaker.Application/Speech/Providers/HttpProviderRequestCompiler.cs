@@ -23,7 +23,7 @@ public sealed class HttpProviderRequestCompiler(ITemplateEvaluator evaluator)
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var context = new TtsRuleContext(synthesis.Text, synthesis.SpeakSpeed);
+        var context = new SpeechTemplateContext(synthesis.Text, synthesis.SpeakSpeed);
         string urlText;
         string? bodyText;
         var headers = new Dictionary<string, string>(DefaultHeaders, StringComparer.OrdinalIgnoreCase);

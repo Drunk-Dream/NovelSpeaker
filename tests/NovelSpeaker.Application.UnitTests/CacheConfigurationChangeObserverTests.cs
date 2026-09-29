@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
@@ -7,6 +8,7 @@ using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Domain.Speech;
 using Xunit;
+using NovelSpeaker.TestKit.Speech;
 
 namespace NovelSpeaker.Application.UnitTests;
 
@@ -19,16 +21,20 @@ public sealed class CacheConfigurationChangeObserverTests
         var settings = new FakeSettingsService(AppSettings.Default with { CurrentProviderId = selectedProvider });
         var regexRules = new FakeRegexRuleWorkspace();
         var invalidations = new List<CacheInvalidation>();
+        var providers = new ProviderChanges();
         using var observer = new CacheConfigurationChangeObserver(
             settings,
             regexRules,
-            invalidations.Add);
+            invalidations.Add, providers);
 
         settings.Raise(settings.Current with { PrefetchCount = settings.Current.PrefetchCount + 1 });
         Assert.Empty(invalidations);
 
         settings.Raise(settings.Current with { DefaultSpeakSpeed = settings.Current.DefaultSpeakSpeed + 1 });
         settings.Raise(settings.Current with { CurrentProviderId = ProviderId.New() });
+        providers.Raise(false);
+        Assert.Single(invalidations);
+        providers.Raise(true);
         regexRules.Raise(RegexReplacementRulesChangeKind.Saved, affectsSpeechProfile: false);
         Assert.Equal(2, invalidations.Count);
         regexRules.Raise(RegexReplacementRulesChangeKind.Saved, affectsSpeechProfile: true);
@@ -60,6 +66,12 @@ public sealed class CacheConfigurationChangeObserverTests
         settings.Raise(settings.Current with { ReadChapterTitle = true });
 
         Assert.Single(invalidations);
+    }
+
+    private sealed class ProviderChanges : TestCurrentSpeechProvider
+    {
+        public override event EventHandler<SpeechProvidersChangedEventArgs>? Changed;
+        public void Raise(bool affectsSynthesis) => Changed?.Invoke(this, new(affectsSynthesis));
     }
 
     private sealed class FakeSettingsService(AppSettings current) : IAppSettingsService

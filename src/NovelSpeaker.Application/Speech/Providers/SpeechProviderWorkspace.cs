@@ -40,6 +40,8 @@ public sealed record ProviderExportResult(
 /// <summary>Owns Provider management mutations, HTTP drafts, imports, and export confirmation.</summary>
 public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider timeProvider, IAppSettingsService settings)
 {
+    public event EventHandler<SpeechProvidersChangedEventArgs>? Changed;
+
     public bool IsVisible(SpeechProviderInstance provider) => provider.Type != SpeechProviderType.MicrosoftEdge ||
         settings.Current.EnabledExperimentalFeatureIds?.Contains(ExperimentalFeaturesService.MicrosoftEdgeTts) == true;
 
@@ -129,6 +131,7 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
             }
 
             await store.SaveAsync(provider, cancellationToken).ConfigureAwait(false);
+            Changed?.Invoke(this, new(original is null || !ProviderSynthesisFingerprint.Create(original).Equals(ProviderSynthesisFingerprint.Create(provider))));
             return provider;
         }
         finally
@@ -190,6 +193,7 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
                 }
             }
 
+            if (results.Any(item => item.Status == ProviderImportExecutionStatus.Imported)) Changed?.Invoke(this, new(false));
             return new ProviderImportExecutionResult(results, null);
         }
         finally
@@ -239,6 +243,7 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
                 UpdatedAt = now
             };
             await store.InsertAfterAsync(copy, source.Id, cancellationToken).ConfigureAwait(false);
+            Changed?.Invoke(this, new(false));
             return await store.GetByIdAsync(copy.Id, cancellationToken).ConfigureAwait(false)
                 ?? throw new InvalidOperationException("复制的语音服务不可用。");
         }
@@ -261,6 +266,7 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
             }
 
             await store.UpdateSortOrderAsync(orderedIds, cancellationToken).ConfigureAwait(false);
+            Changed?.Invoke(this, new(false));
         }
         finally
         {
@@ -290,6 +296,7 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
             try
             {
                 await store.DeleteAsync(providerId, cancellationToken).ConfigureAwait(false);
+                Changed?.Invoke(this, new(wasCurrent));
             }
             catch
             {

@@ -1,3 +1,5 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Domain.Speech.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
@@ -10,9 +12,8 @@ using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Speech.Execution;
-using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.App;
 using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.App.Desktop.Lifecycle;
@@ -137,11 +138,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
                 Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
                 Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());
-                Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
-                    provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
-                Assert.IsAssignableFrom<ITtsRuleEditorUseCase>(provider.GetRequiredService<ITtsRuleEditorUseCase>());
-                Assert.IsAssignableFrom<ITtsRuleSelectionUseCase>(provider.GetRequiredService<ITtsRuleSelectionUseCase>());
-                Assert.IsAssignableFrom<ITtsRuleQueries>(provider.GetRequiredService<ITtsRuleQueries>());
+                Assert.IsAssignableFrom<ICurrentSpeechProvider>(provider.GetRequiredService<ICurrentSpeechProvider>());
                 Assert.IsAssignableFrom<IDirectBookImportService>(provider.GetRequiredService<IDirectBookImportService>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                 Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());
@@ -161,7 +158,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IMediaControlPlatform>(
                     provider.GetRequiredService<IMediaControlPlatform>());
                 Assert.IsType<PlaybackContentResolver>(provider.GetRequiredService<IBookPlaybackContentService>());
-                Assert.IsType<SelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
+                Assert.IsType<CurrentSpeechProvider>(provider.GetRequiredService<ICurrentSpeechProvider>());
                 Assert.IsAssignableFrom<IAudioGenerationProvider>(provider.GetRequiredService<IAudioGenerationProvider>());
                 Assert.IsType<CacheAudioGenerationProvider>(provider.GetRequiredService<IAudioGenerationProvider>());
                 Assert.IsType<ActiveCacheCoordinator>(provider.GetRequiredService<IActiveCacheCoordinator>());
@@ -171,8 +168,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
                 Assert.IsType<AudioGenerationFailureReporter>(provider.GetRequiredService<IAudioGenerationFailureReporter>());
                 Assert.IsAssignableFrom<ITtsRateLimiter>(provider.GetRequiredService<ITtsRateLimiter>());
-                Assert.IsType<TtsRuleTestService>(provider.GetRequiredService<ITtsRuleTestService>());
-                Assert.IsType<TtsRuleTestFailureReporter>(provider.GetRequiredService<ITtsRuleTestFailureReporter>());
                 Assert.IsAssignableFrom<IHttpTtsClient>(provider.GetRequiredService<IHttpTtsClient>());
                 Assert.IsAssignableFrom<ITtsHttpTransport>(provider.GetRequiredService<ITtsHttpTransport>());
                 Assert.IsAssignableFrom<ITtsRetryPolicy>(provider.GetRequiredService<ITtsRetryPolicy>());
@@ -374,11 +369,8 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IRegexReplacementRuleWorkspaceService),
             typeof(IRegexReplacementPipeline),
             typeof(ITextSegmenter),
-            typeof(ITtsRuleQueries),
-            typeof(ITtsRuleSelectionUseCase),
-            typeof(ITtsRuleEditorUseCase),
+            typeof(ICurrentSpeechProvider),
             typeof(IHttpTtsClient),
-            typeof(ITtsRuleTestService),
             typeof(IBookPlaybackContentService),
             typeof(ICacheCatalog),
             typeof(ICacheCoverageQuery),
@@ -393,7 +385,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IPlaybackSession),
             typeof(IPlaybackBookCommands),
             typeof(IPlaybackRegexReplacementRefresher),
-            typeof(ISelectedTtsRuleProvider),
+            typeof(ICurrentSpeechProvider),
             typeof(IAppSettingsService)
         };
 

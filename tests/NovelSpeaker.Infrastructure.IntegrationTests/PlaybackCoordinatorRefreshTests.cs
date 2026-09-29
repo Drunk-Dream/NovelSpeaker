@@ -147,14 +147,14 @@ public sealed partial class PlaybackCoordinatorTests
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
-            selectedRuleProvider: new FakeSelectedTtsRuleProvider(null));
+            selectedProviderProvider: new FakeCurrentSpeechProvider(null));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
 
         Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
-        Assert.Contains("TTS 规则", coordinator.CurrentSnapshot.Message);
+        Assert.Contains("语音服务", coordinator.CurrentSnapshot.Message);
         Assert.False(coordinator.CurrentSnapshot.CanRetry);
-        Assert.False(coordinator.CurrentSnapshot.HasAvailableRule);
+        Assert.False(coordinator.CurrentSnapshot.HasAvailableProvider);
         Assert.Equal("book-1", coordinator.CurrentSnapshot.BookId);
     }
 
@@ -176,22 +176,22 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task ChangeRule_restarts_and_speed_change_preserves_current_sentence()
+    public async Task Provider_and_speed_changes_preserve_current_sentence()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var selectedRuleProvider = new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则"));
-        selectedRuleProvider.RegisterSelectable(CreateRuleSelection(2, "备用规则"));
+        var selectedProviderProvider = new FakeCurrentSpeechProvider(CreateRuleSelection(1, "默认规则"));
+        selectedProviderProvider.RegisterSelectable(CreateRuleSelection(2, "备用规则"));
         var prefetchScheduler = new FakePrefetchScheduler();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
-            selectedRuleProvider: selectedRuleProvider,
+            selectedProviderProvider: selectedProviderProvider,
             prefetchScheduler: prefetchScheduler);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        await coordinator.ChangeRuleAsync(2, CancellationToken.None);
+        await coordinator.ChangeProviderAsync(TestSpeechProviders.Id(2), CancellationToken.None);
 
-        Assert.Equal("备用规则", coordinator.CurrentSnapshot.RuleName);
-        Assert.NotEmpty(prefetchScheduler.CancelledSessions);
+        Assert.Equal("默认规则", coordinator.CurrentSnapshot.ProviderName);
+        Assert.Equal(0, localCoordinator.StopCallCount);
 
         await coordinator.ChangeSpeedAsync(16, CancellationToken.None);
 

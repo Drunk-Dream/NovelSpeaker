@@ -10,6 +10,6 @@ public interface ITemplateEvaluator
 {
     Task<string> EvaluateAsync(
         NormalizedTemplate template,
-        TtsRuleContext context,
+        SpeechTemplateContext context,
         CancellationToken cancellationToken);
 }

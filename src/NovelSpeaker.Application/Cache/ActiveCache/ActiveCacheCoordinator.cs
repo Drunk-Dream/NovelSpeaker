@@ -1,7 +1,7 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Speech.Compilation;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Domain.Books;
@@ -15,7 +15,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
 {
     private const string UnexpectedFailureSummary = "主动缓存失败，请重试。";
     private readonly IBookPlaybackContentService _contentService;
-    private readonly ISelectedTtsRuleProvider _ruleProvider;
+    private readonly ICurrentSpeechProvider _providers;
     private readonly IAudioGenerationProvider _audioProvider;
     private readonly object _syncRoot = new();
     private ActiveCacheSnapshot? _currentSnapshot;
@@ -26,11 +26,11 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
 
     public ActiveCacheCoordinator(
         IBookPlaybackContentService contentService,
-        ISelectedTtsRuleProvider ruleProvider,
+        ICurrentSpeechProvider providers,
         IAudioGenerationProvider audioProvider)
     {
         _contentService = contentService;
-        _ruleProvider = ruleProvider;
+        _providers = providers;
         _audioProvider = audioProvider;
     }
 
@@ -68,14 +68,14 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                 return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "请至少选择一个章节。");
             }
 
-            var selectedRule = await _ruleProvider
-                .GetSelectedRuleAsync(cancellationToken)
+            var provider = await _providers
+                .GetSelectedProviderAsync(cancellationToken)
                 .ConfigureAwait(false);
-            if (selectedRule is null)
+            if (provider is null)
             {
                 return Rejected(
-                    ActiveCacheStartStatus.SelectedRuleUnavailable,
-                    "当前没有可用的语音规则。");
+                    ActiveCacheStartStatus.SelectedProviderUnavailable,
+                    "尚未选择语音服务。");
             }
 
             var book = await _contentService
@@ -96,13 +96,13 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
             }
 
             var frozenChapters = new List<FrozenChapter>(selectedChapters.Length);
+            var loadedChapters = await _contentService.GetChaptersAsync(book.BookId,
+                selectedChapters.Select(chapter => chapter.ChapterIndex).ToArray(), cancellationToken).ConfigureAwait(false);
+            var loadedByIndex = loadedChapters.ToDictionary(chapter => chapter.ChapterIndex);
             foreach (var chapter in selectedChapters)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var loaded = await _contentService
-                    .GetChapterAsync(book.BookId, chapter.ChapterIndex, cancellationToken)
-                    .ConfigureAwait(false);
-                if (loaded is null)
+                if (!loadedByIndex.TryGetValue(chapter.ChapterIndex, out var loaded))
                 {
                     return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "所选章节无法读取。");
                 }
@@ -121,12 +121,12 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
             }
 
             var batchId = Guid.NewGuid();
-            var frozenRule = FreezeRule(selectedRule);
+            var frozenProvider = provider with { Provider = CurrentSpeechProvider.Snapshot(provider.Provider) };
             var batch = new FrozenBatch(
                 batchId,
                 book.BookId,
                 book.BookTitle,
-                frozenRule,
+                frozenProvider,
                 AppSettings.NormalizeSpeakSpeed(request.SpeakSpeed),
                 frozenChapters);
             var completion = new TaskCompletionSource(
@@ -276,9 +276,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                             chapter.ChapterIndex,
                             segment.SegmentIndex,
                             segment.SpeechText,
-                            batch.Rule.RuleId,
-                            batch.Rule.SourceRule,
-                            batch.Rule.NormalizedRule,
+                            batch.Provider,
                             batch.SpeakSpeed,
                             batch.BatchId)
                         {
@@ -442,48 +440,15 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
         };
     }
 
-    private static FrozenRule FreezeRule(SelectedPlaybackRule selectedRule)
-    {
-        var source = selectedRule.SourceRule with
-        {
-            Headers = new Dictionary<string, string>(
-                selectedRule.SourceRule.Headers,
-                StringComparer.OrdinalIgnoreCase)
-        };
-        var normalized = selectedRule.NormalizedRule with
-        {
-            UrlTemplate = FreezeTemplate(selectedRule.NormalizedRule.UrlTemplate),
-            HeaderTemplates = new Dictionary<string, NormalizedTemplate>(
-                selectedRule.NormalizedRule.HeaderTemplates.ToDictionary(
-                    pair => pair.Key,
-                    pair => FreezeTemplate(pair.Value),
-                    StringComparer.OrdinalIgnoreCase),
-                StringComparer.OrdinalIgnoreCase),
-            RequestBodyTemplate = selectedRule.NormalizedRule.RequestBodyTemplate is { } body
-                ? FreezeTemplate(body)
-                : null
-        };
-        return new FrozenRule(selectedRule.RuleId, source, normalized);
-    }
+    private static ActiveCacheStartResult Rejected(ActiveCacheStartStatus status, string summary) => new(status, null, summary);
 
-    private static NormalizedTemplate FreezeTemplate(NormalizedTemplate template) =>
-        template with { Segments = template.Segments.ToArray() };
-
-    private static ActiveCacheStartResult Rejected(
-        ActiveCacheStartStatus status,
-        string summary) =>
-        new(status, null, summary);
-
-    private void ThrowIfDisposed()
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-    }
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     private sealed record FrozenBatch(
         Guid BatchId,
         string BookId,
         string BookTitle,
-        FrozenRule Rule,
+        ResolvedSpeechProvider Provider,
         int SpeakSpeed,
         IReadOnlyList<FrozenChapter> Chapters);
 
@@ -498,8 +463,4 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
         StableSpeechSegmentIdentity StableIdentity,
         string SpeechText);
 
-    private sealed record FrozenRule(
-        long RuleId,
-        HttpTtsRule SourceRule,
-        NormalizedHttpTtsRule NormalizedRule);
 }

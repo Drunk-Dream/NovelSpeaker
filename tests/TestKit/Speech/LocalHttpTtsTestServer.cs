@@ -112,6 +112,10 @@ public sealed class LocalHttpTtsTestServer : IAsyncDisposable
 
         switch (path)
         {
+            case "/empty-once" when GetRequestCount(path) == 1:
+                context.Response.ContentType = "audio/wav";
+                return;
+            case "/empty-once":
             case "/audio":
                 await WriteAudioAsync(context.Response, _wavBytes, "audio/wav", cancellationToken);
                 return;
