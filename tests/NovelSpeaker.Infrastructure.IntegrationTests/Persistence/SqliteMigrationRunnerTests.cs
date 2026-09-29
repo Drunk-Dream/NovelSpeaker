@@ -8,7 +8,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 public sealed class SqliteMigrationRunnerTests
 {
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_8()
+    public async Task InitializeAsync_creates_current_schema_as_version_9()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -29,7 +29,7 @@ public sealed class SqliteMigrationRunnerTests
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
         Assert.Equal(14, tableCount);
-        Assert.Equal(8, version);
+        Assert.Equal(9, version);
     }
 
     [Fact]
@@ -216,7 +216,7 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(8, version);
+        Assert.Equal(9, version);
     }
 
     [Fact]
@@ -289,32 +289,32 @@ public sealed class SqliteMigrationRunnerTests
             () => runner.InitializeAsync(CancellationToken.None));
         Assert.Equal(3, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(8, exception.CurrentVersion);
-        Assert.Equal(8, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 8", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(9, exception.CurrentVersion);
+        Assert.Equal(9, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 9", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task InitializeAsync_rejects_newer_version_9_database_without_changing_it()
+    public async Task InitializeAsync_rejects_newer_version_10_database_without_changing_it()
     {
-        var (factory, _) = await CreateDatabaseAtVersionAsync(9);
+        var (factory, _) = await CreateDatabaseAtVersionAsync(10);
         var runner = new SqliteMigrationRunner(factory);
 
         var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
             () => runner.InitializeAsync(CancellationToken.None));
 
-        Assert.Equal(9, exception.DetectedVersion);
+        Assert.Equal(10, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(8, exception.CurrentVersion);
-        Assert.Equal(8, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 8", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(9, exception.CurrentVersion);
+        Assert.Equal(9, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 9", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
         var command = connection.CreateCommand();
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
-        Assert.Equal(9, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
+        Assert.Equal(10, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
     }
 
     [Fact]

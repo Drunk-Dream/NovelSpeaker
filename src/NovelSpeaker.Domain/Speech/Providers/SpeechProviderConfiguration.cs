@@ -10,4 +10,9 @@ public sealed record HttpSpeechProviderConfiguration(
     ProviderRequestRateLimit? RateLimit)
     : SpeechProviderConfiguration(SpeechProviderType.Http);
 
+public sealed record EdgeVoice(string VoiceId, string FriendlyName, string Locale, string Gender);
+
+public sealed record EdgeSpeechProviderConfiguration(EdgeVoice? Voice)
+    : SpeechProviderConfiguration(SpeechProviderType.MicrosoftEdge);
+
 public sealed record ProviderRequestRateLimit(int MaxRequests, int WindowMilliseconds);

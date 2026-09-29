@@ -5,6 +5,8 @@ using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 
 namespace NovelSpeaker.Application.Speech;
 
@@ -24,9 +26,15 @@ public static class SpeechRegistration
         services.TryAddSingleton<ITtsRuleEditorUseCase, TtsRuleEditorUseCase>();
         services.TryAddSingleton<IHttpTtsClient, TtsExecutionService>();
         services.TryAddSingleton<ITtsRuleTestService, TtsRuleTestService>();
-        services.TryAddSingleton<IProviderRuntimeResolver, ProviderRuntimeResolver>();
+        services.TryAddSingleton<IProviderRuntimeResolver>(provider => new ProviderRuntimeResolver(
+            provider.GetRequiredService<IProviderStore>(),
+            provider.GetServices<IProviderRuntime>().FirstOrDefault(runtime => runtime.Type == SpeechProviderType.Http),
+            provider.GetServices<IProviderRuntime>().FirstOrDefault(runtime => runtime.Type == SpeechProviderType.MicrosoftEdge),
+            provider.GetService<ExperimentalFeaturesService>()));
         services.TryAddSingleton<HttpProviderRequestCompiler>();
-        services.TryAddSingleton<IProviderRuntime, HttpProviderRuntime>();
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IProviderRuntime, HttpProviderRuntime>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IProviderRuntime, EdgeProviderRuntime>());
+        services.TryAddSingleton<EdgeVoiceCatalog>();
         services.TryAddSingleton<HttpProviderDraftPreviewService>();
         services.TryAddSingleton<SpeechProviderWorkspace>();
         return services;

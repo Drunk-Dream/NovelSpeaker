@@ -28,6 +28,7 @@ public static class SpeechRegistration
         services.TryAddSingleton<ITtsResponseValidator, TtsResponseValidator>();
         services.TryAddSingleton<TemporaryAudioStore>();
         services.TryAddSingleton<AudioProbe>();
+        services.TryAddSingleton<IEdgeSpeechTransport, NovelSpeaker.Infrastructure.Speech.Edge.EdgeSpeechTransport>();
         services.TryAddSingleton<ITtsRuleTestFailureReporter, TtsRuleTestFailureReporter>();
 
         return services;

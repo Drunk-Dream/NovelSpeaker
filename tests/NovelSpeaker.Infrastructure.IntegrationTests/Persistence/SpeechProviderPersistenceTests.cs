@@ -16,6 +16,47 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 public sealed class SpeechProviderPersistenceTests
 {
     [Fact]
+    public async Task Version_9_upgrade_preserves_HTTP_and_persists_empty_and_configured_Edge_singleton()
+    {
+        using var temporaryDirectory = new TemporaryDatabase();
+        var (directories, factory) = await CreateVersion7DatabaseAsync(temporaryDirectory.Path);
+        await new SqliteMigrationRunner(factory,
+            SqliteMigrationRunner.AllMigrations.Where(item => item.Version == 8).ToArray()).InitializeAsync(CancellationToken.None);
+        var store = new SqliteProviderStore(factory);
+        // v8 has no Edge config table, so insert a valid HTTP row through the existing v8 schema.
+        await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO SpeechProviders (Id, Type, Name, NameKey, SortOrder, CreatedAt, UpdatedAt)
+                VALUES ('00000000-0000-0000-0000-000000000001', 1, 'HTTP', 'HTTP', 5,
+                    '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO HttpSpeechProviderConfigs (ProviderId, UrlTemplate, Method, HeadersJson)
+                VALUES ('00000000-0000-0000-0000-000000000001', 'https://example.invalid/tts', 'GET', '{}');
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+        await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
+        Assert.Equal(9, await GetSchemaVersionAsync(factory));
+        var http = Assert.Single(await store.GetAllAsync(CancellationToken.None));
+        Assert.Equal("HTTP", http.Name);
+        Assert.Equal(5, http.SortOrder);
+        var edge = new SpeechProviderInstance(ProviderId.New(), "Microsoft Edge", 6,
+            new EdgeSpeechProviderConfiguration(null), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        await store.SaveAsync(edge, CancellationToken.None);
+        Assert.Null(((EdgeSpeechProviderConfiguration)(await store.GetByIdAsync(edge.Id, CancellationToken.None))!.Configuration).Voice);
+        var voice = new EdgeVoice("voice-A", "Friendly", "zh-CN", "Female");
+        await store.SaveAsync(edge with { Configuration = new EdgeSpeechProviderConfiguration(voice) }, CancellationToken.None);
+        var reloaded = await new SqliteProviderStore(factory).GetByIdAsync(edge.Id, CancellationToken.None);
+        Assert.Equal(voice, ((EdgeSpeechProviderConfiguration)reloaded!.Configuration).Voice);
+        Assert.Equal(edge.Id, reloaded.Id);
+        await store.UpdateSortOrderAsync([edge.Id, http.Id], CancellationToken.None);
+        Assert.Equal([edge.Id, http.Id], (await store.GetAllAsync(CancellationToken.None)).Select(item => item.Id));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveAsync(edge with { Id = ProviderId.New() }, CancellationToken.None));
+        Assert.Equal(2, (await store.GetAllAsync(CancellationToken.None)).Count);
+    }
+
+    [Fact]
     public async Task Version_7_rules_migrate_to_providers_and_reconcile_current_selection()
     {
         using var temporaryDirectory = new TemporaryDatabase();
@@ -112,7 +153,7 @@ public sealed class SpeechProviderPersistenceTests
 
         await Assert.ThrowsAsync<IOException>(() => initializer.InitializeAsync(CancellationToken.None));
         Assert.Equal(missingLegacySelection, settingsService.Current.CurrentProviderId);
-        Assert.Equal(8, await GetSchemaVersionAsync(factory));
+        Assert.Equal(9, await GetSchemaVersionAsync(factory));
 
         await initializer.InitializeAsync(CancellationToken.None);
 

@@ -167,6 +167,24 @@ public sealed class AppSettingsServiceTests
         Assert.Equal(speed, store.CurrentSettings.DefaultSpeakSpeed);
     }
 
+    [Fact]
+    public async Task Feature_changes_are_serialized_without_losing_later_intent_or_unknown_ids()
+    {
+        var firstSave = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondSave = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var initial = AppSettings.Default with { EnabledExperimentalFeatureIds = ["unknown", "feature-A"] };
+        var store = new SequencedAppSettingsStore(initial, firstSave.Task, secondSave.Task);
+        using var settings = new AppSettingsService(store, initial);
+        var features = new ExperimentalFeaturesService(settings);
+        var disable = features.SetEnabledAsync("feature-A", false, CancellationToken.None);
+        var enable = features.SetEnabledAsync("feature-A", true, CancellationToken.None);
+        firstSave.SetResult();
+        secondSave.SetResult();
+        await Task.WhenAll(disable, enable);
+        Assert.True(features.IsEnabled("feature-A"));
+        Assert.Contains("unknown", settings.Current.EnabledExperimentalFeatureIds!);
+    }
+
     private class FakeAppSettingsStore : IAppSettingsStore
     {
         public FakeAppSettingsStore(AppSettings currentSettings)

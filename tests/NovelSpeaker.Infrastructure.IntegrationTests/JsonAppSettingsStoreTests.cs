@@ -71,6 +71,7 @@ public sealed class JsonAppSettingsStoreTests
             MiniPlayerLeft = 123.5,
             MiniPlayerTop = 456.25,
             MiniPlayerTopmost = true,
+            EnabledExperimentalFeatureIds = ["microsoft-edge-tts", "unknown-feature"],
             BookFileNameTemplate = "《{{name}}》 - {{author}}"
         };
 
@@ -88,6 +89,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(123.5, reloaded.MiniPlayerLeft);
         Assert.Equal(456.25, reloaded.MiniPlayerTop);
         Assert.True(reloaded.MiniPlayerTopmost);
+        Assert.Equal(["microsoft-edge-tts", "unknown-feature"], reloaded.EnabledExperimentalFeatureIds);
         Assert.Equal("《{{name}}》 - {{author}}", reloaded.BookFileNameTemplate);
     }
 

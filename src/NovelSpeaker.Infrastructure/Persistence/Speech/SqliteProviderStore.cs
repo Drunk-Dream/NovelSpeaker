@@ -22,9 +22,11 @@ public sealed class SqliteProviderStore : IProviderStore
                c.HeadersJson,
                c.BodyTemplate,
                c.MaxRequests,
-               c.WindowMilliseconds
+               c.WindowMilliseconds,
+               e.ProviderId, e.VoiceId, e.FriendlyName, e.Locale, e.Gender
         FROM SpeechProviders p
         LEFT JOIN HttpSpeechProviderConfigs c ON c.ProviderId = p.Id
+        LEFT JOIN EdgeSpeechProviderConfigs e ON e.ProviderId = p.Id
         """;
 
     private readonly ISqliteConnectionFactory _connectionFactory;
@@ -76,9 +78,11 @@ public sealed class SqliteProviderStore : IProviderStore
     {
         ArgumentNullException.ThrowIfNull(provider);
         ArgumentOutOfRangeException.ThrowIfEqual(provider.Id.Value, Guid.Empty);
-        if (provider.Configuration is not HttpSpeechProviderConfiguration configuration ||
-            !SpeechProviderNameRules.TryNormalize(provider.Name, out var name) ||
-            !ProviderConfigurationValidator.Validate(provider with { Name = name }).IsValid)
+        var configuration = provider.Configuration as HttpSpeechProviderConfiguration;
+        var isEmptyEdge = provider.Configuration is EdgeSpeechProviderConfiguration { Voice: null } &&
+            provider.Name == SpeechProviderNameRules.MicrosoftEdgeName;
+        if (!SpeechProviderNameRules.TryNormalize(provider.Name, out var name) ||
+            (!isEmptyEdge && !ProviderConfigurationValidator.Validate(provider with { Name = name }).IsValid))
         {
             throw new InvalidOperationException("Provider 名称或配置无效。");
         }
@@ -131,8 +135,26 @@ public sealed class SqliteProviderStore : IProviderStore
                 await providerCommand.ExecuteNonQueryAsync(cancellationToken);
             }
 
-            await using (var configurationCommand = connection.CreateCommand())
+            if (provider.Configuration is EdgeSpeechProviderConfiguration edge)
             {
+                await using var edgeCommand = connection.CreateCommand();
+                edgeCommand.Transaction = transaction;
+                edgeCommand.CommandText = """
+                    INSERT INTO EdgeSpeechProviderConfigs (ProviderId, VoiceId, FriendlyName, Locale, Gender)
+                    VALUES ($id, $voice, $friendly, $locale, $gender)
+                    ON CONFLICT(ProviderId) DO UPDATE SET VoiceId = excluded.VoiceId,
+                        FriendlyName = excluded.FriendlyName, Locale = excluded.Locale, Gender = excluded.Gender;
+                    """;
+                edgeCommand.Parameters.AddWithValue("$id", provider.Id.ToString());
+                edgeCommand.Parameters.AddWithValue("$voice", (object?)edge.Voice?.VoiceId ?? DBNull.Value);
+                edgeCommand.Parameters.AddWithValue("$friendly", (object?)edge.Voice?.FriendlyName ?? DBNull.Value);
+                edgeCommand.Parameters.AddWithValue("$locale", (object?)edge.Voice?.Locale ?? DBNull.Value);
+                edgeCommand.Parameters.AddWithValue("$gender", (object?)edge.Voice?.Gender ?? DBNull.Value);
+                await edgeCommand.ExecuteNonQueryAsync(cancellationToken);
+            }
+            else if (configuration is not null)
+            {
+                await using var configurationCommand = connection.CreateCommand();
                 configurationCommand.Transaction = transaction;
                 configurationCommand.CommandText =
                     """
@@ -218,13 +240,25 @@ public sealed class SqliteProviderStore : IProviderStore
         try
         {
             if (!Guid.TryParse(reader.GetString(0), out var id) ||
-                reader.GetInt32(1) != (int)SpeechProviderType.Http ||
-                reader.IsDBNull(6) || reader.IsDBNull(7) || reader.IsDBNull(8) ||
                 !SqliteDateTimeMapper.TryParse(reader.GetString(4), out var createdAt) ||
                 !SqliteDateTimeMapper.TryParse(reader.GetString(5), out var updatedAt))
             {
                 return false;
             }
+
+            if (reader.GetInt32(1) == (int)SpeechProviderType.MicrosoftEdge)
+            {
+                if (reader.IsDBNull(12) || reader.GetString(2) != SpeechProviderNameRules.MicrosoftEdgeName) return false;
+                EdgeVoice? voice = reader.IsDBNull(13) ? null : new EdgeVoice(reader.GetString(13),
+                    reader.IsDBNull(14) ? string.Empty : reader.GetString(14),
+                    reader.IsDBNull(15) ? string.Empty : reader.GetString(15),
+                    reader.IsDBNull(16) ? string.Empty : reader.GetString(16));
+                provider = new SpeechProviderInstance(new ProviderId(id), reader.GetString(2), reader.GetInt32(3),
+                    new EdgeSpeechProviderConfiguration(voice), createdAt, updatedAt);
+                return true;
+            }
+            if (reader.GetInt32(1) != (int)SpeechProviderType.Http ||
+                reader.IsDBNull(6) || reader.IsDBNull(7) || reader.IsDBNull(8)) return false;
 
             var headers = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.GetString(8), JsonOptions);
             if (headers is null)

@@ -31,6 +31,12 @@ public static partial class ProviderConfigurationValidator
         return configuration switch
         {
             HttpSpeechProviderConfiguration http => ValidateHttp(http),
+            EdgeSpeechProviderConfiguration edge =>
+                normalizedName == SpeechProviderNameRules.MicrosoftEdgeName &&
+                edge.Voice is { } voice && !string.IsNullOrWhiteSpace(voice.VoiceId) &&
+                !string.IsNullOrWhiteSpace(voice.FriendlyName) && !string.IsNullOrWhiteSpace(voice.Locale) &&
+                !string.IsNullOrWhiteSpace(voice.Gender)
+                    ? ProviderConfigurationValidation.Valid : Invalid("请选择有效的 Voice。"),
             _ => Invalid("Provider 类型或配置不可用。")
         };
     }

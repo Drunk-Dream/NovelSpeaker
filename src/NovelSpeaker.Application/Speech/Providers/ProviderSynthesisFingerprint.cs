@@ -7,6 +7,7 @@ public sealed record ProviderSynthesisFingerprint(int SchemaVersion, Fingerprint
 {
     public const int CurrentSchemaVersion = 1;
     public const int HttpExecutionContractVersion = 1;
+    public const int EdgeSynthesisContractVersion = 1;
 
     public ReadOnlyMemory<byte> Bytes => Value.Bytes;
 
@@ -18,6 +19,7 @@ public sealed record ProviderSynthesisFingerprint(int SchemaVersion, Fingerprint
         return provider.Configuration switch
         {
             HttpSpeechProviderConfiguration http => Create(http),
+            EdgeSpeechProviderConfiguration edge => Create(edge),
             _ => throw new NotSupportedException($"Synthesis fingerprint is not defined for {provider.Type}.")
         };
     }
@@ -42,6 +44,17 @@ public sealed record ProviderSynthesisFingerprint(int SchemaVersion, Fingerprint
             writer.Add("header-value", CanonicalTemplate(header.Value));
         }
 
+        return new ProviderSynthesisFingerprint(CurrentSchemaVersion, writer.Build());
+    }
+
+    public static ProviderSynthesisFingerprint Create(EdgeSpeechProviderConfiguration configuration,
+        int contractVersion = EdgeSynthesisContractVersion)
+    {
+        var writer = new CanonicalIdentityWriter();
+        writer.Add("schema", CurrentSchemaVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        writer.Add("provider-type", "microsoft-edge");
+        writer.Add("synthesis-contract", contractVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        writer.Add("voice", configuration.Voice?.VoiceId ?? string.Empty);
         return new ProviderSynthesisFingerprint(CurrentSchemaVersion, writer.Build());
     }
 

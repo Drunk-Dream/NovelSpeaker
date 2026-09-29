@@ -6,5 +6,6 @@ public enum ProviderRuntimeUnavailableReason
     ProviderNotFound,
     ProviderNotConfigured,
     UnsupportedProviderType,
-    RuntimeUnavailable
+    RuntimeUnavailable,
+    ProviderHidden
 }

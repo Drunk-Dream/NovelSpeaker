@@ -38,6 +38,10 @@ public sealed record AppSettingsUpdate
 
     public bool? EnablePerformanceTelemetry { get; init; }
 
+    public IReadOnlyList<string>? EnabledExperimentalFeatureIds { get; init; }
+
+    public ExperimentalFeatureChange? ExperimentalFeatureChange { get; init; }
+
     public double? MiniPlayerLeft { get; init; }
 
     public bool ClearMiniPlayerLeft { get; init; }

@@ -69,7 +69,10 @@ public sealed class StartupDatabaseInitializer : IDatabaseInitializer
             return;
         }
 
-        if (await _providerStore.GetByIdAsync(currentProviderId, cancellationToken).ConfigureAwait(false) is null)
+        var provider = await _providerStore.GetByIdAsync(currentProviderId, cancellationToken).ConfigureAwait(false);
+        if (provider is null || !ProviderConfigurationValidator.Validate(provider).IsValid ||
+            (provider.Type == NovelSpeaker.Domain.Speech.Providers.SpeechProviderType.MicrosoftEdge &&
+             _settingsService.Current.EnabledExperimentalFeatureIds?.Contains(ExperimentalFeaturesService.MicrosoftEdgeTts) != true))
         {
             await _settingsService.UpdateAsync(
                 new AppSettingsUpdate { ClearCurrentProvider = true },

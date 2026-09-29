@@ -10,7 +10,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 8;
+    private const int CurrentSchemaVersion = 9;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -255,7 +255,19 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                        (MaxRequests > 0 AND WindowMilliseconds > 0))
             );
             """,
-            LegacyHttpProviderMigration.ApplyAsync)
+            LegacyHttpProviderMigration.ApplyAsync),
+        new(9,
+            """
+            CREATE TABLE EdgeSpeechProviderConfigs (
+                ProviderId TEXT NOT NULL PRIMARY KEY,
+                VoiceId TEXT NULL,
+                FriendlyName TEXT NULL,
+                Locale TEXT NULL,
+                Gender TEXT NULL,
+                FOREIGN KEY(ProviderId) REFERENCES SpeechProviders(Id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IX_SpeechProviders_EdgeSingleton ON SpeechProviders(Type) WHERE Type = 2;
+            """)
     ];
 
     internal static IReadOnlyList<SqliteMigration> AllMigrations => Migrations;

@@ -40,6 +40,32 @@ public sealed record ProviderExportResult(
 /// <summary>Owns Provider management mutations, HTTP drafts, imports, and export confirmation.</summary>
 public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider timeProvider, IAppSettingsService settings)
 {
+    public bool IsVisible(SpeechProviderInstance provider) => provider.Type != SpeechProviderType.MicrosoftEdge ||
+        settings.Current.EnabledExperimentalFeatureIds?.Contains(ExperimentalFeaturesService.MicrosoftEdgeTts) == true;
+
+    public async Task SetEdgeEnabledAsync(bool enabled, CancellationToken cancellationToken)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var existing = await store.GetAllAsync(cancellationToken).ConfigureAwait(false);
+            var edge = existing.SingleOrDefault(provider => provider.Type == SpeechProviderType.MicrosoftEdge);
+            if (enabled && edge is null)
+            {
+                var now = timeProvider.GetUtcNow();
+                edge = new SpeechProviderInstance(ProviderId.New(), SpeechProviderNameRules.MicrosoftEdgeName,
+                    NextSortOrder(existing), new EdgeSpeechProviderConfiguration(null), now, now);
+                await store.SaveAsync(edge, cancellationToken).ConfigureAwait(false);
+            }
+            await settings.UpdateAsync(new AppSettingsUpdate
+            {
+                ClearCurrentProvider = !enabled && edge is not null && edge.Id == settings.Current.CurrentProviderId,
+                ExperimentalFeatureChange = new ExperimentalFeatureChange(ExperimentalFeaturesService.MicrosoftEdgeTts, enabled)
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        finally { _mutationGate.Release(); }
+    }
+
     public const string ExportWarning =
         "导出文件可能包含 API Key、Token、Cookie 等凭据。请确认保存位置或剪贴板接收方可信。";
 
@@ -72,6 +98,12 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
             {
                 throw new InvalidOperationException("要编辑的 Provider 不存在。");
             }
+
+            if (draft.Type == SpeechProviderType.MicrosoftEdge &&
+                (createNew || original?.Type != SpeechProviderType.MicrosoftEdge || !IsVisible(original)))
+                throw new InvalidOperationException("Microsoft Edge 只能编辑已启用的内置实例。");
+            if (original is not null && original.Type != draft.Type)
+                throw new InvalidOperationException("不能更改语音服务类型。");
 
             var now = timeProvider.GetUtcNow();
             var normalizedName = draft.Name?.Trim() ?? string.Empty;
