@@ -16,12 +16,12 @@ using NovelSpeaker.Domain.Speech.Providers;
 
 namespace NovelSpeaker.App.Features.SpeechServices;
 
-/// <summary>Owns the page's editing selection and HTTP draft; CurrentProvider remains settings-owned.</summary>
+/// <summary>Owns the page's editing selection and drafts; CurrentProvider remains settings-owned.</summary>
 public sealed partial class SpeechServicesViewModel : ObservableObject, ITransientEscapeHandler
 {
     private readonly IProviderStore _store;
     private readonly SpeechProviderWorkspace _workspace;
-    private readonly HttpProviderDraftPreviewService _preview;
+    private readonly ProviderDraftPreviewService _preview;
     private readonly IAppSettingsService _settings;
     private readonly IAppFeedbackService _feedback;
     private readonly IAppDialogService _dialogs;
@@ -38,11 +38,18 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     private CancellationTokenSource? _testCts;
     private bool _transitionBusy;
     private bool _isActive;
+    private readonly EdgeVoiceCatalog _voiceCatalog;
+    private readonly EditorSession<ProviderId?, EdgeEditorDraft> _edgeEditor = new((left, right) => left == right);
+    private readonly ResettableObservableCollection<EdgeVoice> _voices = [];
+    private CancellationTokenSource? _voiceCts;
+    private int _voiceEditorVersion;
+    private int _voiceSearchVersion;
+    private bool _hasLoadedCatalog;
 
     public SpeechServicesViewModel(IProviderStore store, SpeechProviderWorkspace workspace,
-        HttpProviderDraftPreviewService preview, IAppSettingsService settings,
+        ProviderDraftPreviewService preview, IAppSettingsService settings,
         IAppFeedbackService feedback, IAppDialogService dialogs, IAppNavigator navigator,
-        IRuleDocumentInteraction documents, IUiScheduler scheduler)
+        IRuleDocumentInteraction documents, IUiScheduler scheduler, EdgeVoiceCatalog voiceCatalog)
     {
         _store = store;
         _workspace = workspace;
@@ -53,6 +60,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         _navigator = navigator;
         _documents = documents;
         _scheduler = scheduler;
+        _voiceCatalog = voiceCatalog;
     }
 
     public ObservableCollection<SpeechProviderListItemViewModel> Providers => _providers;
@@ -68,15 +76,27 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     [ObservableProperty] private string draftRequestBody = string.Empty;
     [ObservableProperty] private string draftMaxRequests = string.Empty;
     [ObservableProperty] private string draftWindowMilliseconds = string.Empty;
+    [ObservableProperty] private EdgeVoice? draftVoice;
+    [ObservableProperty] private bool isVoicePickerOpen;
+    [ObservableProperty] private bool isVoiceCatalogLoading;
+    [ObservableProperty] private string voiceSearch = string.Empty;
+    [ObservableProperty] private string voiceCatalogMessage = string.Empty;
+
+    public bool IsEdgeEditor => _editingProvider?.Type == SpeechProviderType.MicrosoftEdge;
+    public bool CanRefreshVoices => IsEdgeEditor && CanManage && !IsVoiceCatalogLoading;
+    public ObservableCollection<EdgeVoice> Voices => _voices;
+    public string VoiceDisplayName => DraftVoice?.FriendlyName ?? "尚未选择 Voice";
+    public string VoiceLocaleAndGender => DraftVoice is { } voice ? $"{voice.Locale} · {voice.Gender}" : string.Empty;
+    public string VoiceId => DraftVoice?.VoiceId ?? string.Empty;
 
     public bool HasEditor => _editingProvider is not null;
     public bool IsHttpEditor => _editingProvider?.Type == SpeechProviderType.Http;
     public bool IsEditingNewProvider => _editor.IsNew;
-    public bool HasUnsavedChanges => _editor.IsDirty;
+    public bool HasUnsavedChanges => IsEdgeEditor ? _edgeEditor.IsDirty : _editor.IsDirty;
     public bool CanManage => !IsBusy && !_transitionBusy;
-    public bool CanSaveDraft => IsHttpEditor && HasUnsavedChanges && CanManage;
+    public bool CanSaveDraft => HasEditor && HasUnsavedChanges && CanManage;
     public bool CanCancelEditing => HasEditor && CanManage;
-    public bool CanTestDraft => IsHttpEditor && CanManage && !IsTestBusy;
+    public bool CanTestDraft => (IsHttpEditor || IsEdgeEditor && DraftVoice is not null) && CanManage && !IsTestBusy;
     public bool IsPostMethod => DraftRequestMethod == "POST";
 
     public async Task LoadAsync(CancellationToken cancellationToken)
@@ -102,7 +122,9 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         _preview.PlaybackFailed -= OnPreviewFailed;
         _pageCts?.Cancel();
         _testCts?.Cancel();
+        CancelVoiceWork();
         IsHelpDrawerOpen = false;
+        IsVoicePickerOpen = false;
     }
 
     public async Task FinishDeactivationAsync()
@@ -120,6 +142,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     public bool TryHandleEscape()
     {
+        if (IsVoicePickerOpen) { IsVoicePickerOpen = false; return true; }
         if (!IsHelpDrawerOpen) return false;
         IsHelpDrawerOpen = false;
         return true;
@@ -282,7 +305,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         if (!CanTestDraft) return;
         if (!TryBuildProvider(out var draft, out var error))
         {
-            if (IsHttpEditor) _feedback.ShowWarning("无法试听", error ?? "编辑器不可用。");
+            _feedback.ShowWarning("无法试听", error ?? "编辑器不可用。");
             return;
         }
         using var testCts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -345,7 +368,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     private async Task<bool> SaveDraftCoreAsync(CancellationToken cancellationToken)
     {
-        if (!IsHttpEditor || IsBusy) return false;
+        if (!HasEditor || IsBusy) return false;
         if (!TryBuildProvider(out var draft, out var error))
         {
             _feedback.ShowWarning("无法保存语音服务", error!);
@@ -376,7 +399,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         cancellationToken.ThrowIfCancellationRequested();
         _completeOrder = all.OrderBy(provider => provider.SortOrder).ThenBy(provider => provider.Id.Value).ToArray();
         // Visibility is a projection of this complete, unified order.
-        var visible = _completeOrder;
+        var visible = _completeOrder.Where(_workspace.IsVisible);
         _providers.ReplaceWith(visible, provider => new SpeechProviderListItemViewModel(provider.Id, provider.Name,
             provider.Type, _settings.Current.CurrentProviderId == provider.Id, SelectedProviderId == provider.Id));
         for (var index = 0; index < Providers.Count; index++)
@@ -388,7 +411,9 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     private void OpenEditor(SpeechProviderInstance provider, bool isNew)
     {
+        CancelVoiceWork();
         _editor.Close();
+        _edgeEditor.Close();
         _editingProvider = provider;
         SelectedProviderId = isNew ? null : provider.Id;
         IsHelpDrawerOpen = false;
@@ -410,13 +435,19 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
             }
             _editor.Open(isNew ? null : provider.Id, CaptureDraft(), isNew, null);
         }
+        else if (provider.Configuration is EdgeSpeechProviderConfiguration edge)
+        {
+            OpenEdgeEditor(provider.Id, edge);
+        }
         foreach (var item in Providers) item.IsSelected = item.Id == SelectedProviderId;
         NotifyState();
     }
 
     private void CloseEditor()
     {
+        CancelVoiceWork();
         _editor.Close();
+        _edgeEditor.Close();
         _editingProvider = null;
         SelectedProviderId = null;
         IsHelpDrawerOpen = false;
@@ -430,7 +461,15 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     {
         provider = null;
         error = null;
-        if (_editingProvider is null || !IsHttpEditor) { error = "编辑器不可用。"; return false; }
+        if (_editingProvider is null) { error = "编辑器不可用。"; return false; }
+        if (IsEdgeEditor)
+        {
+            provider = _editingProvider with { Configuration = new EdgeSpeechProviderConfiguration(DraftVoice) };
+            var edgeValidation = ProviderConfigurationValidator.Validate(provider);
+            error = edgeValidation.IsValid ? null : string.Join(" ", edgeValidation.Errors);
+            return edgeValidation.IsValid;
+        }
+        if (!IsHttpEditor) { error = "编辑器不可用。"; return false; }
         ProviderRequestRateLimit? rate = null;
         if (!string.IsNullOrWhiteSpace(DraftMaxRequests) || !string.IsNullOrWhiteSpace(DraftWindowMilliseconds))
         {
@@ -479,8 +518,8 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     private void NotifyState()
     {
-        foreach (var property in new[] { nameof(HasEditor), nameof(IsHttpEditor), nameof(IsEditingNewProvider),
-                     nameof(HasUnsavedChanges), nameof(CanManage), nameof(CanSaveDraft), nameof(CanCancelEditing), nameof(CanTestDraft) })
+        foreach (var property in new[] { nameof(HasEditor), nameof(IsHttpEditor), nameof(IsEdgeEditor), nameof(IsEditingNewProvider),
+                     nameof(HasUnsavedChanges), nameof(CanManage), nameof(CanSaveDraft), nameof(CanCancelEditing), nameof(CanTestDraft), nameof(CanRefreshVoices) })
             OnPropertyChanged(property);
         NewProviderCommand.NotifyCanExecuteChanged();
         SelectProviderCommand.NotifyCanExecuteChanged();
@@ -492,6 +531,9 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         ReorderProviderCommand.NotifyCanExecuteChanged();
         MoveProviderUpCommand.NotifyCanExecuteChanged();
         MoveProviderDownCommand.NotifyCanExecuteChanged();
+        ChangeVoiceCommand.NotifyCanExecuteChanged();
+        RefreshVoiceCatalogCommand.NotifyCanExecuteChanged();
+        SelectVoiceCommand.NotifyCanExecuteChanged();
     }
 
     private async Task StopTestAsync(CancellationToken cancellationToken)
@@ -528,7 +570,13 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs args) => PostEvent(() =>
     {
-        foreach (var item in Providers) item.IsCurrent = _settings.Current.CurrentProviderId == item.Id;
+        if (_editingProvider is not null && !_workspace.IsVisible(_editingProvider))
+        {
+            _testCts?.Cancel();
+            CloseEditor();
+            _eventTasks.Register(_preview.StopAsync(_pageToken));
+        }
+        _eventTasks.Register(RefreshAsync(_pageToken));
     });
     private void OnPreviewFailed(object? sender, ProviderPreviewPlaybackFailedEventArgs args) =>
         PostEvent(() => _feedback.ShowWarning("试听失败", args.Message));
@@ -545,6 +593,138 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
             // Presentation delivery must not fail a settings mutation or background audio operation.
         }
     }
+
+    private void OpenEdgeEditor(ProviderId providerId, EdgeSpeechProviderConfiguration configuration)
+    {
+        _voiceCts = CancellationTokenSource.CreateLinkedTokenSource(_pageToken);
+        DraftVoice = configuration.Voice;
+        _edgeEditor.Open(providerId, new EdgeEditorDraft(DraftVoice), false, null);
+        _eventTasks.Register(FilterVoicesAsync());
+        _eventTasks.Register(LoadVoicesAsync(false));
+    }
+
+    private void CancelVoiceWork()
+    {
+        _voiceEditorVersion++;
+        _voiceSearchVersion++;
+        _voiceCts?.Cancel();
+        _voiceCts?.Dispose();
+        _voiceCts = null;
+        _hasLoadedCatalog = false;
+        IsVoiceCatalogLoading = false;
+        IsVoicePickerOpen = false;
+        VoiceSearch = string.Empty;
+        VoiceCatalogMessage = string.Empty;
+        _voices.ReplaceWith([]);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private void ChangeVoice()
+    {
+        if (!IsEdgeEditor) return;
+        IsVoicePickerOpen = !IsVoicePickerOpen;
+        if (IsVoicePickerOpen && !_hasLoadedCatalog && !IsVoiceCatalogLoading)
+            _eventTasks.Register(LoadVoicesAsync(false));
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRefreshVoices))]
+    private Task RefreshVoiceCatalogAsync() => LoadVoicesAsync(true);
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private void SelectVoice(EdgeVoice? voice)
+    {
+        if (!IsEdgeEditor || voice is null) return;
+        DraftVoice = voice;
+        IsVoicePickerOpen = false;
+        VoiceCatalogMessage = string.Empty;
+    }
+
+    private async Task LoadVoicesAsync(bool refresh)
+    {
+        if (!IsEdgeEditor || _voiceCts is null || IsVoiceCatalogLoading) return;
+        var token = _voiceCts.Token;
+        var version = _voiceEditorVersion;
+        IsVoiceCatalogLoading = true;
+        try
+        {
+            await _voiceCatalog.GetAsync(refresh, token);
+            token.ThrowIfCancellationRequested();
+            await _scheduler.InvokeAsync(async () =>
+            {
+                if (version != _voiceEditorVersion) return;
+                _hasLoadedCatalog = true;
+                UpdateMissingVoiceMessage();
+                await FilterVoicesAsync();
+            }, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception)
+        {
+            if (!token.IsCancellationRequested)
+                await _scheduler.InvokeAsync(() =>
+                {
+                    if (!token.IsCancellationRequested && version == _voiceEditorVersion)
+                        VoiceCatalogMessage = "无法加载 Voice 列表，请稍后重试。现有配置已保留。";
+                });
+        }
+        finally
+        {
+            if (!token.IsCancellationRequested)
+                await _scheduler.InvokeAsync(() =>
+                {
+                    if (!token.IsCancellationRequested && version == _voiceEditorVersion) IsVoiceCatalogLoading = false;
+                });
+        }
+    }
+
+    private async Task FilterVoicesAsync()
+    {
+        if (!IsEdgeEditor || _voiceCts is null) return;
+        var token = _voiceCts.Token;
+        var editorVersion = _voiceEditorVersion;
+        var searchVersion = ++_voiceSearchVersion;
+        var search = VoiceSearch.Trim();
+        var catalog = _voiceCatalog.Current;
+        try
+        {
+            var matches = await Task.Run(() => catalog.Where(voice =>
+            {
+                token.ThrowIfCancellationRequested();
+                return voice.FriendlyName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                       voice.Locale.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                       voice.VoiceId.Contains(search, StringComparison.OrdinalIgnoreCase);
+            }).ToArray(), token);
+            await _scheduler.InvokeAsync(() =>
+            {
+                if (editorVersion == _voiceEditorVersion && searchVersion == _voiceSearchVersion)
+                    _voices.ReplaceWith(matches);
+            }, token);
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+    }
+
+    private void UpdateMissingVoiceMessage() => VoiceCatalogMessage =
+        _hasLoadedCatalog && DraftVoice is { } voice && !_voiceCatalog.Current.Any(item => item.VoiceId == voice.VoiceId)
+            ? "当前 Voice 未出现在最新列表中" : string.Empty;
+
+    partial void OnDraftVoiceChanged(EdgeVoice? value)
+    {
+        _edgeEditor.UpdateDirty(new EdgeEditorDraft(value));
+        OnPropertyChanged(nameof(VoiceDisplayName));
+        OnPropertyChanged(nameof(VoiceLocaleAndGender));
+        OnPropertyChanged(nameof(VoiceId));
+        UpdateMissingVoiceMessage();
+        NotifyState();
+    }
+
+    partial void OnVoiceSearchChanged(string value) => _eventTasks.Register(FilterVoicesAsync());
+    partial void OnIsVoiceCatalogLoadingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanRefreshVoices));
+        RefreshVoiceCatalogCommand.NotifyCanExecuteChanged();
+    }
+
+    private sealed record EdgeEditorDraft(EdgeVoice? Voice);
 
     private sealed record HttpEditorDraft(string Name, string Url, string Method, string Body,
         string MaxRequests, string WindowMilliseconds, IReadOnlyList<KeyValuePair<string, string>> Headers);

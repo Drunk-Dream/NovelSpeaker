@@ -15,7 +15,8 @@ public enum AppRouteId
     GeneralSettings,
     AppearanceSettings,
     DiagnosticsAbout,
-    SpeechServices
+    SpeechServices,
+    ExperimentalFeatures
 }
 
 public enum PlayerNavigationMode
@@ -118,5 +119,6 @@ public static class AppRoutes
     public static AppRoute CacheManagement { get; } = new ParameterlessAppRoute(AppRouteId.CacheManagement);
     public static AppRoute GeneralSettings { get; } = new ParameterlessAppRoute(AppRouteId.GeneralSettings);
     public static AppRoute AppearanceSettings { get; } = new ParameterlessAppRoute(AppRouteId.AppearanceSettings);
+    public static AppRoute ExperimentalFeatures { get; } = new ParameterlessAppRoute(AppRouteId.ExperimentalFeatures);
     public static AppRoute DiagnosticsAbout { get; } = new ParameterlessAppRoute(AppRouteId.DiagnosticsAbout);
 }

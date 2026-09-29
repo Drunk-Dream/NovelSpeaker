@@ -32,6 +32,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 [
                     new SettingsNavigationItemViewModel("缓存与数据", SettingsNavigationIcon.CacheAndData, OpenCacheAndDataCommand),
                     new SettingsNavigationItemViewModel("外观", SettingsNavigationIcon.Appearance, OpenAppearanceSettingsCommand),
+                    new SettingsNavigationItemViewModel("实验性功能", SettingsNavigationIcon.ExperimentalFeatures, OpenExperimentalFeaturesCommand),
                     new SettingsNavigationItemViewModel("诊断与关于", SettingsNavigationIcon.Diagnostics, OpenDiagnosticsAboutCommand)
                 ])
         ];
@@ -78,6 +79,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         return _navigator.NavigateAsync(AppRoutes.GeneralSettings, cancellationToken);
     }
+
+    [RelayCommand]
+    private Task OpenExperimentalFeaturesAsync(CancellationToken cancellationToken) =>
+        _navigator.NavigateAsync(AppRoutes.ExperimentalFeatures, cancellationToken);
 
     [RelayCommand]
     private Task OpenDiagnosticsAboutAsync(CancellationToken cancellationToken)

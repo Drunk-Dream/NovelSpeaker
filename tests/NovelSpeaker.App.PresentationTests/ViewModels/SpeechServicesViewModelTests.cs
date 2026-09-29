@@ -1,5 +1,6 @@
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.App.Features.ExperimentalFeatures;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
@@ -178,6 +179,141 @@ public sealed class SpeechServicesViewModelTests
         Assert.Equal(fixture.First.Id, fixture.Settings.Current.CurrentProviderId);
     }
 
+    [Fact]
+    public async Task Edge_voice_selection_and_preview_use_draft_until_save_without_auto_selection()
+    {
+        var fixture = new Fixture();
+        var edge = await fixture.EnableEdgeAsync(null);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == edge.Id));
+        await WaitForCatalogAsync(vm);
+        Assert.True(vm.IsEdgeEditor);
+        Assert.Null(vm.DraftVoice);
+        Assert.False(vm.CanTestDraft);
+        Assert.False(vm.HasUnsavedChanges);
+        vm.ChangeVoiceCommand.Execute(null);
+        Assert.True(vm.IsVoicePickerOpen);
+        Assert.True(vm.TryHandleEscape());
+        Assert.False(vm.IsVoicePickerOpen);
+        var voice = Assert.Single(vm.Voices);
+        vm.SelectVoiceCommand.Execute(voice);
+        Assert.True(vm.HasUnsavedChanges);
+        await vm.TestDraftCommand.ExecuteAsync(null);
+        Assert.Equal(voice, Assert.IsType<EdgeSpeechProviderConfiguration>(fixture.EdgeRuntime.Provider!.Configuration).Voice);
+        Assert.Null(Assert.IsType<EdgeSpeechProviderConfiguration>(fixture.Store.Items.Single(item => item.Id == edge.Id).Configuration).Voice);
+        Assert.Equal(fixture.First.Id, fixture.Settings.Current.CurrentProviderId);
+        await vm.SaveDraftCommand.ExecuteAsync(null);
+        Assert.Equal(voice, Assert.IsType<EdgeSpeechProviderConfiguration>(fixture.Store.Items.Single(item => item.Id == edge.Id).Configuration).Voice);
+        Assert.False(vm.HasUnsavedChanges);
+        vm.HandleNavigatedFrom();
+        await vm.FinishDeactivationAsync();
+    }
+
+    [Fact]
+    public async Task Edge_refresh_failure_and_missing_voice_keep_saved_configuration_and_readiness()
+    {
+        var fixture = new Fixture();
+        var voice = new EdgeVoice("saved", "Offline voice", "zh-CN", "Female");
+        var edge = await fixture.EnableEdgeAsync(voice);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == edge.Id));
+        await WaitForCatalogAsync(vm);
+        Assert.Equal("当前 Voice 未出现在最新列表中", vm.VoiceCatalogMessage);
+        Assert.Equal(voice, vm.DraftVoice);
+        Assert.True(vm.CanTestDraft);
+        Assert.True(ProviderConfigurationValidator.Validate(edge).IsValid);
+        var oldCatalog = vm.Voices.ToArray();
+        fixture.Transport.Failure = new IOException("fixture failure");
+        await vm.RefreshVoiceCatalogCommand.ExecuteAsync(null);
+        Assert.Contains("配置已保留", vm.VoiceCatalogMessage);
+        Assert.Equal(oldCatalog, vm.Voices);
+        Assert.False(vm.HasUnsavedChanges);
+        Assert.True(vm.CanTestDraft);
+        Assert.Equal(voice, vm.DraftVoice);
+        vm.HandleNavigatedFrom();
+        await vm.FinishDeactivationAsync();
+    }
+
+    [Fact]
+    public async Task Pending_catalog_keeps_editor_usable_and_cannot_update_a_later_http_editor()
+    {
+        var fixture = new Fixture();
+        fixture.Transport.Release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var voice = new EdgeVoice("saved", "Offline voice", "zh-CN", "Female");
+        var edge = await fixture.EnableEdgeAsync(voice);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == edge.Id));
+        await fixture.Transport.Entered.Task;
+        Assert.True(vm.IsVoiceCatalogLoading);
+        Assert.True(vm.CanTestDraft);
+        Assert.True(vm.CanCancelEditing);
+        await vm.TestDraftCommand.ExecuteAsync(null);
+        Assert.True(fixture.Player.IsPlaying);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == fixture.First.Id));
+        fixture.Transport.Release.SetResult();
+        vm.HandleNavigatedFrom();
+        await vm.FinishDeactivationAsync();
+        Assert.True(vm.IsHttpEditor);
+        Assert.Empty(vm.Voices);
+        Assert.Equal(string.Empty, vm.VoiceCatalogMessage);
+        Assert.Equal(voice, Assert.IsType<EdgeSpeechProviderConfiguration>(fixture.Store.Items.Single(item => item.Id == edge.Id).Configuration).Voice);
+    }
+
+    [Fact]
+    public async Task Experimental_toggle_runs_edge_lifecycle_and_reverts_failed_enable()
+    {
+        var fixture = new Fixture();
+        await fixture.ViewModel.LoadAsync(CancellationToken.None);
+        var features = new ExperimentalFeaturesService(fixture.Settings);
+        var vm = new ExperimentalFeaturesViewModel(features,
+            new SpeechProviderWorkspace(fixture.Store, TimeProvider.System, fixture.Settings),
+            new FakeNavigationService(), new FakeFeedbackService());
+        await vm.LoadAsync(CancellationToken.None);
+        var item = Assert.Single(vm.Features);
+        fixture.Store.SaveFailure = new IOException("fixture failure");
+        item.IsEnabled = true;
+        Assert.False(item.IsEnabled);
+        Assert.True(item.CanToggle);
+        Assert.False(features.IsEnabled(item.Id));
+        fixture.Store.SaveFailure = null;
+        item.IsEnabled = true;
+        var edge = Assert.Single(fixture.Store.Items, provider => provider.Type == SpeechProviderType.MicrosoftEdge);
+        var edgeItem = Assert.Single(fixture.ViewModel.Providers, provider => provider.Id == edge.Id);
+        Assert.False(edgeItem.CanShare);
+        Assert.False(edgeItem.CanDelete);
+        Assert.True(features.IsEnabled(item.Id));
+        fixture.Settings.SetCurrent(edge.Id);
+        item.IsEnabled = false;
+        Assert.Equal(fixture.First.Id, Assert.Single(fixture.ViewModel.Providers).Id);
+        Assert.False(features.IsEnabled(item.Id));
+        Assert.Null(fixture.Settings.Current.CurrentProviderId);
+        item.IsEnabled = true;
+        Assert.Equal(edge.Id, Assert.Single(fixture.Store.Items, provider => provider.Type == SpeechProviderType.MicrosoftEdge).Id);
+        Assert.Null(fixture.Settings.Current.CurrentProviderId);
+        vm.Deactivate();
+        fixture.ViewModel.HandleNavigatedFrom();
+        await fixture.ViewModel.FinishDeactivationAsync();
+    }
+
+    private static async Task WaitForCatalogAsync(SpeechServicesViewModel vm)
+    {
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void Changed(object? sender, System.ComponentModel.PropertyChangedEventArgs args)
+        {
+            if (args.PropertyName == nameof(vm.IsVoiceCatalogLoading) && !vm.IsVoiceCatalogLoading) ready.TrySetResult();
+        }
+        vm.PropertyChanged += Changed;
+        try
+        {
+            if (!vm.IsVoiceCatalogLoading) ready.TrySetResult();
+            await ready.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally { vm.PropertyChanged -= Changed; }
+    }
+
     private static SpeechProviderInstance CreateProvider(string name, int order) => new(ProviderId.New(), name, order,
         new HttpSpeechProviderConfiguration("https://example.invalid/audio", "GET", new Dictionary<string, string>(), null, null),
         DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
@@ -190,15 +326,27 @@ public sealed class SpeechServicesViewModelTests
         public FakeAppDialogService Dialogs { get; } = new();
         public FakeRuleDocumentInteraction Documents { get; } = new();
         public Runtime Runtime { get; } = new();
+        public Runtime EdgeRuntime { get; } = new(SpeechProviderType.MicrosoftEdge);
+        public Transport Transport { get; } = new();
         public Player Player { get; } = new();
         public SpeechServicesViewModel ViewModel { get; }
+        public async Task<SpeechProviderInstance> EnableEdgeAsync(EdgeVoice? voice)
+        {
+            var workspace = new SpeechProviderWorkspace(Store, TimeProvider.System, Settings);
+            await workspace.SetEdgeEnabledAsync(true, CancellationToken.None);
+            var edge = ItemsEdge();
+            if (voice is not null)
+                edge = await workspace.SaveAsync(edge with { Configuration = new EdgeSpeechProviderConfiguration(voice) }, false, CancellationToken.None);
+            return edge;
+        }
+        private SpeechProviderInstance ItemsEdge() => Store.Items.Single(item => item.Type == SpeechProviderType.MicrosoftEdge);
         public Fixture()
         {
             Store.Items.Add(First);
             Settings.SetCurrent(First.Id);
             ViewModel = new SpeechServicesViewModel(Store, new SpeechProviderWorkspace(Store, TimeProvider.System, Settings),
-                new HttpProviderDraftPreviewService([Runtime], Settings, Player), Settings, new FakeFeedbackService(), Dialogs,
-                new FakeNavigationService(), Documents, new InlineScheduler());
+                new ProviderDraftPreviewService([Runtime, EdgeRuntime], Settings, Player), Settings, new FakeFeedbackService(), Dialogs,
+                new FakeNavigationService(), Documents, new InlineScheduler(), new EdgeVoiceCatalog(Transport, TimeProvider.System));
         }
     }
 
@@ -240,9 +388,25 @@ public sealed class SpeechServicesViewModelTests
         }
     }
 
-    private sealed class Runtime : IProviderRuntime
+    private sealed class Transport : IEdgeSpeechTransport
     {
-        public SpeechProviderType Type => SpeechProviderType.Http;
+        public Exception? Failure { get; set; }
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource? Release { get; set; }
+        public async Task<IReadOnlyList<EdgeVoice>> GetVoicesAsync(CancellationToken cancellationToken)
+        {
+            Entered.TrySetResult();
+            if (Release is not null) await Release.Task.WaitAsync(cancellationToken);
+            if (Failure is not null) throw Failure;
+            return [new EdgeVoice("available", "Available voice", "en-US", "Female")];
+        }
+        public Task<ProviderSynthesisResult> SynthesizeAsync(EdgeVoice voice, string text, int ratePercent, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class Runtime(SpeechProviderType type = SpeechProviderType.Http) : IProviderRuntime
+    {
+        public SpeechProviderType Type => type;
         public SpeechProviderInstance? Provider { get; private set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource? Release { get; set; }
@@ -334,11 +498,20 @@ public sealed class SpeechServicesViewModelTests
     {
         public AppSettings Current { get; private set; } = AppSettings.Default with { DefaultSpeakSpeed = 12 };
         public void SetCurrent(ProviderId id) => Current = Current with { CurrentProviderId = id };
-        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed;
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var previous = Current;
             Current = Current with { CurrentProviderId = update.ClearCurrentProvider ? null : update.CurrentProviderId ?? Current.CurrentProviderId };
+            if (update.ExperimentalFeatureChange is { } change)
+            {
+                var ids = Current.EnabledExperimentalFeatureIds?.ToHashSet(StringComparer.Ordinal) ?? [];
+                if (change.Enabled) ids.Add(change.FeatureId); else ids.Remove(change.FeatureId);
+                Current = Current with { EnabledExperimentalFeatureIds = ids.ToArray() };
+            }
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, Current));
             return Task.FromResult(Current);
         }
     }

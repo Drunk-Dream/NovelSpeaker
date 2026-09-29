@@ -120,13 +120,13 @@
 
 完成成果：双栏语音服务页已接入 Provider 列表、HTTP Draft/编辑/试听/保存、新身份/唯一副本名/紧随源项的事务复制、凭据确认后单项导出及逐项导入；编辑选择与 CurrentProvider 状态独立，删除正在使用的服务清空选择且不回退。Provider 排序事务持久化；Provider、章节规则和正则规则共用列表级单一插入槽与边缘滚动，纯逻辑覆盖首尾、相邻槽及隐藏项映射。旧 TTS 管理页和 Toggle/旧限流输入已移除，核心流程、持久排序与隔离桌面临时交互验证通过；临时验证代码已清理。额外扩大运行时，未改动的空白 Frame 高度测试在隔离环境中超时；受影响的页面生命周期、设置导航和工作台高度测试均通过。
 
-## [ ] T009（P0）：实现实验性 Microsoft Edge Provider 与统一语速合同
+## [x] T009（P0）：实现实验性 Microsoft Edge Provider 与统一语速合同
 
 依赖：T006、T008。
 
-实施规格：`tasks/T009_edge_provider.md`
-
 目标：建立通用“实验性功能”次级设置页；增加内置单实例 Microsoft Edge Provider、Voice 搜索/配置/试听和独立 Infrastructure transport；协议行为以当前 `Drunk-Dream/ms-ra-forwarder` 为主要参考；将公共 SpeakSpeed 直接切换为 `0–100`、默认 `50`，不迁移旧 settings/template 语速语义；以至少一次真实在线合成与可解码验证证明 transport 可用，不引入本机 Edge 依赖、外部代理进程或自动 fallback。
+
+完成成果：通用 FeatureId 设置与“实验性功能”次级页已接入；Edge 固定单实例在首次启用时创建，停用保留配置/排序并原子清空必要的 CurrentProvider。独立 Edge Editor 支持离线 Voice 快照、内联搜索、绕过缓存刷新和未保存 Draft 试听；Catalog 仅在进程内缓存，失败/缺失 Voice 不取消已配置状态，加载不锁死编辑器。Infrastructure 使用固定 `edge-readaloud-144-v1` profile 和独立 WebSocket；2026-09-29 生产 Voice List、MP3 合成及现有解码路径验证成功。语速统一为 0–100/默认 50，移除 0 sentinel 与 HTTP 专属试听服务，不迁移旧设置或模板。核心生命周期、持久化、Runtime/协议、语速及 Draft 测试通过，Release build、format 和隔离桌面验证通过；临时验证入口/产物及本任务规格已删除。扩大检查时 Domain 15、Infrastructure 335、Presentation 206 项全通过；Application 197 项通过，4 项章节标题相关导出失败在任务起点 `2ddec3c` 同样复现，保留为已有问题。播放/缓存/导出生产接线与播放页 Provider 选择器由 T010 完成。
 
 ## [ ] T010（P0）：完成 Playback/Cache/Export Provider 接入并清理旧体系
 

@@ -4,8 +4,8 @@ using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Speech.Providers;
 
-/// <summary>Synthesizes an unsaved HTTP draft with the current global speech speed.</summary>
-public sealed class HttpProviderDraftPreviewService(
+/// <summary>Synthesizes an unsaved provider draft with the current global speech speed.</summary>
+public sealed class ProviderDraftPreviewService(
     IEnumerable<IProviderRuntime> runtimes,
     IAppSettingsService settings,
     IProviderPreviewAudioPlayer player)
@@ -25,12 +25,13 @@ public sealed class HttpProviderDraftPreviewService(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(draft);
-        var runtime = runtimes.FirstOrDefault(candidate => candidate.Type == SpeechProviderType.Http);
-        if (runtime is null || draft.Type != SpeechProviderType.Http)
+        cancellationToken.ThrowIfCancellationRequested();
+        var runtime = runtimes.FirstOrDefault(candidate => candidate.Type == draft.Type);
+        if (runtime is null)
         {
             return Task.FromResult(new ProviderSynthesisResult(null, null,
                 new ProviderSynthesisFailure(ProviderSynthesisFailureKind.ProviderUnavailable,
-                    "HTTP Provider 运行时不可用。")));
+                    "语音服务运行时不可用。")));
         }
 
         return runtime.SynthesizeAsync(draft,

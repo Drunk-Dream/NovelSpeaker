@@ -222,7 +222,7 @@
                                    ToolTip="HTTP 模板帮助" AutomationProperties.Name="HTTP 模板帮助"
                                    Icon="{ui:SymbolIcon Symbol=QuestionCircle24}" />
                         <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,4,0,0"
-                                   Text="修改请求字段后可直接试听编辑副本，再保存更改。"
+                                   Text="修改配置后可直接试听编辑副本，再保存更改。"
                                    Style="{StaticResource App.Typography.Secondary}" />
                     </Grid>
                     <feedbackControls:AppStatusView Grid.Row="1" HorizontalAlignment="Stretch"
@@ -370,6 +370,82 @@
                                         Command="{Binding SaveDraftCommand}"
                                         Content="保存"
                                         IsEnabled="{Binding CanSaveDraft}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                    <ScrollViewer Grid.Row="1" Margin="0,16,0,0"
+                                  Visibility="{Binding IsEdgeEditor, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel IsEnabled="{Binding CanManage}">
+                            <formControls:AppFormField Label="名称">
+                                <TextBlock Text="Microsoft Edge" Style="{StaticResource App.Typography.Body}" />
+                            </formControls:AppFormField>
+                            <formControls:AppFormField Label="当前 Voice" Margin="0,16,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding VoiceDisplayName}" TextWrapping="Wrap"
+                                               Style="{StaticResource App.Typography.ItemTitle}" />
+                                    <TextBlock Text="{Binding VoiceLocaleAndGender}" Margin="0,4,0,0"
+                                               Style="{StaticResource App.Typography.Secondary}" />
+                                    <TextBlock Text="{Binding VoiceId}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Style="{StaticResource App.Typography.Secondary}" />
+                                    <TextBlock Text="{Binding VoiceCatalogMessage}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                               Style="{StaticResource App.Typography.Secondary}" />
+                                </StackPanel>
+                            </formControls:AppFormField>
+                            <WrapPanel Margin="0,16,0,0">
+                                <Button Content="更换 Voice" Command="{Binding ChangeVoiceCommand}"
+                                        Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" />
+                                <Button Content="刷新列表" Command="{Binding RefreshVoiceCatalogCommand}"
+                                        Style="{StaticResource App.Button.Subtle}" />
+                            </WrapPanel>
+                            <TextBlock Text="正在加载 Voice 列表…" Margin="0,8,0,0"
+                                       Style="{StaticResource App.Typography.Secondary}"
+                                       Visibility="{Binding IsVoiceCatalogLoading, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <StackPanel Margin="0,16,0,0"
+                                        Visibility="{Binding IsVoicePickerOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <formControls:AppFormField Label="搜索 Voice">
+                                    <TextBox Text="{Binding VoiceSearch, UpdateSourceTrigger=PropertyChanged}"
+                                             Style="{StaticResource App.Input.TextBox.Standard}"
+                                             AutomationProperties.Name="搜索 Voice 名称、语言或 ID" />
+                                </formControls:AppFormField>
+                                <ListBox ItemsSource="{Binding Voices}" Height="280" Margin="0,8,0,0"
+                                         Background="Transparent" BorderThickness="0"
+                                         ScrollViewer.CanContentScroll="True"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.VirtualizationMode="Recycling"
+                                         AutomationProperties.Name="可选 Voice">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource App.Selection.ChromeFreeItemContainer}">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Focusable" Value="False" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource App.Button.Subtle}" HorizontalContentAlignment="Left"
+                                                    Command="{Binding DataContext.SelectVoiceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}" AutomationProperties.Name="{Binding FriendlyName}">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding FriendlyName}" TextWrapping="Wrap"
+                                                               Style="{StaticResource App.Typography.Body}" />
+                                                    <TextBlock Text="{Binding Locale}" Style="{StaticResource App.Typography.Secondary}" />
+                                                    <TextBlock Text="{Binding VoiceId}" TextTrimming="CharacterEllipsis"
+                                                               Style="{StaticResource App.Typography.Secondary}" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                            <WrapPanel Margin="0,20,0,0">
+                                <Button Content="试听" Command="{Binding TestDraftCommand}" IsEnabled="{Binding CanTestDraft}"
+                                        Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" />
+                                <Button Content="取消" Command="{Binding CancelEditingCommand}" IsEnabled="{Binding CanCancelEditing}"
+                                        Margin="0,0,8,0" Style="{StaticResource App.Button.Subtle}" />
+                                <ui:Button Content="保存" Command="{Binding SaveDraftCommand}" IsEnabled="{Binding CanSaveDraft}"
+                                           Style="{StaticResource App.Button.Primary}" />
                             </WrapPanel>
                         </StackPanel>
                     </ScrollViewer>

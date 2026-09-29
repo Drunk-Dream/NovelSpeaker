@@ -119,7 +119,7 @@ public sealed class ExportChaptersServiceTests
                 "chapter-0",
                 StableSpeechSegmentIdentity.ChapterTitle(),
                 Fingerprint.Sha256("提交时的章节名"),
-                ExpectedProfile(10)),
+                ExpectedProfile(AppSettings.DefaultSpeakSpeedValue)),
             plan.OrderedSegmentKeys[0]);
     }
 
@@ -307,7 +307,7 @@ public sealed class ExportChaptersServiceTests
                 "chapter-0",
                 StableSpeechSegmentIdentity.ChapterTitle(),
                 Fingerprint.Sha256("第一章"),
-                ExpectedProfile(10)),
+                ExpectedProfile(AppSettings.DefaultSpeakSpeedValue)),
             Assert.Single(keys));
     }
 

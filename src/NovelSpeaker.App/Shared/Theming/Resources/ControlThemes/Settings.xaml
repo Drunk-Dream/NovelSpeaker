@@ -43,6 +43,10 @@
                             <Setter Property="Symbol" Value="Info24" />
                         </DataTrigger>
                         <DataTrigger Binding="{Binding}"
+                                     Value="{x:Static theming:SettingsNavigationIcon.ExperimentalFeatures}">
+                            <Setter Property="Symbol" Value="Beaker24" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding}"
                                      Value="{x:Static theming:SettingsNavigationIcon.RegexReplacement}">
                             <Setter Property="Symbol" Value="DocumentText24" />
                         </DataTrigger>

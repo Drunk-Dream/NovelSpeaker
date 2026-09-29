@@ -372,6 +372,7 @@ public sealed class ArchitectureTests
             "src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs",
             "src/NovelSpeaker.Application/Cache/CacheRegistration.cs",
             "src/NovelSpeaker.Application/Settings/SettingsRegistration.cs",
+            "src/NovelSpeaker.Application/Speech/SpeechRegistration.cs",
             "src/NovelSpeaker.Application/Observability/DependencyInjection/ObservabilityRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/AudioRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/CacheRegistration.cs",

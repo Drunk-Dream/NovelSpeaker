@@ -9,6 +9,7 @@ public enum SettingsNavigationIcon
     CacheAndData,
     General,
     Appearance,
+    ExperimentalFeatures,
     Diagnostics,
     RegexReplacement,
     CacheManagement

@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Features.ExperimentalFeatures;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
@@ -25,6 +26,7 @@ public sealed class AppRouteNavigationTests
                      (AppRoutes.CacheManagement, typeof(CacheManagementPage)),
                      (AppRoutes.GeneralSettings, typeof(GeneralSettingsPage)),
                      (AppRoutes.AppearanceSettings, typeof(AppearanceSettingsPage)),
+                     (AppRoutes.ExperimentalFeatures, typeof(ExperimentalFeaturesPage)),
                      (AppRoutes.DiagnosticsAbout, typeof(DiagnosticsAboutPage))
                  })
         {
@@ -148,6 +150,7 @@ public sealed class AppRouteNavigationTests
                      (AppRoutes.CacheAndData, AppRoutes.Settings),
                      (AppRoutes.GeneralSettings, AppRoutes.Settings),
                      (AppRoutes.AppearanceSettings, AppRoutes.Settings),
+                     (AppRoutes.ExperimentalFeatures, AppRoutes.Settings),
                      (AppRoutes.DiagnosticsAbout, AppRoutes.Settings),
                      (AppRoutes.RegexReplacementRules, AppRoutes.ImportTextSettings),
                      (AppRoutes.CacheManagement, AppRoutes.CacheAndData),

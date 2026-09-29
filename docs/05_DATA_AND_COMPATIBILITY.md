@@ -43,6 +43,7 @@
 - 已发布用户数据兼容与内部代码兼容是两个不同问题；项目不为内部 compatibility 长期保留 wrapper。
 - 开发阶段从旧 HTTP TTS Rule 模型迁移到 Speech Provider 时，v8 migration 只转换能按新合同安全表达的配置；不可转换项静默丢弃，不新增迁移报告或跳过项表。成功迁移后删除旧规则表；旧运行路径在本阶段后续任务中清理，不双读、不双写，也不保留旧格式恢复接口。
 - 旧 TTS Rule 的 `IsEnabled`、Legado 兼容字段等没有新 Provider 对等语义时，不为它们建立长期兼容状态；原本禁用的可转换项迁移为普通 Provider，但不自动成为 CurrentProvider。旧名称发生大小写不敏感冲突时，确定性生成唯一名称。
+- v9 增加 `EdgeSpeechProviderConfigs`，以 ProviderId 为主键/外键，VoiceId、FriendlyName、Locale、Gender 可空以表达未配置；`SpeechProviders` 对 Edge 类型使用唯一索引保证单实例。升级保留现有 Provider、排序和缓存，失败时事务回滚。
 
 ## 4. Speech Provider 数据
 
@@ -65,6 +66,8 @@ Provider Type 与 Provider Instance 分离。
 - CurrentProvider 单独作为全局设置保存。
 - HTTP Provider 导出格式不包含 ProviderId、SortOrder、CurrentProvider 或设备运行元数据。
 - Microsoft Edge 是固定单实例，但仍然是普通 Provider Instance；首次启用实验功能时才创建，之后隐藏不删除。
+- Edge 的 VoiceId 是合成身份，其余 Voice 字段是离线显示快照；完整 Voice Catalog 仅保存在进程内，约一小时 TTL，不进入持久化。
+- `settings.json` 的 `EnabledExperimentalFeatureIds` 默认空集合；保留未知 ID，仅展示当前注册功能。启停 Edge 的设置变更与必要的 CurrentProvider 清空在同一次设置保存中完成，停用失败保留原选择；重新启用不自动恢复选择。
 
 ## 5. ReadingProgress
 

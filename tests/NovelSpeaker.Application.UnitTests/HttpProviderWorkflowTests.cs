@@ -152,7 +152,7 @@ public sealed class HttpProviderWorkflowTests
         });
         var runtime = new CapturingRuntime();
         var player = new CapturingPreviewPlayer();
-        var service = new HttpProviderDraftPreviewService([runtime], settings, player);
+        var service = new ProviderDraftPreviewService([runtime], settings, player);
         string? playbackFailure = null;
         service.PlaybackFailed += (_, args) => playbackFailure = args.Message;
         var draft = CreateProvider("Unsaved") with
@@ -165,7 +165,7 @@ public sealed class HttpProviderWorkflowTests
 
         Assert.Null(failure);
         Assert.Same(draft, runtime.Provider);
-        Assert.Equal(HttpProviderDraftPreviewService.PreviewText, runtime.Request!.Text);
+        Assert.Equal(ProviderDraftPreviewService.PreviewText, runtime.Request!.Text);
         Assert.Equal(13, runtime.Request.SpeakSpeed);
         Assert.Equal(current, settings.Current.CurrentProviderId);
         Assert.Equal(0, settings.UpdateCount);

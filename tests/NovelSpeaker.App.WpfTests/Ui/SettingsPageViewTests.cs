@@ -44,6 +44,7 @@ public sealed class SettingsPageViewTests
                 AppRoutes.ChapterRules,
                 AppRoutes.CacheAndData,
                 AppRoutes.AppearanceSettings,
+                AppRoutes.ExperimentalFeatures,
                 AppRoutes.DiagnosticsAbout
             };
 

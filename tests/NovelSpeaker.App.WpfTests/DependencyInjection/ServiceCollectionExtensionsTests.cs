@@ -18,6 +18,7 @@ using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.App.Desktop.Lifecycle;
 using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Features.Diagnostics;
+using NovelSpeaker.App.Features.ExperimentalFeatures;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Shell.Navigation;
@@ -116,12 +117,14 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<RegexReplacementRulesViewModel>(provider.GetRequiredService<RegexReplacementRulesViewModel>());
                 Assert.IsType<SettingsViewModel>(provider.GetRequiredService<SettingsViewModel>());
                 Assert.IsType<SpeechServicesViewModel>(provider.GetRequiredService<SpeechServicesViewModel>());
+                Assert.IsType<ExperimentalFeaturesViewModel>(provider.GetRequiredService<ExperimentalFeaturesViewModel>());
                 Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>());
                 Assert.IsType<SettingsPage>(provider.GetRequiredService<SettingsPage>());
                 Assert.IsType<CacheAndDataPage>(provider.GetRequiredService<CacheAndDataPage>());
                 Assert.IsType<PlaybackSettingsPage>(provider.GetRequiredService<PlaybackSettingsPage>());
                 Assert.IsType<ImportTextSettingsPage>(provider.GetRequiredService<ImportTextSettingsPage>());
                 Assert.IsType<AppearanceSettingsPage>(provider.GetRequiredService<AppearanceSettingsPage>());
+                Assert.IsType<ExperimentalFeaturesPage>(provider.GetRequiredService<ExperimentalFeaturesPage>());
                 Assert.IsType<DiagnosticsAboutPage>(provider.GetRequiredService<DiagnosticsAboutPage>());
                 Assert.IsType<PlayerPage>(provider.GetRequiredService<PlayerPage>());
                 Assert.IsType<SpeechServicesPage>(provider.GetRequiredService<SpeechServicesPage>());
@@ -272,6 +275,9 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<GeneralSettingsViewModel>(),
                     provider.GetRequiredService<GeneralSettingsViewModel>());
                 Assert.NotSame(
+                    provider.GetRequiredService<ExperimentalFeaturesViewModel>(),
+                    provider.GetRequiredService<ExperimentalFeaturesViewModel>());
+                Assert.NotSame(
                     provider.GetRequiredService<PlaybackSettingsViewModel>(),
                     provider.GetRequiredService<PlaybackSettingsViewModel>());
                 Assert.NotSame(
@@ -307,6 +313,9 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.NotSame(
                     provider.GetRequiredService<GeneralSettingsPage>(),
                     provider.GetRequiredService<GeneralSettingsPage>());
+                Assert.NotSame(
+                    provider.GetRequiredService<ExperimentalFeaturesPage>(),
+                    provider.GetRequiredService<ExperimentalFeaturesPage>());
                 Assert.NotSame(
                     provider.GetRequiredService<PlaybackSettingsPage>(),
                     provider.GetRequiredService<PlaybackSettingsPage>());

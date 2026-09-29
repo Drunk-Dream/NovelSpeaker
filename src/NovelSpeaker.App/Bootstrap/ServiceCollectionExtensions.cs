@@ -9,6 +9,7 @@ using NovelSpeaker.App.Features.Cache;
 using NovelSpeaker.App.Features.Rules.Chapter;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Features.GeneralSettings;
+using NovelSpeaker.App.Features.ExperimentalFeatures;
 using NovelSpeaker.App.Features.ImportTextSettings;
 using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Features.Playback;
@@ -44,6 +45,7 @@ public static class ServiceCollectionExtensions
             .AddChapterRulesFeature()
             .AddDiagnosticsFeature()
             .AddGeneralSettingsFeature()
+            .AddExperimentalFeaturesFeature()
             .AddImportTextSettingsFeature()
             .AddLibraryFeature()
             .AddPlaybackFeature()

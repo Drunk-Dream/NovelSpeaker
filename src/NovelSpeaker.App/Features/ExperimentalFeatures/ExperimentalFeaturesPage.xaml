@@ -1,0 +1,30 @@
+<Page x:Class="NovelSpeaker.App.Features.ExperimentalFeatures.ExperimentalFeaturesPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:commonControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common"
+      xmlns:settingsControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Settings"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Background="Transparent">
+    <Grid Margin="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <commonControls:AppPageHeader Title="实验性功能" BackCommand="{Binding BackCommand}" />
+        <ScrollViewer Grid.Row="1" Margin="0,20,0,0"
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <settingsControls:AppSettingsList ItemsSource="{Binding Features}" AutomationProperties.Name="实验性功能">
+                <settingsControls:AppSettingsList.ItemTemplate>
+                    <DataTemplate>
+                        <settingsControls:AppSettingsRow Title="{Binding Name}" Description="{Binding Description}">
+                            <ui:ToggleSwitch Style="{StaticResource App.Input.ToggleSwitch.Standard}"
+                                             IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                             IsEnabled="{Binding CanToggle}"
+                                             AutomationProperties.Name="{Binding Name}" />
+                        </settingsControls:AppSettingsRow>
+                    </DataTemplate>
+                </settingsControls:AppSettingsList.ItemTemplate>
+            </settingsControls:AppSettingsList>
+        </ScrollViewer>
+    </Grid>
+</Page>

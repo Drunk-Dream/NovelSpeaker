@@ -35,7 +35,7 @@ public static class SpeechRegistration
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IProviderRuntime, HttpProviderRuntime>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IProviderRuntime, EdgeProviderRuntime>());
         services.TryAddSingleton<EdgeVoiceCatalog>();
-        services.TryAddSingleton<HttpProviderDraftPreviewService>();
+        services.TryAddSingleton<ProviderDraftPreviewService>();
         services.TryAddSingleton<SpeechProviderWorkspace>();
         return services;
     }
