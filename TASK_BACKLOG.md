@@ -58,13 +58,15 @@
 
 完成成果：播放工具栏样式迁入 `App.Media.ToolbarControl`，浮动定位动作样式改名为 `App.Button.ContextAction`；所有生产调用方与相关测试已迁移，旧 key 已删除。
 
-## [ ] T002（P0）：修复 Provider Popup 崩溃并建立核心回归
+## [x] T002（P0）：修复 Provider Popup 崩溃并建立核心回归
 
 依赖：T001。
 
 目标：使用 T001 确立的最终 Button 语义修复播放页 Provider 选择器；修正测试上下文仍暴露旧 `Rules` 而未提供真实 `Providers` 的缺口，让自动测试真正实例化 Provider DataTemplate，并保留一个只保护“核心 Provider Popup 可安全打开”的永久 WPF 回归。
 
 详细规格：`tasks/T002_PROVIDER_POPUP_CRASH.md`
+
+完成成果：Provider Popup 行改用无自身 Hover/Pressed Surface 的 `App.Button.InteractionHost`；WPF 测试上下文改为生产一致的 `Providers`，并保留真实打开 Popup、完成 Render 的单项核心回归。旧缺失资源可稳定复现为 XamlParseException，修复后通过。
 
 ## [ ] T003（P0）：发布 NovelSpeaker v0.7.0
 

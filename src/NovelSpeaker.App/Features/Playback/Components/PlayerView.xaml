@@ -297,7 +297,7 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <Button Margin="0,0,0,8"
-                                                Style="{StaticResource App.Button.Transparent}"
+                                                Style="{StaticResource App.Button.InteractionHost}"
                                                 HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Stretch"
                                                 Command="{Binding DataContext.SelectProviderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"

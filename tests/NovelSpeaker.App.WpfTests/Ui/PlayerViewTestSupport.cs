@@ -158,10 +158,13 @@ public sealed partial class PlayerViewTests
             string inlineLoadingText = "",
             bool isActiveCacheSelectionMode = false,
             bool canStartActiveCache = false,
-            string activeCacheStatusText = "")
+            string activeCacheStatusText = "",
+            ObservableCollection<PlayerProviderItemViewModel>? providers = null)
         {
             Chapters = chapters;
             Segments = segments;
+            Providers = providers ?? [];
+            HasProviders = Providers.Count > 0;
             CurrentChapterItem = chapters.Count == 0 ? null : chapters.Count > 10 ? chapters[10] : chapters[0];
             CurrentSegmentItem = segments.Count == 0 ? null : segments.Count > 32 ? segments[32] : segments[0];
             ShowReturnToCurrentSegment = showReturnToCurrentSegment;
@@ -204,6 +207,8 @@ public sealed partial class PlayerViewTests
         public IRelayCommand StartActiveCacheCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand OpenProviderMenuCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand<PlayerProviderItemViewModel?> SelectProviderCommand { get; } = new RelayCommand<PlayerProviderItemViewModel?>(_ => { });
 
         public IRelayCommand OpenRulesManagementCommand { get; } = new RelayCommand(() => { });
 
@@ -293,7 +298,7 @@ public sealed partial class PlayerViewTests
 
         public bool CanStartActiveCache { get; }
 
-        public bool HasProviders { get; } = false;
+        public bool HasProviders { get; }
 
         public bool HasAvailableProvider { get; } = true;
 
@@ -323,7 +328,7 @@ public sealed partial class PlayerViewTests
 
         public double SegmentProgressPreviewValue { get; }
 
-        public ObservableCollection<PlayerProviderItemViewModel> Rules { get; } = [];
+        public ObservableCollection<PlayerProviderItemViewModel> Providers { get; }
 
         public ObservableCollection<PlayerChapterItemViewModel> Chapters { get; }
 
