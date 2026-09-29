@@ -34,7 +34,7 @@ public sealed record PlaybackSnapshot(
         0,
         null,
         null,
-        10,
+        NovelSpeaker.Domain.Settings.AppSettings.DefaultSpeakSpeedValue,
         0,
         0,
         "请选择一本书并开始播放。",

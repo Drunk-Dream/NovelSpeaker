@@ -13,6 +13,26 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed partial class PlaybackCoordinatorTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(50)]
+    [InlineData(100)]
+    public async Task Speed_change_keeps_current_audio_and_next_sentence_uses_new_speed(int speed)
+    {
+        var local = new FakeLocalAudioPlaybackCoordinator();
+        var audio = new FakeAudioGenerationProvider();
+        await using var coordinator = CreateCoordinator(local, audioProvider: audio);
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 50), CancellationToken.None);
+        var currentAudio = local.LastStartedRequest;
+        await coordinator.ChangeSpeedAsync(speed, CancellationToken.None);
+        Assert.Same(currentAudio, local.LastStartedRequest);
+        Assert.Single(audio.Requests);
+        Assert.Equal(speed, coordinator.CurrentSnapshot.SpeakSpeed);
+        local.RaiseCompleted();
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.SegmentIndex == 1 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+        Assert.Equal(speed, audio.Requests.Last().SpeakSpeed);
+    }
+
     [Fact]
     public async Task Empty_audio_response_skips_one_segment_and_continues_playback()
     {
@@ -156,7 +176,7 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task ChangeRule_and_change_speed_restart_current_segment()
+    public async Task ChangeRule_restarts_and_speed_change_preserves_current_sentence()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var selectedRuleProvider = new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则"));

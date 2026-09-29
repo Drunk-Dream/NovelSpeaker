@@ -18,6 +18,20 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class HttpProviderRuntimeTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(50)]
+    [InlineData(100)]
+    public async Task Http_templates_receive_public_speed_unchanged(int speed)
+    {
+        var compiler = new HttpProviderRequestCompiler(new JintTemplateEvaluator());
+        var result = await compiler.CompileAsync(
+            Config("https://example.com/audio?speed={{speakSpeed}}", "GET", null, null),
+            new ProviderSynthesisRequest("test", speed), CancellationToken.None);
+        Assert.True(result.IsSuccess);
+        Assert.Equal($"?speed={speed}", result.Request!.Url.Query);
+    }
+
     [Fact]
     public async Task Registered_runtime_resolves_and_synthesizes_validated_audio()
     {

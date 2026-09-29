@@ -1035,25 +1035,17 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        var currentPosition = GetCurrentPosition();
-        var currentBook = await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken).ConfigureAwait(false);
-        if (CurrentSnapshot.State == PlaybackState.Playing)
+        if (_currentSession is { HasLoadedAudio: true } session)
         {
-            await StartNewSessionAsync(
-                currentBook,
-                currentPosition.ChapterIndex,
-                currentPosition.SegmentIndex,
-                0,
-                _currentRule,
-                normalizedSpeed,
-                forceInvalidate: false,
-                playImmediately: true,
-                pausedState: PlaybackState.Paused,
-                pausedMessage: "已恢复到当前位置，等待播放。",
-                cancellationToken);
+            // The loaded sentence keeps playing; synthesis and prefetch use the new speed from here on.
+            session.SetSpeakSpeed(normalizedSpeed);
+            PublishSnapshot(_currentSnapshot with { SpeakSpeed = normalizedSpeed });
+            await RefreshPrefetchWindowAsync(session, maxCountOverride: null, cancellationToken).ConfigureAwait(false);
             return;
         }
 
+        var currentPosition = GetCurrentPosition();
+        var currentBook = await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken).ConfigureAwait(false);
         await OpenResolvedPositionAsync(
             currentBook,
             currentPosition.ChapterIndex,

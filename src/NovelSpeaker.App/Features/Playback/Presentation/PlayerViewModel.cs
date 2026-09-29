@@ -1221,13 +1221,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         HasAvailableRule = projected.HasAvailableRule;
         ErrorText = projected.ErrorText;
         PrimaryActionText = projected.PrimaryActionText;
-        if (projected.SpeakSpeed > 0)
+        SpeakSpeed = projected.SpeakSpeed;
+        if (!IsSpeedMenuOpen)
         {
-            SpeakSpeed = projected.SpeakSpeed;
-            if (!IsSpeedMenuOpen)
-            {
-                SpeedEditorText = projected.SpeakSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
+            SpeedEditorText = projected.SpeakSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         Volume = PlaybackVolume.Normalize(snapshot.Volume);
@@ -1390,8 +1387,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private int ResolveSpeakSpeedForOpen()
     {
-        return AppSettings.NormalizeSpeakSpeed(
-            SpeakSpeed > 0 ? SpeakSpeed : _speechControlController.DefaultSpeakSpeed);
+        return AppSettings.NormalizeSpeakSpeed(SpeakSpeed);
     }
 
     private async Task ApplySpeakSpeedChangeAsync(int parsedSpeed, CancellationToken cancellationToken)

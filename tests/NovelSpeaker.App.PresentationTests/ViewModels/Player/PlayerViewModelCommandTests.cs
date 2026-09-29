@@ -173,6 +173,21 @@ public sealed partial class PlayerViewModelTests
         Assert.Null(coordinator.LastChangedSpeakSpeed);
     }
 
+    [Fact]
+    public async Task Active_snapshot_zero_speed_is_displayed_and_preserved_when_opening()
+    {
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
+        {
+            BookId = "book-1",
+            SpeakSpeed = 0,
+            State = PlaybackState.Paused
+        });
+        var viewModel = CreateViewModel(coordinator, new FakeBookPlaybackContentService(null, null));
+        await viewModel.LoadAsync(CancellationToken.None);
+        Assert.Equal(0, viewModel.SpeakSpeed);
+        Assert.Equal("0", viewModel.SpeedEditorText);
+    }
+
     private async Task ApplySpeakSpeedCommand_enforces_domain_boundaries_and_projects_invalid_input()
     {
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);
@@ -184,7 +199,7 @@ public sealed partial class PlayerViewModelTests
 
         await viewModel.LoadAsync(CancellationToken.None);
 
-        foreach (var (input, expected) in new[] { ("1", 1), ("20", 20) })
+        foreach (var (input, expected) in new[] { ("0", 0), ("50", 50), ("100", 100) })
         {
             viewModel.SpeedEditorText = input;
             await viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
@@ -192,7 +207,7 @@ public sealed partial class PlayerViewModelTests
             Assert.Equal(expected, settingsService.Settings.DefaultSpeakSpeed);
         }
 
-        foreach (var input in new[] { "0", "21", "invalid" })
+        foreach (var input in new[] { "-1", "101", "invalid" })
         {
             var previousSpeed = viewModel.SpeakSpeed;
             var previousSetting = settingsService.Settings.DefaultSpeakSpeed;
@@ -201,7 +216,7 @@ public sealed partial class PlayerViewModelTests
 
             await viewModel.ApplySpeakSpeedCommand.ExecuteAsync(null);
 
-            Assert.Contains("1 到 20", viewModel.SpeedEditorErrorText, StringComparison.Ordinal);
+            Assert.Contains("0 到 100", viewModel.SpeedEditorErrorText, StringComparison.Ordinal);
             Assert.Equal(previousSpeed, viewModel.SpeakSpeed);
             Assert.Equal(previousSetting, settingsService.Settings.DefaultSpeakSpeed);
             Assert.Equal(previousChange, coordinator.LastChangedSpeakSpeed);

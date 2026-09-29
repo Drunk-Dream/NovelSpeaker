@@ -9,7 +9,7 @@ namespace NovelSpeaker.Domain.Settings;
 public sealed record AppSettings(
     bool EnableLongParagraphSplitting,
     int LongParagraphThreshold,
-    int DefaultSpeakSpeed = 10,
+    int DefaultSpeakSpeed = 50,
     int PrefetchCount = 2,
     string LogLevel = "Information",
     string Theme = "System",
@@ -25,9 +25,9 @@ public sealed record AppSettings(
     double PlaybackVolume = 1d,
     bool EnablePerformanceTelemetry = false)
 {
-    public const int MinSpeakSpeed = 1;
-    public const int MaxSpeakSpeed = 20;
-    public const int DefaultSpeakSpeedValue = 10;
+    public const int MinSpeakSpeed = 0;
+    public const int MaxSpeakSpeed = 100;
+    public const int DefaultSpeakSpeedValue = 50;
     public const int DefaultPrefetchCountValue = 2;
     public const string DefaultLogLevel = "Information";
     public const string DefaultTheme = "System";
@@ -76,11 +76,6 @@ public sealed record AppSettings(
 
     public static int NormalizeSpeakSpeed(int speakSpeed)
     {
-        if (speakSpeed <= 0)
-        {
-            return DefaultSpeakSpeedValue;
-        }
-
         return Math.Clamp(speakSpeed, MinSpeakSpeed, MaxSpeakSpeed);
     }
 

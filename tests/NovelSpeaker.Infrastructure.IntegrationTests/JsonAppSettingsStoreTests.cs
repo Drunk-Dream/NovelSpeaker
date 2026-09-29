@@ -11,6 +11,22 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class JsonAppSettingsStoreTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    [InlineData(100)]
+    public async Task Load_preserves_existing_speed_without_rewriting_settings(int speed)
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var directories = new AppDataDirectoryProvider(temporaryDirectory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var original = $"{{\"DefaultSpeakSpeed\":{speed}}}";
+        await File.WriteAllTextAsync(directories.SettingsPath, original);
+        var settings = await new JsonAppSettingsStore(directories).LoadAsync(CancellationToken.None);
+        Assert.Equal(speed, settings.DefaultSpeakSpeed);
+        Assert.Equal(original, await File.ReadAllTextAsync(directories.SettingsPath));
+    }
+
     [Fact]
     public async Task LoadAsync_returns_defaults_when_settings_file_does_not_exist()
     {
@@ -23,7 +39,7 @@ public sealed class JsonAppSettingsStoreTests
 
         Assert.True(settings.EnableLongParagraphSplitting);
         Assert.Equal(300, settings.LongParagraphThreshold);
-        Assert.Equal(10, settings.DefaultSpeakSpeed);
+        Assert.Equal(50, settings.DefaultSpeakSpeed);
         Assert.Equal(2, settings.PrefetchCount);
         Assert.True(settings.ReadChapterTitle);
         Assert.Equal("Information", settings.LogLevel);
@@ -140,7 +156,7 @@ public sealed class JsonAppSettingsStoreTests
         var settings = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(50, settings.LongParagraphThreshold);
-        Assert.Equal(20, settings.DefaultSpeakSpeed);
+        Assert.Equal(99, settings.DefaultSpeakSpeed);
         Assert.Equal(2, settings.PrefetchCount);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);

@@ -13,7 +13,7 @@ public sealed class AppSettingsServiceTests
         var store = new FakeAppSettingsStore(AppSettings.Default) { ThrowOnLoad = true };
         using var service = new AppSettingsService(
             store,
-            AppSettings.Default with { DefaultSpeakSpeed = 99 });
+            AppSettings.Default with { DefaultSpeakSpeed = 199 });
 
         Assert.Equal(AppSettings.MaxSpeakSpeed, service.Current.DefaultSpeakSpeed);
         Assert.Equal(0, store.LoadCount);
@@ -35,7 +35,7 @@ public sealed class AppSettingsServiceTests
             changes,
             first =>
             {
-                Assert.Equal(10, first.Previous.DefaultSpeakSpeed);
+                Assert.Equal(50, first.Previous.DefaultSpeakSpeed);
                 Assert.Equal(11, first.Current.DefaultSpeakSpeed);
             },
             second =>
@@ -152,6 +152,19 @@ public sealed class AppSettingsServiceTests
 
         Assert.Equal(AppSettings.DefaultSpeakSpeedValue, settings.DefaultSpeakSpeed);
         Assert.Equal(1, settings.PrefetchCount);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(50)]
+    [InlineData(100)]
+    public async Task Public_speed_survives_settings_updates(int speed)
+    {
+        var store = new FakeAppSettingsStore(AppSettings.Default);
+        using var service = new AppSettingsService(store, AppSettings.Default);
+        await service.UpdateAsync(new AppSettingsUpdate { DefaultSpeakSpeed = speed }, CancellationToken.None);
+        Assert.Equal(speed, service.Current.DefaultSpeakSpeed);
+        Assert.Equal(speed, store.CurrentSettings.DefaultSpeakSpeed);
     }
 
     private class FakeAppSettingsStore : IAppSettingsStore
