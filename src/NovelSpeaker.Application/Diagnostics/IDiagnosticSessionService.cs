@@ -20,7 +20,7 @@ public interface IDiagnosticSessionService
 
     Task<DiagnosticSessionSnapshot> EndAsync(CancellationToken cancellationToken);
 
-    Task NotifyProcessShutdownAsync(CancellationToken cancellationToken);
+    Task NotifyProcessShutdownAsync(ProcessExitReason exitReason, CancellationToken cancellationToken);
 
     Task AddAttachmentAsync(DiagnosticAttachment attachment, CancellationToken cancellationToken);
 

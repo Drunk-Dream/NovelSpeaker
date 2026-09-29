@@ -1,5 +1,7 @@
 using System.Text;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging.Abstractions;
 using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Infrastructure.Diagnostics;
@@ -24,7 +26,7 @@ public sealed class SqliteDiagnosticSessionStoreTests
         var fixture = new Fixture("process-one", Path.Combine(currentDirectory, "Data"));
         var first = fixture.CreateStore();
         var started = await first.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
-        await first.NotifyProcessShutdownAsync(CancellationToken.None);
+        await first.NotifyProcessShutdownAsync(ProcessExitReason.Normal, CancellationToken.None);
         await first.DisposeAsync();
 
         await using var second = fixture.CreateStore("process-two");
@@ -53,7 +55,7 @@ public sealed class SqliteDiagnosticSessionStoreTests
 
         var first = fixture.CreateStore();
         var started = await first.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
-        await first.NotifyProcessShutdownAsync(CancellationToken.None);
+        await first.NotifyProcessShutdownAsync(ProcessExitReason.Normal, CancellationToken.None);
         await first.DisposeAsync();
 
         await using var second = fixture.CreateStore("process-two");
@@ -104,7 +106,7 @@ public sealed class SqliteDiagnosticSessionStoreTests
         var fixture = new Fixture("process-one");
         var first = fixture.CreateStore();
         var started = await first.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
-        await first.NotifyProcessShutdownAsync(CancellationToken.None);
+        await first.NotifyProcessShutdownAsync(ProcessExitReason.Normal, CancellationToken.None);
         await first.DisposeAsync();
 
         var second = fixture.CreateStore("process-two");
@@ -129,6 +131,8 @@ public sealed class SqliteDiagnosticSessionStoreTests
         var first = fixture.CreateStore();
         var started = await first.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
 
+        // Releasing the writer is not evidence of an orderly process end.
+        await first.DisposeAsync();
         var second = fixture.CreateStore("process-two");
         await using (second)
         {
@@ -140,8 +144,50 @@ public sealed class SqliteDiagnosticSessionStoreTests
                 fixture.SessionPath(started.SessionId),
                 "SELECT EndReason FROM Processes WHERE ProcessInstanceId = 'process-one';"));
         }
+    }
 
+    [Theory]
+    [InlineData("ui", "fatal-ui-failure", "dispatcher")]
+    [InlineData("runtime", "fatal-runtime-failure", "runtime")]
+    [InlineData("startup", "startup-failure", "startup")]
+    public async Task Fatal_failure_event_and_exit_reason_survive_session_recovery(
+        string kind, string expectedExitReason, string expectedSource)
+    {
+        var failure = kind switch
+        {
+            "ui" => ProcessFailure.FatalUi,
+            "runtime" => ProcessFailure.FatalRuntime,
+            _ => ProcessFailure.Startup
+        };
+        var fixture = new Fixture("process-one");
+        var first = fixture.CreateStore();
+        var started = await first.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
+        var hub = new ObservabilityHub(fixture.Context, [first], fixture.Clock);
+        var recorder = new ProcessDiagnosticsRecorder(NullLogger.Instance);
+        recorder.RecordProcessFailure(failure, "test", "Safe failure summary.",
+            new InvalidOperationException("Sensitive exception detail."), hub);
+
+        await first.NotifyProcessShutdownAsync(failure.ExitReason!, CancellationToken.None);
         await first.DisposeAsync();
+        await using var second = fixture.CreateStore("process-two");
+        var recovered = await second.RecoverAsync(CancellationToken.None);
+
+        Assert.NotNull(recovered);
+        Assert.Equal(started.SessionId, recovered.SessionId);
+        Assert.False(recovered.EndedUnexpectedly);
+        var path = fixture.SessionPath(started.SessionId);
+        Assert.Equal(expectedExitReason, await fixture.ScalarTextAsync(path,
+            "SELECT EndReason FROM Processes WHERE ProcessInstanceId = 'process-one';"));
+        Assert.Equal(1, await fixture.ScalarAsync(path,
+            "SELECT COUNT(*) FROM Events WHERE DefinitionId = 'app.process.failure' AND ProcessInstanceId = 'process-one';"));
+        var payload = await fixture.ScalarTextAsync(path,
+            "SELECT FieldsJson FROM Events WHERE DefinitionId = 'app.process.failure';");
+        using var fields = JsonDocument.Parse(payload!);
+        Assert.Equal(expectedSource, fields.RootElement.GetProperty("source").GetString());
+        Assert.Equal("fatal", fields.RootElement.GetProperty("severity").GetString());
+        Assert.Equal("exit", fields.RootElement.GetProperty("action").GetString());
+        Assert.Equal(3, fields.RootElement.EnumerateObject().Count());
+        Assert.DoesNotContain("Sensitive", payload, StringComparison.Ordinal);
     }
 
     [Fact]

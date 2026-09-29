@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Application.Diagnostics;
 
 namespace NovelSpeaker.App.Bootstrap;
 
@@ -39,9 +40,13 @@ internal interface IStartupRuntime : IAsyncDisposable
 
     Task FlushAsync(CancellationToken cancellationToken);
 
+    Task NotifyProcessExitAsync(ProcessExitReason exitReason, CancellationToken cancellationToken);
+
+    void RecordProcessFailure(ProcessFailure failure, string source, string safeMessage, Exception? exception);
+
     void RecordFailure(StartupStage stage, string safeMessage, Exception exception);
 
-    void RecordLifecycleFailure(string name, string safeMessage, Exception exception);
+    void RecordLifecycleFailure(string name, string safeMessage, Exception? exception);
 
     void ShowStartupFailure(StartupFailure failure);
 

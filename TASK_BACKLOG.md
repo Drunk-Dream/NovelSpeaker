@@ -80,13 +80,15 @@
 
 # Phase B：诊断职责有限收口
 
-## [ ] T004（P0）：收拢 fatal failure 与 Process 生命周期职责
+## [x] T004（P0）：收拢 fatal failure 与 Process 生命周期职责
 
 依赖：T003。
 
 目标：用一个小型、单一 owner 的 Process failure/lifetime 边界统一运行期 fatal failure 分类和最终退出原因；让 Production Logging、Diagnostic Session 与 orderly shutdown 消费同一份稳定语义，并保留真正硬崩溃由下一次 Session 恢复推断 unexpected termination 的能力。
 
 详细规格：`tasks/T004_PROCESS_FAILURE_LIFETIME.md`
+
+完成成果：Process lifetime owner 保留首个 fatal 退出原因；启动/运行期故障日志与活动 Session 的低基数故障事件消费同一稳定事实，已观察任务异常保持非致命。有序关闭显式传递退出原因，Store Dispose 只排空 writer；缺少结束记录仍由跨进程恢复标记 unexpected。删除旧 startup-only recorder 与运行期故障复用启动通道的实现，保留隐私和恢复测试，补充 fatal/正常退出、故障事件、生产日志异常链/栈和 sink 失败隔离核心回归。Bootstrap/架构及 Diagnostics focused tests、完整 Release 门禁均通过（845 项测试），无 schema/data migration、无长期文档冲突。早期全量运行出现范围外播放过渡状态等待和 `app.db` fixture 清理占用偶发失败；单独复查及最终全量均通过，保留为已有测试稳定性风险。
 
 ## [ ] T005（P1）：收口问题诊断证据聚合与退化可见性
 

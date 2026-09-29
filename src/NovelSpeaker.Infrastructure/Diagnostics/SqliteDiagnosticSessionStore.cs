@@ -422,8 +422,9 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
         }
     }
 
-    public async Task NotifyProcessShutdownAsync(CancellationToken cancellationToken)
+    public async Task NotifyProcessShutdownAsync(ProcessExitReason exitReason, CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(exitReason);
         cancellationToken.ThrowIfCancellationRequested();
         await _lifecycleGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -464,7 +465,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
                     "UPDATE Processes SET EndedAtUtc = $endedAtUtc, EndReason = $reason WHERE ProcessInstanceId = $id AND EndedAtUtc IS NULL;",
                     cancellationToken,
                     ("$endedAtUtc", endedAt.ToString("O", CultureInfo.InvariantCulture)),
-                    ("$reason", "normal-exit"),
+                    ("$reason", exitReason.Value),
                     ("$id", active.ProcessInstanceId));
                 await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
                 await CheckpointAsync(connection, cancellationToken).ConfigureAwait(false);
@@ -862,22 +863,13 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
 
     public async ValueTask DisposeAsync()
     {
-        if (Volatile.Read(ref _disposed) != 0)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
 
-        try
-        {
-            await NotifyProcessShutdownAsync(CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            ReportFailure(DiagnosticFailureOperation.SessionEnd, DiagnosticFailureStage.EndSession, exception);
-            Volatile.Write(ref _degraded, 1);
-        }
-
-        Interlocked.Exchange(ref _disposed, 1);
+        // Disposal drains the writer but does not invent a process end. Only the lifetime
+        // owner can report one; a missing report remains recoverable as unexpected termination.
         _queue.Writer.TryComplete();
         try
         {
@@ -1234,6 +1226,7 @@ public sealed class SqliteDiagnosticSessionStore : IDiagnosticSessionService, IO
 
     private static bool IsHighPriorityEvent(DiagnosticEvent diagnosticEvent) =>
         diagnosticEvent.Definition.Id.Value is
+            "app.process.failure" or
             "app.lifecycle" or
             "diagnostics.problem_marker" or
             "diagnostics.capture_stopped";

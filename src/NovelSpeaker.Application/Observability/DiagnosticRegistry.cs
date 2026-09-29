@@ -74,6 +74,22 @@ public sealed class DiagnosticRegistry
         return new DiagnosticRegistry(
         [
             new DiagnosticDefinition(
+                new DiagnosticDefinitionId("app.process.failure"),
+                DiagnosticDefinitionKind.Event,
+                "application",
+                "An observed process failure and its classified consequence.",
+                [
+                    new DiagnosticFieldDefinition("source", DiagnosticFieldType.Enum,
+                        DiagnosticPrivacyClass.LowCardinality, "Stable failure source.",
+                        ["startup", "dispatcher", "runtime", "task"]),
+                    new DiagnosticFieldDefinition("severity", DiagnosticFieldType.Enum,
+                        DiagnosticPrivacyClass.LowCardinality, "Classified failure severity.",
+                        ["fatal", "error"]),
+                    new DiagnosticFieldDefinition("action", DiagnosticFieldType.Enum,
+                        DiagnosticPrivacyClass.LowCardinality, "Consequence for this process.",
+                        ["exit", "continue"])
+                ]),
+            new DiagnosticDefinition(
                 new DiagnosticDefinitionId("app.lifecycle"),
                 DiagnosticDefinitionKind.Event,
                 "application",
