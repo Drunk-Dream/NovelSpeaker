@@ -145,6 +145,9 @@ Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例�
 - Active Session 能够完成必要的跨正常重启恢复；
 - hard cap 等核心容量边界生效；
 - 普通诊断和问题诊断能够产生有效导出；
+- Fatal UI/后台故障能够保留正确的 Process 退出原因，并在活动诊断会话中留下稳定低基数的故障事实；执行完整 shutdown 不得把 fatal failure 误记为 normal exit；
+- 进程来不及主动写结束记录时，下一次 Session 恢复仍能识别 unexpected termination；
+- 问题诊断中的关联生产日志能够按稳定 correlation 导出，并能区分“没有匹配日志”和“日志证据 partial/unavailable”；单条损坏日志记录不得使整个文件的后续有效记录全部丢失；
 - 隐私边界和用户主动截图例外不被突破。
 
 永久测试只保护上述稳定语义，不把具体实现参数冻结成长期测试合同。
@@ -174,6 +177,8 @@ WPF 自动测试必须非常克制，只用于确实依赖 WPF 才能验证的�
 - 必要的 Window/Popup/Dialog 生命周期；
 - 关键 focus/hit-testing/virtualization 行为确实影响核心可用性；
 - 隔离 Desktop 与 fail-closed 边界。
+
+曾导致应用级崩溃、且只有在 Popup/DataTemplate 延迟实例化时才暴露的 WPF 回归，可以保留一个代表性核心测试：使用真实的最小 ViewModel 数据展开对应 Popup、完成必要的 layout/render，并验证该核心入口不会因 Binding/StaticResource 解析而抛出异常。此类测试保护的是“入口可安全打开”，不得进一步断言具体 Style Key、Visual Tree 层级或像素外观。
 
 Provider 选择器 Stretch、CurrentItem 外观、拖拽插入横线等视觉优化默认使用任务内临时验证，不新增长期像素/Visual Tree 测试。
 

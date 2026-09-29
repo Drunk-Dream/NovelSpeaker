@@ -128,6 +128,7 @@ Shared/
 | ReadingProgress checkpoint | Application progress use case + persistence | Persistent |
 | 当前设置 snapshot | Settings process service | Process |
 | 当前路由 | Shell navigation owner | Process |
+| Process fatal 状态与最终退出原因 | Process lifetime owner | Process |
 | 物理缓存/index/file | Cache store | Persistent / rebuildable |
 | Cache Coverage/read model | Cache query | Query / page projection |
 | 主动缓存批次 | Active Cache coordinator | Background job |
@@ -138,6 +139,8 @@ Shared/
 
 ViewModel 不复制 process/session/background owner 的 mutable truth。跨页面展示使用 immutable snapshot/read model。
 
+Process lifetime owner 只维护当前 Process 的稳定退出原因，不承担日志持久化、Diagnostic Session 持久化或通用异常路由。平台异常入口负责把原始 fatal failure 交给该边界；各诊断 sink 消费同一稳定语义，不分别重新判断“这是不是崩溃”。
+
 ## 5. 生命周期与接口
 
 普通 Page/ViewModel 默认 transient。
@@ -146,6 +149,7 @@ ViewModel 不复制 process/session/background owner 的 mutable truth。跨页�
 
 - Playback session owner；
 - Settings process owner；
+- Process lifetime owner；
 - Speech Provider persistence/runtime resolver；
 - Cache invalidation/repair/active-cache/export coordinator；
 - Shell navigation；
@@ -203,12 +207,15 @@ thin Observability API
 
 生产日志是独立故障证据基础设施，与上述消费者通过稳定 operation/session/process/activity correlation 关联，但不共用 writer/store。
 
+Process-level fatal failure 采用同样的“事实只分类一次”原则：App 平台边界负责发现 WPF/.NET 未处理异常，一个薄的 process failure/lifetime boundary 形成稳定 failure/exit 语义；Production Logging 保存详细异常，Diagnostic Session 保存低基数故障事实和 Process 退出原因。Diagnostic Session Store 只持久化，不拥有 fatal/normal 分类规则。
+
 原则：
 
 - 第一版不引入完整 OpenTelemetry。
 - 内部 API 保持薄且可替换，未来如有真实需求可增加 adapter。
 - Telemetry 与 Diagnostic Session 可以共享基础 operation instrumentation，但开关、数据粒度、生命周期和持久化完全独立。
 - Logging、Telemetry、Diagnostics 任一失败不得导致业务失败。
+- 不为 fatal failure 引入通用 EventBus、第二套日志、Crash Database 或复杂状态机。
 
 ## 9. 成熟能力优先
 

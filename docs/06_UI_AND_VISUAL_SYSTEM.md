@@ -162,6 +162,17 @@ Wpf.Ui provider
 
 文本框、密码框和下拉框统一采用桌面输入密度：Standard 最小高度 32 DIP、内边距 `10,4`，Compact 最小高度 28 DIP、内边距 `8,2`，由全局 Input Token 和显式 `App.Input.*` 样式控制。文字使用正文大小；文本输入保持左对齐，多行输入随内容增高，页面可以按编辑需求声明更大的最小高度。按钮与开关继续使用各自的点击区域约定。
 
+### Button 样式语义
+
+应用级 Button Style 按**稳定交互职责**命名，不按“透明”“某页面按钮”或某次视觉实现命名。
+
+- Primary / Secondary / Subtle / Icon / Danger 等共享样式表达稳定动作语义，而不是具体页面用途。
+- 当 Button 只负责命令、键盘焦点与命中区域，Hover / Selected / Current 等视觉由内部 Selection/Surface 统一表达时，应使用明确的 interaction-host 语义；宿主本身不得再绘制第二层 Hover/Pressed Surface。
+- 相同交互语义跨 Feature 复用同一共享样式，不为 Provider、Book、Cache 等页面分别创建等价 Button Style。
+- 只有控件族确实拥有独立、长期的交互模型时，才使用 `App.Media.*`、`App.Navigation.*` 等领域命名空间；仅在单一页面使用且无共享价值的变体保持 page-local。
+- 同一个可点击区域只允许一个视觉状态 owner，避免 Button 与内部 Border/Card 同时绘制 Hover、Pressed、Selected 或 Current，造成双层浮层。
+- 样式整理或重命名时直接迁移调用方并删除旧 Key，不为内部资源名长期保留兼容 alias。
+
 ## 10. Shared Controls
 
 全局 Shared 只包含真实跨 Feature 复用的应用自有 UI primitive，例如：

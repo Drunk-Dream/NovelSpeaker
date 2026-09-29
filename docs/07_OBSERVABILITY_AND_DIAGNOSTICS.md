@@ -32,6 +32,31 @@ Production Logging ── correlation ──┘
 - 诊断系统自身的用户可感知失败必须进入生产日志，记录稳定操作名、失败阶段、异常类型/HRESULT/脱敏异常链；不得记录完整本地路径或用户内容。
 - 高频内部方法调用不等于稳定诊断操作。Instrumentation 必须围绕用户/系统操作边界，避免诊断系统自身制造显著负载。
 
+### 故障与 Process 生命周期边界
+
+平台异常入口只负责发现原始故障并交给一个薄的应用级故障边界；故障的稳定分类、Process 最终退出原因和各诊断视图不得由不同层各自重新推断。
+
+```text
+WPF / .NET failure source
+        ↓
+process failure boundary
+        ├─ Production Logging：详细异常证据
+        ├─ Diagnostic Event：低基数故障事实
+        └─ Process lifetime：最终退出原因
+                         ↓
+                 orderly shutdown
+                         ↓
+              Diagnostic Session Store
+```
+
+长期规则：
+
+- Startup failure、运行期 UI fatal failure、其它运行期故障必须保持不同语义，运行期故障不得复用 startup failure 事件名或 operation；是否属于 fatal 由稳定故障语义决定，不能仅根据异常入口名称推断。
+- “是否按完整关闭流程退出”与“为什么退出”是两个概念；fatal failure 即使随后完成有序 shutdown，也不得被记录成 normal exit。
+- Process 最终退出原因只有一个 owner。Diagnostic Session Store 只持久化上层给出的退出事实，不负责判断正常/致命；只有进程突然消失、无法主动报告结束时，Session 恢复逻辑才根据缺失的 Process 结束记录推断 unexpected termination。
+- Fatal failure 在生产日志中保存脱敏异常链和 stack trace；Diagnostic Session 只保存稳定、低基数的故障来源/严重程度/后续动作，不复制完整异常栈，也不建立第二套日志。
+- 故障边界保持薄，不演化成通用 EventBus、异常路由框架、Crash Database 或复杂 Process 状态机。
+
 ## 3. 生产日志
 
 ### 产品行为
@@ -48,6 +73,13 @@ Production Logging ── correlation ──┘
 - overflow 优先牺牲低价值记录，不阻塞业务。
 - dropped count 作为基础设施健康信息，不递归写日志。
 - 正常退出有限 drain/flush；崩溃 best effort。
+
+### 故障记录
+
+- 启动阶段故障使用 startup-specific 事件；应用已经进入正常运行阶段后发生的未处理异常使用 runtime failure 事件，不借用启动事件名。
+- 生产日志是完整异常证据的 owner，保存允许范围内的异常类型、HRESULT、脱敏异常链和 stack trace。
+- 同一个 fatal failure 只分类一次；不同 sink 通过 process/session/activity correlation 关联，不分别发明新的故障含义。
+- 日志写入失败不得阻止应用继续执行原本的错误处理或关闭流程。
 
 ## 4. 性能遥测
 
@@ -185,6 +217,14 @@ telemetry.json
 - Active Session marker 只定位权威 `.nsdiag`，不是第二份状态数据库。
 - 应用启动恢复 Active Session 后必须自动恢复明显可见的悬浮控制条，不允许后台继续采集而没有录制提示。
 
+Process 生命周期是 Session 内的独立事实：
+
+- 每个 Process 有独立 `processInstanceId`、开始时间、结束时间和稳定退出原因。
+- 有序 shutdown 时，Process lifetime owner 将已经确定的退出原因传给 Session；Store 不把“成功执行 shutdown”自动等价为 `normal-exit`。
+- 能够进入有序 shutdown 的 UI/其它 fatal failure 即使完整执行关闭流程，也必须保留对应 fatal exit reason；来不及主动留下结束记录的进程级崩溃继续由恢复逻辑识别为 unexpected termination。
+- 如果 Process 没有留下结束记录，下次恢复 Active Session 时才将上一 Process 推断为 unexpected termination，并标记 Session 曾经历意外 Process 结束。
+- Session 的 `EndedUnexpectedly` 表示至少一个 Process 曾发生无法主动完成结束记录的意外终止，不替代每个 Process 自己的退出原因。
+
 ### 悬浮控制条
 
 控制条必须是紧凑、非页面式的顶层工具条；不得退化为带 PageTitle、大段说明和大面积内容区的完整工具页面。
@@ -217,6 +257,15 @@ Problem Marker 表示用户认为问题发生在该时间点附近。Marker 写�
 
 主动截图只捕获 NovelSpeaker 自身窗口，必须由用户主动触发，不自动截图、不录屏。
 
+### Fatal failure 诊断事实
+
+当活动诊断会话存在时，Process 级 fatal failure 应额外写入一条稳定的结构化 Diagnostic Event，用于说明“何时、从哪个稳定入口发生了致命故障、随后采取了什么动作”。
+
+- Event 字段保持低基数，例如 failure source、severity、shutdown action。
+- 不在 `.nsdiag` 中复制 stack trace、异常 Message、资源 Key、路径或用户内容；详细技术证据继续由生产日志负责。
+- 即使关联日志暂时不可用，timeline 仍应能够显示发生过 fatal failure。
+- 不为这一能力建立第二套 crash store、异常队列或复杂健康状态机。
+
 ## 7. 诊断写入与容量
 
 `.nsdiag` 使用 SQLite 作为完整结构化真值。
@@ -225,7 +274,7 @@ Problem Marker 表示用户认为问题发生在该时间点附近。Marker 写�
 - hard cap 只代表容量上限；达到上限后停止继续采集并明确提示。
 - bounded queue 的瞬时拥塞不得直接等价为永久 `storage-failure`。
 - 低价值、高频诊断记录在压力下允许丢弃或聚合，并记录 dropped count。
-- Problem Marker、Session lifecycle、CaptureStopped 等关键控制记录应具有高于普通样本的保留优先级。
+- Problem Marker、Session lifecycle、CaptureStopped、fatal failure 等关键控制记录应具有高于普通样本的保留优先级。
 - 真正的 SQLite/文件写入失败可以使诊断 Session 降级或停止，但不得影响业务。
 - Logging 与 `.nsdiag` writer/store 保持独立。
 
@@ -266,10 +315,18 @@ NovelSpeaker-Problem-Diagnostics-*.zip
 └─ attachments/
 ```
 
+问题诊断导出是**证据聚合**，不是新的诊断真值 owner：
+
+- `.nsdiag`、生产日志、环境信息各自由原 owner 读取；导出层只负责关联、生成客观摘要并原子写出 Bundle。
+- 关联日志读取必须区分“读取成功但没有匹配记录”和“读取不完整/不可用”。单条损坏记录不得导致整个日志文件后续记录被放弃。
+- best effort 表示缺少某一证据源仍然可以生成诊断包，不表示静默吞掉退化状态；`summary.md` 必须客观标明相关证据是 complete / partial / unavailable 或等价稳定状态。
+- 日志关联优先使用已有 `diagnosticSessionId` / `processInstanceId` 等稳定 correlation，不复制一套异常数据到 Session 只为方便导出。
+- 导出代码可以把 Session reader、related-log reader、Bundle writer 等职责拆为小型内部组件，但不得引入通用 evidence pipeline、插件系统或复杂 diagnostics health framework。
+
 普通诊断信息导出与问题诊断导出应共享稳定的 Bundle/atomic-output 基础设施，不分别复制临时文件、ZIP 提交、命名和失败处理逻辑。
 
 ## 9. 隐私与非目标
 
 结构化诊断默认禁止用户内容和完整本地路径；详细边界见 `05_DATA_AND_COMPATIBILITY.md`。
 
-第一版仍不做自动上传、在线 backend、Crash Dump/Minidump、自动截图/录屏、Session 列表管理页面、普通遥测 SQLite 或复杂 profiler。
+第一版仍不做自动上传、在线 backend、Crash Dump/Minidump、自动截图/录屏、Session 列表管理页面、普通遥测 SQLite、复杂 profiler、独立 Crash Database、通用异常路由框架或复杂诊断健康监控。
