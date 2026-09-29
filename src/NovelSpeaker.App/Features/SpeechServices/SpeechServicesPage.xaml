@@ -376,7 +376,7 @@
                     <ScrollViewer Grid.Row="1" Margin="0,16,0,0"
                                   Visibility="{Binding IsEdgeEditor, Converter={StaticResource BooleanToVisibilityConverter}}"
                                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel IsEnabled="{Binding CanManage}">
+                        <StackPanel IsEnabled="{Binding CanManage}" Margin="0,0,20,0">
                             <formControls:AppFormField Label="名称">
                                 <TextBlock Text="Microsoft Edge" Style="{StaticResource App.Typography.Body}" />
                             </formControls:AppFormField>
@@ -414,6 +414,7 @@
                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                                          VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.ScrollUnit="Pixel"
                                          VirtualizingPanel.VirtualizationMode="Recycling"
                                          AutomationProperties.Name="可选 Voice">
                                     <ListBox.ItemContainerStyle>
