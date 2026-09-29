@@ -16,7 +16,9 @@
 - 把现有 HTTP 请求能力收敛为 HTTP Provider，并清理 Legado/旧 TTS Rule 兼容包袱；
 - 统一 Provider 排序，并让管理页与播放页使用同一顺序；
 - 保留成熟缓存系统，以真实合成配置指纹决定缓存可用性；
-- 增加实验性单实例 Microsoft Edge Provider，并在开发阶段完成至少一次真实在线合成验证；
+- 建立通用“实验性功能”次级设置页，第一项为实验性单实例 Microsoft Edge Provider；
+- Microsoft Edge 协议实现参考 `Drunk-Dream/ms-ra-forwarder` 当前真实协议行为，并在开发阶段完成至少一次真实在线合成验证；
+- 将公共 SpeakSpeed 从旧 `1–20` 直接切换为 Provider 无关的 `0–100`，默认值 `50`，不保留旧语速兼容层；
 - 将现有规则页/Provider 页的拖拽排序统一为单一“插入槽位”交互；
 - 完成后删除旧 TTS Rule 顶层模型、旧兼容运行路径和相关旧术语。
 
@@ -118,13 +120,13 @@
 
 完成成果：双栏语音服务页已接入 Provider 列表、HTTP Draft/编辑/试听/保存、新身份/唯一副本名/紧随源项的事务复制、凭据确认后单项导出及逐项导入；编辑选择与 CurrentProvider 状态独立，删除正在使用的服务清空选择且不回退。Provider 排序事务持久化；Provider、章节规则和正则规则共用列表级单一插入槽与边缘滚动，纯逻辑覆盖首尾、相邻槽及隐藏项映射。旧 TTS 管理页和 Toggle/旧限流输入已移除，核心流程、持久排序与隔离桌面临时交互验证通过；临时验证代码已清理。额外扩大运行时，未改动的空白 Frame 高度测试在隔离环境中超时；受影响的页面生命周期、设置导航和工作台高度测试均通过。
 
-## [ ] T009（P0）：实现实验性 Microsoft Edge Provider
+## [ ] T009（P0）：实现实验性 Microsoft Edge Provider 与统一语速合同
 
 依赖：T006、T008。
 
 实施规格：`tasks/T009_edge_provider.md`
 
-目标：增加内置单实例 Edge Provider、实验功能生命周期、Voice 搜索/配置/试听和独立 Infrastructure transport；以至少一次真实在线合成证明 transport 可用，不引入外部代理进程或自动 fallback。
+目标：建立通用“实验性功能”次级设置页；增加内置单实例 Microsoft Edge Provider、Voice 搜索/配置/试听和独立 Infrastructure transport；协议行为以当前 `Drunk-Dream/ms-ra-forwarder` 为主要参考；将公共 SpeakSpeed 直接切换为 `0–100`、默认 `50`，不迁移旧 settings/template 语速语义；以至少一次真实在线合成与可解码验证证明 transport 可用，不引入本机 Edge 依赖、外部代理进程或自动 fallback。
 
 ## [ ] T010（P0）：完成 Playback/Cache/Export Provider 接入并清理旧体系
 
@@ -132,7 +134,7 @@
 
 实施规格：`tasks/T010_provider_playback_cache_cleanup.md`
 
-目标：将 T006 暂时断开的 TTS 生产调用链接回已注册的 Provider Runtime，让 Playback、Prefetch、Active Cache、Coverage、Export 和播放页全部恢复 Provider 语音服务能力；完成 ProviderSynthesisFingerprint、播放页 Provider 选择器和旧 TTS Rule 代码/术语清理；最后执行完整 Release 质量门禁。T010 验收前不得留下仅有接口/模型、生产调用方仍未接通的状态。
+目标：将 T006 暂时断开的 TTS 生产调用链接回已注册的 Provider Runtime，让 Playback、Prefetch、Active Cache、Coverage、Export 和播放页全部恢复 Provider 语音服务能力；完成 ProviderSynthesisFingerprint、播放页 Provider 选择器和旧 TTS Rule 代码/术语清理；全链路遵循 T009 已建立的 `SpeakSpeed 0–100` 合同并正确支持合法值 `0`；最后执行完整 Release 质量门禁。T010 验收前不得留下仅有接口/模型、生产调用方仍未接通的状态。
 
 T010 为本阶段收口任务。
 

@@ -89,6 +89,20 @@ Provider 列表 | 当前 Provider 类型对应的编辑器
 - 试听使用当前全局语速，不单独提供试听文本或试听语速设置。
 - 试听不改变 CurrentProvider，试听临时音频不写入章节音频缓存。
 
+### 统一语速合同
+
+NovelSpeaker 的公共 `SpeakSpeed` 是 Provider 无关的整数控制量：
+
+- 合法范围固定为 `0–100`，默认值为 `50`；
+- `0` 是合法语速，不能再承担“未设置/无值”的 sentinel 语义；需要表达缺失时使用显式 nullable/state；
+- 切换 Provider 时保持同一个 `SpeakSpeed` 数值，不按 Provider 改写全局状态；
+- Provider 自己负责把 `0–100` 映射到真实协议；
+- Microsoft Edge 使用线性映射 `edgeRate = speakSpeed * 2 - 100`，即 `0 → -100%`、`50 → 0%`、`100 → +100%`；
+- HTTP Provider 模板中的 `speakSpeed` 直接暴露 NovelSpeaker 的 `0–100` 值；目标 HTTP API 需要其它范围时由模板表达式自行换算，不在公共 Playback/Speech 层增加服务特例；
+- 播放页保留数字语速交互，`+/-` 每次步进 1，并允许直接输入 `0–100` 整数；连续步进可以 debounce 后只提交最终值；
+- 已经开始播放的当前语句不因语速改变而打断；下一条尚未开始的语句使用新语速；
+- `SpeakSpeed` 继续属于 synthesis profile 身份，因此不同语速不会错误命中同一缓存，切回旧语速时可以重新命中旧缓存。
+
 ## 6. Provider 动作
 
 不同 Provider Type 支持不同动作，不要求能力完全一致。
@@ -136,7 +150,7 @@ HTTP Provider 使用 NovelSpeaker 自有模板语言，不承诺 Legado TTS Rule
 核心上下文：
 
 - `speakText`
-- `speakSpeed`
+- `speakSpeed`：NovelSpeaker 标准化 `0–100` 整数
 
 允许的典型受限 JavaScript 能力：
 
@@ -260,30 +274,98 @@ NovelSpeaker 使用自有版本化 Provider 交换格式。文件或剪贴板可
 
 ## 12. Microsoft Edge Provider
 
-Microsoft Edge Provider 是实验性内置单实例 Provider。
+Microsoft Edge Provider 是实验性内置单实例 Provider。它实现的是 **Edge Read Aloud 协议**，不是驱动本机 Microsoft Edge 浏览器；运行不依赖本机 Edge 的安装、启动或版本。
 
-生命周期：
+### 实验功能门控
 
-- 实验功能默认关闭时不创建实例。
-- 首次启用实验功能时创建唯一实例，并追加到 Provider 完整排序末尾。
-- 初次创建保持未配置状态，不自动选择 Voice。
-- 用户必须进入“语音服务”页选择并保存 Voice 后，Edge 才出现在播放页。
-- 关闭实验功能只隐藏 Provider，保留实例、Voice 配置和排序位置；如它是 CurrentProvider，则清空 CurrentProvider。
-- 重新开启后恢复原配置与排序，但不自动恢复 CurrentProvider。
+“实验性功能”是通用产品能力，不为 Edge 建立 `EnableEdgeTts` 一类专属布尔开关。
 
-配置：
+- Settings store 保存一组稳定的已启用 FeatureId；第一项为 `microsoft-edge-tts`。
+- 所有实验功能默认关闭；未知 FeatureId 不应阻止应用启动，UI 只展示当前版本已注册的功能。
+- 通用实验功能边界只负责查询、启用/停用、持久化和状态变化通知；具体功能自行负责启停副作用。
+- “实验性”只是产品发布状态，不进入 Provider Domain 模型，不加入 `IsExperimental` 字段，也不泄露到 Provider Runtime、Playback 或 Cache。
+- 首次启用 Edge 功能时创建唯一 Microsoft Edge Provider，并追加到完整 Provider SortOrder 末尾。
+- 初次创建保持未配置，不自动选择 Voice。
+- 关闭实验功能只隐藏 Edge Provider，保留 ProviderId、Voice 配置和 SortOrder；若它是 CurrentProvider，则清空 CurrentProvider，不自动 fallback。
+- 重新开启恢复原实例、配置和排序，但不自动恢复 CurrentProvider。
+- Edge 允许参与统一排序，但不能创建、删除、复制、导入或导出。
 
-- 名称固定为 Microsoft Edge；
-- Voice 使用可搜索列表，展示友好名称、语言/地区，并保留 Voice ID 作为次要信息；
-- 搜索覆盖名称、Voice ID 和语言/地区；
-- 暂不提供独立性别/地区筛选器；
-- 不在第一版加入 Pitch、Style、Role 等高级参数；
-- 全局 Rate 由 Provider 映射到 Edge 请求；
-- Volume 仍属于本地播放器。
+### Edge Editor 与 Voice 选择
 
-Voice 列表允许短期本地缓存和手动刷新。已保存 Voice 暂时无法刷新或服务端不可达时保留原值，不自动改成其它 Voice。
+右侧 Editor 与 HTTP 完全独立，第一版只包含固定只读名称、Voice 配置、试听、保存和取消。
 
-Edge transport 位于 Infrastructure，并与 HTTP Provider 共用上层 Provider Runtime 合同。不得要求外部 Node/Python 进程、本地代理服务或另一套常驻服务才能工作。由于 Edge 接口属于实验性外部能力，具体协议实现必须被 transport 边界隔离，便于未来替换。首次实现时须用真实服务成功合成并验证一次可解码音频；持续 CI 使用隔离 transport 测试，不依赖在线 Edge 服务。
+Voice 摘要默认显示：
+
+- FriendlyName；
+- Locale + Gender，其中 Gender 只展示，不提供筛选；
+- VoiceId 作为次要信息。
+
+没有选择 Voice 时明确显示未配置状态。点击“更换 Voice”后，在 Editor 内展开 **搜索框 + 可滚动 Voice 列表**，不使用 Locale + Voice 两级下拉，也不使用传统可编辑 ComboBox。搜索覆盖 FriendlyName、Locale 和 VoiceId，不增加独立地区/性别筛选。排序保持确定性，优先按 Locale，再按 FriendlyName。
+
+第一版不提供：
+
+- Pitch；
+- Personality / Style / Role；
+- 合成音量；
+- Sentence/Word Boundary；
+- 输出格式选择。
+
+选择新 Voice 只修改 Draft；试听直接使用 Draft，保存后才写入 Provider。试听使用统一固定文本和当前全局语速。
+
+Edge 配置持久化 VoiceId，并保存 FriendlyName、Locale、Gender 作为显示快照。VoiceId 是真实合成身份；显示快照可以在成功刷新 Catalog 且 VoiceId 仍存在时更新。
+
+### Voice Catalog
+
+- 完整 Voice Catalog 只做进程内短期缓存，不写数据库、settings.json 或独立磁盘文件；
+- 默认 TTL 可采用约 1 小时；手动“刷新”必须绕过缓存；
+- 应用启动不主动联网，进入 Edge Editor/展开 Voice 选择器时按需获取；
+- 应用重启后 Catalog 丢弃并在下次需要时重新获取；
+- 刷新失败不清空已保存 Voice，也不能推断 Voice 已失效；
+- 成功刷新后若已保存 VoiceId 不在最新 Catalog，只在当前 Editor 摘要区域轻量提示“当前 Voice 未出现在最新列表中”，Provider 仍视为已配置、仍允许播放/试听/保存，不自动换 Voice；
+- 不在 Provider 左侧卡片或播放页 Provider 选择器传播该警告；
+- Catalog 加载时不锁死整个 Editor，已有配置仍可试听、保存或取消。
+
+### 协议实现边界
+
+Edge 协议行为必须以当前 `https://github.com/Drunk-Dream/ms-ra-forwarder` 的实际实现作为**主要参考**，重点核对其 Edge TTS client/service/SSML/voice-list 相关代码。不得凭印象猜测 endpoint、TrustedClientToken、Sec-MS-GEC 算法与版本、Origin/User-Agent、WebSocket 握手、`speech.config`、SSML 消息和二进制音频帧解析。
+
+参考的是经过实际使用验证的**协议行为**，不是其 Next.js/Web 服务产品架构。不得照搬：
+
+- Web API / Bearer Token 服务层；
+- Node/Next.js 进程模型；
+- Legado 导入、二维码、历史记录等转发器功能；
+- Locale 两级选择 UI；
+- Personality UI；
+- 其它与 NovelSpeaker 内置 Provider 无关的能力。
+
+协议实现放在 Infrastructure，并集中到一个小型、可替换的 Edge Read Aloud protocol profile/transport 边界：
+
+- 使用 .NET 自带网络/WebSocket 能力优先，不要求 Node/Python、本地 HTTP 代理或 companion service；
+- Voice endpoint、WebSocket endpoint、TrustedClientToken、Sec-MS-GEC-Version、Chromium/Edge 协议版本、Origin、User-Agent 等集中管理，不散落到 Runtime/UI；
+- 随 NovelSpeaker 版本发布一份已验证 protocol profile，不读取本机 Edge 版本，也不从远端动态下载协议配置；
+- 若协议变化，只替换该 profile/transport，不让协议 DTO 泄露到 Application 公共合同；
+- 第一版每次 synthesis 新建独立 WebSocket，不建立连接池/长连接复用；
+- 固定输出 `audio-24khz-96kbitrate-mono-mp3`，不根据 SuggestedCodec 动态改变；
+- 发送必要 `speech.config` 与 SSML，只处理合成所需的核心文本/二进制帧和 `turn.end`；
+- 全局 `SpeakSpeed 0–100` 映射到 Edge `-100%–+100%`；
+- Playback Volume 始终由本地播放器处理，不发送给 Edge。
+
+每次合成必须有明确超时和 CancellationToken。第一版 Edge transport 不自行自动重试；取消应主动终止当前操作并映射为 Cancelled，而不是 Error。协议内部可以区分 VoiceList、Connection、Protocol、Synthesis、InvalidAudio、Timeout、Network 等诊断阶段，但 Provider Runtime/Playback 只暴露现有稳定 Speech 错误语义，不建立 Edge 专属公共错误状态，也不持久化 Healthy/Offline/LastSuccessfulAt 等 Provider 健康状态。
+
+### 在线验证
+
+首次实现不能只依赖 fake/in-memory transport。T009 完成前必须使用**生产代码路径**对真实 Edge 服务至少完成一次：
+
+```text
+获取 Voice List
+→ 选择真实 Voice
+→ 建立 WebSocket
+→ 合成固定试听文本
+→ 收到完整 MP3
+→ 使用 NovelSpeaker 现有音频解码路径确认可解码
+```
+
+只保留脱敏的验证日期、环境、protocol profile 版本、VoiceId 和 VoiceList/Synthesis/Decode 成败作为任务完成证据。不把正文、完整 SSML/请求、Token 或音频保存为长期测试资产。持续 CI 使用隔离 transport/协议解析测试，不依赖外部 Edge 服务。
 
 ## 13. Provider Runtime 与缓存身份
 
@@ -325,6 +407,19 @@ ProviderId、名称、SortOrder、请求频率限制、最近使用时间不进�
 
 ## 14. UI 合同
 
+### 实验性功能入口
+
+Settings 首页在“应用”分组中提供“实验性功能”入口，顺序为：
+
+```text
+缓存与数据
+外观
+实验性功能
+诊断与关于
+```
+
+入口进入独立次级页面“实验性功能”。页面统一管理当前版本所有实验功能，每项独立启用/停用，不设置总开关；首页入口不显示已启用数量或状态徽标。Microsoft Edge 语音服务是第一项。实验性标识只存在于该页面和语音服务管理语境，播放页 Provider 选择器不显示“实验性”。
+
 ### 语音服务管理页
 
 - Settings 入口名称使用“语音服务”。
@@ -338,7 +433,7 @@ ProviderId、名称、SortOrder、请求频率限制、最近使用时间不进�
 ### 播放页 Provider 选择器
 
 - 只显示已配置、当前可见的 Provider；
-- 只显示 Provider 名称，不显示 Type 副标题；
+- 只显示 Provider 名称，不显示 Type 副标题，也不显示“实验性”；
 - 使用统一 Provider SortOrder；
 - 不显示 None 选项；
 - 每个可选项等宽并横向占满浮窗内容区，整行可点击；
@@ -368,3 +463,6 @@ Provider 化是开发阶段的模型重构，不长期保留旧 `TtsRule`/Legado
 - 现有本地 HTTP TTS 规则通过一次性 migration 逐项转换：能按新请求语义安全表达且通过本地校验的项迁移为 HTTP Provider，依赖已移除模板 API、无法等价转换或数据损坏的项静默跳过，不展示或持久化跳过数量与原因。旧表重名时确定性改名；旧禁用状态不迁移，原本禁用的规则不能自动成为 CurrentProvider。不为跳过项保留旧格式运行或恢复接口。迁移完成后删除旧运行路径，不维持双读/双写。
 - 已存在音频缓存文件不要求删除；Provider synthesis identity 不匹配时保留但不作为当前配置可用缓存。
 - 新 Provider 交换格式从 schemaVersion 1 开始独立演进。
+- 本阶段把公共 `SpeakSpeed` 合同直接从旧 `1–20` 切换为 `0–100`，新默认值为 `50`；不为旧范围保留运行时兼容层。
+- 不修改已有 `settings.json` 中保存的 `DefaultSpeakSpeed` 数值；旧值若仍位于 `0–100` 合法范围内按新语义直接使用，由用户自行调整。
+- 不扫描、不识别、不自动改写已有 HTTP Provider/旧规则中的 `speakSpeed` 模板表达式；模板升级后的语义由用户自行调整。
