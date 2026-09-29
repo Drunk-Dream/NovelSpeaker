@@ -1,8 +1,9 @@
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Cache.ActiveCache;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Books;
@@ -46,7 +47,7 @@ public sealed class ActiveCacheCoordinatorTests
                 call.Request.ChapterIndex,
                 call.Request.SegmentIndex,
                 call.Request.SpeechText)));
-        Assert.All(audio.Calls, call => Assert.Equal(7, call.Request.RuleId));
+        Assert.All(audio.Calls, call => Assert.Equal(TestSpeechProviders.Id(7), call.Request.Provider.ProviderId));
         Assert.All(audio.Calls, call => Assert.Equal(12, call.Request.SpeakSpeed));
         Assert.All(audio.Calls, call => Assert.Equal(AudioGenerationPriority.ActiveCache, call.Priority));
         var activeIdentity = audio.Calls[0].Request;
@@ -171,20 +172,8 @@ public sealed class ActiveCacheCoordinatorTests
         Assert.Equal(1, coordinator.CurrentSnapshot.CompletedSegmentCount);
     }
 
-    private static HttpTtsRule CreateRule(long id, string name) =>
-        TestHttpTtsRules.Create(
-            id,
-            name,
-            "https://example.com/tts?text={{speakText}}",
-            "audio/mpeg",
-            null,
-            null,
-            null,
-            null,
-            true,
-            null,
-            "2026-07-20T00:00:00.0000000Z",
-            "2026-07-20T00:00:00.0000000Z");
+    private static SpeechProviderInstance CreateRule(long id, string name) =>
+        TestSpeechProviders.Create(id, name, "https://example.com/tts?text={{speakText}}");
 
     private sealed class FakeContentService : IBookPlaybackContentService
     {
@@ -224,27 +213,23 @@ public sealed class ActiveCacheCoordinatorTests
         }
     }
 
-    private sealed class MutableRuleProvider : ISelectedTtsRuleProvider
+    private sealed class MutableRuleProvider : TestCurrentSpeechProvider
     {
-        public MutableRuleProvider(HttpTtsRule rule)
+        public MutableRuleProvider(SpeechProviderInstance rule)
         {
             Current = rule;
         }
 
-        public HttpTtsRule Current { get; set; }
+        public SpeechProviderInstance Current { get; set; }
 
-        public Task<SelectedPlaybackRule?> GetSelectedRuleAsync(CancellationToken cancellationToken)
+        public override Task<ResolvedSpeechProvider?> GetSelectedProviderAsync(CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<SelectedPlaybackRule?>(new SelectedPlaybackRule(
-                Current.Id,
-                Current.Name,
-                Current,
-                new TtsRuleNormalizer().Normalize(Current)));
+            return Task.FromResult<ResolvedSpeechProvider?>(TestSpeechProviders.Resolve(Current));
         }
 
-        public Task<SelectedPlaybackRule?> SelectRuleAsync(long ruleId, CancellationToken cancellationToken) =>
-            GetSelectedRuleAsync(cancellationToken);
+        public override Task<ResolvedSpeechProvider?> SelectProviderAsync(ProviderId ruleId, CancellationToken cancellationToken) =>
+            GetSelectedProviderAsync(cancellationToken);
     }
 
     private sealed class ControlledAudioProvider : IAudioGenerationProvider

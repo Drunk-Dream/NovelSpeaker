@@ -1,3 +1,5 @@
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
@@ -74,35 +76,11 @@ public sealed class CacheIdentityFingerprintTests
     }
 
     [Fact]
-    public void Tts_rule_fingerprint_excludes_name_enabled_and_concurrency_but_tracks_request_semantics()
-    {
-        var normalizer = new TtsRuleNormalizer();
-        var first = TtsRuleFingerprint.Create(normalizer.Normalize(CreateRule(
-            name: "原名称",
-            isEnabled: true,
-            concurrentRate: "2/s",
-            body: "{\"text\":\"{{speakText}}\"}")));
-        var metadataOnly = TtsRuleFingerprint.Create(normalizer.Normalize(CreateRule(
-            name: "改名",
-            isEnabled: false,
-            concurrentRate: "20/s",
-            body: "{\"text\":\"{{speakText}}\"}")));
-        var changedBody = TtsRuleFingerprint.Create(normalizer.Normalize(CreateRule(
-            name: "改名",
-            isEnabled: false,
-            concurrentRate: "20/s",
-            body: "{\"value\":\"{{speakText}}\"}")));
-
-        Assert.Equal(first, metadataOnly);
-        Assert.NotEqual(first, changedBody);
-    }
-
-    [Fact]
     public void Audio_identity_changes_with_speech_text_but_not_text_profile()
     {
-        var rule = TtsRuleFingerprint.Create(new TtsRuleNormalizer().Normalize(CreateRule(
-            "规则", true, null, "{{speakText}}")));
-        var synthesis = SynthesisProfileFingerprint.Create(rule, 10);
+        var provider = ProviderSynthesisFingerprint.Create(new HttpSpeechProviderConfiguration(
+            "https://example.test/tts?text={{speakText}}", "GET", new Dictionary<string, string>(), null, null));
+        var synthesis = SynthesisProfileFingerprint.Create(provider, 10);
         var identity = AudioCacheIdentity.Create(
             "chapter-1",
             StableSpeechSegmentIdentity.Body(10, 5),
@@ -123,27 +101,4 @@ public sealed class CacheIdentityFingerprintTests
         Assert.NotEqual(identity, changed);
     }
 
-    private static NovelSpeaker.Domain.Speech.HttpTtsRule CreateRule(
-        string name,
-        bool isEnabled,
-        string? concurrentRate,
-        string body) =>
-        new(
-            7,
-            name,
-            " https://example.test/tts ",
-            " Application/JSON ",
-            concurrentRate,
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                [" X-Test "] = " value "
-            },
-            " post ",
-            body,
-            true,
-            null,
-            isEnabled,
-            null,
-            DateTimeOffset.UtcNow,
-            DateTimeOffset.UtcNow);
 }

@@ -62,7 +62,12 @@ public sealed class RegexReplacementRuleRepositoryTests
         {
             if (Directory.Exists(root))
             {
-                SqliteConnection.ClearAllPools();
+                using (var connection = new SqliteConnection($"Data Source={Path.Combine(root, "app.db")}"))
+                {
+                    connection.Open();
+                    SqliteConnection.ClearPool(connection);
+                    connection.Close();
+                }
                 Directory.Delete(root, recursive: true);
             }
         }

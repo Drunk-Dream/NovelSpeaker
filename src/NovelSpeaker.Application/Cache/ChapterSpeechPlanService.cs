@@ -36,7 +36,8 @@ public sealed class ChapterSpeechPlanService : IChapterSpeechPlanService
         string chapterId,
         string chapterText,
         TextSegmentationOptions options,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<RegexReplacementRule>? frozenRules = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(chapterId);
         ArgumentNullException.ThrowIfNull(chapterText);
@@ -45,12 +46,12 @@ public sealed class ChapterSpeechPlanService : IChapterSpeechPlanService
         var sourceSegments = await Task.Run(
             () => _textSegmenter.Segment(chapterText, normalizedOptions),
             cancellationToken).ConfigureAwait(false);
-        var replaced = await _regexReplacementPipeline
-            .ApplyAsync(sourceSegments, cancellationToken)
-            .ConfigureAwait(false);
+        var replaced = frozenRules is null
+            ? await _regexReplacementPipeline.ApplyAsync(sourceSegments, cancellationToken).ConfigureAwait(false)
+            : RegexReplacementProcessor.Apply(sourceSegments, frozenRules, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
 
-        var rules = replaced.AppliedRules ??
+        var rules = frozenRules ?? replaced.AppliedRules ??
             await _ruleRepository.GetAllAsync(cancellationToken).ConfigureAwait(false);
         var textProfile = TextProfileFingerprint.Create(normalizedOptions, rules);
         var bodySegments = replaced.Segments

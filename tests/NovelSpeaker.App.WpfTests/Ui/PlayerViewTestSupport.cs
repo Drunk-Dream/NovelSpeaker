@@ -1,3 +1,5 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Domain.Speech.Providers;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -15,7 +17,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
@@ -149,22 +151,25 @@ public sealed partial class PlayerViewTests
             ObservableCollection<PlayerSegmentItemViewModel> segments,
             bool showReturnToCurrentSegment = false,
             bool showPlaybackControls = true,
-            bool showNoRuleState = false,
+            bool showNoProviderState = false,
             bool showPlaybackErrorBar = false,
             string errorText = "",
             bool showInlineLoadingState = false,
             string inlineLoadingText = "",
             bool isActiveCacheSelectionMode = false,
             bool canStartActiveCache = false,
-            string activeCacheStatusText = "")
+            string activeCacheStatusText = "",
+            ObservableCollection<PlayerProviderItemViewModel>? providers = null)
         {
             Chapters = chapters;
             Segments = segments;
+            Providers = providers ?? [];
+            HasProviders = Providers.Count > 0;
             CurrentChapterItem = chapters.Count == 0 ? null : chapters.Count > 10 ? chapters[10] : chapters[0];
             CurrentSegmentItem = segments.Count == 0 ? null : segments.Count > 32 ? segments[32] : segments[0];
             ShowReturnToCurrentSegment = showReturnToCurrentSegment;
             ShowPlaybackControls = showPlaybackControls;
-            ShowNoRuleState = showNoRuleState;
+            ShowNoProviderState = showNoProviderState;
             ShowPlaybackErrorBar = showPlaybackErrorBar;
             ErrorText = errorText;
             ShowInlineLoadingState = showInlineLoadingState;
@@ -172,7 +177,7 @@ public sealed partial class PlayerViewTests
             IsActiveCacheSelectionMode = isActiveCacheSelectionMode;
             CanStartActiveCache = canStartActiveCache;
             ActiveCacheStatusText = activeCacheStatusText;
-            ShowEmptyChapterState = segments.Count == 0 && !showInlineLoadingState && !showNoRuleState;
+            ShowEmptyChapterState = segments.Count == 0 && !showInlineLoadingState && !showNoProviderState;
             CurrentChapterTitle = ShowEmptyChapterState ? "空章节" : "第二章 头铁的落款";
             DisplayedSegmentCounterText = ShowEmptyChapterState ? "0 / 0" : "33 / 140";
             CanTogglePlayPause = !ShowEmptyChapterState;
@@ -185,7 +190,7 @@ public sealed partial class PlayerViewTests
 
         public IRelayCommand BackCommand { get; } = new RelayCommand(() => { });
 
-        public IRelayCommand ToggleRuleMenuCommand { get; } = new RelayCommand(() => { });
+        public IRelayCommand ToggleProviderMenuCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand ToggleStopTimerMenuCommand { get; } = new RelayCommand(() => { });
 
@@ -201,7 +206,9 @@ public sealed partial class PlayerViewTests
 
         public IRelayCommand StartActiveCacheCommand { get; } = new RelayCommand(() => { });
 
-        public IRelayCommand OpenRuleMenuCommand { get; } = new RelayCommand(() => { });
+        public IRelayCommand OpenProviderMenuCommand { get; } = new RelayCommand(() => { });
+
+        public IRelayCommand<PlayerProviderItemViewModel?> SelectProviderCommand { get; } = new RelayCommand<PlayerProviderItemViewModel?>(_ => { });
 
         public IRelayCommand OpenRulesManagementCommand { get; } = new RelayCommand(() => { });
 
@@ -265,7 +272,7 @@ public sealed partial class PlayerViewTests
 
         public string SpeedEditorErrorText { get; } = string.Empty;
 
-        public bool IsRuleMenuOpen { get; set; }
+        public bool IsProviderMenuOpen { get; set; }
 
         public bool IsSpeedMenuOpen { get; set; }
 
@@ -279,7 +286,7 @@ public sealed partial class PlayerViewTests
 
         public bool ShowPlaybackControls { get; }
 
-        public bool ShowNoRuleState { get; }
+        public bool ShowNoProviderState { get; }
 
         public bool ShowPlaybackErrorBar { get; }
 
@@ -291,9 +298,9 @@ public sealed partial class PlayerViewTests
 
         public bool CanStartActiveCache { get; }
 
-        public bool HasRules { get; } = false;
+        public bool HasProviders { get; }
 
-        public bool HasAvailableRule { get; } = true;
+        public bool HasAvailableProvider { get; } = true;
 
         public bool CanTogglePlayPause { get; }
 
@@ -321,7 +328,7 @@ public sealed partial class PlayerViewTests
 
         public double SegmentProgressPreviewValue { get; }
 
-        public ObservableCollection<PlayerRuleItemViewModel> Rules { get; } = [];
+        public ObservableCollection<PlayerProviderItemViewModel> Providers { get; }
 
         public ObservableCollection<PlayerChapterItemViewModel> Chapters { get; }
 
@@ -421,7 +428,7 @@ public sealed partial class PlayerViewTests
             return Task.CompletedTask;
         }
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeProviderAsync(ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public void SetVolume(double volume) { }
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -452,17 +459,16 @@ public sealed partial class PlayerViewTests
         }
     }
 
-    private sealed class FakeTtsRuleQueries : ITtsRuleQueries
+    private sealed class FakeProviders : TestCurrentSpeechProvider
     {
-        private readonly IReadOnlyList<TtsRuleSummary> _rules;
+        private readonly IReadOnlyList<SpeechProviderInstance> _providers;
 
-        public FakeTtsRuleQueries(IReadOnlyList<TtsRuleSummary> rules)
+        public FakeProviders(IReadOnlyList<SpeechProviderInstance> rules)
         {
-            _rules = rules;
+            _providers = rules;
         }
 
-        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken) => Task.FromResult(_rules);
-        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public override Task<IReadOnlyList<SpeechProviderInstance>> GetAvailableAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SpeechProviderInstance>>(_providers.Where(provider => ProviderConfigurationValidator.Validate(provider).IsValid).ToArray());
     }
 
     private sealed class FakeAppSettingsStore : IAppSettingsService

@@ -9,13 +9,14 @@ using NovelSpeaker.App.Features.Cache;
 using NovelSpeaker.App.Features.Rules.Chapter;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Features.GeneralSettings;
+using NovelSpeaker.App.Features.ExperimentalFeatures;
 using NovelSpeaker.App.Features.ImportTextSettings;
 using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Features.Playback;
 using NovelSpeaker.App.Features.PlaybackSettings;
 using NovelSpeaker.App.Features.Rules.Regex;
 using NovelSpeaker.App.Features.Settings;
-using NovelSpeaker.App.Features.Rules.Tts;
+using NovelSpeaker.App.Features.SpeechServices;
 using NovelSpeaker.App.Shared;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shell.Activation;
@@ -44,12 +45,13 @@ public static class ServiceCollectionExtensions
             .AddChapterRulesFeature()
             .AddDiagnosticsFeature()
             .AddGeneralSettingsFeature()
+            .AddExperimentalFeaturesFeature()
             .AddImportTextSettingsFeature()
             .AddLibraryFeature()
             .AddPlaybackFeature()
             .AddPlaybackSettingsFeature()
             .AddRegexReplacementRulesFeature()
             .AddSettingsFeature()
-            .AddTtsRulesFeature();
+            .AddSpeechServicesFeature();
     }
 }

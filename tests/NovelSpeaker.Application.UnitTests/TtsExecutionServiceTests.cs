@@ -8,9 +8,9 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class TtsExecutionServiceTests
 {
     [Fact]
-    public async Task ExecuteAsync_rejects_cookie_at_execution_boundary_without_transport()
+    public async Task ExecuteAsync_passes_configured_cookie_to_transport()
     {
-        var transport = new QueueTransport();
+        var transport = new QueueTransport(Response(200));
         var service = new TtsExecutionService(transport, new NeverRetryPolicy(), new StubValidator());
         var request = CreateRequest() with
         {
@@ -19,8 +19,10 @@ public sealed class TtsExecutionServiceTests
 
         var result = await service.ExecuteAsync(request, CancellationToken.None);
 
-        Assert.Equal(TtsErrorKind.InvalidRule, result.Failure!.Kind);
-        Assert.Equal(0, transport.CallCount);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(1, transport.CallCount);
+        Assert.Equal("session=secret", transport.LastRequest!.Headers["Cookie"]);
+        await result.Audio!.DisposeAsync();
     }
 
     [Fact]
@@ -117,10 +119,12 @@ public sealed class TtsExecutionServiceTests
     {
         private readonly Queue<TtsTransportResult> _results = new(results);
         public int CallCount { get; private set; }
+        public ParsedTtsRequest? LastRequest { get; private set; }
 
         public Task<TtsTransportResult> SendAsync(ParsedTtsRequest request, CancellationToken cancellationToken)
         {
             CallCount++;
+            LastRequest = request;
             return Task.FromResult(_results.Dequeue());
         }
     }

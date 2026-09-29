@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Features.ExperimentalFeatures;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
 using Wpf.Ui.Controls;
@@ -18,7 +19,6 @@ public sealed class AppRouteNavigationTests
                      (new PlayerRoute("book-1", AppRoutes.Library), typeof(PlayerPage)),
                      (AppRoutes.Settings, typeof(SettingsPage)),
                      (AppRoutes.PlaybackSettings, typeof(PlaybackSettingsPage)),
-                     (AppRoutes.TtsRules, typeof(TtsRulesPage)),
                      (AppRoutes.ImportTextSettings, typeof(ImportTextSettingsPage)),
                      (AppRoutes.RegexReplacementRules, typeof(RegexReplacementRulesPage)),
                      (AppRoutes.ChapterRules, typeof(ChapterRulesPage)),
@@ -26,6 +26,7 @@ public sealed class AppRouteNavigationTests
                      (AppRoutes.CacheManagement, typeof(CacheManagementPage)),
                      (AppRoutes.GeneralSettings, typeof(GeneralSettingsPage)),
                      (AppRoutes.AppearanceSettings, typeof(AppearanceSettingsPage)),
+                     (AppRoutes.ExperimentalFeatures, typeof(ExperimentalFeaturesPage)),
                      (AppRoutes.DiagnosticsAbout, typeof(DiagnosticsAboutPage))
                  })
         {
@@ -144,12 +145,12 @@ public sealed class AppRouteNavigationTests
                  {
                      (new BookDetailsRoute("book-42"), AppRoutes.Library),
                      (AppRoutes.PlaybackSettings, AppRoutes.Settings),
-                     (AppRoutes.TtsRules, AppRoutes.Settings),
                      (AppRoutes.ImportTextSettings, AppRoutes.Settings),
                      (AppRoutes.ChapterRules, AppRoutes.Settings),
                      (AppRoutes.CacheAndData, AppRoutes.Settings),
                      (AppRoutes.GeneralSettings, AppRoutes.Settings),
                      (AppRoutes.AppearanceSettings, AppRoutes.Settings),
+                     (AppRoutes.ExperimentalFeatures, AppRoutes.Settings),
                      (AppRoutes.DiagnosticsAbout, AppRoutes.Settings),
                      (AppRoutes.RegexReplacementRules, AppRoutes.ImportTextSettings),
                      (AppRoutes.CacheManagement, AppRoutes.CacheAndData),

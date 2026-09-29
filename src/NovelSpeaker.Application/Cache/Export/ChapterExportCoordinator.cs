@@ -323,7 +323,7 @@ public sealed class ChapterExportCoordinator : IChapterExportCoordinator, IAsync
     private static string ProjectFailure(ExportChaptersResult result) => result.Status switch
     {
         ExportChaptersStatus.IncompleteCache => "所选章节缓存已发生变化，请刷新后重试。",
-        ExportChaptersStatus.SelectedRuleUnavailable => "当前 TTS 规则不可用，请在播放页选择已启用规则后重试。",
+        ExportChaptersStatus.SelectedProviderUnavailable => "当前语音服务不可用，请在播放页选择已配置的语音服务后重试。",
         ExportChaptersStatus.ChapterHasNoPlayableSegments => FormatChapterFailure(result.FailedChapterIndex, "没有可播放段落"),
         ExportChaptersStatus.BookNotFound or ExportChaptersStatus.ChapterNotFound => "书籍或章节已发生变化，请重新选择后重试。",
         ExportChaptersStatus.ChapterSpeechPlanUnavailable => FormatChapterFailure(result.FailedChapterIndex, "章节朗读清单尚未就绪"),

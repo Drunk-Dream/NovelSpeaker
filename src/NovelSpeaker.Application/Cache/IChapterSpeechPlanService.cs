@@ -11,5 +11,6 @@ public interface IChapterSpeechPlanService
         string chapterId,
         string chapterText,
         TextSegmentationOptions options,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        IReadOnlyList<RegexReplacementRule>? frozenRules = null);
 }

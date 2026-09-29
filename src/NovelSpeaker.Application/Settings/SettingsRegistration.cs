@@ -23,6 +23,7 @@ public static class SettingsRegistration
         services.TryAddSingleton<IAppSettingsService>(provider => provider.GetRequiredService<AppSettingsService>());
         services.TryAddSingleton<IBookFileNameTemplateProvider>(provider => provider.GetRequiredService<AppSettingsService>());
         services.TryAddSingleton<ITextSegmentationOptionsProvider>(provider => provider.GetRequiredService<AppSettingsService>());
+        services.TryAddSingleton<ExperimentalFeaturesService>();
         return services;
     }
 }

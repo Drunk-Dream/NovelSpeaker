@@ -1,3 +1,5 @@
+using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.TestKit.Speech;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
@@ -15,7 +17,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
@@ -37,24 +39,23 @@ public sealed partial class PlayerViewTests
     {
         WpfTestHost.RunInSta(() =>
         {
-            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-                PlaybackState.Paused,
-                "book-1",
-                "信息全知者",
-                0,
-                "第三章 来自星空的压力",
-                12,
-                90,
-                1,
-                "默认规则",
-                10,
-                0,
-                0,
-                null,
-                false,
-                false,
-                "魔性沧月",
-                true));
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
+            "book-1",
+            "信息全知者",
+            0,
+            "第三章 来自星空的压力",
+            12,
+            90,
+            TestSpeechProviders.Id(1),
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            "魔性沧月",
+            true));
             var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
@@ -75,7 +76,7 @@ public sealed partial class PlayerViewTests
                 new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
-                new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeProviders([TestSpeechProviders.Item(1, "默认规则", true)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -138,24 +139,23 @@ public sealed partial class PlayerViewTests
     {
         WpfTestHost.RunInSta(() =>
         {
-            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(
-                PlaybackState.Playing,
-                "book-1",
-                "信息全知者",
-                0,
-                "第三章 来自星空的压力",
-                18,
-                90,
-                1,
-                "默认规则",
-                10,
-                0,
-                0,
-                null,
-                false,
-                false,
-                "魔性沧月",
-                true));
+            var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Playing,
+            "book-1",
+            "信息全知者",
+            0,
+            "第三章 来自星空的压力",
+            18,
+            90,
+            TestSpeechProviders.Id(1),
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            "魔性沧月",
+            true));
             var chapter = PlaybackChapterContent.FromLoaded(
                 0,
                 "第三章 来自星空的压力",
@@ -171,7 +171,7 @@ public sealed partial class PlayerViewTests
                 new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
-                new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeProviders([TestSpeechProviders.Item(1, "默认规则", true)]),
                 new FakeAppSettingsStore(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),

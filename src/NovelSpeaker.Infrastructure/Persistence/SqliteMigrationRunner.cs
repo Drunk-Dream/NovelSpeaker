@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Infrastructure.Persistence.Speech;
 
 namespace NovelSpeaker.Infrastructure.Persistence;
 
@@ -9,7 +10,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 7;
+    private const int CurrentSchemaVersion = 9;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -224,6 +225,48 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
             DROP TABLE AudioCacheEntries_V6_Discarded;
             INSERT OR IGNORE INTO AppMetadata (Key, Value)
             VALUES ('AudioCacheV7ResetPending', '1');
+            """),
+        new(
+            8,
+            """
+            CREATE TABLE SpeechProviders (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Type INTEGER NOT NULL CHECK(Type IN (1, 2)),
+                Name TEXT NOT NULL,
+                NameKey TEXT NOT NULL COLLATE BINARY UNIQUE,
+                SortOrder INTEGER NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
+
+            CREATE INDEX IX_SpeechProviders_SortOrder
+                ON SpeechProviders(SortOrder, Id);
+
+            CREATE TABLE HttpSpeechProviderConfigs (
+                ProviderId TEXT NOT NULL PRIMARY KEY,
+                UrlTemplate TEXT NOT NULL,
+                Method TEXT NOT NULL,
+                HeadersJson TEXT NOT NULL,
+                BodyTemplate TEXT NULL,
+                MaxRequests INTEGER NULL,
+                WindowMilliseconds INTEGER NULL,
+                FOREIGN KEY(ProviderId) REFERENCES SpeechProviders(Id) ON DELETE CASCADE,
+                CHECK ((MaxRequests IS NULL AND WindowMilliseconds IS NULL) OR
+                       (MaxRequests > 0 AND WindowMilliseconds > 0))
+            );
+            """,
+            LegacyHttpProviderMigration.ApplyAsync),
+        new(9,
+            """
+            CREATE TABLE EdgeSpeechProviderConfigs (
+                ProviderId TEXT NOT NULL PRIMARY KEY,
+                VoiceId TEXT NULL,
+                FriendlyName TEXT NULL,
+                Locale TEXT NULL,
+                Gender TEXT NULL,
+                FOREIGN KEY(ProviderId) REFERENCES SpeechProviders(Id) ON DELETE CASCADE
+            );
+            CREATE UNIQUE INDEX IX_SpeechProviders_EdgeSingleton ON SpeechProviders(Type) WHERE Type = 2;
             """)
     ];
 
@@ -268,6 +311,11 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
             command.Transaction = transaction;
             command.CommandText = migration.Sql;
             await command.ExecuteNonQueryAsync(cancellationToken);
+
+            if (migration.ApplyDataAsync is not null)
+            {
+                await migration.ApplyDataAsync(connection, transaction, cancellationToken);
+            }
 
             var versionCommand = connection.CreateCommand();
             versionCommand.Transaction = transaction;

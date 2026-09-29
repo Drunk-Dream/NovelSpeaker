@@ -348,7 +348,7 @@ internal sealed class PlayerCacheDecorationController
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs eventArgs)
     {
         if (eventArgs.Previous.DefaultSpeakSpeed == eventArgs.Current.DefaultSpeakSpeed &&
-            eventArgs.Previous.SelectedTtsRuleId == eventArgs.Current.SelectedTtsRuleId &&
+            eventArgs.Previous.CurrentProviderId == eventArgs.Current.CurrentProviderId &&
             eventArgs.Previous.EnableLongParagraphSplitting == eventArgs.Current.EnableLongParagraphSplitting &&
             eventArgs.Previous.LongParagraphThreshold == eventArgs.Current.LongParagraphThreshold &&
             eventArgs.Previous.ReadChapterTitle == eventArgs.Current.ReadChapterTitle)

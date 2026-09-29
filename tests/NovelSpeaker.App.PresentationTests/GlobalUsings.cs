@@ -19,7 +19,7 @@ global using NovelSpeaker.App.Features.Playback.Scrolling;
 global using NovelSpeaker.App.Features.PlaybackSettings;
 global using NovelSpeaker.App.Features.Rules.Regex;
 global using NovelSpeaker.App.Features.Settings;
-global using NovelSpeaker.App.Features.Rules.Tts;
+global using NovelSpeaker.App.Features.SpeechServices;
 global using NovelSpeaker.App.Shell;
 global using NovelSpeaker.App.Shell.Activation;
 global using NovelSpeaker.App.Shell.Input;

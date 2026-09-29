@@ -18,7 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
@@ -27,6 +27,7 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui;
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
@@ -182,18 +183,17 @@ public sealed partial class PlayerViewTests
                     chapters,
                     segments,
                     showPlaybackControls: false,
-                    showNoRuleState: true),
+                    showNoProviderState: true),
             };
 
             view.Measure(new Size(1280, 760));
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var emptyStateButton = Assert.IsType<WpfUiButton>(FindVisibleDescendantByContent(view, "前往 TTS 规则"));
-            var noRuleFooter = Assert.IsType<AppStatusView>(view.FindName("NoRuleStatusView"));
+            var noRuleFooter = Assert.IsType<AppStatusView>(view.FindName("NoProviderStatusView"));
             var backButton = FindUiButtonByAutomationName(view, "返回");
 
-            Assert.Equal(Visibility.Visible, emptyStateButton.Visibility);
+            Assert.Null(FindVisibleDescendantByContent(view, "前往 语音服务"));
             Assert.Equal(Visibility.Visible, noRuleFooter.Visibility);
             Assert.True(GetBoundsRelativeToRoot(noRuleFooter, view).Bottom <= view.ActualHeight);
             Assert.True(GetBoundsRelativeToRoot(backButton, view).Top >= 0);
@@ -228,7 +228,7 @@ public sealed partial class PlayerViewTests
 
             Assert.NotNull(FindVisibleDescendantByContent(faultedView, "再次尝试"));
             Assert.True(IsEffectivelyVisible(
-                Assert.IsType<WpfUiButton>(faultedView.FindName("ErrorRuleMenuButton")),
+                Assert.IsType<WpfUiButton>(faultedView.FindName("ErrorProviderMenuButton")),
                 faultedView));
 
             var normalView = new PlayerView
@@ -242,7 +242,7 @@ public sealed partial class PlayerViewTests
 
             Assert.Null(FindVisibleDescendantByContent(normalView, "再次尝试"));
             Assert.False(IsEffectivelyVisible(
-                Assert.IsType<WpfUiButton>(normalView.FindName("ErrorRuleMenuButton")),
+                Assert.IsType<WpfUiButton>(normalView.FindName("ErrorProviderMenuButton")),
                 normalView));
         });
     }
@@ -291,64 +291,27 @@ public sealed partial class PlayerViewTests
     }
 
     [Fact]
-    public void Player_view_popups_render_one_shared_surface_at_runtime()
+    public void Player_provider_popup_opens_with_an_available_provider()
     {
         WpfTestHost.RunInSta(() =>
         {
-            var view = new PlayerView { DataContext = CreateDefaultVisualContext() };
+            var context = CreateDefaultVisualContext(providers: new ObservableCollection<PlayerProviderItemViewModel>
+            {
+                new(TestSpeechProviders.Id(1), "回归测试 Provider", isSelected: false)
+            });
+            var view = new PlayerView { DataContext = context };
             var window = new Window { Content = view, Width = 1280, Height = 760, ShowInTaskbar = false };
             using var host = WpfWindowHost.Show(window);
-            var surfaceStyle = Assert.IsType<Style>(view.FindResource("App.Feedback.PopupSurface"));
+            var popup = Assert.IsType<Popup>(view.FindName("ProviderMenuPopup"));
 
-            foreach (var popupName in new[] { "RuleMenuPopup", "SpeedMenuPopup" })
-            {
-                var popup = Assert.IsType<Popup>(view.FindName(popupName));
-                popup.IsOpen = true;
-                popup.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
-                AssertSingleSurface(Assert.IsAssignableFrom<DependencyObject>(popup.Child), surfaceStyle);
-                popup.IsOpen = false;
-            }
+            popup.IsOpen = true;
+            popup.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
 
-            foreach (var flyoutName in new[] { "StopTimerFlyout", "VolumeFlyout" })
-            {
-                var flyout = Assert.IsType<Wpf.Ui.Controls.Flyout>(view.FindName(flyoutName));
-                flyout.ApplyTemplate();
-                var popup = Assert.IsType<Popup>(flyout.Template.FindName("PART_Popup", flyout));
-                flyout.IsOpen = true;
-                flyout.Dispatcher.Invoke(DispatcherPriority.Render, static () => { });
-                AssertSingleSurface(Assert.IsAssignableFrom<DependencyObject>(popup.Child), surfaceStyle);
-                flyout.IsOpen = false;
-            }
+            Assert.True(context.HasProviders);
+            Assert.True(popup.IsOpen);
+            popup.IsOpen = false;
         });
     }
-
-    private static void AssertSingleSurface(DependencyObject root, Style surfaceStyle)
-    {
-        var borders = (root is Border rootBorder ? new[] { rootBorder } : [])
-            .Concat(VisualTreeTestHelper.FindDescendants<Border>(root))
-            .ToArray();
-        var surface = Assert.Single(borders, border => ReferenceEquals(border.Style, surfaceStyle));
-        var fullOpaqueSurfaces = borders.Where(border =>
-            border.ActualWidth >= surface.ActualWidth * 0.9 &&
-            border.ActualHeight >= surface.ActualHeight * 0.9 &&
-            !IsTransparent(border.Background));
-        Assert.Equal(surface, Assert.Single(fullOpaqueSurfaces));
-
-        for (var ancestor = VisualTreeHelper.GetParent(surface);
-             ancestor is not null;
-             ancestor = VisualTreeHelper.GetParent(ancestor))
-        {
-            if (ancestor is Border border)
-            {
-                Assert.True(IsTransparent(border.Background));
-                Assert.True(IsTransparent(border.BorderBrush));
-                Assert.Null(border.Effect);
-            }
-        }
-    }
-
-    private static bool IsTransparent(Brush? brush) =>
-        brush is null || brush is SolidColorBrush { Color.A: 0 };
 
     [Fact]
     public void Player_view_content_contracts_cover_empty_cache_scroll_and_titles()
@@ -366,7 +329,8 @@ public sealed partial class PlayerViewTests
         PlayerView_uses_icon_buttons_with_accessible_metadata_for_playback_controls();
     }
 
-    private static PlayerViewLayoutTestContext CreateDefaultVisualContext()
+    private static PlayerViewLayoutTestContext CreateDefaultVisualContext(
+        ObservableCollection<PlayerProviderItemViewModel>? providers = null)
     {
         var chapters = new ObservableCollection<PlayerChapterItemViewModel>();
         for (var index = 0; index < 18; index++)
@@ -388,7 +352,7 @@ public sealed partial class PlayerViewTests
             });
         }
 
-        return new PlayerViewLayoutTestContext(chapters, segments);
+        return new PlayerViewLayoutTestContext(chapters, segments, providers: providers);
     }
 
 }

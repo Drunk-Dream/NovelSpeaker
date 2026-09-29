@@ -1,3 +1,4 @@
+using NovelSpeaker.Domain.Speech.Providers;
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Infrastructure.Diagnostics;
@@ -16,15 +17,16 @@ public sealed class AudioGenerationFailureReporter : IAudioGenerationFailureRepo
 
     public void Report(string operation, Exception exception, AudioGenerationRequest request)
     {
+        string?[] providerSecrets = request.Provider.Provider.Configuration is HttpSpeechProviderConfiguration http
+            ? [http.UrlTemplate, http.BodyTemplate, .. http.Headers.SelectMany(static pair => new[] { pair.Key, pair.Value })]
+            : [];
         SensitiveFailureLogger.LogError(
             _logger,
             LogEventRegistry.CacheOperationFailed,
             exception,
             [
                 request.SpeechText,
-                request.SourceRule.Url,
-                request.SourceRule.RequestBody,
-                .. request.SourceRule.Headers.SelectMany(static pair => new[] { pair.Key, pair.Value })
+                .. providerSecrets
             ]);
     }
 }

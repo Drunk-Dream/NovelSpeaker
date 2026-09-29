@@ -1,10 +1,12 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Domain.Speech.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
@@ -28,27 +30,26 @@ public sealed class NavigationPageLifecycleTests
                 new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                 PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")]));
             var viewModel = new PlayerViewModel(
-                new FakePlaybackCoordinator(new PlaybackSnapshot(
-                    PlaybackState.Paused,
-                    "book-7",
-                    "示例小说",
-                    0,
-                    "第一章",
-                    0,
-                    1,
-                    1,
-                    "默认规则",
-                    10,
-                    0,
-                    0,
-                    null,
-                    false,
-                    false)),
+                new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
+            "book-7",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            TestSpeechProviders.Id(1),
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false)),
                 new FakePlaybackStopTimer(),
                 new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
-                new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeProviders([TestSpeechProviders.Item(1, "默认规则", true)]),
                 new FakeAppSettingsService(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -71,22 +72,21 @@ public sealed class NavigationPageLifecycleTests
     {
         WpfTestHost.RunInSta(() =>
         {
-            var playback = new FakePlaybackCoordinator(new PlaybackSnapshot(
-                PlaybackState.Playing,
-                "book-7",
-                "示例小说",
-                0,
-                "第一章",
-                0,
-                1,
-                1,
-                "默认规则",
-                10,
-                0,
-                0,
-                null,
-                false,
-                false));
+            var playback = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Playing,
+            "book-7",
+            "示例小说",
+            0,
+            "第一章",
+            0,
+            1,
+            TestSpeechProviders.Id(1),
+            "默认规则",
+            10,
+            0,
+            0,
+            null,
+            false,
+            false));
             var contentService = new FakeBookPlaybackContentService(
                 new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
                 PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")]));
@@ -96,7 +96,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeActiveCacheCoordinator(),
                 new PlaybackBackedBookDetailsQuery(contentService),
                 contentService,
-                new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
+                new FakeProviders([TestSpeechProviders.Item(1, "默认规则", true)]),
                 new FakeAppSettingsService(AppSettings.Default),
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
@@ -153,7 +153,7 @@ public sealed class NavigationPageLifecycleTests
         public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public void SetVolume(double volume) { }
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -236,17 +236,16 @@ public sealed class NavigationPageLifecycleTests
         }
     }
 
-    private sealed class FakeTtsRuleQueries : ITtsRuleQueries
+    private sealed class FakeProviders : TestCurrentSpeechProvider
     {
-        private readonly IReadOnlyList<TtsRuleSummary> _rules;
+        private readonly IReadOnlyList<SpeechProviderInstance> _rules;
 
-        public FakeTtsRuleQueries(IReadOnlyList<TtsRuleSummary> rules)
+        public FakeProviders(IReadOnlyList<SpeechProviderInstance> rules)
         {
             _rules = rules;
         }
 
-        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken) => Task.FromResult(_rules);
-        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public override Task<IReadOnlyList<SpeechProviderInstance>> GetAvailableAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<SpeechProviderInstance>>(_rules.Where(provider => ProviderConfigurationValidator.Validate(provider).IsValid).ToArray());
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

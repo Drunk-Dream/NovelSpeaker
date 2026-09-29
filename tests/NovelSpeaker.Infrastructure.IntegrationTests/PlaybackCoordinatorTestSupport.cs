@@ -1,10 +1,11 @@
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Execution;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
@@ -20,7 +21,7 @@ public sealed partial class PlaybackCoordinatorTests
     private static PlaybackCoordinator CreateCoordinator(
         FakeLocalAudioPlaybackCoordinator localCoordinator,
         FakeBookPlaybackContentService? bookContentService = null,
-        FakeSelectedTtsRuleProvider? selectedRuleProvider = null,
+        FakeCurrentSpeechProvider? selectedProviderProvider = null,
         FakeAudioGenerationProvider? audioProvider = null,
         PlaybackBookContent? book = null,
         FakeReadingProgressStore? readingProgressStore = null,
@@ -31,7 +32,7 @@ public sealed partial class PlaybackCoordinatorTests
         var audioController = new PlaybackAudioController(localCoordinator);
         return new PlaybackCoordinator(
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
-            selectedRuleProvider ?? new FakeSelectedTtsRuleProvider(CreateRuleSelection(1, "默认规则")),
+            selectedProviderProvider ?? new FakeCurrentSpeechProvider(CreateRuleSelection(1, "默认规则")),
             new PlaybackSegmentRunner(
                 audioProvider ?? new FakeAudioGenerationProvider(),
                 audioController),
@@ -110,23 +111,11 @@ public sealed partial class PlaybackCoordinatorTests
             ]);
     }
 
-    private static SelectedPlaybackRule CreateRuleSelection(long id, string name)
+    private static ResolvedSpeechProvider CreateRuleSelection(long id, string name)
     {
-        var rule = TestHttpTtsRules.Create(
-            id,
-            name,
-            "https://example.com/tts?text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}",
-            "audio/mpeg",
-            null,
-            null,
-            null,
-            null,
-            true,
-            null,
-            "2026-06-24T00:00:00.0000000Z",
-            "2026-06-24T00:00:00.0000000Z");
+        var rule = TestSpeechProviders.Create(id, name, "https://example.com/tts?text={{encodeURIComponent(speakText)}}&speed={{speakSpeed}}");
 
-        return new SelectedPlaybackRule(id, name, rule, rule.Normalize());
+        return TestSpeechProviders.Resolve(rule);
     }
 
     private static async Task WaitForAsync(
@@ -237,35 +226,35 @@ public sealed partial class PlaybackCoordinatorTests
         }
     }
 
-    private sealed class FakeSelectedTtsRuleProvider : ISelectedTtsRuleProvider
+    private sealed class FakeCurrentSpeechProvider : TestCurrentSpeechProvider
     {
-        private readonly Dictionary<long, SelectedPlaybackRule> _rules = [];
+        private readonly Dictionary<ProviderId, ResolvedSpeechProvider> _rules = [];
 
-        public FakeSelectedTtsRuleProvider(SelectedPlaybackRule? selectedRule)
+        public FakeCurrentSpeechProvider(ResolvedSpeechProvider? selectedProvider)
         {
-            if (selectedRule is not null)
+            if (selectedProvider is not null)
             {
-                SelectedRule = selectedRule;
-                _rules[selectedRule.RuleId] = selectedRule;
+                SelectedProvider = selectedProvider;
+                _rules[selectedProvider.ProviderId] = selectedProvider;
             }
         }
 
-        public SelectedPlaybackRule? SelectedRule { get; private set; }
+        public ResolvedSpeechProvider? SelectedProvider { get; private set; }
 
-        public void RegisterSelectable(SelectedPlaybackRule rule)
+        public void RegisterSelectable(ResolvedSpeechProvider rule)
         {
-            _rules[rule.RuleId] = rule;
+            _rules[rule.ProviderId] = rule;
         }
 
-        public Task<SelectedPlaybackRule?> GetSelectedRuleAsync(CancellationToken cancellationToken)
+        public override Task<ResolvedSpeechProvider?> GetSelectedProviderAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult(SelectedRule);
+            return Task.FromResult(SelectedProvider);
         }
 
-        public Task<SelectedPlaybackRule?> SelectRuleAsync(long ruleId, CancellationToken cancellationToken)
+        public override Task<ResolvedSpeechProvider?> SelectProviderAsync(ProviderId ruleId, CancellationToken cancellationToken)
         {
-            SelectedRule = _rules.GetValueOrDefault(ruleId);
-            return Task.FromResult(SelectedRule);
+            SelectedProvider = _rules.GetValueOrDefault(ruleId);
+            return Task.FromResult(SelectedProvider);
         }
     }
 

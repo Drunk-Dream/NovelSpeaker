@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Domain.Books;
@@ -18,7 +18,7 @@ public sealed class ExportChaptersService : IExportChaptersService
     private readonly IBookPlaybackMetadataQuery _metadataQuery;
     private readonly IChapterSpeechPlanStore _speechPlanStore;
     private readonly IRegexReplacementRuleRepository _regexRuleRepository;
-    private readonly ISelectedTtsRuleProvider _selectedRuleProvider;
+    private readonly ICurrentSpeechProvider _providers;
     private readonly IAppSettingsService _settingsService;
     private readonly ExportFileNameSanitizer _fileNameSanitizer;
     private readonly IChapterMp3ExportWriter _writer;
@@ -27,7 +27,7 @@ public sealed class ExportChaptersService : IExportChaptersService
         IBookPlaybackMetadataQuery metadataQuery,
         IChapterSpeechPlanStore speechPlanStore,
         IRegexReplacementRuleRepository regexRuleRepository,
-        ISelectedTtsRuleProvider selectedRuleProvider,
+        ICurrentSpeechProvider providers,
         IAppSettingsService settingsService,
         ExportFileNameSanitizer fileNameSanitizer,
         IChapterMp3ExportWriter writer)
@@ -35,7 +35,7 @@ public sealed class ExportChaptersService : IExportChaptersService
         _metadataQuery = metadataQuery;
         _speechPlanStore = speechPlanStore;
         _regexRuleRepository = regexRuleRepository;
-        _selectedRuleProvider = selectedRuleProvider;
+        _providers = providers;
         _settingsService = settingsService;
         _fileNameSanitizer = fileNameSanitizer;
         _writer = writer;
@@ -72,14 +72,12 @@ public sealed class ExportChaptersService : IExportChaptersService
 
         cancellationToken.ThrowIfCancellationRequested();
         var settings = _settingsService.Current;
-        var selectedRule = await _selectedRuleProvider
-            .GetSelectedRuleAsync(cancellationToken)
+        var provider = await _providers
+            .GetConfigurationAsync(settings.CurrentProviderId, cancellationToken)
             .ConfigureAwait(false);
-        if (selectedRule is null ||
-            settings.SelectedTtsRuleId is null ||
-            selectedRule.RuleId != settings.SelectedTtsRuleId.Value)
+        if (provider is null)
         {
-            return ExportChaptersResult.Failed(ExportChaptersStatus.SelectedRuleUnavailable);
+            return ExportChaptersResult.Failed(ExportChaptersStatus.SelectedProviderUnavailable);
         }
 
         var book = await _metadataQuery
@@ -112,7 +110,7 @@ public sealed class ExportChaptersService : IExportChaptersService
         }
 
         var synthesisProfile = SynthesisProfileFingerprint.Create(
-            TtsRuleFingerprint.Create(selectedRule.NormalizedRule),
+            ProviderSynthesisFingerprint.Create(provider),
             AppSettings.NormalizeSpeakSpeed(settings.DefaultSpeakSpeed));
         var plans = new List<ChapterMp3ExportPlan>(chapterIndices.Length);
         foreach (var chapterIndex in chapterIndices)

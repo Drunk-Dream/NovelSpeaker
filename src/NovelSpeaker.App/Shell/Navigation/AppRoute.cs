@@ -7,7 +7,6 @@ public enum AppRouteId
     Player,
     Settings,
     PlaybackSettings,
-    TtsRules,
     ImportTextSettings,
     RegexReplacementRules,
     ChapterRules,
@@ -15,7 +14,9 @@ public enum AppRouteId
     CacheManagement,
     GeneralSettings,
     AppearanceSettings,
-    DiagnosticsAbout
+    DiagnosticsAbout,
+    SpeechServices,
+    ExperimentalFeatures
 }
 
 public enum PlayerNavigationMode
@@ -108,9 +109,9 @@ public sealed record PlayerRoute : AppRoute
 public static class AppRoutes
 {
     public static AppRoute Library { get; } = new ParameterlessAppRoute(AppRouteId.Library);
+    public static AppRoute SpeechServices { get; } = new ParameterlessAppRoute(AppRouteId.SpeechServices);
     public static AppRoute Settings { get; } = new ParameterlessAppRoute(AppRouteId.Settings);
     public static AppRoute PlaybackSettings { get; } = new ParameterlessAppRoute(AppRouteId.PlaybackSettings);
-    public static AppRoute TtsRules { get; } = new ParameterlessAppRoute(AppRouteId.TtsRules);
     public static AppRoute ImportTextSettings { get; } = new ParameterlessAppRoute(AppRouteId.ImportTextSettings);
     public static AppRoute RegexReplacementRules { get; } = new ParameterlessAppRoute(AppRouteId.RegexReplacementRules);
     public static AppRoute ChapterRules { get; } = new ParameterlessAppRoute(AppRouteId.ChapterRules);
@@ -118,5 +119,6 @@ public static class AppRoutes
     public static AppRoute CacheManagement { get; } = new ParameterlessAppRoute(AppRouteId.CacheManagement);
     public static AppRoute GeneralSettings { get; } = new ParameterlessAppRoute(AppRouteId.GeneralSettings);
     public static AppRoute AppearanceSettings { get; } = new ParameterlessAppRoute(AppRouteId.AppearanceSettings);
+    public static AppRoute ExperimentalFeatures { get; } = new ParameterlessAppRoute(AppRouteId.ExperimentalFeatures);
     public static AppRoute DiagnosticsAbout { get; } = new ParameterlessAppRoute(AppRouteId.DiagnosticsAbout);
 }

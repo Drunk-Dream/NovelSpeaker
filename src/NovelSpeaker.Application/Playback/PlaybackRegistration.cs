@@ -4,8 +4,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.Application.Speech.Rules;
-using NovelSpeaker.Application.Speech.Testing;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Observability;
 
 namespace NovelSpeaker.Application.Playback;
@@ -19,7 +18,6 @@ public static class PlaybackRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, PlaybackContentResolver>();
-        services.TryAddSingleton<ITtsRulePreviewAudioPlayer, TtsRulePreviewAudioPlayer>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
         services.TryAddSingleton<PlaybackAudioController>(serviceProvider =>
             new PlaybackAudioController(serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>()));
@@ -30,7 +28,7 @@ public static class PlaybackRegistration
         services.TryAddSingleton<PlaybackCoordinator>(serviceProvider =>
             new PlaybackCoordinator(
                 serviceProvider.GetRequiredService<IBookPlaybackContentService>(),
-                serviceProvider.GetRequiredService<ISelectedTtsRuleProvider>(),
+                serviceProvider.GetRequiredService<ICurrentSpeechProvider>(),
                 serviceProvider.GetRequiredService<PlaybackSegmentRunner>(),
                 serviceProvider.GetRequiredService<PlaybackRecoveryPolicy>(),
                 serviceProvider.GetRequiredService<IAudioCacheProtectionRegistry>(),

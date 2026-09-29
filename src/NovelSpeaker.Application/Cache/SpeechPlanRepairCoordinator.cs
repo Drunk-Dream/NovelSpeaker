@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache;
-using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 

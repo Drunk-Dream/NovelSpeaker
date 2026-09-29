@@ -4,7 +4,7 @@ public enum ExportChaptersStatus
 {
     Succeeded,
     BookNotFound,
-    SelectedRuleUnavailable,
+    SelectedProviderUnavailable,
     ChapterNotFound,
     ChapterSpeechPlanUnavailable,
     ChapterHasNoPlayableSegments,

@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Playback;
@@ -12,7 +12,7 @@ internal sealed record PlaybackSnapshotProjectionInput(
     PlaybackBookContent Book,
     int ChapterIndex,
     int SegmentIndex,
-    SelectedPlaybackRule? SelectedRule,
+    ResolvedSpeechProvider? SelectedProvider,
     int SpeakSpeed,
     long PositionMilliseconds,
     long DurationMilliseconds,
@@ -43,8 +43,8 @@ internal static class PlaybackSnapshotProjector
             chapter?.Title,
             input.SegmentIndex,
             input.SegmentCountOverride ?? chapter?.Segments.Count ?? 0,
-            input.SelectedRule?.RuleId,
-            input.SelectedRule?.RuleName,
+            input.SelectedProvider?.ProviderId,
+            input.SelectedProvider?.ProviderName,
             AppSettings.NormalizeSpeakSpeed(input.SpeakSpeed),
             input.PositionMilliseconds,
             input.DurationMilliseconds,
@@ -52,7 +52,7 @@ internal static class PlaybackSnapshotProjector
             input.IsUsingCache,
             input.CanRetry,
             input.Book.BookAuthor,
-            input.SelectedRule is not null,
+            input.SelectedProvider is not null,
             input.ContentRevision,
             PlaybackVolume.Normalize(input.Volume));
     }

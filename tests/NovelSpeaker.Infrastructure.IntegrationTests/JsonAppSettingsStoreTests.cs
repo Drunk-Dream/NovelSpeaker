@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
 using NovelSpeaker.TestKit.Common;
@@ -10,6 +11,22 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class JsonAppSettingsStoreTests
 {
+    [Theory]
+    [InlineData(0)]
+    [InlineData(10)]
+    [InlineData(100)]
+    public async Task Load_preserves_existing_speed_without_rewriting_settings(int speed)
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var directories = new AppDataDirectoryProvider(temporaryDirectory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var original = $"{{\"DefaultSpeakSpeed\":{speed}}}";
+        await File.WriteAllTextAsync(directories.SettingsPath, original);
+        var settings = await new JsonAppSettingsStore(directories).LoadAsync(CancellationToken.None);
+        Assert.Equal(speed, settings.DefaultSpeakSpeed);
+        Assert.Equal(original, await File.ReadAllTextAsync(directories.SettingsPath));
+    }
+
     [Fact]
     public async Task LoadAsync_returns_defaults_when_settings_file_does_not_exist()
     {
@@ -22,9 +39,9 @@ public sealed class JsonAppSettingsStoreTests
 
         Assert.True(settings.EnableLongParagraphSplitting);
         Assert.Equal(300, settings.LongParagraphThreshold);
-        Assert.Equal(10, settings.DefaultSpeakSpeed);
+        Assert.Equal(50, settings.DefaultSpeakSpeed);
         Assert.Equal(2, settings.PrefetchCount);
-        Assert.False(settings.ReadChapterTitle);
+        Assert.True(settings.ReadChapterTitle);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
         Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
@@ -45,7 +62,7 @@ public sealed class JsonAppSettingsStoreTests
         {
             EnableLongParagraphSplitting = false,
             LongParagraphThreshold = 42,
-            SelectedTtsRuleId = 42,
+            CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(42),
             ReadChapterTitle = true,
             CacheLimitBytes = 512L * 1024 * 1024,
             PlaybackVolume = 0.35,
@@ -54,6 +71,7 @@ public sealed class JsonAppSettingsStoreTests
             MiniPlayerLeft = 123.5,
             MiniPlayerTop = 456.25,
             MiniPlayerTopmost = true,
+            EnabledExperimentalFeatureIds = ["microsoft-edge-tts", "unknown-feature"],
             BookFileNameTemplate = "《{{name}}》 - {{author}}"
         };
 
@@ -62,7 +80,7 @@ public sealed class JsonAppSettingsStoreTests
 
         Assert.False(reloaded.EnableLongParagraphSplitting);
         Assert.Equal(50, reloaded.LongParagraphThreshold);
-        Assert.Equal(42, reloaded.SelectedTtsRuleId);
+        Assert.Equal(ProviderId.FromLegacyHttpTtsRuleId(42), reloaded.CurrentProviderId);
         Assert.True(reloaded.ReadChapterTitle);
         Assert.Equal(512L * 1024 * 1024, reloaded.CacheLimitBytes);
         Assert.Equal(0.35, reloaded.PlaybackVolume);
@@ -71,7 +89,28 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(123.5, reloaded.MiniPlayerLeft);
         Assert.Equal(456.25, reloaded.MiniPlayerTop);
         Assert.True(reloaded.MiniPlayerTopmost);
+        Assert.Equal(["microsoft-edge-tts", "unknown-feature"], reloaded.EnabledExperimentalFeatureIds);
         Assert.Equal("《{{name}}》 - {{author}}", reloaded.BookFileNameTemplate);
+    }
+
+    [Fact]
+    public async Task LoadAsync_migrates_legacy_selected_rule_to_current_provider_and_rewrites_settings()
+    {
+        using var temporaryDirectory = new TemporaryDirectory();
+        var directories = new AppDataDirectoryProvider(temporaryDirectory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        await File.WriteAllTextAsync(
+            directories.SettingsPath,
+            """{"SelectedTtsRuleId":42,"Theme":"Dark"}""",
+            CancellationToken.None);
+        var store = new JsonAppSettingsStore(directories);
+
+        var settings = await store.LoadAsync(CancellationToken.None);
+        var persisted = await File.ReadAllTextAsync(directories.SettingsPath, CancellationToken.None);
+
+        Assert.Equal(ProviderId.FromLegacyHttpTtsRuleId(42), settings.CurrentProviderId);
+        Assert.Contains("CurrentProviderId", persisted, StringComparison.Ordinal);
+        Assert.DoesNotContain("SelectedTtsRuleId", persisted, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -119,7 +158,7 @@ public sealed class JsonAppSettingsStoreTests
         var settings = await store.LoadAsync(CancellationToken.None);
 
         Assert.Equal(50, settings.LongParagraphThreshold);
-        Assert.Equal(20, settings.DefaultSpeakSpeed);
+        Assert.Equal(99, settings.DefaultSpeakSpeed);
         Assert.Equal(2, settings.PrefetchCount);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);

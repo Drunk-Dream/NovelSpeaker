@@ -7,7 +7,7 @@ public sealed record AudioCacheWriteRequest(
     AudioCacheKey Key,
     string BookId,
     int ChapterIndex,
-    long RuleId,
+    long LegacyRuleId,
     string SourceFilePath,
     string? ContentType,
     long? DurationMilliseconds = null);

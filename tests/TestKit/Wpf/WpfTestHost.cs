@@ -505,7 +505,7 @@ internal static class WpfTestHost
         Exception? cleanupException = null;
         try
         {
-            desktop?.ReleaseDesktopHandle();
+            if (desktop is not null) ReleaseDesktopAfterThreadExit(desktop, DispatcherShutdownTimeout);
             WindowsTestDesktop.RetryPendingCleanup();
         }
         catch (Exception exception)
@@ -582,11 +582,34 @@ internal static class WpfTestHost
     {
         var desktop = _desktop ?? throw new InvalidOperationException(
             "WPF test Desktop cleanup was requested without a Desktop owner.");
-        desktop.ReleaseDesktopHandle();
+        ReleaseDesktopAfterThreadExit(desktop, DispatcherShutdownTimeout);
         if (desktop.IsDesktopHandleReleased && ReferenceEquals(_desktop, desktop))
         {
             _desktop = null;
             _desktopInfo = null;
+        }
+    }
+
+    internal static void ReleaseDesktopAfterThreadExit(WindowsTestDesktop desktop, TimeSpan timeout)
+    {
+        WindowsTestDesktopInitializationException? busyFailure = null;
+        // Native WPF cleanup may outlive the exited dispatcher thread. Wait for
+        // CloseDesktop to confirm release; every other error still fails closed.
+        if (!SpinWait.SpinUntil(() =>
+            {
+                try
+                {
+                    desktop.ReleaseDesktopHandle();
+                    return true;
+                }
+                catch (WindowsTestDesktopInitializationException exception) when (exception.NativeErrorCode == 170)
+                {
+                    busyFailure = exception;
+                    return false;
+                }
+            }, timeout))
+        {
+            throw busyFailure ?? new InvalidOperationException("The isolated Desktop could not be released.");
         }
     }
 

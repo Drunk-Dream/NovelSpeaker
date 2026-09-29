@@ -17,9 +17,9 @@ public sealed partial class SettingsViewModel : ObservableObject
             new SettingsNavigationGroupViewModel(
                 "常用",
                 [
+                    new SettingsNavigationItemViewModel("常规", SettingsNavigationIcon.General, OpenGeneralSettingsCommand),
                     new SettingsNavigationItemViewModel("播放设置", SettingsNavigationIcon.Playback, OpenPlaybackSettingsCommand),
-                    new SettingsNavigationItemViewModel("TTS 规则", SettingsNavigationIcon.TtsRules, OpenTtsRulesCommand),
-                    new SettingsNavigationItemViewModel("常规", SettingsNavigationIcon.General, OpenGeneralSettingsCommand)
+                    new SettingsNavigationItemViewModel("语音服务", SettingsNavigationIcon.SpeechServices, OpenSpeechServicesCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
                 "文本处理",
@@ -32,6 +32,7 @@ public sealed partial class SettingsViewModel : ObservableObject
                 [
                     new SettingsNavigationItemViewModel("缓存与数据", SettingsNavigationIcon.CacheAndData, OpenCacheAndDataCommand),
                     new SettingsNavigationItemViewModel("外观", SettingsNavigationIcon.Appearance, OpenAppearanceSettingsCommand),
+                    new SettingsNavigationItemViewModel("实验性功能", SettingsNavigationIcon.ExperimentalFeatures, OpenExperimentalFeaturesCommand),
                     new SettingsNavigationItemViewModel("诊断与关于", SettingsNavigationIcon.Diagnostics, OpenDiagnosticsAboutCommand)
                 ])
         ];
@@ -40,15 +41,13 @@ public sealed partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<SettingsNavigationGroupViewModel> Groups { get; }
 
     [RelayCommand]
+    private Task OpenSpeechServicesAsync(CancellationToken cancellationToken) =>
+        _navigator.NavigateAsync(AppRoutes.SpeechServices, cancellationToken);
+
+    [RelayCommand]
     private Task OpenPlaybackSettingsAsync(CancellationToken cancellationToken)
     {
         return _navigator.NavigateAsync(AppRoutes.PlaybackSettings, cancellationToken);
-    }
-
-    [RelayCommand]
-    private Task OpenTtsRulesAsync(CancellationToken cancellationToken)
-    {
-        return _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken);
     }
 
     [RelayCommand]
@@ -80,6 +79,10 @@ public sealed partial class SettingsViewModel : ObservableObject
     {
         return _navigator.NavigateAsync(AppRoutes.GeneralSettings, cancellationToken);
     }
+
+    [RelayCommand]
+    private Task OpenExperimentalFeaturesAsync(CancellationToken cancellationToken) =>
+        _navigator.NavigateAsync(AppRoutes.ExperimentalFeatures, cancellationToken);
 
     [RelayCommand]
     private Task OpenDiagnosticsAboutAsync(CancellationToken cancellationToken)

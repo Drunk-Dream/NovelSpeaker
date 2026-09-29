@@ -1,6 +1,6 @@
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.Application.Speech.Rules;
 using NovelSpeaker.Domain.Settings;
 
 namespace NovelSpeaker.Application.Cache;
@@ -11,24 +11,24 @@ namespace NovelSpeaker.Application.Cache;
 internal sealed class CacheConfigurationChangeObserver : IDisposable
 {
     private readonly IAppSettingsService _settingsService;
-    private readonly ITtsRuleEditorUseCase _ttsRuleEditor;
     private readonly IRegexReplacementRuleWorkspaceService? _regexWorkspace;
     private readonly Action<CacheInvalidation> _publish;
+    private readonly ICurrentSpeechProvider? _providers;
     private bool _disposed;
 
     public CacheConfigurationChangeObserver(
         IAppSettingsService settingsService,
-        ITtsRuleEditorUseCase ttsRuleEditor,
         IRegexReplacementRuleWorkspaceService? regexWorkspace,
-        Action<CacheInvalidation> publish)
+        Action<CacheInvalidation> publish,
+        ICurrentSpeechProvider? providers = null)
     {
         _settingsService = settingsService;
-        _ttsRuleEditor = ttsRuleEditor;
         _regexWorkspace = regexWorkspace;
         _publish = publish;
+        _providers = providers;
+        if (providers is not null) providers.Changed += OnProvidersChanged;
 
         _settingsService.Changed += OnSettingsChanged;
-        _ttsRuleEditor.Changed += OnTtsRuleChanged;
         if (_regexWorkspace is not null)
         {
             _regexWorkspace.Changed += OnRegexRulesChanged;
@@ -44,24 +44,21 @@ internal sealed class CacheConfigurationChangeObserver : IDisposable
 
         _disposed = true;
         _settingsService.Changed -= OnSettingsChanged;
-        _ttsRuleEditor.Changed -= OnTtsRuleChanged;
+        if (_providers is not null) _providers.Changed -= OnProvidersChanged;
         if (_regexWorkspace is not null)
         {
             _regexWorkspace.Changed -= OnRegexRulesChanged;
         }
     }
 
+    private void OnProvidersChanged(object? sender, SpeechProvidersChangedEventArgs e)
+    {
+        if (e.AffectsSynthesis) PublishCoverageInvalidation();
+    }
+
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs e)
     {
         if (AffectsCoverage(e.Previous, e.Current))
-        {
-            PublishCoverageInvalidation();
-        }
-    }
-
-    private void OnTtsRuleChanged(object? sender, TtsRuleChangedEventArgs e)
-    {
-        if (_settingsService.Current.SelectedTtsRuleId == e.RuleId)
         {
             PublishCoverageInvalidation();
         }
@@ -79,7 +76,6 @@ internal sealed class CacheConfigurationChangeObserver : IDisposable
         _publish(CacheInvalidation.ForGlobal(CacheInvalidationAspect.Coverage));
 
     private static bool AffectsCoverage(AppSettings previous, AppSettings current) =>
-        previous.SelectedTtsRuleId != current.SelectedTtsRuleId ||
         previous.DefaultSpeakSpeed != current.DefaultSpeakSpeed ||
         previous.ReadChapterTitle != current.ReadChapterTitle ||
         previous.EnableLongParagraphSplitting != current.EnableLongParagraphSplitting ||

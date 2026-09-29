@@ -35,14 +35,18 @@
         <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="12,8" />
-        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="{StaticResource App.Padding.Input.Standard}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Input.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="TextAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="SelectionBrush" Value="{DynamicResource App.Brush.Accent}" />
         <Setter Property="SelectionTextBrush" Value="{DynamicResource App.Brush.Accent.Text}" />
         <Setter Property="CaretBrush" Value="{DynamicResource App.Brush.Accent}" />
         <Style.Triggers>
+            <Trigger Property="AcceptsReturn" Value="True">
+                <Setter Property="VerticalContentAlignment" Value="Top" />
+            </Trigger>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Interaction.Border.Hover}" />
             </Trigger>
@@ -76,8 +80,8 @@
     <Style x:Key="App.Input.TextBox.Compact"
            TargetType="{x:Type TextBox}"
            BasedOn="{StaticResource App.Input.TextBox.Standard}">
-        <Setter Property="Padding" Value="10,4" />
-        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+        <Setter Property="Padding" Value="{StaticResource App.Padding.Input.Compact}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Input.Compact}" />
     </Style>
 
     <Style x:Key="App.Input.PasswordBox.Standard"
@@ -90,8 +94,8 @@
         <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="12,8" />
-        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="{StaticResource App.Padding.Input.Standard}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Input.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
@@ -124,8 +128,8 @@
     <Style x:Key="App.Input.PasswordBox.Compact"
            TargetType="{x:Type PasswordBox}"
            BasedOn="{StaticResource App.Input.PasswordBox.Standard}">
-        <Setter Property="Padding" Value="10,4" />
-        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+        <Setter Property="Padding" Value="{StaticResource App.Padding.Input.Compact}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Input.Compact}" />
     </Style>
 
     <Style x:Key="App.Input.ComboBox.Item"
@@ -233,8 +237,8 @@
         <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Primary}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="12,8" />
-        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Standard}" />
+        <Setter Property="Padding" Value="{StaticResource App.Padding.Input.Standard}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Input.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="ItemContainerStyle" Value="{StaticResource App.Input.ComboBox.Item}" />
@@ -472,8 +476,8 @@
                 </TextBlock>
             </DataTemplate>
         </Style.Resources>
-        <Setter Property="Padding" Value="10,4" />
-        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
+        <Setter Property="Padding" Value="{StaticResource App.Padding.Input.Compact}" />
+        <Setter Property="MinHeight" Value="{StaticResource App.Size.Input.Compact}" />
     </Style>
 
     <Style x:Key="App.Input.CheckBox.Standard"

@@ -1,3 +1,4 @@
+using NovelSpeaker.Domain.Speech.Providers;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -7,7 +8,7 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
@@ -27,7 +28,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private readonly IPlaybackStopTimer _stopTimer;
     private readonly IAppNavigator _navigator;
     private readonly IUiScheduler _uiScheduler;
-    private readonly ResettableObservableCollection<PlayerRuleItemViewModel> _rules = [];
+    private readonly IAppSettingsService _settingsService;
+    private readonly ICurrentSpeechProvider _providersSource;
+
+    private readonly ResettableObservableCollection<PlayerProviderItemViewModel> _providers = [];
     private readonly IAppFeedbackService _feedbackService;
     private readonly IMiniPlayerLauncher _miniPlayerLauncher;
     private readonly TimeProvider _timeProvider;
@@ -52,7 +56,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         IActiveCacheCoordinator activeCacheCoordinator,
         IBookDetailsQuery bookDetailsQuery,
         IBookPlaybackContentService bookPlaybackContentService,
-        ITtsRuleQueries ruleQueries,
+        ICurrentSpeechProvider providers,
         IAppSettingsService settingsService,
         IAppFeedbackService feedbackService,
         IAppNavigator navigator,
@@ -75,9 +79,11 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             bookPlaybackContentService,
             _uiScheduler);
         _playbackProjection = new PlayerPlaybackProjection();
+        _settingsService = settingsService;
+        _providersSource = providers;
         _speechControlController = new PlayerSpeechControlController(
             playbackCoordinator,
-            ruleQueries,
+            providers,
             settingsService,
             feedbackService,
             _timeProvider);
@@ -97,7 +103,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         ApplyStopTimerSnapshot(_stopTimer.CurrentSnapshot);
     }
 
-    public ObservableCollection<PlayerRuleItemViewModel> Rules => _rules;
+    public ObservableCollection<PlayerProviderItemViewModel> Providers => _providers;
 
     public ObservableCollection<PlayerChapterItemViewModel> Chapters => _contentController.Chapters;
 
@@ -105,18 +111,20 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public int? CurrentChapterPosition => _contentController.GetChapterPosition(CurrentChapterIndex);
 
-    public bool HasRules => Rules.Count > 0;
+    public bool HasProviders => Providers.Count > 0;
 
-    public bool ShowPlaybackControls => HasAvailableRule;
+    public string ProviderUnavailableTitle => HasProviders ? "尚未选择语音服务" : "尚无可用的语音服务";
 
-    public bool ShowNoRuleState => !HasAvailableRule;
+    public bool ShowPlaybackControls => HasAvailableProvider;
+
+    public bool ShowNoProviderState => !HasAvailableProvider;
 
     public bool ShowPlaybackErrorBar => IsFaulted && !string.IsNullOrWhiteSpace(ErrorText);
 
     public bool ShowEmptyChapterState =>
-        IsCurrentChapterContentLoaded && CurrentChapterSegmentCount == 0 && HasAvailableRule;
+        IsCurrentChapterContentLoaded && CurrentChapterSegmentCount == 0 && HasAvailableProvider;
 
-    public bool CanTogglePlayPause => HasAvailableRule && !IsFaulted && !ShowEmptyChapterState;
+    public bool CanTogglePlayPause => HasAvailableProvider && !IsFaulted && !ShowEmptyChapterState;
 
     public bool CanDecreaseSpeakSpeed => SpeakSpeed > AppSettings.MinSpeakSpeed;
 
@@ -202,7 +210,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private bool isFaulted;
 
     [ObservableProperty]
-    private bool hasAvailableRule = true;
+    private bool hasAvailableProvider = true;
 
     [ObservableProperty]
     private PlaybackState currentPlaybackState = PlaybackState.Idle;
@@ -232,7 +240,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private bool canGoToNextSegment;
 
     [ObservableProperty]
-    private bool isRuleMenuOpen;
+    private bool isProviderMenuOpen;
 
     [ObservableProperty]
     private bool isSpeedMenuOpen;
@@ -292,7 +300,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             SpeakSpeed = _speechControlController.DefaultSpeakSpeed;
         }
 
-        await RefreshRulesAsync(cancellationToken);
+        await RefreshProvidersAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
     }
@@ -325,7 +333,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         {
             ApplySnapshot(snapshot);
             await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
-            await RestoreMissingRuleSessionAsync(request.BookId, snapshot, cancellationToken);
+            await RestoreMissingProviderSessionAsync(request.BookId, snapshot, cancellationToken);
             return;
         }
 
@@ -415,6 +423,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
+        _providersSource.Changed -= OnProvidersChanged;
         _playbackCoordinator.SnapshotChanged -= OnSnapshotChanged;
         _stopTimer.SnapshotChanged -= OnStopTimerSnapshotChanged;
         _isPageEventsRegistered = false;
@@ -443,6 +452,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
+        _providersSource.Changed += OnProvidersChanged;
         _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
         _stopTimer.SnapshotChanged += OnStopTimerSnapshotChanged;
         _isPageEventsRegistered = true;
@@ -552,18 +562,18 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     }
 
     [RelayCommand]
-    private void ToggleRuleMenu()
+    private void ToggleProviderMenu()
     {
         IsSpeedMenuOpen = false;
         IsStopTimerMenuOpen = false;
         IsVolumeMenuOpen = false;
-        IsRuleMenuOpen = !IsRuleMenuOpen;
+        IsProviderMenuOpen = !IsProviderMenuOpen;
     }
 
     [RelayCommand]
     private void ToggleSpeedMenu()
     {
-        IsRuleMenuOpen = false;
+        IsProviderMenuOpen = false;
         IsStopTimerMenuOpen = false;
         IsVolumeMenuOpen = false;
         if (!IsSpeedMenuOpen)
@@ -576,18 +586,18 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     }
 
     [RelayCommand]
-    private void OpenRuleMenu()
+    private void OpenProviderMenu()
     {
         IsSpeedMenuOpen = false;
         IsStopTimerMenuOpen = false;
         IsVolumeMenuOpen = false;
-        IsRuleMenuOpen = true;
+        IsProviderMenuOpen = true;
     }
 
     [RelayCommand]
     private void ToggleStopTimerMenu()
     {
-        IsRuleMenuOpen = false;
+        IsProviderMenuOpen = false;
         IsSpeedMenuOpen = false;
         IsVolumeMenuOpen = false;
         CustomStopTimerErrorText = string.Empty;
@@ -597,7 +607,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     [RelayCommand]
     private void ToggleVolumeMenu()
     {
-        IsRuleMenuOpen = false;
+        IsProviderMenuOpen = false;
         IsSpeedMenuOpen = false;
         IsStopTimerMenuOpen = false;
         IsVolumeMenuOpen = !IsVolumeMenuOpen;
@@ -646,13 +656,6 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         _stopTimer.Cancel();
         IsStopTimerMenuOpen = false;
-    }
-
-    [RelayCommand]
-    private async Task OpenRulesManagementAsync(CancellationToken cancellationToken)
-    {
-        CloseTransientPanels();
-        await _navigator.NavigateAsync(AppRoutes.TtsRules, cancellationToken).ConfigureAwait(true);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -721,16 +724,23 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
-    private async Task SelectRuleAsync(PlayerRuleItemViewModel? rule, CancellationToken cancellationToken)
+    private async Task SelectProviderAsync(PlayerProviderItemViewModel? provider, CancellationToken cancellationToken)
     {
-        if (rule is null || !rule.IsEnabled || rule.IsSelected || _playbackCoordinator.CurrentSnapshot.RuleId == rule.Id)
+        if (provider is null || provider.IsSelected)
         {
             return;
         }
 
-        await _speechControlController.ChangeRuleAsync(rule.Id, cancellationToken);
-        await RefreshRulesAsync(cancellationToken);
-        IsRuleMenuOpen = false;
+        await _speechControlController.ChangeProviderAsync(provider.Id, cancellationToken);
+        await RefreshProvidersAsync(cancellationToken);
+        IsProviderMenuOpen = false;
+    }
+
+    [RelayCommand]
+    private Task OpenSpeechServicesAsync(CancellationToken cancellationToken)
+    {
+        CloseTransientPanels();
+        return _navigator.NavigateAsync(AppRoutes.SpeechServices, cancellationToken);
     }
 
     [RelayCommand(AllowConcurrentExecutions = false)]
@@ -869,7 +879,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return HandleActiveCacheEscape();
         }
 
-        if (IsRuleMenuOpen || IsSpeedMenuOpen || IsStopTimerMenuOpen || IsVolumeMenuOpen)
+        if (IsProviderMenuOpen || IsSpeedMenuOpen || IsStopTimerMenuOpen || IsVolumeMenuOpen)
         {
             CloseTransientPanels();
             return true;
@@ -993,10 +1003,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         OnPropertyChanged(nameof(PrimaryAction));
     }
 
-    partial void OnHasAvailableRuleChanged(bool value)
+    partial void OnHasAvailableProviderChanged(bool value)
     {
         OnPropertyChanged(nameof(ShowPlaybackControls));
-        OnPropertyChanged(nameof(ShowNoRuleState));
+        OnPropertyChanged(nameof(ShowNoProviderState));
         OnPropertyChanged(nameof(CanTogglePlayPause));
         OnPropertyChanged(nameof(ShowEmptyChapterState));
     }
@@ -1011,6 +1021,25 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     partial void OnErrorTextChanged(string value)
     {
         OnPropertyChanged(nameof(ShowPlaybackErrorBar));
+    }
+
+    private void OnProvidersChanged(object? sender, SpeechProvidersChangedEventArgs e)
+    {
+        if (!_isPageEventsRegistered) return;
+        var generation = _pageEventGeneration;
+        _pageTasks.Register(RefreshProvidersForPageAsync(generation));
+    }
+
+    private async Task RefreshProvidersForPageAsync(int generation)
+    {
+        try
+        {
+            await _uiScheduler.InvokeAsync(async () =>
+            {
+                if (IsCurrentPageEvent(generation)) await RefreshProvidersAsync(_pageEventCancellation.Token);
+            }, _pageEventCancellation.Token);
+        }
+        catch (OperationCanceledException) { }
     }
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
@@ -1139,7 +1168,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
                 _cacheDecorationController.RequestStatusRefresh(chapterIndex: null);
             }
 
-            if (previousSnapshot.RuleId != snapshot.RuleId ||
+            if (previousSnapshot.ProviderId != snapshot.ProviderId ||
                 previousSnapshot.SpeakSpeed != snapshot.SpeakSpeed ||
                 previousSnapshot.ContentRevision != snapshot.ContentRevision)
             {
@@ -1153,12 +1182,15 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         }
     }
 
-    private async Task RefreshRulesAsync(CancellationToken cancellationToken)
+    private async Task RefreshProvidersAsync(CancellationToken cancellationToken)
     {
-        var rules = await _speechControlController.LoadRulesAsync(cancellationToken);
-        _rules.ReplaceWith(rules, static rule => rule);
-        ApplyRuleSelection(_playbackCoordinator.CurrentSnapshot.RuleId);
-        OnPropertyChanged(nameof(HasRules));
+        var providers = await _speechControlController.LoadProvidersAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        _providers.ReplaceWith(providers, static provider => provider);
+        ApplyProviderSelection(_settingsService.Current.CurrentProviderId);
+        OnPropertyChanged(nameof(HasProviders));
+        OnPropertyChanged(nameof(ProviderUnavailableTitle));
+        UpdateProviderAvailability(_playbackCoordinator.CurrentSnapshot);
     }
 
     private async Task EnsureContentLoadedForSnapshotAsync(
@@ -1225,16 +1257,13 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         CurrentAuthor = projected.Author;
         CurrentChapterTitle = projected.ChapterTitle;
         IsFaulted = projected.IsFaulted;
-        HasAvailableRule = projected.HasAvailableRule;
+        UpdateProviderAvailability(snapshot);
         ErrorText = projected.ErrorText;
         PrimaryActionText = projected.PrimaryActionText;
-        if (projected.SpeakSpeed > 0)
+        SpeakSpeed = projected.SpeakSpeed;
+        if (!IsSpeedMenuOpen)
         {
-            SpeakSpeed = projected.SpeakSpeed;
-            if (!IsSpeedMenuOpen)
-            {
-                SpeedEditorText = projected.SpeakSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
+            SpeedEditorText = projected.SpeakSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture);
         }
 
         Volume = PlaybackVolume.Normalize(snapshot.Volume);
@@ -1244,22 +1273,24 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         _cacheDecorationController.SetCurrentChapterIndex(projected.ChapterIndex);
         CurrentSegmentIndex = projected.SegmentIndex;
         SynchronizeContentProjection(includeChapterTitle: false);
-        ApplyRuleSelection(snapshot.RuleId);
+        ApplyProviderSelection(_settingsService.Current.CurrentProviderId);
         _lastAppliedSnapshot = snapshot;
         OnPropertyChanged(nameof(CanScheduleStopTimer));
     }
 
-    private void ApplyRuleSelection(long? selectedRuleId)
+    private void ApplyProviderSelection(ProviderId? selectedProviderId)
     {
-        if (selectedRuleId is null)
+        foreach (var provider in Providers)
         {
-            return;
+            provider.IsSelected = provider.Id == selectedProviderId;
         }
+    }
 
-        foreach (var rule in Rules)
-        {
-            rule.IsSelected = rule.Id == selectedRuleId.Value;
-        }
+    private void UpdateProviderAvailability(PlaybackSnapshot snapshot)
+    {
+        HasAvailableProvider = snapshot.HasLoadedAudio && snapshot.HasAvailableProvider &&
+            snapshot.State is PlaybackState.Playing or PlaybackState.Paused or PlaybackState.Buffering or PlaybackState.Recovering ||
+            _settingsService.Current.CurrentProviderId is { } id && Providers.Any(item => item.Id == id);
     }
 
     private void SynchronizeContentProjection(bool includeChapterTitle)
@@ -1282,7 +1313,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private void CloseTransientPanels()
     {
-        IsRuleMenuOpen = false;
+        IsProviderMenuOpen = false;
         IsSpeedMenuOpen = false;
         IsStopTimerMenuOpen = false;
         IsVolumeMenuOpen = false;
@@ -1397,8 +1428,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private int ResolveSpeakSpeedForOpen()
     {
-        return AppSettings.NormalizeSpeakSpeed(
-            SpeakSpeed > 0 ? SpeakSpeed : _speechControlController.DefaultSpeakSpeed);
+        return AppSettings.NormalizeSpeakSpeed(SpeakSpeed);
     }
 
     private async Task ApplySpeakSpeedChangeAsync(int parsedSpeed, CancellationToken cancellationToken)
@@ -1410,20 +1440,20 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         SpeedEditorText = parsedSpeed.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private async Task RestoreMissingRuleSessionAsync(
+    private async Task RestoreMissingProviderSessionAsync(
         string requestedBookId,
         PlaybackSnapshot snapshot,
         CancellationToken cancellationToken)
     {
-        if (snapshot.HasAvailableRule ||
+        if (snapshot.HasAvailableProvider ||
             string.IsNullOrWhiteSpace(snapshot.BookId) ||
             !string.Equals(snapshot.BookId, requestedBookId, StringComparison.Ordinal))
         {
             return;
         }
 
-        var selectedRule = Rules.FirstOrDefault(static rule => rule.IsEnabled && rule.IsSelected);
-        if (selectedRule is null)
+        var selectedProvider = Providers.FirstOrDefault(static provider => provider.IsSelected);
+        if (selectedProvider is null)
         {
             return;
         }

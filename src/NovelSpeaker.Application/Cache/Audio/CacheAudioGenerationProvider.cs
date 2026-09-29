@@ -1,39 +1,33 @@
 using System.Collections.Concurrent;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Compilation;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Application.Observability;
 using NovelSpeaker.Domain.Speech;
+using NovelSpeaker.Domain.Speech.Providers;
 
 namespace NovelSpeaker.Application.Cache.Audio;
 
 /// <summary>
-/// Compiles the selected rule, executes HTTP TTS, and returns a local audio file for playback.
+/// Executes the bound Provider runtime, and returns a local audio file for playback.
 /// </summary>
 public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
 {
-    private readonly ITtsRequestCompiler _requestCompiler;
-    private readonly IHttpTtsClient _httpTtsClient;
+    private readonly IGeneratedAudioFileStore _files;
     private readonly IAudioCache _audioCache;
-    private readonly ITtsRateLimiter _rateLimiter;
     private readonly IAudioGenerationFailureReporter? _failureReporter;
     private readonly IObservability _observability;
     private readonly ConcurrentDictionary<AudioCacheKey, InFlightOperation> _inFlight = new();
-    private readonly ConcurrentDictionary<long, RuleExecutionState> _ruleExecutions = new();
 
     public CacheAudioGenerationProvider(
-        ITtsRequestCompiler requestCompiler,
-        IHttpTtsClient httpTtsClient,
+        IGeneratedAudioFileStore files,
         IAudioCache audioCache,
-        ITtsRateLimiter rateLimiter,
         IAudioGenerationFailureReporter? failureReporter = null,
         IObservability? observability = null)
     {
-        _requestCompiler = requestCompiler;
-        _httpTtsClient = httpTtsClient;
+        _files = files;
         _audioCache = audioCache;
-        _rateLimiter = rateLimiter;
         _failureReporter = failureReporter;
         _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
     }
@@ -105,21 +99,29 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                     existing.PromoteToCurrent();
                 }
 
-                return await existing.WaitAsync(cancellationToken).ConfigureAwait(false);
+                var result = await existing.WaitAsync(cancellationToken).ConfigureAwait(false);
+                if (priority == AudioGenerationPriority.Current && existing.ExecutionToken.IsCancellationRequested &&
+                    !cancellationToken.IsCancellationRequested && result.Failure?.Kind == TtsErrorKind.Cancelled)
+                {
+                    _inFlight.TryRemove(new KeyValuePair<AudioCacheKey, InFlightOperation>(cacheKey, existing));
+                    continue;
+                }
+                return result;
             }
 
-            TryPreemptLowerPriority(request.RuleId, cacheKey, priority);
+            TryPreemptLowerPriority(request.Provider.ProviderId, cacheKey, priority);
 
-            var operation = new InFlightOperation(request.RuleId, cacheKey, priority, cancellationToken);
+            var operation = new InFlightOperation(request.Provider.ProviderId, cacheKey, priority, cancellationToken);
             operation.RegisterListener(progressCallback);
             if (!_inFlight.TryAdd(cacheKey, operation))
             {
+                operation.Dispose();
                 continue;
             }
 
             operation.Start(
                 () => ExecuteOperationAsync(request, cacheKey, operation),
-                () => _inFlight.TryRemove(cacheKey, out _));
+                () => _inFlight.TryRemove(new KeyValuePair<AudioCacheKey, InFlightOperation>(cacheKey, operation)));
 
             return await operation.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -131,24 +133,18 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
     }
 
     private void TryPreemptLowerPriority(
-        long ruleId,
+        ProviderId providerId,
         AudioCacheKey requestedKey,
         AudioGenerationPriority requestedPriority)
     {
-        var executionState = _ruleExecutions.GetOrAdd(ruleId, static _ => new RuleExecutionState());
-        InFlightOperation? operationToCancel = null;
-
-        lock (executionState.SyncRoot)
+        foreach (var operation in _inFlight.Values)
         {
-            if (executionState.CurrentOperation is not null &&
-                executionState.CurrentOperation.Priority < requestedPriority &&
-                !Equals(executionState.CurrentOperation.CacheKey, requestedKey))
+            if (operation.ProviderId == providerId && operation.Priority < requestedPriority &&
+                !Equals(operation.CacheKey, requestedKey))
             {
-                operationToCancel = executionState.CurrentOperation;
+                operation.CancelExecution();
             }
         }
-
-        operationToCancel?.CancelExecution();
     }
 
     private async Task<AudioGenerationResult> ExecuteOperationAsync(
@@ -156,10 +152,6 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
         AudioCacheKey cacheKey,
         InFlightOperation operation)
     {
-        var executionState = _ruleExecutions.GetOrAdd(
-            request.RuleId,
-            static _ => new RuleExecutionState());
-
         try
         {
             var cached = await _audioCache.TryGetAsync(cacheKey, operation.ExecutionToken).ConfigureAwait(false);
@@ -168,115 +160,42 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                 return new AudioGenerationResult(cached.FilePath, true, null);
             }
 
-            TtsRequestCompilationResult compilation;
-            try
-            {
-                compilation = await _requestCompiler.CompileAsync(
-                    request.NormalizedRule,
-                    new TtsRuleContext(
-                        request.SpeechText,
-                        request.SpeakSpeed,
-                        request.SourceRule),
-                    operation.ExecutionToken).ConfigureAwait(false);
-            }
-            catch (FormatException exception)
-            {
-                LogFailure(request, exception, "Playback TTS rule normalization");
-                return CreateInvalidRuleResult("规则模板格式无效，请检查规则后重试。");
-            }
-
-            if (!compilation.IsSuccess)
-            {
-                return new AudioGenerationResult(null, false, compilation.Failure);
-            }
-
             while (true)
             {
-                ITtsAdmissionLease admission;
-                try
+                var synthesis = await request.Provider.Runtime.SynthesizeAsync(
+                    request.Provider.Provider,
+                    new ProviderSynthesisRequest(request.SpeechText, request.SpeakSpeed, MapAdmissionPriority(operation.Priority)),
+                    operation.ExecutionToken).ConfigureAwait(false);
+                await using var stream = synthesis.Audio;
+                operation.ExecutionToken.ThrowIfCancellationRequested();
+                if (synthesis.Failure is { Kind: ProviderSynthesisFailureKind.RateLimited, RetryAfter: { } retryAfter } &&
+                    operation.Priority == AudioGenerationPriority.Current)
                 {
-                    admission = await _rateLimiter.AcquireAsync(
-                        request.RuleId,
-                        request.NormalizedRule.ConcurrentRate,
-                        MapAdmissionPriority(operation.Priority),
-                        operation.ExecutionToken).ConfigureAwait(false);
+                    operation.ReportProgress(new AudioGenerationProgress(BuildRateLimitedMessage(retryAfter), retryAfter));
+                    continue;
                 }
-                catch (FormatException exception)
+                if (!synthesis.IsSuccess)
                 {
-                    LogFailure(request, exception, "Playback TTS rate limit parsing");
-                    return CreateInvalidRuleResult("规则限流格式无效，请检查规则后重试。");
-                }
-                catch (OperationCanceledException)
-                {
-                    return CreateCancelledResult();
-                }
-
-                await using (admission.ConfigureAwait(false))
-                {
-                    lock (executionState.SyncRoot)
+                    var kind = synthesis.Failure?.Kind switch
                     {
-                        executionState.CurrentOperation = operation;
-                    }
-
-                    try
-                    {
-                        TtsHttpExecutionResult execution;
-                        try
-                        {
-                            execution = await _httpTtsClient
-                                .ExecuteAsync(compilation.Request!, operation.ExecutionToken)
-                                .ConfigureAwait(false);
-                        }
-                        catch (OperationCanceledException)
-                        {
-                            return CreateCancelledResult();
-                        }
-
-                        if (execution.IsSuccess)
-                        {
-                            var audio = execution.Audio!;
-                            await using (audio.ConfigureAwait(false))
-                            {
-                                var stored = await _audioCache.StoreAsync(
-                                    new AudioCacheWriteRequest(
-                                        cacheKey,
-                                        request.BookId,
-                                        request.ChapterIndex,
-                                        request.RuleId,
-                                        audio.FilePath,
-                                        audio.ResponseContentType),
-                                    operation.ExecutionToken).ConfigureAwait(false);
-                                return new AudioGenerationResult(stored.FilePath, false, null);
-                            }
-                        }
-
-                        var failure = execution.Failure!;
-                        if (failure.Kind == TtsErrorKind.RateLimited &&
-                            failure.RetryAfter is { } retryAfter)
-                        {
-                            _rateLimiter.ApplyRetryAfter(request.RuleId, retryAfter);
-                            if (operation.Priority == AudioGenerationPriority.Current)
-                            {
-                                operation.ReportProgress(new AudioGenerationProgress(
-                                    BuildRateLimitedMessage(retryAfter),
-                                    retryAfter));
-                                continue;
-                            }
-                        }
-
-                        return new AudioGenerationResult(null, false, failure);
-                    }
-                    finally
-                    {
-                        lock (executionState.SyncRoot)
-                        {
-                            if (ReferenceEquals(executionState.CurrentOperation, operation))
-                            {
-                                executionState.CurrentOperation = null;
-                            }
-                        }
-                    }
+                        ProviderSynthesisFailureKind.ProviderUnavailable or ProviderSynthesisFailureKind.InvalidRequest => TtsErrorKind.InvalidRule,
+                        ProviderSynthesisFailureKind.Network => TtsErrorKind.Network,
+                        ProviderSynthesisFailureKind.Timeout => TtsErrorKind.Timeout,
+                        ProviderSynthesisFailureKind.RateLimited => TtsErrorKind.RateLimited,
+                        ProviderSynthesisFailureKind.EmptyAudio => TtsErrorKind.EmptyAudioResponse,
+                        ProviderSynthesisFailureKind.InvalidAudio => TtsErrorKind.AudioDecode,
+                        ProviderSynthesisFailureKind.Cancelled => TtsErrorKind.Cancelled,
+                        _ => TtsErrorKind.Unknown
+                    };
+                    return new AudioGenerationResult(null, false,
+                        new TtsExecutionFailure(kind, synthesis.Failure?.Message ?? "语音服务合成失败。", null, null, null, null));
                 }
+
+                await using var audio = await _files.WriteAsync(synthesis, operation.ExecutionToken).ConfigureAwait(false);
+                var stored = await _audioCache.StoreAsync(new AudioCacheWriteRequest(
+                    cacheKey, request.BookId, request.ChapterIndex, 0, audio.FilePath, audio.ResponseContentType),
+                    operation.ExecutionToken).ConfigureAwait(false);
+                return new AudioGenerationResult(stored.FilePath, false, null);
             }
         }
         catch (OperationCanceledException)
@@ -301,7 +220,8 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
 
     private void LogFailure(AudioGenerationRequest request, Exception exception, string operation)
     {
-        _failureReporter?.Report(operation, exception, request);
+        try { _failureReporter?.Report(operation, exception, request); }
+        catch { /* Diagnostics must not replace the synthesis result. */ }
     }
 
     private static string BuildRateLimitedMessage(TimeSpan retryAfter)
@@ -319,14 +239,6 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
             new TtsExecutionFailure(TtsErrorKind.Cancelled, "已取消当前音频生成。", null, null, null, null));
     }
 
-    private static AudioGenerationResult CreateInvalidRuleResult(string message)
-    {
-        return new AudioGenerationResult(
-            null,
-            false,
-            new TtsExecutionFailure(TtsErrorKind.InvalidRule, message, null, null, null, null));
-    }
-
     private static AudioGenerationResult CreateUnexpectedFailureResult()
     {
         return new AudioGenerationResult(
@@ -341,16 +253,10 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                 null));
     }
 
-    private sealed class RuleExecutionState
-    {
-        public object SyncRoot { get; } = new();
-
-        public InFlightOperation? CurrentOperation { get; set; }
-    }
-
-    private sealed class InFlightOperation
+    private sealed class InFlightOperation : IDisposable
     {
         private readonly CancellationTokenSource _executionCts;
+        private readonly CancellationToken _executionToken;
         private readonly TaskCompletionSource<AudioGenerationResult> _completionSource =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly object _syncRoot = new();
@@ -358,29 +264,32 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
         private Action<AudioGenerationProgress>? _listeners;
 
         public InFlightOperation(
-            long ruleId,
+            ProviderId providerId,
             AudioCacheKey cacheKey,
             AudioGenerationPriority priority,
             CancellationToken ownerCancellationToken)
         {
-            RuleId = ruleId;
+            ProviderId = providerId;
             CacheKey = cacheKey;
             Priority = priority;
             _executionCts = CancellationTokenSource.CreateLinkedTokenSource(ownerCancellationToken);
+            _executionToken = _executionCts.Token;
         }
 
-        public long RuleId { get; }
+        public ProviderId ProviderId { get; }
 
         public AudioCacheKey CacheKey { get; }
 
         public AudioGenerationPriority Priority { get; private set; }
 
-        public CancellationToken ExecutionToken => _executionCts.Token;
+        public CancellationToken ExecutionToken => _executionToken;
 
         public void PromoteToCurrent()
         {
             Priority = AudioGenerationPriority.Current;
         }
+
+        public void Dispose() => _executionCts.Dispose();
 
         public void RegisterListener(Action<AudioGenerationProgress>? listener)
         {
@@ -426,7 +335,10 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
 
         public void CancelExecution()
         {
-            _executionCts.Cancel();
+            lock (_syncRoot)
+            {
+                if (!_completionSource.Task.IsCompleted) _executionCts.Cancel();
+            }
         }
 
         private async Task RunAsync(Func<Task<AudioGenerationResult>> factory, Action onCompleted)
@@ -442,8 +354,8 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
             }
             finally
             {
-                _executionCts.Dispose();
                 onCompleted();
+                lock (_syncRoot) { _executionCts.Dispose(); }
             }
         }
     }

@@ -1,3 +1,5 @@
+using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.TestKit.Speech;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
@@ -24,7 +26,7 @@ public sealed class PlaybackInterfaceContractTests
             GetPublicMemberNames(assembly, "IPlaybackSnapshotSource"));
         Assert.Equal(
             [
-                "ChangeRuleAsync",
+                "ChangeProviderAsync",
                 "ChangeSpeedAsync",
                 "ClearAsync",
                 "CurrentSnapshot",

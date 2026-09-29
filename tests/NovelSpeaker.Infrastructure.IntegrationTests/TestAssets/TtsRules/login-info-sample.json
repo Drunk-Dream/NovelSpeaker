@@ -1,8 +1,0 @@
-{
-  "name": "LoginInfo Sample",
-  "url": "https://example.com/tts?text={{encodeURIComponent(speakText)}}&token={{loginInfo.token}}",
-  "contentType": "audio/wav",
-  "loginInfo": {
-    "token": "sanitized-demo-token"
-  }
-}

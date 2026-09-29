@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -16,7 +16,7 @@ internal sealed class PlaybackSessionState : IAsyncDisposable
         PlaybackBookContent book,
         int chapterIndex,
         int segmentIndex,
-        SelectedPlaybackRule? rule,
+        ResolvedSpeechProvider? provider,
         int speakSpeed)
     {
         ArgumentNullException.ThrowIfNull(book);
@@ -24,7 +24,7 @@ internal sealed class PlaybackSessionState : IAsyncDisposable
         Book = book;
         ChapterIndex = chapterIndex;
         SegmentIndex = segmentIndex;
-        Rule = rule;
+        Provider = provider;
         SpeakSpeed = speakSpeed;
     }
 
@@ -36,11 +36,11 @@ internal sealed class PlaybackSessionState : IAsyncDisposable
 
     public string BookId => Book.BookId;
 
-    public SelectedPlaybackRule? Rule { get; private set; }
+    public ResolvedSpeechProvider? Provider { get; private set; }
 
-    public long RuleId => Rule?.RuleId ?? 0;
+    public NovelSpeaker.Domain.Speech.Providers.ProviderId? ProviderId => Provider?.ProviderId;
 
-    public string RuleName => Rule?.RuleName ?? string.Empty;
+    public string ProviderName => Provider?.ProviderName ?? string.Empty;
 
     public void ReplaceBook(PlaybackBookContent book)
     {
@@ -48,9 +48,9 @@ internal sealed class PlaybackSessionState : IAsyncDisposable
         Book = book;
     }
 
-    public void SetRule(SelectedPlaybackRule? rule)
+    public void SetProvider(ResolvedSpeechProvider? provider)
     {
-        Rule = rule;
+        Provider = provider;
     }
 
     public int ChapterIndex { get; private set; }

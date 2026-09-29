@@ -63,11 +63,6 @@ public sealed class TtsExecutionService : IHttpTtsClient
         ParsedTtsRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.Headers.Keys.Any(static key => key.Equals("Cookie", StringComparison.OrdinalIgnoreCase)))
-        {
-            return Failure(TtsErrorKind.InvalidRule, "当前版本不支持 Cookie/LoginInfo 规则依赖。");
-        }
-
         var completedRetries = 0;
         while (true)
         {

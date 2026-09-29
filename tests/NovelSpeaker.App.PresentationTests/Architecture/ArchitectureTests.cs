@@ -11,7 +11,7 @@ public sealed class ArchitectureTests
     private void InfrastructurePublicTtsSourceApiDoesNotExposeJsonElement()
     {
         var jsonElementType = typeof(System.Text.Json.JsonElement);
-        var exposedMembers = typeof(NovelSpeaker.Infrastructure.Speech.Legado.LegadoRuleConverter)
+        var exposedMembers = typeof(NovelSpeaker.Infrastructure.Speech.Http.HttpTtsClient)
             .Assembly
             .GetExportedTypes()
             .Where(type => type.Namespace?.StartsWith("NovelSpeaker.Infrastructure.Speech", StringComparison.Ordinal) == true)
@@ -220,7 +220,16 @@ public sealed class ArchitectureTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(["HttpTtsRule.cs", "TtsErrorKind.cs"], speechFiles);
+        Assert.Equal(
+            [
+                "ProviderId.cs",
+                "SpeechProviderConfiguration.cs",
+                "SpeechProviderInstance.cs",
+                "SpeechProviderNameRules.cs",
+                "SpeechProviderType.cs",
+                "TtsErrorKind.cs"
+            ],
+            speechFiles);
         Assert.DoesNotContain(domainFiles, file =>
             file.Content.Contains("ParsedTtsRequest", StringComparison.Ordinal) ||
             file.Content.Contains("TtsRequestPreview", StringComparison.Ordinal) ||
@@ -317,7 +326,7 @@ public sealed class ArchitectureTests
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.LocalAudioPlaybackCoordinator).Assembly);
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackContentResolver).Assembly);
         Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackPrefetchCoordinator).Assembly);
-        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Speech.Rules.SelectedTtsRuleProvider).Assembly);
+        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Speech.Providers.CurrentSpeechProvider).Assembly);
 
         var infrastructurePlaybackFiles = Repository.ReadProductSourceFiles()
             .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Infrastructure" &&
@@ -329,7 +338,7 @@ public sealed class ArchitectureTests
             file => file.Content.Contains("class PlaybackCoordinator", StringComparison.Ordinal) ||
                     file.Content.Contains("class LocalAudioPlaybackCoordinator", StringComparison.Ordinal) ||
                     file.Content.Contains("class PrefetchScheduler", StringComparison.Ordinal) ||
-                    file.Content.Contains("class SelectedTtsRuleProvider", StringComparison.Ordinal));
+                    file.Content.Contains("class CurrentSpeechProvider", StringComparison.Ordinal));
     }
 
     private void AppOnlyUsesInfrastructureFromStartupCompositionBoundary()
@@ -362,11 +371,13 @@ public sealed class ArchitectureTests
             "src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs",
             "src/NovelSpeaker.Application/Cache/CacheRegistration.cs",
             "src/NovelSpeaker.Application/Settings/SettingsRegistration.cs",
+            "src/NovelSpeaker.Application/Speech/SpeechRegistration.cs",
             "src/NovelSpeaker.Application/Observability/DependencyInjection/ObservabilityRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/AudioRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/CacheRegistration.cs",
             "src/NovelSpeaker.Infrastructure/DependencyInjection/DiagnosticsRegistration.cs",
-            "src/NovelSpeaker.Infrastructure/DependencyInjection/SettingsRegistration.cs"
+            "src/NovelSpeaker.Infrastructure/DependencyInjection/SettingsRegistration.cs",
+            "src/NovelSpeaker.Infrastructure/DependencyInjection/SpeechRegistration.cs"
         };
 
         var actual = ArchitectureRules.FindServiceLocationDependencies(
@@ -529,7 +540,7 @@ public sealed class ArchitectureTests
         foreach (var propertyName in new[]
                  {
                      nameof(PlaybackSessionState.Book),
-                     nameof(PlaybackSessionState.Rule),
+                     nameof(PlaybackSessionState.Provider),
                      nameof(PlaybackSessionState.ChapterIndex),
                      nameof(PlaybackSessionState.SegmentIndex),
                      nameof(PlaybackSessionState.SpeakSpeed),
@@ -657,6 +668,7 @@ public sealed class ArchitectureTests
                      "PlaybackSettings",
                      "Rules",
                      "Settings",
+                     "SpeechServices",
                  })
         {
             Assert.True(
@@ -671,8 +683,7 @@ public sealed class ArchitectureTests
                      "Books/Shared",
                      "Rules/Chapter",
                      "Rules/Regex",
-                     "Rules/Shared",
-                     "Rules/Tts"
+                     "Rules/Shared"
                  })
         {
             Assert.True(

@@ -1,5 +1,6 @@
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Domain.Speech.Providers;
 
 namespace NovelSpeaker.Application.Settings;
 
@@ -73,7 +74,8 @@ public sealed class AppSettingsService :
             CacheLimitBytes = update.CacheLimitBytes ?? current.CacheLimitBytes,
             PlaybackVolume = update.PlaybackVolume ?? current.PlaybackVolume,
             EnablePerformanceTelemetry = update.EnablePerformanceTelemetry ?? current.EnablePerformanceTelemetry,
-            SelectedTtsRuleId = update.ClearSelectedTtsRuleId ? null : update.SelectedTtsRuleId ?? current.SelectedTtsRuleId,
+            EnabledExperimentalFeatureIds = ApplyExperimentalFeatureChange(current, update),
+            CurrentProviderId = update.ClearCurrentProvider ? null : update.CurrentProviderId ?? current.CurrentProviderId,
             MainWindowCloseBehavior = update.MainWindowCloseBehavior ?? current.MainWindowCloseBehavior,
             StartMinimizedToTray = update.StartMinimizedToTray ?? current.StartMinimizedToTray,
             ReadChapterTitle = update.ReadChapterTitle ?? current.ReadChapterTitle,
@@ -81,5 +83,16 @@ public sealed class AppSettingsService :
             MiniPlayerTop = update.ClearMiniPlayerTop ? null : update.MiniPlayerTop ?? current.MiniPlayerTop,
             MiniPlayerTopmost = update.MiniPlayerTopmost ?? current.MiniPlayerTopmost
         };
+    }
+
+    private static IReadOnlyList<string>? ApplyExperimentalFeatureChange(AppSettings current, AppSettingsUpdate update)
+    {
+        var ids = update.EnabledExperimentalFeatureIds ?? current.EnabledExperimentalFeatureIds;
+        if (update.ExperimentalFeatureChange is not { } change) return ids;
+        ArgumentException.ThrowIfNullOrWhiteSpace(change.FeatureId);
+        var enabled = (ids ?? []).ToHashSet(StringComparer.Ordinal);
+        if (change.Enabled) enabled.Add(change.FeatureId);
+        else enabled.Remove(change.FeatureId);
+        return enabled.ToArray();
     }
 }

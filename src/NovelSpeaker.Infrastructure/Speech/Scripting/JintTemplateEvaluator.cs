@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using Jint;
 using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Compilation;
@@ -19,7 +18,7 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
 
     public Task<string> EvaluateAsync(
         NormalizedTemplate template,
-        TtsRuleContext context,
+        SpeechTemplateContext context,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -28,7 +27,7 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
 
     private static string EvaluateCore(
         NormalizedTemplate template,
-        TtsRuleContext context,
+        SpeechTemplateContext context,
         CancellationToken cancellationToken)
     {
         var engine = CreateEngine(context);
@@ -57,7 +56,7 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
         return builder.ToString();
     }
 
-    private static Engine CreateEngine(TtsRuleContext context)
+    private static Engine CreateEngine(SpeechTemplateContext context)
     {
         var engine = new Engine(options =>
         {
@@ -69,23 +68,28 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
 
         var setupScript =
             $$"""
-            const speakText = {{JsonSerializer.Serialize(context.SpeakText)}};
+            const speakText = {{System.Text.Json.JsonSerializer.Serialize(context.SpeakText)}};
             const speakSpeed = {{context.SpeakSpeed}};
-            const source = Object.freeze({
-              name: {{JsonSerializer.Serialize(context.Source.Name)}},
-              url: {{JsonSerializer.Serialize(context.Source.Url)}},
-              contentType: {{SerializeNullableString(context.Source.ContentType)}},
-              concurrentRate: {{SerializeNullableString(context.Source.ConcurrentRate)}}
-            });
-            const java = Object.freeze({
-              encodeURI(value) { return encodeURI(value == null ? "" : String(value)); },
-              encodeURIComponent(value) { return encodeURIComponent(value == null ? "" : String(value)); }
-            });
             """;
 
         engine.Execute(setupScript);
+        engine.SetValue("btoa", new Func<string, string>(EncodeBase64));
+        engine.SetValue("atob", new Func<string, string>(DecodeBase64));
         return engine;
     }
+
+    private static string EncodeBase64(string value)
+    {
+        if (value.Any(character => character > byte.MaxValue))
+        {
+            throw new FormatException("btoa 只接受 Latin-1 字符。");
+        }
+
+        return Convert.ToBase64String(Encoding.Latin1.GetBytes(value));
+    }
+
+    private static string DecodeBase64(string value) =>
+        Encoding.Latin1.GetString(Convert.FromBase64String(value));
 
     private static string EvaluateExpression(Engine engine, string expression)
     {
@@ -116,8 +120,4 @@ public sealed partial class JintTemplateEvaluator : ITemplateEvaluator
             : text;
     }
 
-    private static string SerializeNullableString(string? value)
-    {
-        return value is null ? "null" : JsonSerializer.Serialize(value);
-    }
 }

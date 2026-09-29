@@ -50,60 +50,34 @@ public sealed class RuleEditorLifecycleTests
     }
 
     [Fact]
-    public void ReorderController_supports_drop_and_offset_without_mutating_input()
+    public void Reorder_slots_support_first_last_and_adjacent_noop_without_mutating_input()
     {
-        var original = new[] { "one", "two", "three" };
-
-        Assert.True(RuleReorderController.TryMove(
-            original,
-            "three",
-            "one",
-            RuleDropPlacement.Before,
-            out var before,
-            StringComparer.Ordinal));
-        Assert.Equal(["three", "one", "two"], before);
-        Assert.Equal(["one", "two", "three"], original);
-
-        Assert.True(RuleReorderController.TryMoveByOffset(
-            original,
-            "one",
-            1,
-            out var offset,
-            StringComparer.Ordinal));
+        var order = new[] { "one", "two", "three" };
+        Assert.True(RuleReorderController.TryMoveToSlot(order, order, "three", 0, out var first));
+        Assert.Equal(["three", "one", "two"], first);
+        Assert.True(RuleReorderController.TryMoveToSlot(order, order, "one", 3, out var last));
+        Assert.Equal(["two", "three", "one"], last);
+        Assert.False(RuleReorderController.TryMoveToSlot(order, order, "one", 1, out _));
+        Assert.False(RuleReorderController.TryMoveToSlot(order, order, "two", 1, out _));
+        Assert.False(RuleReorderController.TryMoveToSlot(order, order, "missing", 1, out _));
+        Assert.False(RuleReorderController.TryMoveToSlot(order, order, "one", 4, out _));
+        Assert.Equal(["one", "two", "three"], order);
+        Assert.True(RuleReorderController.TryMoveByOffset(order, "one", 1, out var offset));
         Assert.Equal(["two", "one", "three"], offset);
-        Assert.False(RuleReorderController.TryMove(
-            original,
-            "one",
-            "two",
-            RuleDropPlacement.Before,
-            out _,
-            StringComparer.Ordinal));
-        Assert.False(RuleReorderController.TryMove(
-            original,
-            "two",
-            "one",
-            RuleDropPlacement.After,
-            out _,
-            StringComparer.Ordinal));
-        Assert.False(RuleReorderController.TryMoveByOffset(
-            original,
-            "missing",
-            1,
-            out _,
-            StringComparer.Ordinal));
-        Assert.False(RuleReorderController.TryMoveByOffset(
-            original,
-            "one",
-            0,
-            out _,
-            StringComparer.Ordinal));
-        Assert.False(RuleReorderController.TryMove(
-            original,
-            "one",
-            "two",
-            (RuleDropPlacement)999,
-            out _,
-            StringComparer.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("b", 0, "h0,b,a,h1,h2")]
+    [InlineData("b", 1, "h0,a,h1,b,h2")]
+    [InlineData("a", 1, "h0,h1,a,b,h2")]
+    [InlineData("a", 2, "h0,h1,b,a,h2")]
+    public void Visible_slots_map_to_complete_order(string source, int slot, string expected)
+    {
+        var complete = new[] { "h0", "a", "h1", "b", "h2" };
+        var visible = new[] { "a", "b" };
+        var changed = RuleReorderController.TryMoveToSlot(complete, visible, source, slot, out var result);
+        Assert.Equal(expected != string.Join(',', complete), changed);
+        Assert.Equal(expected.Split(','), changed ? result : complete);
     }
 
     [Fact]

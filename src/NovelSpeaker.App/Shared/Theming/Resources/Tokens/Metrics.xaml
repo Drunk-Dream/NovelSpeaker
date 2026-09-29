@@ -26,5 +26,10 @@
     <sys:Double x:Key="App.Size.Control.Compact">32</sys:Double>
     <sys:Double x:Key="App.Size.Control.Standard">40</sys:Double>
 
+    <sys:Double x:Key="App.Size.Input.Standard">32</sys:Double>
+    <sys:Double x:Key="App.Size.Input.Compact">28</sys:Double>
+    <Thickness x:Key="App.Padding.Input.Standard">10,4</Thickness>
+    <Thickness x:Key="App.Padding.Input.Compact">8,2</Thickness>
+
     <sys:Double x:Key="App.Opacity.Disabled">0.5</sys:Double>
 </ResourceDictionary>

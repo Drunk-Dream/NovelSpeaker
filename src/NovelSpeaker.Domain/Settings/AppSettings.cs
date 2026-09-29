@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Speech.Providers;
 
 namespace NovelSpeaker.Domain.Settings;
 
@@ -8,25 +9,26 @@ namespace NovelSpeaker.Domain.Settings;
 public sealed record AppSettings(
     bool EnableLongParagraphSplitting,
     int LongParagraphThreshold,
-    int DefaultSpeakSpeed = 10,
+    int DefaultSpeakSpeed = 50,
     int PrefetchCount = 2,
     string LogLevel = "Information",
     string Theme = "System",
     string? BookFileNameTemplate = "{{name}} 作者：{{author}}",
     long CacheLimitBytes = 2L * 1024 * 1024 * 1024,
-    long? SelectedTtsRuleId = null,
+    ProviderId? CurrentProviderId = null,
     MainWindowCloseBehavior MainWindowCloseBehavior = MainWindowCloseBehavior.MinimizeToTray,
     bool StartMinimizedToTray = false,
     double? MiniPlayerLeft = null,
     double? MiniPlayerTop = null,
     bool MiniPlayerTopmost = false,
-    bool ReadChapterTitle = false,
+    bool ReadChapterTitle = true,
     double PlaybackVolume = 1d,
-    bool EnablePerformanceTelemetry = false)
+    bool EnablePerformanceTelemetry = false,
+    IReadOnlyList<string>? EnabledExperimentalFeatureIds = null)
 {
-    public const int MinSpeakSpeed = 1;
-    public const int MaxSpeakSpeed = 20;
-    public const int DefaultSpeakSpeedValue = 10;
+    public const int MinSpeakSpeed = 0;
+    public const int MaxSpeakSpeed = 100;
+    public const int DefaultSpeakSpeedValue = 50;
     public const int DefaultPrefetchCountValue = 2;
     public const string DefaultLogLevel = "Information";
     public const string DefaultTheme = "System";
@@ -57,7 +59,7 @@ public sealed record AppSettings(
             null,
             null,
             false,
-            false,
+            true,
             DefaultPlaybackVolumeValue,
             false);
 
@@ -75,11 +77,6 @@ public sealed record AppSettings(
 
     public static int NormalizeSpeakSpeed(int speakSpeed)
     {
-        if (speakSpeed <= 0)
-        {
-            return DefaultSpeakSpeedValue;
-        }
-
         return Math.Clamp(speakSpeed, MinSpeakSpeed, MaxSpeakSpeed);
     }
 
@@ -99,6 +96,8 @@ public sealed record AppSettings(
             BookFileNameTemplate = NormalizeFileNameTemplate(BookFileNameTemplate),
             CacheLimitBytes = NormalizeCacheLimitBytes(CacheLimitBytes),
             PlaybackVolume = NormalizePlaybackVolume(PlaybackVolume),
+            EnabledExperimentalFeatureIds = Array.AsReadOnly((EnabledExperimentalFeatureIds ?? [])
+                .Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()),
             MainWindowCloseBehavior = Enum.IsDefined(MainWindowCloseBehavior)
                 ? MainWindowCloseBehavior
                 : MainWindowCloseBehavior.MinimizeToTray,

@@ -1,3 +1,5 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Domain.Speech.Providers;
 using System.Collections.Specialized;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
@@ -5,7 +7,7 @@ using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
@@ -25,7 +27,7 @@ public sealed partial class PlayerViewModelTests
     private static PlayerViewModel CreateViewModel(
         FakePlaybackCoordinator coordinator,
         IBookPlaybackContentService contentService,
-        ITtsRuleQueries? ruleService = null,
+        ICurrentSpeechProvider? ruleService = null,
         FakeNavigationService? navigationService = null,
         FakeAppFeedbackService? feedbackService = null,
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
@@ -44,8 +46,8 @@ public sealed partial class PlayerViewModelTests
             activeCacheCoordinator ?? new FakeActiveCacheCoordinator(),
             new PlaybackBackedBookDetailsQuery(contentService),
             contentService,
-            ruleService ?? new FakeTtsRuleQueries([new TtsRuleSummary(1, "默认规则", true, true, null)]),
-            settingsService ?? new FakeAppSettingsService(AppSettings.Default),
+            ruleService ?? new FakeProviders([TestSpeechProviders.Item(1, "默认规则", true)]),
+            settingsService ?? new FakeAppSettingsService(AppSettings.Default with { CurrentProviderId = TestSpeechProviders.Id(1) }),
             feedbackService ?? new FakeAppFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator(),
@@ -260,7 +262,7 @@ public sealed partial class PlayerViewModelTests
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
 
-        public long? LastChangedRuleId { get; private set; }
+        public ProviderId? LastChangedProviderId { get; private set; }
 
         public int? LastChangedSpeakSpeed { get; private set; }
 
@@ -316,23 +318,22 @@ public sealed partial class PlayerViewModelTests
         {
             OpenPausedCallCount++;
             LastOpenPausedRequest = request;
-            Publish(new PlaybackSnapshot(
-                PlaybackState.Paused,
-                request.BookId,
-                request.BookId == "book-2" ? "另一本书" : "示例小说",
-                request.ChapterIndex ?? 0,
-                request.BookId == "book-2" ? "第二章" : "第一章",
-                request.SegmentIndex ?? 0,
-                1,
-                1,
-                "默认规则",
-                request.SpeakSpeedOverride ?? 10,
-                0,
-                0,
-                null,
-                false,
-                false,
-                request.BookId == "book-2" ? "作者乙" : "作者甲"));
+            Publish(new PlaybackSnapshot(PlaybackState.Paused,
+            request.BookId,
+            request.BookId == "book-2" ? "另一本书" : "示例小说",
+            request.ChapterIndex ?? 0,
+            request.BookId == "book-2" ? "第二章" : "第一章",
+            request.SegmentIndex ?? 0,
+            1,
+            TestSpeechProviders.Id(1),
+            "默认规则",
+            request.SpeakSpeedOverride ?? 10,
+            0,
+            0,
+            null,
+            false,
+            false,
+            request.BookId == "book-2" ? "作者乙" : "作者甲"));
             return Task.CompletedTask;
         }
 
@@ -448,10 +449,10 @@ public sealed partial class PlayerViewModelTests
             return Task.CompletedTask;
         }
 
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken)
+        public Task ChangeProviderAsync(ProviderId providerId, CancellationToken cancellationToken)
         {
-            LastChangedRuleId = ruleId;
-            Publish(CurrentSnapshot with { RuleId = ruleId });
+            LastChangedProviderId = providerId;
+            Publish(CurrentSnapshot with { ProviderId = providerId });
             return Task.CompletedTask;
         }
 
@@ -651,21 +652,20 @@ public sealed partial class PlayerViewModelTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
-    private sealed class FakeTtsRuleQueries : ITtsRuleQueries
+    private sealed class FakeProviders : TestCurrentSpeechProvider
     {
-        private readonly IReadOnlyList<TtsRuleSummary> _rules;
+        private readonly IReadOnlyList<SpeechProviderInstance> _providers;
 
-        public FakeTtsRuleQueries(IReadOnlyList<TtsRuleSummary> rules)
+        public FakeProviders(IReadOnlyList<SpeechProviderInstance> rules)
         {
-            _rules = rules;
+            _providers = rules;
         }
 
-        public Task<IReadOnlyList<TtsRuleSummary>> GetRulesAsync(CancellationToken cancellationToken)
+        public override Task<IReadOnlyList<SpeechProviderInstance>> GetAvailableAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult(_rules);
+            return Task.FromResult<IReadOnlyList<SpeechProviderInstance>>(_providers.Where(provider => ProviderConfigurationValidator.Validate(provider).IsValid).ToArray());
         }
 
-        public Task<string?> ExportRuleJsonAsync(long ruleId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

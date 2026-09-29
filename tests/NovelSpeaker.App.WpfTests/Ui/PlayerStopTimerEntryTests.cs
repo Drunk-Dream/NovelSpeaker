@@ -32,12 +32,12 @@ public sealed class PlayerStopTimerEntryTests
 
             Assert.Equal("定时停止", button.ToolTip);
             Assert.Equal("定时停止", AutomationProperties.GetName(button));
-            Assert.Same(view.FindResource("App.Button.ToolbarValue"), button.Style?.BasedOn);
+            Assert.Same(view.FindResource("App.Media.ToolbarControl"), button.Style?.BasedOn);
             Assert.Contains(button.Style!.Triggers, trigger =>
                 trigger is DataTrigger dataTrigger &&
                 dataTrigger.Binding is Binding binding &&
                 binding.Path?.Path == "HasActiveStopTimer");
-            Assert.Same(view.FindResource("App.Button.ToolbarValue"), speedButton.Style);
+            Assert.Same(view.FindResource("App.Media.ToolbarControl"), speedButton.Style);
             Assert.Equal(new CornerRadius(12), button.CornerRadius);
             Assert.Equal(new CornerRadius(12), speedButton.CornerRadius);
             Assert.Null(view.FindName("StopTimerPillBorder"));

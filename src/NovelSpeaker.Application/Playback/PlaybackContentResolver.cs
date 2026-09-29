@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Application.Books.TextProcessing;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -19,6 +20,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
     private readonly IAppSettingsService? _settingsService;
     private readonly IChapterSpeechPlanService? _speechPlanService;
     private readonly IBookPlaybackContentFailureReporter? _failureReporter;
+    private readonly IRegexReplacementRuleRepository? _regexRules;
 
     public PlaybackContentResolver(
         IBookPlaybackMetadataQuery metadataQuery,
@@ -28,7 +30,8 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
         IRegexReplacementPipeline regexReplacementPipeline,
         IAppSettingsService? settingsService = null,
         IChapterSpeechPlanService? speechPlanService = null,
-        IBookPlaybackContentFailureReporter? failureReporter = null)
+        IBookPlaybackContentFailureReporter? failureReporter = null,
+        IRegexReplacementRuleRepository? regexRules = null)
     {
         _metadataQuery = metadataQuery;
         _bookContentReader = bookContentReader;
@@ -38,6 +41,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
         _settingsService = settingsService;
         _speechPlanService = speechPlanService;
         _failureReporter = failureReporter;
+        _regexRules = regexRules;
     }
 
     public async Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -125,6 +129,10 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             return [];
         }
 
+        var options = _optionsProvider.GetCurrent();
+        var readTitle = _settingsService?.Current.ReadChapterTitle == true;
+        var rules = _regexRules is null ? null :
+            (await _regexRules.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToArray();
         var metadata = await _metadataQuery
             .GetChaptersAsync(bookId, normalizedIndices, cancellationToken)
             .ConfigureAwait(false);
@@ -134,7 +142,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                chapters.Add(await LoadChapterAsync(chapter, cancellationToken).ConfigureAwait(false));
+                chapters.Add(await LoadChapterAsync(chapter, cancellationToken, options, readTitle, rules).ConfigureAwait(false));
             }
             catch (OperationCanceledException)
             {
@@ -175,19 +183,23 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
 
     private async Task<PlaybackChapterContent> LoadChapterAsync(
         PlaybackChapterMetadata metadata,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TextSegmentationOptions? frozenOptions = null,
+        bool? frozenReadTitle = null,
+        IReadOnlyList<RegexReplacementRule>? frozenRules = null)
     {
+        var options = frozenOptions ?? _optionsProvider.GetCurrent();
+        var readTitle = frozenReadTitle ?? _settingsService?.Current.ReadChapterTitle == true;
         var chapterText = await _bookContentReader.ReadChapterTextAsync(
             metadata.StoredFilePath,
             metadata.StartOffset,
             metadata.Length,
             cancellationToken).ConfigureAwait(false);
-        var options = _optionsProvider.GetCurrent();
         IReadOnlyList<SpeechSegment> replacedSegments;
         if (_speechPlanService is not null && metadata.ChapterId is not null)
         {
             var planResult = await _speechPlanService
-                .BuildAsync(metadata.ChapterId, chapterText, options, cancellationToken)
+                .BuildAsync(metadata.ChapterId, chapterText, options, cancellationToken, frozenRules)
                 .ConfigureAwait(false);
             replacedSegments = planResult.Segments;
         }
@@ -198,9 +210,9 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
                 cancellationToken.ThrowIfCancellationRequested();
                 return _textSegmenter.Segment(chapterText, options);
             }, cancellationToken).ConfigureAwait(false);
-            var replaced = await _regexReplacementPipeline
-                .ApplyAsync(segments, cancellationToken)
-                .ConfigureAwait(false);
+            var replaced = frozenRules is null
+                ? await _regexReplacementPipeline.ApplyAsync(segments, cancellationToken).ConfigureAwait(false)
+                : RegexReplacementProcessor.Apply(segments, frozenRules, cancellationToken);
             replacedSegments = replaced.Segments;
         }
         cancellationToken.ThrowIfCancellationRequested();
@@ -208,7 +220,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
         var playbackSegments = PlaybackSpeechSegmentComposer.Compose(
             metadata.Title,
             replacedSegments,
-            _settingsService?.Current.ReadChapterTitle == true);
+            readTitle);
 
         return PlaybackChapterContent.FromLoaded(
             metadata.ChapterIndex,

@@ -7,12 +7,13 @@ using NovelSpeaker.App.Features.Rules.Chapter;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Features.ImportTextSettings;
 using NovelSpeaker.App.Features.GeneralSettings;
+using NovelSpeaker.App.Features.ExperimentalFeatures;
 using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Features.Playback;
 using NovelSpeaker.App.Features.PlaybackSettings;
 using NovelSpeaker.App.Features.Rules.Regex;
 using NovelSpeaker.App.Features.Settings;
-using NovelSpeaker.App.Features.Rules.Tts;
+using NovelSpeaker.App.Features.SpeechServices;
 using NovelSpeaker.Application.Observability;
 using Wpf.Ui;
 using Wpf.Ui.Abstractions;
@@ -28,9 +29,9 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             [AppRouteId.Library] = typeof(LibraryPage),
             [AppRouteId.BookDetails] = typeof(BookDetailsPage),
             [AppRouteId.Player] = typeof(PlayerPage),
+            [AppRouteId.SpeechServices] = typeof(SpeechServicesPage),
             [AppRouteId.Settings] = typeof(SettingsPage),
             [AppRouteId.PlaybackSettings] = typeof(PlaybackSettingsPage),
-            [AppRouteId.TtsRules] = typeof(TtsRulesPage),
             [AppRouteId.ImportTextSettings] = typeof(ImportTextSettingsPage),
             [AppRouteId.RegexReplacementRules] = typeof(RegexReplacementRulesPage),
             [AppRouteId.ChapterRules] = typeof(ChapterRulesPage),
@@ -38,6 +39,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             [AppRouteId.CacheManagement] = typeof(CacheManagementPage),
             [AppRouteId.GeneralSettings] = typeof(GeneralSettingsPage),
             [AppRouteId.AppearanceSettings] = typeof(AppearanceSettingsPage),
+            [AppRouteId.ExperimentalFeatures] = typeof(ExperimentalFeaturesPage),
             [AppRouteId.DiagnosticsAbout] = typeof(DiagnosticsAboutPage)
         };
 
@@ -223,13 +225,14 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             BookDetailsRoute => AppRoutes.Library,
             ParameterlessAppRoute parameterless => parameterless.Id switch
             {
+                AppRouteId.SpeechServices or
                 AppRouteId.PlaybackSettings or
-                AppRouteId.TtsRules or
                 AppRouteId.ImportTextSettings or
                 AppRouteId.ChapterRules or
                 AppRouteId.CacheAndData or
                 AppRouteId.GeneralSettings or
                 AppRouteId.AppearanceSettings or
+                AppRouteId.ExperimentalFeatures or
                 AppRouteId.DiagnosticsAbout => AppRoutes.Settings,
                 AppRouteId.RegexReplacementRules => AppRoutes.ImportTextSettings,
                 AppRouteId.CacheManagement => AppRoutes.CacheAndData,
@@ -327,9 +330,8 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
 
     private static bool IsSettingsContext(AppRouteId routeId)
     {
-        return routeId is AppRouteId.Settings
+        return routeId is AppRouteId.SpeechServices or AppRouteId.Settings
             or AppRouteId.PlaybackSettings
-            or AppRouteId.TtsRules
             or AppRouteId.ImportTextSettings
             or AppRouteId.RegexReplacementRules
             or AppRouteId.ChapterRules
@@ -337,6 +339,7 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             or AppRouteId.CacheManagement
             or AppRouteId.GeneralSettings
             or AppRouteId.AppearanceSettings
+            or AppRouteId.ExperimentalFeatures
             or AppRouteId.DiagnosticsAbout;
     }
 

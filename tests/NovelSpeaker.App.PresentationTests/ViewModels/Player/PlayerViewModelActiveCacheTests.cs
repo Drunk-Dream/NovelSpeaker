@@ -1,3 +1,5 @@
+using NovelSpeaker.Domain.Speech.Providers;
+using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache.ActiveCache;
@@ -87,10 +89,10 @@ public sealed partial class PlayerViewModelTests
             CreateContentService());
         await OpenBookAsync(viewModel);
 
-        viewModel.OpenRuleMenuCommand.Execute(null);
+        viewModel.OpenProviderMenuCommand.Execute(null);
 
         Assert.True(viewModel.TryHandleEscape());
-        Assert.False(viewModel.IsRuleMenuOpen);
+        Assert.False(viewModel.IsProviderMenuOpen);
         Assert.False(viewModel.TryHandleEscape());
     }
 
@@ -328,15 +330,14 @@ public sealed partial class PlayerViewModelTests
     }
 
     private static FakePlaybackCoordinator CreatePlaybackCoordinator() =>
-        new(new PlaybackSnapshot(
-            PlaybackState.Paused,
+        new(new PlaybackSnapshot(PlaybackState.Paused,
             "book-1",
             "示例小说",
             0,
             "第一章",
             0,
             1,
-            1,
+            TestSpeechProviders.Id(1),
             "默认规则",
             10,
             0,

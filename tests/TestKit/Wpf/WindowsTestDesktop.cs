@@ -216,17 +216,20 @@ internal sealed record WindowsTestDesktopInfo(string Name, bool IsIsolated);
 
 internal sealed class WindowsTestDesktopInitializationException : InvalidOperationException
 {
-    private WindowsTestDesktopInitializationException(string message)
+    private WindowsTestDesktopInitializationException(string message, int nativeErrorCode)
         : base(message)
     {
+        NativeErrorCode = nativeErrorCode;
     }
+
+    public int NativeErrorCode { get; }
 
     public static WindowsTestDesktopInitializationException For(
         string operation,
         int errorCode) =>
         new(
             $"WPF test host could not {operation} (Win32 error {errorCode}). " +
-            "The test host fails closed and will not use the interactive Desktop.");
+            "The test host fails closed and will not use the interactive Desktop.", errorCode);
 }
 
 internal interface IWindowsTestDesktopNativeApi

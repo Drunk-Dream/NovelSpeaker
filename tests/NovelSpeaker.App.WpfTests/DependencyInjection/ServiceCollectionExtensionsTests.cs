@@ -1,3 +1,5 @@
+using NovelSpeaker.TestKit.Speech;
+using NovelSpeaker.Domain.Speech.Providers;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
@@ -10,14 +12,14 @@ using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Desktop.MediaControls;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech;
-using NovelSpeaker.Application.Speech.Rules;
+using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Speech.Execution;
-using NovelSpeaker.Application.Speech.Testing;
 using NovelSpeaker.App;
 using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.App.Desktop.Lifecycle;
 using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Features.Diagnostics;
+using NovelSpeaker.App.Features.ExperimentalFeatures;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Shell.Navigation;
@@ -115,16 +117,18 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<PlayerViewModel>(provider.GetRequiredService<PlayerViewModel>());
                 Assert.IsType<RegexReplacementRulesViewModel>(provider.GetRequiredService<RegexReplacementRulesViewModel>());
                 Assert.IsType<SettingsViewModel>(provider.GetRequiredService<SettingsViewModel>());
-                Assert.IsType<TtsRulesViewModel>(provider.GetRequiredService<TtsRulesViewModel>());
+                Assert.IsType<SpeechServicesViewModel>(provider.GetRequiredService<SpeechServicesViewModel>());
+                Assert.IsType<ExperimentalFeaturesViewModel>(provider.GetRequiredService<ExperimentalFeaturesViewModel>());
                 Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>());
                 Assert.IsType<SettingsPage>(provider.GetRequiredService<SettingsPage>());
                 Assert.IsType<CacheAndDataPage>(provider.GetRequiredService<CacheAndDataPage>());
                 Assert.IsType<PlaybackSettingsPage>(provider.GetRequiredService<PlaybackSettingsPage>());
                 Assert.IsType<ImportTextSettingsPage>(provider.GetRequiredService<ImportTextSettingsPage>());
                 Assert.IsType<AppearanceSettingsPage>(provider.GetRequiredService<AppearanceSettingsPage>());
+                Assert.IsType<ExperimentalFeaturesPage>(provider.GetRequiredService<ExperimentalFeaturesPage>());
                 Assert.IsType<DiagnosticsAboutPage>(provider.GetRequiredService<DiagnosticsAboutPage>());
                 Assert.IsType<PlayerPage>(provider.GetRequiredService<PlayerPage>());
-                Assert.IsType<TtsRulesPage>(provider.GetRequiredService<TtsRulesPage>());
+                Assert.IsType<SpeechServicesPage>(provider.GetRequiredService<SpeechServicesPage>());
                 Assert.IsType<ChapterRulesPage>(provider.GetRequiredService<ChapterRulesPage>());
                 Assert.IsType<BookDetailsPage>(provider.GetRequiredService<BookDetailsPage>());
                 Assert.IsType<CacheManagementPage>(provider.GetRequiredService<CacheManagementPage>());
@@ -134,12 +138,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IDatabaseInitializer>(provider.GetRequiredService<IDatabaseInitializer>());
                 Assert.IsAssignableFrom<IChapterRuleRepository>(provider.GetRequiredService<IChapterRuleRepository>());
                 Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());
-                Assert.IsAssignableFrom<NovelSpeaker.Application.Speech.ITtsRuleRepository>(
-                    provider.GetRequiredService<NovelSpeaker.Application.Speech.ITtsRuleRepository>());
-                Assert.IsAssignableFrom<ITtsRuleImportUseCase>(provider.GetRequiredService<ITtsRuleImportUseCase>());
-                Assert.IsAssignableFrom<ITtsRuleEditorUseCase>(provider.GetRequiredService<ITtsRuleEditorUseCase>());
-                Assert.IsAssignableFrom<ITtsRuleSelectionUseCase>(provider.GetRequiredService<ITtsRuleSelectionUseCase>());
-                Assert.IsAssignableFrom<ITtsRuleQueries>(provider.GetRequiredService<ITtsRuleQueries>());
+                Assert.IsAssignableFrom<ICurrentSpeechProvider>(provider.GetRequiredService<ICurrentSpeechProvider>());
                 Assert.IsAssignableFrom<IDirectBookImportService>(provider.GetRequiredService<IDirectBookImportService>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                 Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());
@@ -159,7 +158,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IMediaControlPlatform>(
                     provider.GetRequiredService<IMediaControlPlatform>());
                 Assert.IsType<PlaybackContentResolver>(provider.GetRequiredService<IBookPlaybackContentService>());
-                Assert.IsType<SelectedTtsRuleProvider>(provider.GetRequiredService<ISelectedTtsRuleProvider>());
+                Assert.IsType<CurrentSpeechProvider>(provider.GetRequiredService<ICurrentSpeechProvider>());
                 Assert.IsAssignableFrom<IAudioGenerationProvider>(provider.GetRequiredService<IAudioGenerationProvider>());
                 Assert.IsType<CacheAudioGenerationProvider>(provider.GetRequiredService<IAudioGenerationProvider>());
                 Assert.IsType<ActiveCacheCoordinator>(provider.GetRequiredService<IActiveCacheCoordinator>());
@@ -169,8 +168,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
                 Assert.IsType<AudioGenerationFailureReporter>(provider.GetRequiredService<IAudioGenerationFailureReporter>());
                 Assert.IsAssignableFrom<ITtsRateLimiter>(provider.GetRequiredService<ITtsRateLimiter>());
-                Assert.IsType<TtsRuleTestService>(provider.GetRequiredService<ITtsRuleTestService>());
-                Assert.IsType<TtsRuleTestFailureReporter>(provider.GetRequiredService<ITtsRuleTestFailureReporter>());
                 Assert.IsAssignableFrom<IHttpTtsClient>(provider.GetRequiredService<IHttpTtsClient>());
                 Assert.IsAssignableFrom<ITtsHttpTransport>(provider.GetRequiredService<ITtsHttpTransport>());
                 Assert.IsAssignableFrom<ITtsRetryPolicy>(provider.GetRequiredService<ITtsRetryPolicy>());
@@ -273,6 +270,9 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<GeneralSettingsViewModel>(),
                     provider.GetRequiredService<GeneralSettingsViewModel>());
                 Assert.NotSame(
+                    provider.GetRequiredService<ExperimentalFeaturesViewModel>(),
+                    provider.GetRequiredService<ExperimentalFeaturesViewModel>());
+                Assert.NotSame(
                     provider.GetRequiredService<PlaybackSettingsViewModel>(),
                     provider.GetRequiredService<PlaybackSettingsViewModel>());
                 Assert.NotSame(
@@ -285,8 +285,8 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<DiagnosticsAboutViewModel>(),
                     provider.GetRequiredService<DiagnosticsAboutViewModel>());
                 Assert.NotSame(
-                    provider.GetRequiredService<TtsRulesViewModel>(),
-                    provider.GetRequiredService<TtsRulesViewModel>());
+                    provider.GetRequiredService<SpeechServicesViewModel>(),
+                    provider.GetRequiredService<SpeechServicesViewModel>());
                 Assert.NotSame(
                     provider.GetRequiredService<LibraryPage>(),
                     provider.GetRequiredService<LibraryPage>());
@@ -309,6 +309,9 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<GeneralSettingsPage>(),
                     provider.GetRequiredService<GeneralSettingsPage>());
                 Assert.NotSame(
+                    provider.GetRequiredService<ExperimentalFeaturesPage>(),
+                    provider.GetRequiredService<ExperimentalFeaturesPage>());
+                Assert.NotSame(
                     provider.GetRequiredService<PlaybackSettingsPage>(),
                     provider.GetRequiredService<PlaybackSettingsPage>());
                 Assert.NotSame(
@@ -321,8 +324,8 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<DiagnosticsAboutPage>(),
                     provider.GetRequiredService<DiagnosticsAboutPage>());
                 Assert.NotSame(
-                    provider.GetRequiredService<TtsRulesPage>(),
-                    provider.GetRequiredService<TtsRulesPage>());
+                    provider.GetRequiredService<SpeechServicesPage>(),
+                    provider.GetRequiredService<SpeechServicesPage>());
             }
             finally
             {
@@ -366,12 +369,8 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IRegexReplacementRuleWorkspaceService),
             typeof(IRegexReplacementPipeline),
             typeof(ITextSegmenter),
-            typeof(ITtsRuleQueries),
-            typeof(ITtsRuleSelectionUseCase),
-            typeof(ITtsRuleEditorUseCase),
-            typeof(ITtsRuleImportUseCase),
+            typeof(ICurrentSpeechProvider),
             typeof(IHttpTtsClient),
-            typeof(ITtsRuleTestService),
             typeof(IBookPlaybackContentService),
             typeof(ICacheCatalog),
             typeof(ICacheCoverageQuery),
@@ -386,7 +385,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IPlaybackSession),
             typeof(IPlaybackBookCommands),
             typeof(IPlaybackRegexReplacementRefresher),
-            typeof(ISelectedTtsRuleProvider),
+            typeof(ICurrentSpeechProvider),
             typeof(IAppSettingsService)
         };
 
