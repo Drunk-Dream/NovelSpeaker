@@ -50,11 +50,13 @@
 
 # Phase A：v0.7.0 发布前稳定性收口
 
-## [ ] T001（P1）：收拢 Button Style 语义与命名
+## [x] T001（P1）：收拢 Button Style 语义与命名
 
 目标：审计现有共享 Button Style 及主要调用方，以稳定交互职责重新收拢语义；复用已有职责相同的样式，消除按“透明”“某页面按钮”等偶然外观或位置建立全局 Style 的倾向。允许在证据充分时重命名或把明确属于 Media/Navigation 的变体迁入对应命名空间，但不得建立兼容 alias。
 
 详细规格：`tasks/T001_BUTTON_STYLE_SEMANTICS.md`
+
+完成成果：播放工具栏样式迁入 `App.Media.ToolbarControl`，浮动定位动作样式改名为 `App.Button.ContextAction`；所有生产调用方与相关测试已迁移，旧 key 已删除。
 
 ## [ ] T002（P0）：修复 Provider Popup 崩溃并建立核心回归
 

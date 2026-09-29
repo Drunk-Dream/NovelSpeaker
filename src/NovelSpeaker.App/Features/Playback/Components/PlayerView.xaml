@@ -151,7 +151,7 @@
                         Content="{Binding StopTimerRemainingText}">
                     <ui:Button.Style>
                         <Style TargetType="{x:Type ui:Button}"
-                               BasedOn="{StaticResource App.Button.ToolbarValue}">
+                               BasedOn="{StaticResource App.Media.ToolbarControl}">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasActiveStopTimer}" Value="True">
                                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
@@ -167,7 +167,7 @@
                         Margin="12,0,0,0"
                         Width="80"
                         Height="44"
-                        Style="{StaticResource App.Button.ToolbarValue}"
+                        Style="{StaticResource App.Media.ToolbarControl}"
                         Command="{Binding ToggleSpeedMenuCommand}"
                         ToolTip="调整语速"
                         AutomationProperties.Name="{Binding SpeakSpeedButtonText}"
@@ -571,7 +571,7 @@
                                 Panel.ZIndex="2"
                                 Visibility="Collapsed"
                                 Click="LocateCurrentChapterButton_OnClick"
-                                Style="{StaticResource App.Button.FloatingIcon}"
+                                Style="{StaticResource App.Button.ContextAction}"
                                 ToolTip="定位到当前章节"
                                 AutomationProperties.Name="定位到当前章节"
                                 Icon="{ui:SymbolIcon Symbol=TargetArrow24}" />
@@ -793,7 +793,7 @@
                                     Icon="{ui:SymbolIcon Symbol=TargetArrow24}">
                                 <ui:Button.Style>
                                     <Style TargetType="{x:Type ui:Button}"
-                                           BasedOn="{StaticResource App.Button.FloatingIcon}" />
+                                           BasedOn="{StaticResource App.Button.ContextAction}" />
                                 </ui:Button.Style>
                             </ui:Button>
                         </Grid>

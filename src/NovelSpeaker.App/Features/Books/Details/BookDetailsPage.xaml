@@ -284,7 +284,7 @@
                                     Panel.ZIndex="2"
                                     Visibility="Collapsed"
                                     Click="LocateCurrentChapterButton_OnClick"
-                                    Style="{StaticResource App.Button.FloatingIcon}"
+                                    Style="{StaticResource App.Button.ContextAction}"
                                     ToolTip="定位到当前章节"
                                     AutomationProperties.Name="定位到当前章节"
                                     Icon="{ui:SymbolIcon Symbol=TargetArrow24}" />
