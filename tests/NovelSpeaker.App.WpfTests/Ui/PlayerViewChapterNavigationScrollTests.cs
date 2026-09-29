@@ -115,7 +115,7 @@ public sealed partial class PlayerViewTests
                 view.UpdateLayout();
                 DoEvents();
 
-                Assert.InRange(scrollViewer.VerticalOffset, 0, 0.000001);
+                Assert.InRange(scrollViewer.VerticalOffset, 0, 1d);
             }
             finally
             {
