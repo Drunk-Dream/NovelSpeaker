@@ -781,7 +781,7 @@ internal static class GallerySceneBuilders
                 CreateText("State fixtures", 15, FontWeights.SemiBold),
                 new TextBlock
                 {
-                    Text = "播放 / 暂停、章节和音量入口使用统一 48 px 媒体命中区；Hover 只增强图标前景，Pressed 只提供轻微内容反馈，不绘制大面积按钮背景。Focus、Disabled、置顶激活和长 Tooltip 均为固定 Gallery 状态。",
+                    Text = "播放 / 暂停、章节和音量入口使用统一 48 DIP 媒体命中区；Hover 显示中性圆角背景并增强图标前景，Pressed 加深背景。Focus、Disabled、置顶激活和长 Tooltip 均为固定 Gallery 状态。",
                     Margin = new Thickness(0, 8, 0, 0),
                     TextWrapping = TextWrapping.Wrap
                 }.WithResource(TextBlock.ForegroundProperty, "App.Brush.Text.Secondary"),
