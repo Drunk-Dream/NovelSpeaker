@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:rules="clr-namespace:NovelSpeaker.App.Shared.Presentation.Rules">
+                    xmlns:rules="clr-namespace:NovelSpeaker.App.Shared.Presentation.Rules"
+                    xmlns:selection="clr-namespace:NovelSpeaker.App.Shared.Presentation.Selection">
     <Style TargetType="{x:Type rules:RuleListItemView}">
         <Setter Property="MinHeight" Value="72" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -10,7 +11,7 @@
                 <ControlTemplate TargetType="{x:Type rules:RuleListItemView}">
                     <Grid Margin="0,4,0,4"
                           Background="Transparent">
-                        <Border x:Name="Surface"
+                        <selection:SelectionSurface x:Name="Surface"
                                 Style="{StaticResource App.Selection.RuleCard}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -80,7 +81,7 @@
                                                TextWrapping="Wrap" />
                                 </Border>
                             </Grid>
-                        </Border>
+                        </selection:SelectionSurface>
 
                     </Grid>
                     <ControlTemplate.Triggers>

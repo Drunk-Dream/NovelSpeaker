@@ -4,6 +4,7 @@
       xmlns:commonControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common"
       xmlns:feedbackControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Feedback"
       xmlns:navigation="clr-namespace:NovelSpeaker.App.Shell.Navigation"
+      xmlns:selection="clr-namespace:NovelSpeaker.App.Shared.Presentation.Selection"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:views="clr-namespace:NovelSpeaker.App.Features.Books.Shared"
       Background="Transparent">
@@ -229,7 +230,7 @@
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Border MinHeight="0"
+                                        <selection:SelectionSurface MinHeight="0"
                                                 Padding="0"
                                                 Style="{StaticResource App.Selection.CurrentItem}">
                                             <Grid>
@@ -246,24 +247,18 @@
                                                 <Grid Margin="14,12"
                                                       IsHitTestVisible="False">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="Auto" />
-                                                        <ColumnDefinition Width="12" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
 
-                                                    <TextBlock VerticalAlignment="Center"
-                                                               Style="{StaticResource App.Selection.Content.Secondary}"
-                                                               Text="{Binding IndexText}" />
-
-                                                    <TextBlock Grid.Column="2"
+                                                    <TextBlock Grid.Column="0"
                                                                VerticalAlignment="Center"
                                                                Style="{StaticResource App.Selection.Content.Title}"
                                                                Text="{Binding Title}"
                                                                TextTrimming="CharacterEllipsis"
                                                                TextWrapping="NoWrap" />
 
-                                                    <TextBlock Grid.Column="3"
+                                                    <TextBlock Grid.Column="1"
                                                                Margin="12,0,0,0"
                                                                VerticalAlignment="Center"
                                                                FontWeight="SemiBold"
@@ -272,7 +267,7 @@
                                                                Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                                 </Grid>
                                             </Grid>
-                                        </Border>
+                                        </selection:SelectionSurface>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>

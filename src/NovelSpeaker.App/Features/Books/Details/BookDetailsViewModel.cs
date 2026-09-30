@@ -962,7 +962,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             ? progress.CurrentChapterTitle
             : "未开始";
         ChapterCatalogSummaryText = progress.HasReadingProgress && progress.CurrentChapterIndex is not null
-            ? $"共 {_projection.CatalogCount} 章 · 当前第 {progress.CurrentChapterIndex.Value + 1} 章"
+            ? $"共 {_projection.CatalogCount} 章 · 当前：{progress.CurrentChapterTitle}"
             : $"共 {_projection.CatalogCount} 章 · 未开始";
         ProgressRatio = Math.Clamp(progress.OverallProgress, 0, 1);
         ProgressText = $"{ProgressRatio:P0}";

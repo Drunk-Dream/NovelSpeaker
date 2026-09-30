@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Media;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.StyleGallery;
@@ -58,7 +59,7 @@ internal static class GallerySelectionScene
                 CreateBody(
                     "App.Selection 样式只表达容器状态：默认、Hover、键盘 Focus、Disabled、Selected、Current、MultiSelect 与 DropTarget。状态事实来自数据项或列表选择模型，虚拟化回收容器不会保存业务事实。"),
                 CreateBody(
-                    "Hover 使用背景状态层，Selected/Current/MultiSelect/DropTarget 使用强调色背景与边框；组合状态下边框保持状态可见，Hover 背景叠加其上。")
+                    "Hover 使用浅背景，Selected 使用中性背景，Current 使用左侧 Accent 标记，Focus 使用边框；这些状态可以叠加。")
             }
         };
         return surface;
@@ -195,7 +196,7 @@ internal static class GallerySelectionScene
     private static DataTemplate CreateVirtualizedRowTemplate()
     {
         var template = new DataTemplate(typeof(SelectionFixtureItem));
-        var border = new FrameworkElementFactory(typeof(Border));
+        var border = new FrameworkElementFactory(typeof(SelectionSurface));
         border.SetValue(Border.StyleProperty, FindResource("App.Selection.ListItem"));
         border.SetValue(Border.MinWidthProperty, 160.0);
         border.SetBinding(AutomationProperties.AutomationIdProperty, new Binding(nameof(SelectionFixtureItem.RowId)));
@@ -240,6 +241,11 @@ internal static class GallerySelectionScene
             case "Current":
                 item.IsCurrent = true;
                 break;
+            case "CurrentSelected":
+            case "CurrentSelectedFocus":
+                item.IsCurrent = true;
+                item.IsSelected = true;
+                break;
             case "DropTarget":
                 item.IsDropTarget = true;
                 break;
@@ -254,7 +260,7 @@ internal static class GallerySelectionScene
 
         var baseStyle = row.Style
             ?? throw new InvalidOperationException($"Selection style was not resolved for '{variant}'.");
-        var previewStyle = new Style(typeof(Border), baseStyle);
+        var previewStyle = new Style(typeof(SelectionSurface), baseStyle);
         var trigger = new Trigger
         {
             Property = GallerySelectionVisualStateProperty,
@@ -266,7 +272,7 @@ internal static class GallerySelectionScene
                 Border.BackgroundProperty,
                 new DynamicResourceExtension("App.Brush.Interaction.Surface.Hover")));
         }
-        else if (state == "Focus")
+        else if (state is "Focus" or "CurrentSelectedFocus")
         {
             trigger.Setters.Add(new Setter(
                 Border.BorderBrushProperty,
@@ -276,10 +282,7 @@ internal static class GallerySelectionScene
         {
             trigger.Setters.Add(new Setter(
                 Border.BackgroundProperty,
-                new DynamicResourceExtension("App.Brush.Accent.Subtle")));
-            trigger.Setters.Add(new Setter(
-                Border.BorderBrushProperty,
-                new DynamicResourceExtension("App.Brush.Accent.Default")));
+                new DynamicResourceExtension("App.Brush.Interaction.Surface.Selected")));
         }
 
         if (state == "Disabled")
@@ -296,13 +299,13 @@ internal static class GallerySelectionScene
         return row;
     }
 
-    private static Border CreateRow(
+    private static SelectionSurface CreateRow(
         SelectionFixtureItem item,
         string styleKey,
         string automationId,
         string name)
     {
-        var border = new Border
+        var border = new SelectionSurface
         {
             Style = FindResource(styleKey),
             DataContext = item,
@@ -399,6 +402,8 @@ internal static class GallerySelectionScene
         "Hover",
         "Selected",
         "Current",
+        "CurrentSelected",
+        "CurrentSelectedFocus",
         "DropTarget",
         "MultiSelect",
         "Focus",

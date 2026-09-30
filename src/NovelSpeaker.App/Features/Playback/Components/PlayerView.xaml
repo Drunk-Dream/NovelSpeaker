@@ -5,6 +5,7 @@
              xmlns:presentation="clr-namespace:NovelSpeaker.App.Features.Playback.Presentation"
              xmlns:commonControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common"
              xmlns:feedbackControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Feedback"
+             xmlns:selection="clr-namespace:NovelSpeaker.App.Shared.Presentation.Selection"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              PreviewKeyDown="PlayerView_OnPreviewKeyDown">
     <UserControl.Resources>
@@ -292,26 +293,30 @@
                     <StackPanel>
                         <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
                                        Text="切换语音服务" />
-                            <ItemsControl Margin="0,16,0,0"
-                                          ItemsSource="{Binding Providers}">
+                            <ScrollViewer Margin="0,12,0,0" MaxHeight="300"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Providers}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Button Margin="0,0,0,8"
+                                        <Button Margin="0,0,0,4"
                                                 Style="{StaticResource App.Button.InteractionHost}"
                                                 HorizontalAlignment="Stretch"
                                                 HorizontalContentAlignment="Stretch"
                                                 Command="{Binding DataContext.SelectProviderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                 CommandParameter="{Binding}">
-                                            <Border Padding="12,8" CornerRadius="8">
-                                                <Border.Style>
-                                                    <Style TargetType="Border" BasedOn="{StaticResource App.Selection.CurrentItem}" />
-                                                </Border.Style>
-                                                <TextBlock Style="{StaticResource App.Typography.Body}" Text="{Binding Name}" />
-                                            </Border>
+                                            <selection:SelectionSurface Padding="16,8" CornerRadius="8" MinHeight="50">
+                                                <selection:SelectionSurface.Style>
+                                                    <Style TargetType="selection:SelectionSurface" BasedOn="{StaticResource App.Selection.CurrentItem}" />
+                                                </selection:SelectionSurface.Style>
+                                                <TextBlock Style="{StaticResource App.Selection.Content.Title}" Text="{Binding Name}"
+                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            </selection:SelectionSurface>
                                         </Button>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            </ScrollViewer>
                             <TextBlock Margin="0,12,0,0"
                                        Text="尚无可用的语音服务">
                                 <TextBlock.Style>
@@ -326,9 +331,37 @@
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                        <Button Margin="0,16,0,0" Style="{StaticResource App.Button.Subtle}"
-                                HorizontalAlignment="Stretch" Content="前往语音服务管理"
-                                Command="{Binding OpenSpeechServicesCommand}" />
+                        <Border Height="1" Margin="0,12,0,4"
+                                Background="{DynamicResource App.Brush.Border.Subtle}" />
+                        <Button MinHeight="44" Padding="12,8"
+                                HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
+                                Command="{Binding OpenSpeechServicesCommand}"
+                                AutomationProperties.Name="语音服务管理">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource App.Button.Subtle}">
+                                    <Style.Triggers>
+                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                            <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Symbol="Settings24" Style="{StaticResource App.Icon.Primary}"
+                                               VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="1" Margin="10,0,0,0"
+                                           Style="{StaticResource App.Typography.Body}"
+                                           VerticalAlignment="Center" Text="语音服务管理" />
+                                <ui:SymbolIcon Grid.Column="2" Symbol="ChevronRight24"
+                                               Style="{StaticResource App.Icon.Secondary}"
+                                               VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
                     </StackPanel>
                 </Border>
             </Popup>
@@ -511,34 +544,15 @@
                                         ToolTip="{Binding Title}"
                                         AutomationProperties.Name="{Binding AutomationName}"
                                         Click="ChapterButton_OnClick">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="3" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-
-                                        <Border Background="{DynamicResource App.Brush.Accent.Default}">
-                                            <Border.Style>
-                                                <Style TargetType="Border">
-                                                    <Setter Property="Opacity" Value="0" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                            <Setter Property="Opacity" Value="1" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </Border.Style>
-                                        </Border>
-
-                                        <Border Grid.Column="1"
+                                            <selection:SelectionSurface
                                                 MinHeight="44"
                                                 Padding="12,6"
                                                 CornerRadius="10">
-                                            <Border.Style>
-                                                <Style TargetType="Border"
+                                            <selection:SelectionSurface.Style>
+                                                <Style TargetType="selection:SelectionSurface"
                                                        BasedOn="{StaticResource App.Selection.MultiSelectItem}">
                                                 </Style>
-                                            </Border.Style>
+                                            </selection:SelectionSurface.Style>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
@@ -557,8 +571,7 @@
                                                            Text="{Binding CachePercentageText}"
                                                            Visibility="{Binding IsCachePercentageVisible, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             </Grid>
-                                        </Border>
-                                    </Grid>
+                                            </selection:SelectionSurface>
                                 </Button>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -729,7 +742,7 @@
                                                 Command="{Binding DataContext.SelectSegmentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 CommandParameter="{Binding}"
                                                 IsEnabled="{Binding IsInteractive}">
-                                            <Border HorizontalAlignment="Stretch"
+                                            <selection:SelectionSurface HorizontalAlignment="Stretch"
                                                     MinHeight="40"
                                                     Padding="14,4"
                                                     CornerRadius="10"
@@ -754,7 +767,7 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-                                            </Border>
+                                            </selection:SelectionSurface>
                                         </Button>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

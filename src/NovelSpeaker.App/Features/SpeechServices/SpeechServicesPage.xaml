@@ -7,6 +7,7 @@
       xmlns:navigation="clr-namespace:NovelSpeaker.App.Shell.Navigation"
       xmlns:speech="clr-namespace:NovelSpeaker.App.Features.SpeechServices"
       xmlns:rules="clr-namespace:NovelSpeaker.App.Shared.Presentation.Rules"
+      xmlns:selection="clr-namespace:NovelSpeaker.App.Shared.Presentation.Selection"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       MinHeight="0"
       Background="Transparent"
@@ -21,7 +22,7 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
-        <Style x:Key="ProviderSurface" TargetType="Border" BasedOn="{StaticResource App.Selection.CardItem}">
+        <Style x:Key="ProviderSurface" TargetType="selection:SelectionSurface" BasedOn="{StaticResource App.Selection.CardItem}">
             <Setter Property="MinHeight" Value="72" />
             <Setter Property="Padding" Value="14,12" />
         </Style>
@@ -31,30 +32,22 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="speech:SpeechProviderListItemView">
                         <Grid Margin="0,4,0,4" Background="Transparent">
-                            <Border x:Name="Surface" Style="{StaticResource ProviderSurface}">
+                            <selection:SelectionSurface x:Name="Surface" Style="{StaticResource ProviderSurface}">
                                 <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <Button Grid.ColumnSpan="2" Margin="-14,-12" Padding="0"
+                                    <Button Margin="-14,-12" Padding="0"
                                             Style="{StaticResource App.Button.InteractionHost}"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                                             Command="{Binding Tag.SelectProviderCommand, RelativeSource={RelativeSource TemplatedParent}}"
                                             CommandParameter="{TemplateBinding CommandParameter}"
                                             AutomationProperties.Name="{Binding Name}" />
-                                    <StackPanel IsHitTestVisible="False" Margin="0,0,16,0" VerticalAlignment="Center">
+                                    <StackPanel IsHitTestVisible="False" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"
                                                    Style="{StaticResource ProviderTitle}" />
                                         <TextBlock Text="{Binding TypeDisplayName}" Margin="0,4,0,0"
-                                                   Style="{StaticResource App.Typography.Secondary}" />
+                                                   Style="{StaticResource App.Selection.Content.Secondary}" />
                                     </StackPanel>
-                                    <ui:SymbolIcon Grid.Column="1" Symbol="Speaker124"
-                                                   Style="{StaticResource App.Icon.Primary}" IsHitTestVisible="False"
-                                                   AutomationProperties.Name="用于朗读的语音服务"
-                                                   Visibility="{Binding IsCurrent, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                 </Grid>
-                            </Border>
+                            </selection:SelectionSurface>
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsDragging" Value="True">

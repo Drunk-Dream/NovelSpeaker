@@ -726,7 +726,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task SelectProviderAsync(PlayerProviderItemViewModel? provider, CancellationToken cancellationToken)
     {
-        if (provider is null || provider.IsSelected)
+        if (provider is null || provider.IsCurrent)
         {
             return;
         }
@@ -1282,7 +1282,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         foreach (var provider in Providers)
         {
-            provider.IsSelected = provider.Id == selectedProviderId;
+            provider.IsCurrent = provider.Id == selectedProviderId;
         }
     }
 
@@ -1452,7 +1452,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
-        var selectedProvider = Providers.FirstOrDefault(static provider => provider.IsSelected);
+        var selectedProvider = Providers.FirstOrDefault(static provider => provider.IsCurrent);
         if (selectedProvider is null)
         {
             return;

@@ -306,10 +306,9 @@ public sealed partial class ShellChapterExportController : ObservableObject, IDi
             return "正在准备章节…";
         }
 
-        var prefix = $"第 {snapshot.CurrentChapterIndex.Value + 1} 章";
         return string.IsNullOrWhiteSpace(snapshot.CurrentChapterTitle)
-            ? prefix
-            : $"{prefix} · {snapshot.CurrentChapterTitle}";
+            ? "正在准备章节…"
+            : snapshot.CurrentChapterTitle;
     }
 
     private static string BuildCompletionText(ChapterExportSnapshot snapshot) => snapshot.SkippedChapterCount == 0

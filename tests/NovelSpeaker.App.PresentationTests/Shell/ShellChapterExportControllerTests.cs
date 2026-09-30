@@ -22,7 +22,7 @@ public sealed class ShellChapterExportControllerTests
         Assert.True(controller.IsVisible);
         Assert.Equal("导出中 · 2/7 章 · 29%", controller.CompactStatusText);
         Assert.Equal("总进度 2 / 7 章", controller.ProgressText);
-        Assert.Equal("第 3 章 · 第三章", controller.CurrentChapterText);
+        Assert.Equal("第三章", controller.CurrentChapterText);
         Assert.True(controller.CanCancel);
         Assert.False(controller.CanDismiss);
     }

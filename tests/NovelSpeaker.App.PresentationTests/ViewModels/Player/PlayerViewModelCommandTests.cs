@@ -43,7 +43,7 @@ public sealed partial class PlayerViewModelTests
         await model.LoadAsync(CancellationToken.None);
         Assert.Equal(!audioLoaded, model.ShowNoProviderState);
         Assert.Equal(audioLoaded, model.CanTogglePlayPause);
-        Assert.All(model.Providers, provider => Assert.False(provider.IsSelected));
+        Assert.All(model.Providers, provider => Assert.False(provider.IsCurrent));
         if (!audioLoaded)
             Assert.Equal(hasOtherProvider ? "尚未选择语音服务" : "尚无可用的语音服务", model.ProviderUnavailableTitle);
         model.OnPageNavigatedFrom();
@@ -63,7 +63,7 @@ public sealed partial class PlayerViewModelTests
         Assert.True(model.ShowNoProviderState);
         Assert.False(model.CanTogglePlayPause);
         Assert.Equal(hasProvider, model.HasProviders);
-        Assert.All(model.Providers, item => Assert.False(item.IsSelected));
+        Assert.All(model.Providers, item => Assert.False(item.IsCurrent));
         Assert.Equal(hasProvider ? "尚未选择语音服务" : "尚无可用的语音服务", model.ProviderUnavailableTitle);
         await model.OpenSpeechServicesCommand.ExecuteAsync(null);
         Assert.Equal(AppRoutes.SpeechServices, navigation.LastNavigationRoute);

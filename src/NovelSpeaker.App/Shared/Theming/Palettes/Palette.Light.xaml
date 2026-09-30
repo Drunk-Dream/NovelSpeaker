@@ -15,6 +15,10 @@
     <SolidColorBrush x:Key="App.Brush.Border.Strong" Color="#B9C0CC" />
 
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Hover" Color="#EEF0F6" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Selected" Color="#E0E4EE" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Selected.Hover" Color="#D7DCE8" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.CurrentRail" Color="#566AD0" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.CurrentRail.OnSelected" Color="#566AD0" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Pressed" Color="#E4E7F1" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Border.Hover" Color="#9EA7B5" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Border.Pressed" Color="#7D8798" />

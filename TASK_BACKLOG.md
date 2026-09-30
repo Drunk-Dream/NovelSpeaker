@@ -64,11 +64,11 @@ T003 预计会涉及 Book Description、元数据规则持久化和新的全局�
 
 # Phase A：全局交互语义与播放可靠性
 
-## [ ] T001（P0）：统一 Selection/Current 视觉语义并收口相关 UI
+## [x] T001（P0）：统一 Selection/Current 视觉语义并收口相关 UI
 
 目标：把全项目列表状态统一为“Current=左侧 Accent rail、Hover=浅背景、Selected=更深的中性背景、Focus=Focus 边框”，允许 Current+Selected+Focus 自然叠加；同时完成章节标题去自动编号和播放页 Provider Popup 的排版优化。
 
-详细规格：`tasks/T001_SELECTION_VISUAL_SEMANTICS.md`
+完成成果：共享 Selection surface 将 Current rail、Selected 中性背景、Hover 与 Focus 分层；统一相关列表和 StyleGallery，章节列表仅显示 Title，播放页 Provider Popup 完成滚动与管理导航行。
 
 ## [ ] T002（P0）：收拢播放连续失败恢复
 

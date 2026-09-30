@@ -29,7 +29,15 @@
                      Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
 
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Hover"
+                     Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Selected"
                      Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Selected.Hover"
+                     Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.CurrentRail"
+                     Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="App.Brush.Interaction.CurrentRail.OnSelected"
+                     Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Pressed"
                      Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Border.Hover"
@@ -60,7 +68,7 @@
     <SolidColorBrush x:Key="App.Brush.Accent.Text"
                      Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Focus"
-                     Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+                     Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
 
     <SolidColorBrush x:Key="App.Brush.Danger"
                      Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />

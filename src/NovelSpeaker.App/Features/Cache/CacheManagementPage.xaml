@@ -4,6 +4,7 @@
       xmlns:commonControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common"
       xmlns:feedbackControls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Feedback"
       xmlns:navigation="clr-namespace:NovelSpeaker.App.Shell.Navigation"
+      xmlns:selection="clr-namespace:NovelSpeaker.App.Shared.Presentation.Selection"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       MinHeight="0"
       Background="Transparent"
@@ -131,7 +132,7 @@
                                           HorizontalContentAlignment="Stretch">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Margin="0,0,0,8"
+                                        <selection:SelectionSurface Margin="0,0,0,8"
                                                 Padding="0"
                                                 Style="{StaticResource App.Selection.CardItem}"
                                                 AutomationProperties.Name="{Binding AutomationName}">
@@ -160,7 +161,7 @@
                                                     </DockPanel>
                                                 </StackPanel>
                                             </Button>
-                                        </Border>
+                                        </selection:SelectionSurface>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -319,14 +320,10 @@
                                                               Header="导出所选章节" />
                                                 </ContextMenu>
                                             </Button.ContextMenu>
-                                            <Border Padding="16"
+                                            <selection:SelectionSurface Padding="16"
                                                     Style="{StaticResource App.Selection.CardItem}">
                                                 <StackPanel>
                                                     <DockPanel LastChildFill="True">
-                                                        <TextBlock DockPanel.Dock="Left"
-                                                                   Margin="0,0,12,0"
-                                                                   Style="{StaticResource App.Selection.Content.Title}"
-                                                                   Text="{Binding OrderText}" />
                                                         <TextBlock Style="{StaticResource App.Selection.Content.Primary}"
                                                                    Text="{Binding Title}"
                                                                    TextTrimming="CharacterEllipsis" />
@@ -342,7 +339,7 @@
                                                                    Text="{Binding CompletenessText}" />
                                                     </WrapPanel>
                                                 </StackPanel>
-                                            </Border>
+                                            </selection:SelectionSurface>
                                         </Button>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>

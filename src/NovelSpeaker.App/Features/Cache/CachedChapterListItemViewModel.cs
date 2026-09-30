@@ -5,7 +5,6 @@ public sealed class CachedChapterListItemViewModel
     public CachedChapterListItemViewModel(
         string bookId,
         int chapterIndex,
-        string orderText,
         string title,
         string cacheSizeText,
         string entryCountText,
@@ -17,7 +16,6 @@ public sealed class CachedChapterListItemViewModel
     {
         BookId = bookId;
         ChapterIndex = chapterIndex;
-        OrderText = orderText;
         Title = title;
         CacheSizeText = cacheSizeText;
         EntryCountText = entryCountText;
@@ -31,8 +29,6 @@ public sealed class CachedChapterListItemViewModel
     public string BookId { get; }
 
     public int ChapterIndex { get; }
-
-    public string OrderText { get; }
 
     public string Title { get; }
 
@@ -49,7 +45,7 @@ public sealed class CachedChapterListItemViewModel
     public string ExportToolTip { get; }
 
     public string AutomationName =>
-        $"{OrderText}，{Title}，{CacheSizeText}，{CompletenessText}，{ExportAccessibilityText}" +
+        $"{Title}，{CacheSizeText}，{CompletenessText}，{ExportAccessibilityText}" +
         (IsSelected ? "，已选择" : string.Empty);
 
     public bool IsSelected { get; }
@@ -58,7 +54,6 @@ public sealed class CachedChapterListItemViewModel
         new(
             BookId,
             ChapterIndex,
-            OrderText,
             Title,
             CacheSizeText,
             EntryCountText,

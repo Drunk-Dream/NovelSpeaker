@@ -8,20 +8,16 @@ public sealed partial class PlayerProviderItemViewModel : ObservableObject
     public PlayerProviderItemViewModel(
         ProviderId id,
         string name,
-        bool isSelected)
+        bool isCurrent)
     {
         Id = id;
         Name = name;
-        this.isSelected = isSelected;
+        this.isCurrent = isCurrent;
     }
 
     public ProviderId Id { get; }
 
     public string Name { get; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsCurrent))]
-    private bool isSelected;
-
-    public bool IsCurrent => IsSelected;
+    [ObservableProperty] private bool isCurrent;
 }

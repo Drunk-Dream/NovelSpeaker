@@ -28,7 +28,7 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal("作者甲", viewModel.DisplayAuthor);
         Assert.Equal("共 3 章", viewModel.TotalChapterCountText);
         Assert.Equal("第二章 继续", viewModel.CurrentChapterText);
-        Assert.Equal("共 3 章 · 当前第 2 章", viewModel.ChapterCatalogSummaryText);
+        Assert.Equal("共 3 章 · 当前：第二章 继续", viewModel.ChapterCatalogSummaryText);
         Assert.Contains("67", viewModel.ProgressText);
         Assert.Equal("2 KB", viewModel.CacheSizeText);
         Assert.Equal(3, viewModel.Chapters.Count);
@@ -55,7 +55,7 @@ public sealed class BookDetailsViewModelTests
             });
 
         Assert.Equal("第三章 结尾", viewModel.CurrentChapterText);
-        Assert.Equal("共 3 章 · 当前第 3 章", viewModel.ChapterCatalogSummaryText);
+        Assert.Equal("共 3 章 · 当前：第三章 结尾", viewModel.ChapterCatalogSummaryText);
         Assert.Equal(1d, viewModel.ProgressRatio);
         Assert.False(viewModel.Chapters[1].IsCurrent);
         Assert.True(viewModel.Chapters[2].IsCurrent);
