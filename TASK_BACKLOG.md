@@ -2,26 +2,36 @@
 
 ## 1. 阶段定位
 
-当前进入 **v0.7.0 发布前稳定性收口与诊断职责对齐阶段**。
+当前进入 **v0.7.0 后的核心体验增强阶段**。
 
-当前代码基线：`d98783b43c81d959798a42c1ef5d25efaf8aeda9`（`feature/speech-provider-refactor`）。
+规划代码基线：`ea07878493a09f080b055cfee62a7e7e5e0e25ec`（`dev`）。上一轮 Speech Provider、v0.7.0 发布与诊断 hardening 已完成，本 Backlog 已清空旧任务，只保留下一阶段尚未实施的工作。
 
-上一阶段已经完成 Speech Provider 架构重构、HTTP / Microsoft Edge Provider、统一语速、Playback/Cache/Export 接线以及语音服务管理 UI。本阶段不继续扩张 Provider 功能，先处理本轮暴露出的 UI 样式语义、Provider 选择器崩溃和核心回归，然后发布 `v0.7.0`；发布完成后再以独立阶段有限度优化诊断系统的故障/Process 生命周期和问题诊断证据完整性。
+本阶段只做已经确认的高价值增强：
 
-本阶段目标：
+- 统一全项目 Current / Selected / Hover / Focus 视觉语义，并顺带优化播放页 Provider 浮窗与章节标题显示；
+- 收拢播放连续失败恢复，有限重试后自动跳段，连续 3 段失败后暂停；
+- 重做 TXT 导入元数据识别与“空行分章”，保持直接导入流程；
+- 给章节规则、正则规则、元数据规则和 HTTP Provider 增加与批量导出配套的批量导入/多选交换体验；
+- 增加第一版本地配置备份/恢复；
+- 仅做轻量书库增强，增加“最近导入”排序，不增加阅读状态筛选。
 
-- 收拢 Button Style，使全局样式按稳定交互语义命名，避免按偶然外观或具体页面不断专用化；
-- 修复播放页 Provider 切换 Popup 因缺失 `App.Button.Transparent` 资源导致的应用级崩溃，并补上能够真实实例化 Provider ItemTemplate 的核心 WPF 回归；
-- 在以上稳定性问题完成后发布 `v0.7.0`，作为 Speech Provider 重构后的正式稳定基线；
-- 发布之后再收拢 fatal failure、Process exit reason、Diagnostic Session 的职责，确保“有序关闭”不再等价于“正常退出”；
-- 修正问题诊断包的关联日志与退化可见性，使“确实没有证据”和“证据读取失败/不完整”可以区分；
-- 诊断优化保持小型、明确，不引入通用 EventBus、Crash Database、完整 OpenTelemetry、复杂健康监控或第二套日志系统。
+本阶段明确不做：
+
+- 在线书源；
+- WebDAV/云同步；
+- Local Provider 或通用插件系统；
+- 新一轮诊断系统扩张；
+- 仅因类文件较大而进行架构重构。
 
 长期规则见：
 
-- `docs/01_SYSTEM_ARCHITECTURE.md`
+- `docs/00_PRODUCT_AND_SCOPE.md`
+- `docs/03_BOOKS_PLAYBACK_AND_PROGRESS.md`
+- `docs/05_DATA_AND_COMPATIBILITY.md`
 - `docs/06_UI_AND_VISUAL_SYSTEM.md`
-- `docs/07_OBSERVABILITY_AND_DIAGNOSTICS.md`
+- `docs/specs/BOOK_IMPORT.md`
+- `docs/specs/HTTP_TTS.md`
+- `docs/specs/REGEX_REPLACEMENT.md`
 - `docs/08_QUALITY_AND_TESTING.md`
 - `AGENTS.md`
 
@@ -30,11 +40,11 @@
 - `[ ]` 未开始
 - `[-]` 进行中
 - `[x]` 已完成，追加简短“完成成果”
-- `[!]` 阻塞，记录会影响产品/架构/隐私/路线的真实冲突
+- `[!]` 阻塞，记录会影响产品/架构/隐私/路线或必须人工授权的真实冲突
 
-默认按 T001 → T005 串行执行。如果调用明确要求连续执行整个 Backlog，可以在每个任务自动验收完成后继续，不等待人工验收。
+默认按 T001 → T006 串行执行。如果调用明确要求连续执行整个 Backlog，可以在每个任务自动验收完成后继续，不等待人工视觉验收。
 
-人工验收永远是可选补充，不阻塞任务完成或下一任务。
+人工视觉验收永远是可选补充，不阻塞任务完成或下一任务。
 
 每个未完成任务的详细实施合同位于 `tasks/`。完成任务后：
 
@@ -44,56 +54,68 @@
 4. 删除对应 `tasks/Txxx_*.md`；
 5. 不等待人工验收。
 
-涉及数据库结构或持久数据迁移时继续严格遵守 `AGENTS.md` 的逐项授权要求。本轮诊断优化按现有 `.nsdiag` schema 完成；如果实现证明必须修改 schema，停止该部分并向用户说明后再继续。
+### 持久化变更特别约束
+
+T003 预计会涉及 Book Description、元数据规则持久化和新的全局导入设置。`AGENTS.md` 要求数据库结构或持久数据变更必须在实施前逐项取得用户明确授权。
+
+因此 Codex 在 T003 中必须先完成只读审计，列出每一项真实需要的持久化变更、原因、数据影响和回退/保留方案；对尚未获得明确授权的项目停止在迁移实现之前并标记 `[!]`。不得把本 Backlog、长期文档或“执行整个阶段”的授权解释成数据库迁移授权。
 
 ---
 
-# Phase A：v0.7.0 发布前稳定性收口
+# Phase A：全局交互语义与播放可靠性
 
-## [x] T001（P1）：收拢 Button Style 语义与命名
+## [ ] T001（P0）：统一 Selection/Current 视觉语义并收口相关 UI
 
-目标：审计现有共享 Button Style 及主要调用方，以稳定交互职责重新收拢语义；复用已有职责相同的样式，消除按“透明”“某页面按钮”等偶然外观或位置建立全局 Style 的倾向。允许在证据充分时重命名或把明确属于 Media/Navigation 的变体迁入对应命名空间，但不得建立兼容 alias。
+目标：把全项目列表状态统一为“Current=左侧 Accent rail、Hover=浅背景、Selected=更深的中性背景、Focus=Focus 边框”，允许 Current+Selected+Focus 自然叠加；同时完成章节标题去自动编号和播放页 Provider Popup 的排版优化。
 
-详细规格：`tasks/T001_BUTTON_STYLE_SEMANTICS.md`
+详细规格：`tasks/T001_SELECTION_VISUAL_SEMANTICS.md`
 
-完成成果：播放工具栏样式迁入 `App.Media.ToolbarControl`，浮动定位动作样式改名为 `App.Button.ContextAction`；所有生产调用方与相关测试已迁移，旧 key 已删除。
-
-## [x] T002（P0）：修复 Provider Popup 崩溃并建立核心回归
+## [ ] T002（P0）：收拢播放连续失败恢复
 
 依赖：T001。
 
-目标：使用 T001 确立的最终 Button 语义修复播放页 Provider 选择器；修正测试上下文仍暴露旧 `Rules` 而未提供真实 `Providers` 的缺口，让自动测试真正实例化 Provider DataTemplate，并保留一个只保护“核心 Provider Popup 可安全打开”的永久 WPF 回归。
+目标：对可恢复合成失败保持有限重试；最终失败后跳过当前段，任一成功段重置连续失败计数，连续自动跳过 3 段后暂停等待用户处理。不得建立与 Provider Runtime 竞争的第二套无界重试。
 
-详细规格：`tasks/T002_PROVIDER_POPUP_CRASH.md`
-
-完成成果：Provider Popup 行改用无自身 Hover/Pressed Surface 的 `App.Button.InteractionHost`；WPF 测试上下文改为生产一致的 `Providers`，并保留真实打开 Popup、完成 Render 的单项核心回归。旧缺失资源可稳定复现为 XamlParseException，修复后通过。
-
-## [x] T003（P0）：发布 NovelSpeaker v0.7.0
-
-依赖：T001、T002。
-
-目标：在发布前稳定性收口完成并通过完整质量门禁后，严格按照仓库 `release-version` Skill 发布指定版本 `v0.7.0`。本任务不夹带后续诊断系统重构；Release 成功后从最终发布主线建立新的 `feature/diagnostics-hardening` 分支继续 T004–T005。
-
-完成成果：通过 PR #13 发布 v0.7.0；Release workflow、Windows x64 ZIP、SHA-256 资产及中文 Release Note 均已验证。发布后已从最终 main 建立 `feature/diagnostics-hardening`。
+详细规格：`tasks/T002_PLAYBACK_FAILURE_RECOVERY.md`
 
 ---
 
-# Phase B：诊断职责有限收口
+# Phase B：TXT 导入与规则工作台
 
-## [x] T004（P0）：收拢 fatal failure 与 Process 生命周期职责
+## [ ] T003（P0）：实现元数据识别与空行分章导入链路
+
+依赖：T002。
+
+目标：按 `BOOK_IMPORT.md` 实现文件名/正文头部元数据规则、Description、全局“空行分章”、章节原始标题展示与设置 IA 调整；移除旧 `BookFileNameTemplate`，保持无编码问题时选择 TXT 后直接导入。
+
+本任务涉及持久化前必须执行上文逐项授权流程。
+
+详细规格：`tasks/T003_BOOK_IMPORT_METADATA_AND_CHAPTERING.md`
+
+## [ ] T004（P1）：增加规则与 Provider 批量交换
 
 依赖：T003。
 
-目标：用一个小型、单一 owner 的 Process failure/lifetime 边界统一运行期 fatal failure 分类和最终退出原因；让 Production Logging、Diagnostic Session 与 orderly shutdown 消费同一份稳定语义，并保留真正硬崩溃由下一次 Session 恢复推断 unexpected termination 的能力。
+目标：为章节规则、正则替换规则、文件名元数据规则、正文头部元数据规则和可分享 HTTP Provider 建立一致的 Ctrl/Shift 多选、单文档批量导出和同格式批量导入；修饰键点击不切换右侧 Editor，Microsoft Edge 不参与导出选择。
 
-详细规格：`tasks/T004_PROCESS_FAILURE_LIFETIME.md`
+详细规格：`tasks/T004_BULK_RULE_PROVIDER_EXCHANGE.md`
 
-完成成果：Process lifetime owner 保留首个 fatal 退出原因；启动/运行期故障日志与活动 Session 的低基数故障事件消费同一稳定事实，已观察任务异常保持非致命。有序关闭显式传递退出原因，Store Dispose 只排空 writer；缺少结束记录仍由跨进程恢复标记 unexpected。删除旧 startup-only recorder 与运行期故障复用启动通道的实现，保留隐私和恢复测试，补充 fatal/正常退出、故障事件、生产日志异常链/栈和 sink 失败隔离核心回归。Bootstrap/架构及 Diagnostics focused tests、完整 Release 门禁均通过（845 项测试），无 schema/data migration、无长期文档冲突。早期全量运行出现范围外播放过渡状态等待和 `app.db` fixture 清理占用偶发失败；单独复查及最终全量均通过，保留为已有测试稳定性风险。
+---
 
-## [x] T005（P1）：收口问题诊断证据聚合与退化可见性
+# Phase C：配置迁移与书库轻量增强
+
+## [ ] T005（P1）：实现第一版配置备份与恢复
 
 依赖：T004。
 
-目标：修正问题诊断导出中关联日志可能被静默漏掉的问题，并把日志证据读取状态明确为 complete / partial / unavailable 或等价稳定语义；保持导出 best effort，但不再把读取失败伪装成“没有相关日志”。只做必要职责拆分，不建立通用 evidence pipeline 或 diagnostics health framework。
+目标：在“缓存与数据”中增加本地私人配置备份/恢复，完整保存设置、Provider（含凭据）和四类规则；恢复采用替换配置快照语义，不包含书籍、阅读进度、缓存或诊断数据，不加入 WebDAV。
 
-完成成果：关联生产日志读取独立为小型内部 reader，坏行后继续扫描、轮转/不可读文件按 best effort 保留可用记录，并将 complete / partial / unavailable 及关联记录数写入摘要；读取退化经现有 Production Logging 报告。保留 Session correlation、隐私过滤和原子 ZIP 边界，新增真实关联日志、空匹配、坏行与不可读源回归测试。无 `.nsdiag` schema/data migration。
+详细规格：`tasks/T005_CONFIGURATION_BACKUP_RESTORE.md`
+
+## [ ] T006（P2）：增加书库“最近导入”排序
+
+依赖：T003。
+
+目标：在现有标题/作者搜索与“最近阅读 / 标题”排序基础上增加“最近导入”，继续保持书库轻量，不增加阅读状态筛选、标签、文件夹或收藏系统。
+
+详细规格：`tasks/T006_LIBRARY_RECENT_IMPORT_SORT.md`
