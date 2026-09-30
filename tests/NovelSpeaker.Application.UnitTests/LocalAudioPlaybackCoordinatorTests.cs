@@ -113,6 +113,23 @@ public sealed class LocalAudioPlaybackCoordinatorTests
         Assert.Equal("音频解码失败，请更换音频文件后重试。", coordinator.CurrentSnapshot.Message);
     }
 
+    [Fact]
+    public async Task Start_load_failure_publishes_a_failure_event_for_playback_recovery()
+    {
+        var player = new FakeAudioPlayer();
+        player.ConfigureLoadFailure(
+            new InvalidDataException("damaged audio"),
+            new PlaybackErrorEventArgs(PlaybackErrorKind.UnsupportedFormat, "音频格式无效。"));
+        await using var coordinator = new LocalAudioPlaybackCoordinator(player);
+        PlaybackErrorEventArgs? reported = null;
+        coordinator.PlaybackFailed += (_, error) => reported = error;
+
+        await coordinator.StartAsync(CreateRequest("损坏音频"), CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
+        Assert.Equal(PlaybackErrorKind.UnsupportedFormat, reported?.Kind);
+    }
+
     private static LocalAudioPlaybackRequest CreateRequest(
         string title,
         long resumePositionMilliseconds = 0,

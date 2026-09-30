@@ -119,7 +119,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public bool ShowNoProviderState => !HasAvailableProvider;
 
-    public bool ShowPlaybackErrorBar => IsFaulted && !string.IsNullOrWhiteSpace(ErrorText);
+    public bool ShowPlaybackErrorBar => !string.IsNullOrWhiteSpace(ErrorText);
 
     public bool ShowEmptyChapterState =>
         IsCurrentChapterContentLoaded && CurrentChapterSegmentCount == 0 && HasAvailableProvider;

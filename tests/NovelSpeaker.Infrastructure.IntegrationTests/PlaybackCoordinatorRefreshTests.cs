@@ -78,67 +78,92 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task Consecutive_empty_audio_responses_stop_automatic_skipping()
+    public async Task Three_final_failures_skip_three_segments_then_pause_before_requesting_the_fourth()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "第一个空响应。");
-        audioProvider.EnqueueFailure(TtsErrorKind.EmptyAudioResponse, "第二个空响应。");
+        audioProvider.EnqueueFailure(TtsErrorKind.Unauthorized, "认证失败。");
+        audioProvider.EnqueueFailure(TtsErrorKind.Network, "网络失败。");
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             audioProvider: audioProvider,
-            book: CreateThreeSegmentBook());
+            book: CreateSegmentBook(5));
 
         await coordinator.StartAsync(
             new PlaybackStartRequest("book-1", 0, 0, null, 10),
             CancellationToken.None);
 
-        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
-        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Contains("连续 2 段未生成音频", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
-        Assert.Equal(2, audioProvider.Requests.Count);
+        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
+        Assert.Equal(3, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Contains("连续跳过 3", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
+        Assert.Equal([0, 1, 2], audioProvider.Requests.Select(request => request.SegmentIndex));
+
+        await coordinator.ResumeAsync(CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(3, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal([0, 1, 2, 3], audioProvider.Requests.Select(request => request.SegmentIndex));
     }
 
     [Fact]
-    public async Task RetryCurrentSegment_replays_failed_segment()
+    public async Task Explicit_retry_after_recovery_pause_starts_a_new_failure_window()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueFailure(TtsErrorKind.Network, "网络失败。");
+        audioProvider.EnqueueFailure(TtsErrorKind.Network, "网络失败。");
+        audioProvider.EnqueueFailure(TtsErrorKind.Network, "网络失败。");
         audioProvider.EnqueueSuccess("audio-retry.mp3");
         await using var coordinator = CreateCoordinator(
             localCoordinator,
-            audioProvider: audioProvider);
+            audioProvider: audioProvider,
+            book: CreateSegmentBook(5));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
+        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
 
         await coordinator.RetryCurrentSegmentAsync(CancellationToken.None);
 
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal("audio-retry.mp3", localCoordinator.LastStartedRequest?.FilePath);
-        Assert.Equal(2, audioProvider.Requests.Count);
+        Assert.Equal(3, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(4, audioProvider.Requests.Count);
     }
 
     [Fact]
-    public async Task Repeated_current_segment_failures_reach_the_recovery_pause_threshold()
+    public async Task A_successful_segment_resets_the_consecutive_failure_count()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var audioProvider = new FakeAudioGenerationProvider();
-        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。 ");
-        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。 ");
+        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
+        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
+        audioProvider.EnqueueSuccess("middle.mp3");
+        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
+        audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
+        audioProvider.EnqueueSuccess("last.mp3");
         await using var coordinator = CreateCoordinator(
             localCoordinator,
-            audioProvider: audioProvider);
+            audioProvider: audioProvider,
+            book: CreateSegmentBook(6));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+        var lastSegmentStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SnapshotChanged += (_, snapshot) =>
+        {
+            if (snapshot.State == PlaybackState.Playing && snapshot.SegmentIndex == 5)
+            {
+                lastSegmentStarted.TrySetResult();
+            }
+        };
 
-        await coordinator.RetryCurrentSegmentAsync(CancellationToken.None);
+        localCoordinator.RaiseCompleted();
+        await lastSegmentStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
-        Assert.Contains("连续 2 段", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
-        Assert.True(coordinator.CurrentSnapshot.CanRetry);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal([0, 1, 2, 3, 4, 5], audioProvider.Requests.Select(request => request.SegmentIndex));
     }
 
     [Fact]

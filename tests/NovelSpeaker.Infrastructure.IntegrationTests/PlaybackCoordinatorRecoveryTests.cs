@@ -369,19 +369,24 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task Repeated_audio_decode_failure_invalidates_only_once_and_enters_faulted_state()
+    public async Task Repeated_audio_decode_failure_invalidates_once_then_skips_the_segment()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueCachedSuccess("cached-corrupt.mp3");
-        audioProvider.EnqueueFailure(TtsErrorKind.AudioDecode, "重新生成的音频仍然损坏。");
-        await using var coordinator = CreateCoordinator(localCoordinator, audioProvider: audioProvider);
-        var faulted = new TaskCompletionSource<PlaybackSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        audioProvider.EnqueueSuccess("regenerated.mp3");
+        audioProvider.EnqueueSuccess("next.mp3");
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            book: CreateThreeSegmentBook());
+        var regenerated = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         coordinator.SnapshotChanged += (_, snapshot) =>
         {
-            if (snapshot.State == PlaybackState.Faulted)
+            if (snapshot.State == PlaybackState.Playing &&
+                snapshot.SegmentIndex == 0 && audioProvider.Requests.Count == 2)
             {
-                faulted.TrySetResult(snapshot);
+                regenerated.TrySetResult();
             }
         };
 
@@ -390,23 +395,21 @@ public sealed partial class PlaybackCoordinatorTests
             CancellationToken.None);
         localCoordinator.RaiseFailed(PlaybackErrorKind.AudioDecode, "缓存音频损坏。");
 
-        var firstFailure = await faulted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal("重新生成的音频仍然损坏。", firstFailure.Message);
+        await regenerated.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Equal(1, audioProvider.InvalidateCallCount);
 
-        var secondFaulted = new TaskCompletionSource<PlaybackSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nextPlaying = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         coordinator.SnapshotChanged += (_, snapshot) =>
         {
-            if (snapshot.State == PlaybackState.Faulted && snapshot.Message == "缓存音频再次损坏。")
+            if (snapshot.State == PlaybackState.Playing && snapshot.SegmentIndex == 1)
             {
-                secondFaulted.TrySetResult(snapshot);
+                nextPlaying.TrySetResult();
             }
         };
         localCoordinator.RaiseFailed(PlaybackErrorKind.AudioDecode, "缓存音频再次损坏。");
 
-        var secondFailure = await secondFaulted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal(PlaybackState.Faulted, secondFailure.State);
-        Assert.True(secondFailure.CanRetry);
+        await nextPlaying.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(1, audioProvider.InvalidateCallCount);
     }
 

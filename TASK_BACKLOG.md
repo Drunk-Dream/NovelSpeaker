@@ -70,13 +70,13 @@ T003 预计会涉及 Book Description、元数据规则持久化和新的全局�
 
 完成成果：共享 Selection surface 将 Current rail、Selected 中性背景、Hover 与 Focus 分层；统一相关列表和 StyleGallery，章节列表仅显示 Title，播放页 Provider Popup 完成滚动与管理导航行。
 
-## [ ] T002（P0）：收拢播放连续失败恢复
+## [x] T002（P0）：收拢播放连续失败恢复
 
 依赖：T001。
 
 目标：对可恢复合成失败保持有限重试；最终失败后跳过当前段，任一成功段重置连续失败计数，连续自动跳过 3 段后暂停等待用户处理。不得建立与 Provider Runtime 竞争的第二套无界重试。
 
-详细规格：`tasks/T002_PLAYBACK_FAILURE_RECOVERY.md`
+完成成果：共享合成边界对非 HTTP 瞬时失败与限流执行有限重试；最终失败逐段跳过，连续跳过 3 段后暂停在下一段，成功播放或显式恢复重置计数；缓存音频解码失败仍优先作废重建。
 
 ---
 

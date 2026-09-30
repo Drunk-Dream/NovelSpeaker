@@ -7,7 +7,7 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class PlaybackRecoveryPolicyTests
 {
     [Fact]
-    public void First_empty_audio_response_is_skipped_but_the_threshold_pauses_recovery()
+    public void Every_final_failure_skips_its_segment_and_the_third_pauses_after_skipping()
     {
         var policy = new PlaybackRecoveryPolicy();
 
@@ -18,16 +18,25 @@ public sealed class PlaybackRecoveryPolicyTests
             IsCorruptAudio: false,
             CorruptAudioRecoveryAttempted: false));
         var second = policy.Decide(new PlaybackRecoveryInput(
-            TtsErrorKind.EmptyAudioResponse,
-            "空响应。",
+            TtsErrorKind.Unauthorized,
+            "认证失败。",
             first.ConsecutiveSegmentFailureCount,
+            IsCorruptAudio: false,
+            CorruptAudioRecoveryAttempted: false));
+        var third = policy.Decide(new PlaybackRecoveryInput(
+            TtsErrorKind.Network,
+            "网络失败。",
+            second.ConsecutiveSegmentFailureCount,
             IsCorruptAudio: false,
             CorruptAudioRecoveryAttempted: false));
 
         Assert.True(first.ShouldSkipCurrentSegment);
         Assert.False(first.ShouldPause);
-        Assert.False(second.ShouldSkipCurrentSegment);
-        Assert.True(second.ShouldPause);
+        Assert.True(second.ShouldSkipCurrentSegment);
+        Assert.False(second.ShouldPause);
+        Assert.True(third.ShouldSkipCurrentSegment);
+        Assert.True(third.ShouldPause);
+        Assert.Equal(3, third.ConsecutiveSegmentFailureCount);
     }
 
     [Fact]
@@ -49,7 +58,7 @@ public sealed class PlaybackRecoveryPolicyTests
     }
 
     [Fact]
-    public void Repeated_corrupt_audio_failure_does_not_retry_again()
+    public void Repeated_corrupt_audio_failure_is_a_final_segment_failure()
     {
         var policy = new PlaybackRecoveryPolicy();
 
@@ -62,9 +71,10 @@ public sealed class PlaybackRecoveryPolicyTests
 
         Assert.False(decision.ShouldInvalidateAudio);
         Assert.False(decision.ShouldRetryCurrentSegment);
+        Assert.True(decision.ShouldSkipCurrentSegment);
         Assert.False(decision.ShouldPause);
         Assert.True(decision.CanRetry);
-        Assert.Equal("音频再次损坏。", decision.Message);
+        Assert.Equal(1, decision.ConsecutiveSegmentFailureCount);
     }
 
     [Fact]
@@ -82,19 +92,10 @@ public sealed class PlaybackRecoveryPolicyTests
                 IsCorruptAudio: false,
                 CorruptAudioRecoveryAttempted: false));
 
-            var thresholdFailure = policy.Decide(new PlaybackRecoveryInput(
-                failureKind,
-                "服务暂时不可用。",
-                firstFailure.ConsecutiveSegmentFailureCount,
-                IsCorruptAudio: false,
-                CorruptAudioRecoveryAttempted: false));
-
             Assert.False(firstFailure.ShouldRetryCurrentSegment);
+            Assert.True(firstFailure.ShouldSkipCurrentSegment);
             Assert.False(firstFailure.ShouldPause);
             Assert.Equal(1, firstFailure.ConsecutiveSegmentFailureCount);
-            Assert.True(thresholdFailure.ShouldPause);
-            Assert.Equal(2, thresholdFailure.ConsecutiveSegmentFailureCount);
-            Assert.Contains("连续 2 段", thresholdFailure.Message, StringComparison.Ordinal);
         }
     }
 
