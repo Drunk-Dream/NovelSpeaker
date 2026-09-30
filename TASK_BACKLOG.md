@@ -90,10 +90,10 @@
 
 完成成果：Process lifetime owner 保留首个 fatal 退出原因；启动/运行期故障日志与活动 Session 的低基数故障事件消费同一稳定事实，已观察任务异常保持非致命。有序关闭显式传递退出原因，Store Dispose 只排空 writer；缺少结束记录仍由跨进程恢复标记 unexpected。删除旧 startup-only recorder 与运行期故障复用启动通道的实现，保留隐私和恢复测试，补充 fatal/正常退出、故障事件、生产日志异常链/栈和 sink 失败隔离核心回归。Bootstrap/架构及 Diagnostics focused tests、完整 Release 门禁均通过（845 项测试），无 schema/data migration、无长期文档冲突。早期全量运行出现范围外播放过渡状态等待和 `app.db` fixture 清理占用偶发失败；单独复查及最终全量均通过，保留为已有测试稳定性风险。
 
-## [ ] T005（P1）：收口问题诊断证据聚合与退化可见性
+## [x] T005（P1）：收口问题诊断证据聚合与退化可见性
 
 依赖：T004。
 
 目标：修正问题诊断导出中关联日志可能被静默漏掉的问题，并把日志证据读取状态明确为 complete / partial / unavailable 或等价稳定语义；保持导出 best effort，但不再把读取失败伪装成“没有相关日志”。只做必要职责拆分，不建立通用 evidence pipeline 或 diagnostics health framework。
 
-详细规格：`tasks/T005_DIAGNOSTIC_EVIDENCE_EXPORT.md`
+完成成果：关联生产日志读取独立为小型内部 reader，坏行后继续扫描、轮转/不可读文件按 best effort 保留可用记录，并将 complete / partial / unavailable 及关联记录数写入摘要；读取退化经现有 Production Logging 报告。保留 Session correlation、隐私过滤和原子 ZIP 边界，新增真实关联日志、空匹配、坏行与不可读源回归测试。无 `.nsdiag` schema/data migration。
