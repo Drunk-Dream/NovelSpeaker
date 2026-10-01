@@ -80,9 +80,12 @@ internal sealed class LibraryBookCatalog
         result.Sort((left, right) =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var comparison = sortMode == LibrarySortMode.Title
-                ? StringComparer.Ordinal.Compare(left.SortTitleKey, right.SortTitleKey)
-                : CompareRecentReading(left, right, decorations);
+            var comparison = sortMode switch
+            {
+                LibrarySortMode.Title => StringComparer.Ordinal.Compare(left.SortTitleKey, right.SortTitleKey),
+                LibrarySortMode.RecentImport => CompareRecentImport(left, right),
+                _ => CompareRecentReading(left, right, decorations)
+            };
             if (comparison != 0)
             {
                 return comparison;
@@ -93,6 +96,16 @@ internal sealed class LibraryBookCatalog
 
         cancellationToken.ThrowIfCancellationRequested();
         return result.ToArray();
+    }
+
+    private static int CompareRecentImport(
+        LibraryBookCatalogItem left,
+        LibraryBookCatalogItem right)
+    {
+        var comparison = right.Summary.ImportedAt.CompareTo(left.Summary.ImportedAt);
+        return comparison != 0
+            ? comparison
+            : StringComparer.Ordinal.Compare(left.SortTitleKey, right.SortTitleKey);
     }
 
     private static int CompareRecentReading(
