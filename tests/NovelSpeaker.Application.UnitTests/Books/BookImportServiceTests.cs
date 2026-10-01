@@ -403,7 +403,12 @@ public sealed class BookImportServiceTests
             _chapters = chapters;
         }
 
-        public IReadOnlyList<BookImportChapter> Split(string normalizedText, IReadOnlyList<ChapterRule> rules) => _chapters;
+        public int? FindFirstExplicitTitleOffset(string normalizedText, IReadOnlyList<ChapterRule> rules) => null;
+
+        public IReadOnlyList<BookImportChapter> Split(
+            string normalizedText,
+            IReadOnlyList<ChapterRule> rules,
+            bool splitOnBlankLines) => _chapters;
     }
 
     private sealed class FakeBookFileStore : IBookFileStore

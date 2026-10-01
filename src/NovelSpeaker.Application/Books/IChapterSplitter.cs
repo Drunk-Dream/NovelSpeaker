@@ -7,7 +7,10 @@ namespace NovelSpeaker.Application.Books;
 /// </summary>
 public interface IChapterSplitter
 {
+    int? FindFirstExplicitTitleOffset(string normalizedText, IReadOnlyList<ChapterRule> rules);
+
     IReadOnlyList<BookImportChapter> Split(
         string normalizedText,
-        IReadOnlyList<ChapterRule> rules);
+        IReadOnlyList<ChapterRule> rules,
+        bool splitOnBlankLines);
 }

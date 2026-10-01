@@ -17,7 +17,7 @@ public sealed class ChapterSplitterTests
         var text = "第一章 开始\n正文甲\n第二章 继续\n正文乙\n";
         var splitter = new ChapterSplitter();
 
-        var chapters = splitter.Split(text, rules);
+        var chapters = splitter.Split(text, rules, splitOnBlankLines: false);
 
         Assert.Equal(2, chapters.Count);
         Assert.Equal("第一章 开始", chapters[0].Title);
@@ -38,7 +38,7 @@ public sealed class ChapterSplitterTests
         var text = "第一章 开始\n\n第二章 继续\n\n";
         var splitter = new ChapterSplitter();
 
-        var chapters = splitter.Split(text, rules);
+        var chapters = splitter.Split(text, rules, splitOnBlankLines: false);
 
         Assert.Single(chapters);
         Assert.Equal("全文", chapters[0].Title);
@@ -47,7 +47,7 @@ public sealed class ChapterSplitterTests
     }
 
     [Fact]
-    public void Split_collapses_extra_whitespace_in_titles()
+    public void Split_preserves_whitespace_inside_original_titles()
     {
         ChapterRule[] rules =
         [
@@ -57,20 +57,62 @@ public sealed class ChapterSplitterTests
         var text = "  第一章   开始  \n正文甲\n";
         var splitter = new ChapterSplitter();
 
-        var chapters = splitter.Split(text, rules);
+        var chapters = splitter.Split(text, rules, splitOnBlankLines: false);
 
         Assert.Single(chapters);
-        Assert.Equal("第一章 开始", chapters[0].Title);
+        Assert.Equal("第一章   开始", chapters[0].Title);
     }
 
     [Fact]
     public void Split_falls_back_to_single_chapter_when_no_titles_match()
     {
         var splitter = new ChapterSplitter();
-        var chapters = splitter.Split("没有章节标题，只有正文。", []);
+        var chapters = splitter.Split("没有章节标题，只有正文。", [], splitOnBlankLines: false);
 
         Assert.Single(chapters);
         Assert.Equal("全文", chapters[0].Title);
         Assert.Equal(0, chapters[0].SortOrder);
     }
+
+    [Fact]
+    public void Split_uses_explicit_titles_and_absorbs_adjacent_blank_boundaries()
+    {
+        var rules = CreateRules();
+        var text = "书名：示例\n\n第一章 开始\n\n正文甲\n\n第二章 继续\n正文乙\n";
+        var splitter = new ChapterSplitter();
+
+        Assert.Equal(text.IndexOf("第一章", StringComparison.Ordinal), splitter.FindFirstExplicitTitleOffset(text, rules));
+        var chapters = splitter.Split(text, rules, splitOnBlankLines: true);
+
+        Assert.Equal(2, chapters.Count);
+        Assert.Equal("第一章 开始", chapters[0].Title);
+        Assert.Equal("第二章 继续", chapters[1].Title);
+    }
+
+    [Fact]
+    public void Split_numbers_blank_sections_by_final_catalog_position()
+    {
+        var text = "第一章 开始\n正文甲\n\n正文乙\n\n第二章 继续\n正文丙\n";
+
+        var chapters = new ChapterSplitter().Split(text, CreateRules(), splitOnBlankLines: true);
+
+        Assert.Equal(["第一章 开始", "第 2 节", "第二章 继续"], chapters.Select(chapter => chapter.Title));
+        Assert.Equal([0, 1, 2], chapters.Select(chapter => chapter.ChapterIndex));
+    }
+
+    [Fact]
+    public void Split_without_explicit_titles_obeys_blank_line_switch()
+    {
+        const string text = "\n第一段\n\n\n第二段\n\n";
+        var splitter = new ChapterSplitter();
+
+        Assert.Equal("全文", Assert.Single(splitter.Split(text, [], splitOnBlankLines: false)).Title);
+        Assert.Equal(["第 1 节", "第 2 节"],
+            splitter.Split(text, [], splitOnBlankLines: true).Select(chapter => chapter.Title));
+    }
+
+    private static ChapterRule[] CreateRules() =>
+    [
+        new ChapterRule("1", "章节", @"^第[一二]章 .+$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+    ];
 }

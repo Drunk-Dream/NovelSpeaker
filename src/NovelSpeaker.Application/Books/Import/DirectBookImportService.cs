@@ -127,7 +127,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
             "正在识别章节。"));
 
         var rules = await _chapterRuleRepository.GetEnabledAsync(cancellationToken);
-        var chapters = _chapterSplitter.Split(normalizedText, rules);
+        var chapters = _chapterSplitter.Split(normalizedText, rules, splitOnBlankLines: false);
         if (string.IsNullOrWhiteSpace(normalizedText) || chapters.Count == 0)
         {
             return new DirectBookImportResult(

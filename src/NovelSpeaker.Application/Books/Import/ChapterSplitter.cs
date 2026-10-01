@@ -8,49 +8,62 @@ namespace NovelSpeaker.Application.Books.Import;
 /// </summary>
 public sealed class ChapterSplitter : IChapterSplitter
 {
-    private static readonly Regex MultiWhitespace = new(@"\s+", RegexOptions.CultureInvariant);
-
-    public IReadOnlyList<BookImportChapter> Split(string normalizedText, IReadOnlyList<ChapterRule> rules)
+    public int? FindFirstExplicitTitleOffset(string normalizedText, IReadOnlyList<ChapterRule> rules)
     {
-        if (string.IsNullOrWhiteSpace(normalizedText))
-        {
-            return [];
-        }
+        return FindLines(normalizedText, rules).FirstOrDefault(line => line.IsTitle)?.Start;
+    }
 
-        var markers = new List<(int TitleOffset, int ContentOffset, string Title)>();
-        var orderedRules = rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.SortOrder).ToArray();
-        var lineStart = 0;
+    public IReadOnlyList<BookImportChapter> Split(
+        string normalizedText,
+        IReadOnlyList<ChapterRule> rules,
+        bool splitOnBlankLines)
+    {
+        if (string.IsNullOrWhiteSpace(normalizedText)) return [];
 
-        foreach (var line in normalizedText.Split('\n'))
-        {
-            var matchedRule = orderedRules.FirstOrDefault(
-                rule => Regex.IsMatch(line, rule.Pattern, RegexOptions.CultureInvariant));
-            if (matchedRule is not null)
-            {
-                markers.Add((lineStart, lineStart + line.Length + 1, CleanTitle(line)));
-            }
-
-            lineStart += line.Length + 1;
-        }
-
-        if (markers.Count == 0)
+        var lines = FindLines(normalizedText, rules);
+        var firstTitle = lines.FindIndex(line => line.IsTitle);
+        if (firstTitle < 0 && !splitOnBlankLines)
         {
             return [new BookImportChapter(0, 0, "全文", 0, normalizedText.Length)];
+        }
+
+        var markers = new List<(int TitleOffset, int ContentOffset, string? Title)>();
+        var startIndex = firstTitle >= 0 ? firstTitle : lines.FindIndex(line => !line.IsBlank);
+        var hasBody = false;
+        var pendingBlank = false;
+        for (var index = startIndex; index < lines.Count; index++)
+        {
+            var line = lines[index];
+            if (line.IsTitle)
+            {
+                markers.Add((line.Start, line.End, line.Text.Trim()));
+                hasBody = false;
+                pendingBlank = false;
+            }
+            else if (line.IsBlank)
+            {
+                pendingBlank |= hasBody && splitOnBlankLines;
+            }
+            else
+            {
+                if (markers.Count == 0 || pendingBlank)
+                {
+                    markers.Add((line.Start, line.Start, null));
+                    hasBody = false;
+                }
+
+                hasBody = true;
+                pendingBlank = false;
+            }
         }
 
         var chapters = new List<BookImportChapter>();
         for (var index = 0; index < markers.Count; index++)
         {
             var current = markers[index];
-            var nextTitleOffset = index + 1 < markers.Count ? markers[index + 1].TitleOffset : normalizedText.Length;
-            var contentLength = nextTitleOffset - current.ContentOffset;
-            if (contentLength <= 0)
-            {
-                continue;
-            }
-
-            var content = normalizedText.Substring(current.ContentOffset, contentLength);
-            if (string.IsNullOrWhiteSpace(content))
+            var nextOffset = index + 1 < markers.Count ? markers[index + 1].TitleOffset : normalizedText.Length;
+            var contentLength = nextOffset - current.ContentOffset;
+            if (contentLength <= 0 || normalizedText.AsSpan(current.ContentOffset, contentLength).IsWhiteSpace())
             {
                 continue;
             }
@@ -58,7 +71,7 @@ public sealed class ChapterSplitter : IChapterSplitter
             chapters.Add(new BookImportChapter(
                 chapters.Count,
                 current.TitleOffset,
-                current.Title,
+                current.Title ?? $"第 {chapters.Count + 1} 节",
                 current.ContentOffset,
                 contentLength));
         }
@@ -68,5 +81,25 @@ public sealed class ChapterSplitter : IChapterSplitter
             : chapters;
     }
 
-    private static string CleanTitle(string title) => MultiWhitespace.Replace(title.Trim(), " ");
+    private static List<Line> FindLines(string normalizedText, IReadOnlyList<ChapterRule> rules)
+    {
+        var lines = new List<Line>();
+        var orderedRules = rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.SortOrder).ToArray();
+        var lineStart = 0;
+        foreach (var line in normalizedText.Split('\n'))
+        {
+            var end = Math.Min(lineStart + line.Length + 1, normalizedText.Length);
+            lines.Add(new Line(
+                lineStart,
+                end,
+                line,
+                string.IsNullOrWhiteSpace(line),
+                orderedRules.Any(rule => Regex.IsMatch(line, rule.Pattern, RegexOptions.CultureInvariant))));
+            lineStart = end;
+        }
+
+        return lines;
+    }
+
+    private sealed record Line(int Start, int End, string Text, bool IsBlank, bool IsTitle);
 }
