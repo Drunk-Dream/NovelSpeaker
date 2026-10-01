@@ -39,13 +39,11 @@ public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
 
     public MetadataRuleWorkbenchViewModel ViewModel { get; }
 
-    private Task SelectWithModifiersAsync(MetadataRuleRow? row)
+    private Task SelectWithModifiersAsync(MetadataRuleRow? item)
     {
-        var modifiers = DesktopSelectionModifiers.None;
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control)) modifiers |= DesktopSelectionModifiers.Control;
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) modifiers |= DesktopSelectionModifiers.Shift;
-        return ViewModel.SelectRuleWithModifiersAsync(row, modifiers,
-            _activation.Current?.CancellationToken ?? CancellationToken.None);
+        var modifiers = DesktopSelectionInput.ReadModifiers();
+        return _operations.RunAsync(_activation, "选择元数据规则失败",
+            token => ViewModel.SelectRuleWithModifiersAsync(item, modifiers, token));
     }
 
     public async Task OnNavigatedToAsync()

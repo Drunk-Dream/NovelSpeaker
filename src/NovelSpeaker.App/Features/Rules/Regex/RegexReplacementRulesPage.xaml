@@ -112,7 +112,7 @@
                                                         CanToggle="{Binding CanQuickActions}"
                                                         HasError="{Binding HasError}"
                                                         ErrorMessage="{Binding ErrorMessage}"
-                                                        SelectCommand="{Binding DataContext.SelectRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        SelectCommand="{Binding SelectionCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         ToggleEnabledCommand="{Binding DataContext.ToggleEnabledCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         ExportCommand="{Binding DataContext.ExportRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         CopyCommand="{Binding DataContext.CopyRuleCommand, RelativeSource={RelativeSource AncestorType=Page}}"

@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.PresentationTests.TestDoubles;
 using Xunit;
 
@@ -8,6 +9,37 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class ChapterRulesViewModelTests
 {
+    [Fact]
+    public async Task Bulk_selection_and_import_preserve_dirty_editor_and_export_visible_order()
+    {
+        var ids = new[] { "custom:one", "custom:two", "custom:three" };
+        var workspace = new FakeChapterRuleWorkspaceService(ids.Select((id, index) =>
+            new ChapterRuleListItem(id, id, "^chapter$", true, index * 10, false, true)).ToArray());
+        foreach (var id in ids)
+            workspace.EditorsById[id] = new ChapterRuleEditorModel(id, id, "^chapter$", false, true);
+        var documents = new FakeRuleDocumentInteraction { ClipboardDocument = new RuleImportDocument("{}", "fixture") };
+        var vm = CreateViewModel(workspaceService: workspace, ruleDocuments: documents);
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        vm.DraftName = "Unsaved";
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
+        Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Shift, CancellationToken.None);
+        Assert.All(vm.Rules, rule => Assert.True(rule.IsSelected));
+        Assert.Equal(ids[0], vm.CurrentRuleId);
+        Assert.Equal("Unsaved", vm.DraftName);
+        await vm.CopyRuleCommand.ExecuteAsync(vm.Rules[1]);
+        Assert.Equal(ids, workspace.LastExportedIds);
+        await vm.ImportRulesFromClipboardAsync(CancellationToken.None);
+        Assert.Equal(ids[0], vm.CurrentRuleId);
+        Assert.Equal("Unsaved", vm.DraftName);
+        Assert.True(vm.HasUnsavedChanges);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+    }
+
     private async Task NewRuleAsync_saves_after_deduplication_and_selects_saved_rule()
     {
         var workspace = new FakeChapterRuleWorkspaceService(
@@ -530,8 +562,12 @@ public sealed class ChapterRulesViewModelTests
         public Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>("""{"name":"规则"}""");
 
-        public Task<string?> ExportRulesJsonAsync(IReadOnlyList<string> ruleIds, CancellationToken cancellationToken) =>
-            ExportRuleJsonAsync(ruleIds[0], cancellationToken);
+        public IReadOnlyList<string>? LastExportedIds { get; private set; }
+        public Task<string?> ExportRulesJsonAsync(IReadOnlyList<string> ruleIds, CancellationToken cancellationToken)
+        {
+            LastExportedIds = ruleIds.ToArray();
+            return ExportRuleJsonAsync(ruleIds[0], cancellationToken);
+        }
 
         public Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken)
         {

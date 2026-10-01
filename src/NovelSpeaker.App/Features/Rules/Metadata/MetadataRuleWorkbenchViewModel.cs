@@ -83,7 +83,13 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
     [RelayCommand]
     private async Task SelectRuleAsync(MetadataRuleRow? row, CancellationToken cancellationToken)
     {
-        if (row is null || !await ConfirmLeaveAsync(cancellationToken)) return;
+        if (row is null || IsBusy) return;
+        if (!_isNew && _original?.Id == row.Id)
+        {
+            MarkSelected(row.Id);
+            return;
+        }
+        if (!await ConfirmLeaveAsync(cancellationToken)) return;
         var current = Rules.FirstOrDefault(candidate => candidate.Id == row.Id);
         if (current is not null) Open(current.State);
     }
@@ -91,7 +97,8 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
     public async Task SelectRuleWithModifiersAsync(MetadataRuleRow? row, DesktopSelectionModifiers modifiers,
         CancellationToken cancellationToken)
     {
-        if (row is null) return;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (row is null || IsBusy) return;
         if (modifiers == DesktopSelectionModifiers.None)
         {
             await SelectRuleAsync(row, cancellationToken);
@@ -269,9 +276,11 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
             if (document is null) return;
             var imported = 0;
             var skipped = 0;
+            var failed = 0;
             using var json = JsonDocument.Parse(document.Json);
             if (json.RootElement.ValueKind != JsonValueKind.Object ||
-                !json.RootElement.TryGetProperty("schemaVersion", out var version) || version.GetInt32() != 1 ||
+                !json.RootElement.TryGetProperty("schemaVersion", out var version) ||
+                version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var schemaVersion) || schemaVersion != 1 ||
                 !json.RootElement.TryGetProperty("ruleType", out var ruleType) ||
                 ruleType.ValueKind != JsonValueKind.String || ruleType.GetString() != DocumentRuleType ||
                 !json.RootElement.TryGetProperty("rules", out var entries) || entries.ValueKind != JsonValueKind.Array)
@@ -319,12 +328,12 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
                 }
                 catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or JsonException)
                 {
-                    skipped++;
+                    failed++;
                 }
             }
 
             await RefreshAsync(_original?.Id, cancellationToken, preserveDraft: true);
-            _feedback.ShowSuccess("元数据规则导入完成", $"导入 {imported} 条，跳过 {skipped} 条。");
+            _feedback.ShowSuccess("元数据规则导入完成", $"导入 {imported} 条，跳过重复 {skipped} 条，失败 {failed} 条。");
         });
     }
 
@@ -352,9 +361,6 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
 
     private async Task RefreshAsync(string? selectedId, CancellationToken cancellationToken, bool preserveDraft = false)
     {
-        var keptName = DraftName;
-        var keptPattern = DraftPattern;
-        var keptNew = _isNew;
         var states = await ReadAsync(cancellationToken);
         Rules.Clear();
         foreach (var state in states.OrderBy(rule => rule.SortOrder).ThenBy(rule => rule.Id, StringComparer.Ordinal))
@@ -364,17 +370,10 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
         _selection.SetItems(Rules.Select(row => row.Id));
         SyncSelection();
 
+        if (preserveDraft) return;
+
         var selected = Rules.FirstOrDefault(row => row.Id == selectedId);
-        if (preserveDraft && keptNew)
-        {
-            _original = null;
-            _isNew = true;
-            HasEditor = true;
-            DraftName = keptName;
-            DraftPattern = keptPattern;
-            MarkSelected(null);
-        }
-        else if (selected is null)
+        if (selected is null)
         {
             _original = null;
             _isNew = false;
@@ -384,11 +383,6 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
         else
         {
             Open(selected.State, resetSelection: false);
-            if (preserveDraft)
-            {
-                DraftName = keptName;
-                DraftPattern = keptPattern;
-            }
         }
     }
 

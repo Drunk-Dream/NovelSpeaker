@@ -37,7 +37,7 @@
                                     <Button Margin="-14,-12" Padding="0"
                                             Style="{StaticResource App.Button.InteractionHost}"
                                             HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                            Command="{Binding Tag.SelectProviderCommand, RelativeSource={RelativeSource TemplatedParent}}"
+                                            Command="{Binding SelectionCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                             CommandParameter="{TemplateBinding CommandParameter}"
                                             AutomationProperties.Name="{Binding Name}" />
                                     <StackPanel IsHitTestVisible="False" VerticalAlignment="Center">
@@ -86,9 +86,13 @@
                             Icon="{ui:SymbolIcon Symbol=DocumentAdd24}" />
                     <ui:Button Style="{StaticResource App.Button.Icon}"
                                Command="{Binding ImportProvidersCommand}"
-                               ToolTip="导入"
-                               AutomationProperties.Name="导入"
+                               ToolTip="从文件导入"
+                               AutomationProperties.Name="从文件导入"
                                Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
+                    <ui:Button Margin="8,0,0,0" Style="{StaticResource App.Button.Icon}"
+                               Command="{Binding ImportProvidersFromClipboardCommand}"
+                               ToolTip="从剪贴板导入" AutomationProperties.Name="从剪贴板导入"
+                               Icon="{ui:SymbolIcon Symbol=ClipboardPaste24}" />
                 </WrapPanel>
             </commonControls:AppPageHeader.Actions>
         </commonControls:AppPageHeader>

@@ -3,7 +3,7 @@ using NovelSpeaker.App.Shared.Presentation.Rules;
 namespace NovelSpeaker.App.Features.Rules.Shared;
 
 /// <summary>
-/// Coordinates one page's import source, dirty-state guard, and Busy ownership.
+/// Coordinates one page's import source and Busy ownership without changing editor drafts.
 /// </summary>
 internal sealed class RuleImportSession
 {
@@ -12,7 +12,6 @@ internal sealed class RuleImportSession
     public async Task<RuleImportExecution<T>?> RunAsync<T>(
         Func<CancellationToken, Task<RuleImportDocument?>> readDocument,
         Func<RuleImportDocument, CancellationToken, Task<T>> import,
-        Func<CancellationToken, Task<bool>> confirmLeave,
         Func<bool> isBusy,
         Action<bool> setBusy,
         CancellationToken cancellationToken,
@@ -20,7 +19,6 @@ internal sealed class RuleImportSession
     {
         ArgumentNullException.ThrowIfNull(readDocument);
         ArgumentNullException.ThrowIfNull(import);
-        ArgumentNullException.ThrowIfNull(confirmLeave);
         ArgumentNullException.ThrowIfNull(isBusy);
         ArgumentNullException.ThrowIfNull(setBusy);
 
@@ -41,17 +39,6 @@ internal sealed class RuleImportSession
                 return null;
             }
 
-            if (isBusy())
-            {
-                return null;
-            }
-
-            if (!await confirmLeave(cancellationToken))
-            {
-                return null;
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
             if (isBusy())
             {
                 return null;

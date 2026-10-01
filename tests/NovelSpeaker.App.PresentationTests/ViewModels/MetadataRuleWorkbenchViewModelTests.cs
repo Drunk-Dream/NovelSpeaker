@@ -9,6 +9,59 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class MetadataRuleWorkbenchViewModelTests
 {
+    [Theory]
+    [InlineData(false, 1)]
+    [InlineData(false, 3)]
+    [InlineData(true, 1)]
+    [InlineData(true, 3)]
+    public async Task Metadata_bulk_selection_and_exchange_preserve_drafts_and_isolate_invalid_items(bool header, int count)
+    {
+        var repository = TwoRules();
+        repository.Rules.Add(new FileNameMetadataRule("third", "三", @"(?<description>三)", 30, true,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch));
+        var documents = new FakeRuleDocumentInteraction();
+        MetadataRuleWorkbenchViewModel CreateWorkbench(FileRules rules) => header
+            ? new TextHeaderMetadataRulesViewModel(rules, new Navigator(), new Dialogs(), new Feedback(), documents)
+            : Create(rules, documents);
+        var vm = CreateWorkbench(repository);
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        vm.DraftName = "Unsaved";
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
+        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        if (count > 1)
+            await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Shift, CancellationToken.None);
+        await vm.ExportRuleCommand.ExecuteAsync(vm.Rules[0]);
+        using var exported = JsonDocument.Parse(documents.ExportedJson!);
+        var entries = exported.RootElement.GetProperty("rules").EnumerateArray().ToArray();
+        Assert.Equal(count, entries.Length);
+        Assert.Equal(repository.Rules.Take(count).Select(rule => rule.Name), entries.Select(item => item.GetProperty("name").GetString()));
+        Assert.Equal("Unsaved", vm.DraftName);
+        Assert.True(vm.HasUnsavedChanges);
+        var target = new FileRules();
+        var receiving = CreateWorkbench(target);
+        await receiving.LoadAsync(CancellationToken.None);
+        documents.ClipboardDocument = new RuleImportDocument(documents.ExportedJson!, "fixture");
+        await receiving.ImportClipboardCommand.ExecuteAsync(null);
+        Assert.Equal(count, target.Rules.Count);
+        Assert.False(receiving.HasEditor);
+        await receiving.ImportClipboardCommand.ExecuteAsync(null);
+        Assert.Equal(count, target.Rules.Count);
+        // Malformed item between valid items must not interrupt either side.
+        documents.ClipboardDocument = new RuleImportDocument(System.Text.Json.JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            ruleType = header ? "textHeaderMetadata" : "fileNameMetadata",
+            rules = new object[] { new { name = "A", pattern = "(?<author>A)" }, 42, new { name = "B", pattern = "(?<author>B)" } }
+        }), "fixture");
+        await vm.ImportClipboardCommand.ExecuteAsync(null);
+        Assert.Equal(5, repository.Rules.Count);
+        Assert.Equal("Unsaved", vm.DraftName);
+        Assert.True(vm.HasUnsavedChanges);
+    }
+
     [Fact]
     public async Task File_name_workbench_validates_named_capture_before_saving()
     {
@@ -143,11 +196,18 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         new(repository, new Navigator(), dialogs ?? new Dialogs(), feedback ?? new Feedback(),
             documents ?? new FakeRuleDocumentInteraction());
 
-    private sealed class FileRules : NovelSpeaker.Application.Books.IFileNameMetadataRuleRepository
+    private sealed class FileRules : NovelSpeaker.Application.Books.IFileNameMetadataRuleRepository,
+        NovelSpeaker.Application.Books.ITextHeaderMetadataRuleRepository
     {
         public List<FileNameMetadataRule> Rules { get; } = [];
         public Task<IReadOnlyList<FileNameMetadataRule>> GetAllAsync(CancellationToken token) =>
             Task.FromResult<IReadOnlyList<FileNameMetadataRule>>(Rules.ToArray());
+        Task<IReadOnlyList<TextHeaderMetadataRule>> NovelSpeaker.Application.Books.ITextHeaderMetadataRuleRepository.GetAllAsync(CancellationToken token) =>
+            Task.FromResult<IReadOnlyList<TextHeaderMetadataRule>>(Rules.Select(rule => new TextHeaderMetadataRule(
+                rule.Id, rule.Name, rule.Pattern, rule.SortOrder, rule.IsEnabled, rule.CreatedAt, rule.UpdatedAt)).ToArray());
+        public Task SaveAsync(TextHeaderMetadataRule rule, CancellationToken token) =>
+            SaveAsync(new FileNameMetadataRule(rule.Id, rule.Name, rule.Pattern, rule.SortOrder,
+                rule.IsEnabled, rule.CreatedAt, rule.UpdatedAt), token);
         public Task SaveAsync(FileNameMetadataRule rule, CancellationToken token)
         {
             Rules.RemoveAll(candidate => candidate.Id == rule.Id);

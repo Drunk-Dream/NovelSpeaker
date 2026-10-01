@@ -9,6 +9,7 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Books;
 using RegularExpression = System.Text.RegularExpressions.Regex;
@@ -25,7 +26,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     private readonly IAppNavigator _navigator;
     private readonly IRuleDocumentInteraction _ruleDocuments;
     private readonly EditorSession<Guid?, RegexReplacementRuleEditorModel> _editorSession = new(EditorsEqual);
-    private readonly RuleSelectionController<Guid> _selection = new();
+    private readonly DesktopSelectionController<Guid> _selection = new();
     private readonly RuleImportSession _importSession = new();
     private bool _loading;
 
@@ -136,7 +137,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         if (rule is null) return;
         try
         {
-            var json = await _workspace.ExportRuleJsonAsync(rule.Id, cancellationToken);
+            var json = await _workspace.ExportRulesJsonAsync(RulesForExchange(rule), cancellationToken);
             if (json is null)
             {
                 _feedback.ShowWarning("导出失败", "未找到要导出的正则替换规则。");
@@ -160,7 +161,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         if (rule is null) return;
         try
         {
-            var json = await _workspace.ExportRuleJsonAsync(rule.Id, cancellationToken);
+            var json = await _workspace.ExportRulesJsonAsync(RulesForExchange(rule), cancellationToken);
             if (json is null)
             {
                 _feedback.ShowWarning("复制失败", "未找到要复制的正则替换规则。");
@@ -176,10 +177,30 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         }
     }
 
+    private IReadOnlyList<Guid> RulesForExchange(RegexReplacementRuleListItemViewModel rule) =>
+        _selection.IsSelected(rule.Id) ? _selection.SelectedItems.ToArray() : [rule.Id];
+
+    public Task SelectRuleWithModifiersAsync(RegexReplacementRuleListItemViewModel? rule,
+        DesktopSelectionModifiers modifiers, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (rule is null || IsBusy) return Task.CompletedTask;
+        if (modifiers == DesktopSelectionModifiers.None) return SelectRuleAsync(rule, cancellationToken);
+        _selection.Click(rule.Id, modifiers);
+        UpdateRuleItemStates();
+        return Task.CompletedTask;
+    }
+
     [RelayCommand]
     private async Task SelectRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
-        if (rule is null || (!IsEditingNewRule && rule.Id == SelectedRuleId)) return;
+        if (rule is null || IsBusy) return;
+        if (!IsEditingNewRule && SelectedRuleId == rule.Id)
+        {
+            _selection.Click(rule.Id);
+            UpdateRuleItemStates();
+            return;
+        }
         if (!await ConfirmLeaveAsync(cancellationToken)) return;
         await LoadEditorAsync(rule.Id, cancellationToken);
     }
@@ -416,7 +437,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
             var execution = await _importSession.RunAsync(
                 readDocument,
                 ImportJsonAsyncCore,
-                ConfirmLeaveAsync,
                 () => IsBusy,
                 SetBusy,
                 cancellationToken,
@@ -429,7 +449,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
             }
             _feedback.ShowSuccess(
                 "正则替换规则导入完成",
-                $"{execution.Document.SourceDescription}：新增 {execution.Result.ImportedCount} 条，跳过重复 {execution.Result.SkippedCount} 条。");
+                $"{execution.Document.SourceDescription}：新增 {execution.Result.ImportedCount} 条，跳过重复 {execution.Result.SkippedCount} 条，失败 {execution.Result.FailedCount} 条。");
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -444,7 +464,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         var result = await _workspace.ImportJsonAsync(document.Json, cancellationToken);
         await RefreshAsync(SelectedRuleId, false, cancellationToken);
         await _playback.RefreshRegexReplacementAsync(cancellationToken);
-        return new RuleImportResult(result.ImportedCount, result.SkippedCount, result.TotalCount);
+        return new RuleImportResult(result.ImportedCount, result.SkippedCount, result.TotalCount, result.FailedCount);
     }
 
     public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
@@ -526,7 +546,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         }
         else if (editor.Id is Guid ruleId)
         {
-            _selection.Select(ruleId);
+            _selection.Click(ruleId);
         }
 
         SelectedRuleId = editor.Id;
@@ -560,6 +580,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     {
         var items = await _workspace.GetRulesAsync(cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
+        _selection.SetItems(items.Select(item => item.Id));
         Rules.Clear();
         foreach (var item in items)
         {
@@ -569,7 +590,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
                 item.PatternSummary,
                 item.IsEnabled,
                 item.Scope,
-                !IsEditingNewRule && _selection.IsSelected(item.Id),
+                _selection.IsSelected(item.Id),
                 item.ErrorMessage));
         }
 
@@ -617,7 +638,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         for (var index = 0; index < Rules.Count; index++)
         {
             var rule = Rules[index];
-            rule.IsSelected = !IsEditingNewRule && _selection.IsSelected(rule.Id);
+            rule.IsSelected = _selection.IsSelected(rule.Id);
             rule.CanQuickActions = !IsBusy;
             rule.CanMoveUp = !IsBusy && index > 0;
             rule.CanMoveDown = !IsBusy && index < Rules.Count - 1;

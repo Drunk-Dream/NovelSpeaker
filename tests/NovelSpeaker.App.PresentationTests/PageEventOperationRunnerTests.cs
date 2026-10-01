@@ -8,6 +8,29 @@ namespace NovelSpeaker.App.PresentationTests;
 public sealed class PageEventOperationRunnerTests
 {
     [Fact]
+    public async Task Leaving_page_cancels_pending_selection_without_a_ui_error()
+    {
+        var feedback = new RecordingFeedbackService();
+        var runner = new PageEventOperationRunner(feedback);
+        using var activationController = new PageActivationController();
+        activationController.Activate();
+        var pendingEditor = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var selection = runner.RunAsync(activationController, "选择失败", async token =>
+        {
+            started.SetResult();
+            await pendingEditor.Task.WaitAsync(token);
+        });
+        await started.Task;
+
+        activationController.Deactivate();
+        await selection;
+
+        Assert.Empty(feedback.ProjectedExceptions);
+        Assert.Empty(feedback.Notifications);
+    }
+
+    [Fact]
     public async Task Current_page_event_failure_is_projected_through_the_shared_entry_boundary()
     {
         var feedback = new RecordingFeedbackService();

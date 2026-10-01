@@ -11,6 +11,7 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.Domain.Speech.Providers;
 
@@ -31,6 +32,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     private readonly OwnedTaskRegistry _eventTasks = new();
     private readonly EditorSession<ProviderId?, HttpEditorDraft> _editor = new(DraftsEqual);
     private readonly ResettableObservableCollection<SpeechProviderListItemViewModel> _providers = [];
+    private readonly DesktopSelectionController<ProviderId> _selection = new();
     private IReadOnlyList<SpeechProviderInstance> _completeOrder = [];
     private SpeechProviderInstance? _editingProvider;
     private CancellationTokenSource? _pageCts;
@@ -160,7 +162,12 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     private Task SelectProviderAsync(SpeechProviderListItemViewModel? item, CancellationToken cancellationToken) =>
         TransitionAsync(async token =>
         {
-            if (item is null || (SelectedProviderId == item.Id && !IsEditingNewProvider)) return;
+            if (item is null) return;
+            if (SelectedProviderId == item.Id && !IsEditingNewProvider)
+            {
+                SelectOnly(item);
+                return;
+            }
             if (!await ConfirmLeaveAsync(token)) return;
             var provider = await _store.GetByIdAsync(item.Id, token);
             token.ThrowIfCancellationRequested();
@@ -169,12 +176,44 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
             else OpenEditor(provider, false);
         }, cancellationToken);
 
-    [RelayCommand(CanExecute = nameof(CanManage))]
-    private Task ImportProvidersAsync(CancellationToken cancellationToken) => TransitionAsync(async token =>
+    public Task SelectProviderWithModifiersAsync(SpeechProviderListItemViewModel? item,
+        DesktopSelectionModifiers modifiers, CancellationToken cancellationToken)
     {
-        var document = await _documents.PickImportAsync(token);
-        if (document is null || !await ConfirmLeaveAsync(token)) return;
-        await StopTestAsync(token);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (item is null || !CanManage) return Task.CompletedTask;
+        if (modifiers == DesktopSelectionModifiers.None) return SelectProviderAsync(item, cancellationToken);
+        if (item.CanShare) _selection.Click(item.Id, modifiers);
+        SyncSelection();
+        return Task.CompletedTask;
+    }
+
+    private void SelectOnly(SpeechProviderListItemViewModel item)
+    {
+        if (item.CanShare) _selection.Click(item.Id);
+        else _selection.Clear();
+        SyncSelection();
+    }
+
+    private void SyncSelection()
+    {
+        foreach (var item in Providers)
+            item.IsSelected = _selection.IsSelected(item.Id) ||
+                (!item.CanShare && item.Id == SelectedProviderId && _selection.Count == 0);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private Task ImportProvidersAsync(CancellationToken cancellationToken) =>
+        ImportAsync(_documents.PickImportAsync, cancellationToken);
+
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private Task ImportProvidersFromClipboardAsync(CancellationToken cancellationToken) =>
+        ImportAsync(_documents.ReadClipboardAsync, cancellationToken);
+
+    private Task ImportAsync(Func<CancellationToken, Task<RuleImportDocument?>> readDocument,
+        CancellationToken cancellationToken) => TransitionAsync(async token =>
+    {
+        var document = await readDocument(token);
+        if (document is null) return;
         IsBusy = true;
         try
         {
@@ -216,7 +255,8 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
             IsBusy = true;
             try
             {
-                var warning = await _workspace.ExportAsync(item.Id, false, token);
+                var ids = _selection.IsSelected(item.Id) ? _selection.SelectedItems.ToArray() : [item.Id];
+                var warning = await _workspace.ExportAsync(ids, false, token);
                 if (warning.Status != ProviderExportStatus.ConfirmationRequired)
                 {
                     _feedback.ShowWarning("无法导出语音服务", warning.Message);
@@ -224,7 +264,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
                 }
                 if (await _dialogs.ShowConfirmationAsync("导出凭据提示", warning.Message,
                         "继续导出", "取消", token) != AppConfirmationDecision.Confirm) return;
-                var result = await _workspace.ExportAsync(item.Id, true, token);
+                var result = await _workspace.ExportAsync(ids, true, token);
                 if (result.Status != ProviderExportStatus.Ready || result.Json is null)
                 {
                     _feedback.ShowWarning("无法导出语音服务", result.Message);
@@ -379,8 +419,8 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         {
             await StopTestAsync(cancellationToken);
             var saved = await _workspace.SaveAsync(draft!, IsEditingNewProvider, cancellationToken);
-            OpenEditor(saved, false);
             await RefreshAsync(cancellationToken);
+            OpenEditor(saved, false);
             _feedback.ShowSuccess("语音服务已保存", "配置已保存。");
             return true;
         }
@@ -401,7 +441,9 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         // Visibility is a projection of this complete, unified order.
         var visible = _completeOrder.Where(_workspace.IsVisible);
         _providers.ReplaceWith(visible, provider => new SpeechProviderListItemViewModel(provider.Id, provider.Name,
-            provider.Type, _settings.Current.CurrentProviderId == provider.Id, SelectedProviderId == provider.Id));
+            provider.Type, _settings.Current.CurrentProviderId == provider.Id, false));
+        _selection.SetItems(Providers.Where(item => item.CanShare).Select(item => item.Id));
+        SyncSelection();
         for (var index = 0; index < Providers.Count; index++)
         {
             Providers[index].CanMoveUp = index > 0;
@@ -439,7 +481,9 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         {
             OpenEdgeEditor(provider.Id, edge);
         }
-        foreach (var item in Providers) item.IsSelected = item.Id == SelectedProviderId;
+        if (isNew || provider.Type != SpeechProviderType.Http) _selection.Clear();
+        else _selection.Click(provider.Id);
+        SyncSelection();
         NotifyState();
     }
 
@@ -451,7 +495,8 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         _editingProvider = null;
         SelectedProviderId = null;
         IsHelpDrawerOpen = false;
-        foreach (var item in Providers) item.IsSelected = false;
+        _selection.Clear();
+        SyncSelection();
         foreach (var entry in HeaderEntries) entry.PropertyChanged -= OnHeaderChanged;
         HeaderEntries.Clear();
         NotifyState();
@@ -524,6 +569,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         NewProviderCommand.NotifyCanExecuteChanged();
         SelectProviderCommand.NotifyCanExecuteChanged();
         ImportProvidersCommand.NotifyCanExecuteChanged();
+        ImportProvidersFromClipboardCommand.NotifyCanExecuteChanged();
         ExportProviderCommand.NotifyCanExecuteChanged();
         CopyProviderCommand.NotifyCanExecuteChanged();
         ExportProviderToClipboardCommand.NotifyCanExecuteChanged();

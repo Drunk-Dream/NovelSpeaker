@@ -1,3 +1,6 @@
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using System.Windows;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
@@ -7,6 +10,8 @@ namespace NovelSpeaker.App.Features.Rules.Regex;
 
 public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<RegexReplacementRulesViewModel>
 {
+    public ICommand SelectionCommand { get; }
+
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
     private readonly PageEventOperationRunner _eventOperations;
@@ -28,10 +33,18 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
         ViewModel = null!;
         _navigationGuardService = null!;
         _eventOperations = PageEventOperationRunner.DesignTime;
+        SelectionCommand = new AsyncRelayCommand<RegexReplacementRuleListItemViewModel>(SelectWithModifiersAsync);
         InitializeComponent();
     }
 
     public RegexReplacementRulesViewModel ViewModel { get; }
+
+    private Task SelectWithModifiersAsync(RegexReplacementRuleListItemViewModel? item)
+    {
+        var modifiers = DesktopSelectionInput.ReadModifiers();
+        return _eventOperations.RunAsync(_activation, "选择正则替换规则失败",
+            token => ViewModel.SelectRuleWithModifiersAsync(item, modifiers, token));
+    }
 
     public async Task OnNavigatedToAsync()
     {

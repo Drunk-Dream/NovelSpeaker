@@ -90,13 +90,13 @@ T003 预计会涉及 Book Description、元数据规则持久化和新的全局�
 
 完成成果：独立文件名/正文头部元数据规则与默认规则接入直接 TXT 导入；Book Description 持久化并展示，空行分章按全局开关补充显式章节，设置入口重排并移除旧文件名模板。SQLite v11 升级保留旧书与旧规则，完整自动门禁通过。
 
-## [ ] T004（P1）：增加规则与 Provider 批量交换
+## [x] T004（P1）：增加规则与 Provider 批量交换
 
 依赖：T003。
 
 目标：为章节规则、正则替换规则、文件名元数据规则、正文头部元数据规则和可分享 HTTP Provider 建立一致的 Ctrl/Shift 多选、单文档批量导出和同格式批量导入；修饰键点击不切换右侧 Editor，Microsoft Edge 不参与导出选择。
 
-详细规格：`tasks/T004_BULK_RULE_PROVIDER_EXCHANGE.md`
+完成成果：四类规则与 HTTP Provider 复用桌面 Ctrl/Shift 多选，选择集按稳定可见顺序导出为单个版本化文档；导入逐项校验、跳过重复并追加合法项，保留 Editor 草稿和 CurrentProvider。Edge 不参与分享选择，Provider 凭据完整保留且导出前仍需确认；移除旧单选控制器与导入草稿离开流程，完整自动门禁通过。
 
 ---
 

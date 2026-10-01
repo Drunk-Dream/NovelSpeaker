@@ -5,6 +5,7 @@ using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.PresentationTests.TestDoubles;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech.Providers;
@@ -14,6 +15,48 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class SpeechServicesViewModelTests
 {
+    [Fact]
+    public async Task Bulk_selection_skips_edge_preserves_editor_and_exports_one_document_with_warning()
+    {
+        var fixture = new Fixture();
+        var edge = await fixture.EnableEdgeAsync(null);
+        var second = CreateProvider("Second", 10);
+        fixture.Store.Items.Add(second);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectProviderWithModifiersAsync(vm.Providers[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        vm.DraftName = "Unsaved";
+        await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == second.Id), DesktopSelectionModifiers.Control, CancellationToken.None);
+        await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == second.Id), DesktopSelectionModifiers.Control, CancellationToken.None);
+        Assert.Equal(fixture.First.Id, Assert.Single(vm.Providers, item => item.IsSelected).Id);
+        await vm.SelectProviderWithModifiersAsync(vm.Providers[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == second.Id), DesktopSelectionModifiers.Shift, CancellationToken.None);
+        await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == edge.Id), DesktopSelectionModifiers.Control, CancellationToken.None);
+        Assert.Equal([fixture.First.Id, second.Id], vm.Providers.Where(item => item.IsSelected).Select(item => item.Id));
+        Assert.Equal(fixture.First.Id, vm.SelectedProviderId);
+        Assert.Equal("Unsaved", vm.DraftName);
+        await vm.ExportProviderCommand.ExecuteAsync(vm.Providers[0]);
+        Assert.Null(fixture.Documents.ExportedJson);
+        fixture.Dialogs.NextConfirmationDecision = AppConfirmationDecision.Confirm;
+        await vm.ExportProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == second.Id));
+        var exported = ProviderEnvelopeCodec.Read(fixture.Documents.ExportedJson!);
+        Assert.Equal(["First", "Second"], exported.Items.Select(item => item.Name));
+        Assert.Equal(2, vm.Providers.Count(item => item.IsSelected));
+        await vm.SelectProviderWithModifiersAsync(vm.Providers[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.Equal(fixture.First.Id, Assert.Single(vm.Providers, item => item.IsSelected).Id);
+        fixture.Dialogs.NextUnsavedDecision = UnsavedChangesDecision.Cancel;
+        fixture.Documents.ClipboardDocument = new RuleImportDocument(
+            ProviderEnvelopeCodec.Write(CreateProvider("Imported", 0)), "fixture");
+        await vm.ImportProvidersFromClipboardCommand.ExecuteAsync(null);
+        Assert.Contains(vm.Providers, item => item.Name == "Imported");
+        Assert.Equal("Unsaved", vm.DraftName);
+        Assert.True(vm.HasUnsavedChanges);
+        Assert.Equal(fixture.First.Id, vm.SelectedProviderId);
+        Assert.Equal(fixture.First.Id, fixture.Settings.Current.CurrentProviderId);
+        vm.HandleNavigatedFrom();
+        await vm.FinishDeactivationAsync();
+    }
+
     [Fact]
     public async Task Draft_save_preserves_headers_and_structured_rate_without_changing_current_provider()
     {
