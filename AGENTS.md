@@ -110,6 +110,7 @@
 - ViewModel 不引用具体 Page/Window/Dispatcher/Brush/Style/Thickness 等视觉类型。
 - Dialog/Flyout/Popup 遵守 Single Surface。
 - 图标使用主题语义资源，禁止 Dark Mode 硬编码黑色。
+- 设置子页面不对设置项做分组；前往规则、管理或其他子页面的导航入口统一放在普通设置项之后，连续排列在设置项列表末尾。
 - 大列表目标至少 10,000 条连续 catalog。
 - WPF virtualization 不替代 data/projection 规模控制。
 - 首个可交互帧不等待完整 enrichment。

@@ -61,6 +61,16 @@
                     </StackPanel>
                 </settingsControls:AppSettingsRow>
 
+                <settingsControls:AppSettingsRow x:Name="SplitChaptersOnBlankLinesRow"
+                                                 Title="空行分章"
+                                                 Description="在章节规则之外，按正文块之间的空行补充分章。"
+                                                 AutomationProperties.Name="空行分章">
+                    <ui:ToggleSwitch x:Name="SplitChaptersOnBlankLinesToggleSwitch"
+                                     Style="{StaticResource App.Input.ToggleSwitch.Standard}"
+                                     IsChecked="{Binding SplitChaptersOnBlankLines, Mode=TwoWay}"
+                                     AutomationProperties.Name="空行分章" />
+                </settingsControls:AppSettingsRow>
+
                 <settingsControls:AppSettingsNavigationRow
                     x:Name="OpenFileNameMetadataRulesRow"
                     Icon="{x:Static theming:SettingsNavigationIcon.ImportText}"
@@ -73,17 +83,6 @@
                     Title="正文头部元数据规则"
                     Command="{Binding OpenTextHeaderMetadataRulesCommand}"
                     ToolTip="正文头部元数据规则" />
-
-                <settingsControls:AppSettingsRow x:Name="SplitChaptersOnBlankLinesRow"
-                                                 Title="空行分章"
-                                                 Description="在章节规则之外，按正文块之间的空行补充分章。"
-                                                 AutomationProperties.Name="空行分章">
-                    <ui:ToggleSwitch x:Name="SplitChaptersOnBlankLinesToggleSwitch"
-                                     Style="{StaticResource App.Input.ToggleSwitch.Standard}"
-                                     IsChecked="{Binding SplitChaptersOnBlankLines, Mode=TwoWay}"
-                                     AutomationProperties.Name="空行分章" />
-                </settingsControls:AppSettingsRow>
-
                 <settingsControls:AppSettingsNavigationRow
                     x:Name="OpenChapterRulesRow"
                     Icon="{x:Static theming:SettingsNavigationIcon.ChapterRules}"
