@@ -13,7 +13,7 @@
         </Grid.RowDefinitions>
 
         <commonControls:AppPageHeader x:Name="PageHeader"
-                                      Title="导入与文本"
+                                      Title="导入"
                                       BackCommand="{Binding BackCommand}" />
 
         <ScrollViewer Grid.Row="1"
@@ -21,7 +21,7 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled">
             <settingsControls:AppSettingsList x:Name="SettingsList"
-                                              AutomationProperties.Name="导入与文本设置">
+                                              AutomationProperties.Name="导入设置">
                 <settingsControls:AppSettingsRow x:Name="EnableLongParagraphSplittingRow"
                                                  Title="拆分长段落"
                                                  Description="导入时将超过阈值的段落拆分为较短段落。"
@@ -61,25 +61,34 @@
                     </StackPanel>
                 </settingsControls:AppSettingsRow>
 
-                <settingsControls:AppSettingsRow x:Name="BookFileNameTemplateRow"
-                                                 Title="文件名提取模板"
-                                                 Description="示例：{{name}} 作者：{{author}}；留空则不从文件名解析。"
-                                                 AutomationProperties.Name="文件名模板">
-                    <TextBox x:Name="BookFileNameTemplateTextBox"
-                             Width="240"
-                             Style="{StaticResource App.Input.TextBox.Standard}"
-                             PreviewKeyDown="BookFileNameTemplateTextBox_OnPreviewKeyDown"
-                             LostKeyboardFocus="BookFileNameTemplateTextBox_OnLostKeyboardFocus"
-                             Text="{Binding BookFileNameTemplateText, UpdateSourceTrigger=PropertyChanged}"
-                             AutomationProperties.Name="文件名模板" />
+                <settingsControls:AppSettingsRow x:Name="SplitChaptersOnBlankLinesRow"
+                                                 Title="空行分章"
+                                                 Description="在章节规则之外，按正文块之间的空行补充分章。"
+                                                 AutomationProperties.Name="空行分章">
+                    <ui:ToggleSwitch x:Name="SplitChaptersOnBlankLinesToggleSwitch"
+                                     Style="{StaticResource App.Input.ToggleSwitch.Standard}"
+                                     IsChecked="{Binding SplitChaptersOnBlankLines, Mode=TwoWay}"
+                                     AutomationProperties.Name="空行分章" />
                 </settingsControls:AppSettingsRow>
 
                 <settingsControls:AppSettingsNavigationRow
-                    x:Name="OpenRegexReplacementRulesRow"
-                    Icon="{x:Static theming:SettingsNavigationIcon.RegexReplacement}"
-                    Title="正则替换"
-                    Command="{Binding OpenRegexReplacementRulesCommand}"
-                    ToolTip="正则替换" />
+                    x:Name="OpenFileNameMetadataRulesRow"
+                    Icon="{x:Static theming:SettingsNavigationIcon.ImportText}"
+                    Title="文件名元数据规则"
+                    Command="{Binding OpenFileNameMetadataRulesCommand}"
+                    ToolTip="文件名元数据规则" />
+                <settingsControls:AppSettingsNavigationRow
+                    x:Name="OpenTextHeaderMetadataRulesRow"
+                    Icon="{x:Static theming:SettingsNavigationIcon.ImportText}"
+                    Title="正文头部元数据规则"
+                    Command="{Binding OpenTextHeaderMetadataRulesCommand}"
+                    ToolTip="正文头部元数据规则" />
+                <settingsControls:AppSettingsNavigationRow
+                    x:Name="OpenChapterRulesRow"
+                    Icon="{x:Static theming:SettingsNavigationIcon.ChapterRules}"
+                    Title="章节规则"
+                    Command="{Binding OpenChapterRulesCommand}"
+                    ToolTip="章节规则" />
             </settingsControls:AppSettingsList>
         </ScrollViewer>
     </Grid>

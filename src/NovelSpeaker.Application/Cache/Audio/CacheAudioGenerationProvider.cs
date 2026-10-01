@@ -160,6 +160,10 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                 return new AudioGenerationResult(cached.FilePath, true, null);
             }
 
+            const int maxRateLimitRetries = 2;
+            const int maxTransientRetries = 2;
+            var rateLimitRetries = 0;
+            var transientRetries = 0;
             while (true)
             {
                 var synthesis = await request.Provider.Runtime.SynthesizeAsync(
@@ -169,9 +173,20 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                 await using var stream = synthesis.Audio;
                 operation.ExecutionToken.ThrowIfCancellationRequested();
                 if (synthesis.Failure is { Kind: ProviderSynthesisFailureKind.RateLimited, RetryAfter: { } retryAfter } &&
-                    operation.Priority == AudioGenerationPriority.Current)
+                    operation.Priority == AudioGenerationPriority.Current &&
+                    rateLimitRetries < maxRateLimitRetries)
                 {
+                    rateLimitRetries++;
                     operation.ReportProgress(new AudioGenerationProgress(BuildRateLimitedMessage(retryAfter), retryAfter));
+                    continue;
+                }
+                // HTTP transport already owns its bounded network and 5xx retries.
+                // Other providers share this synthesis-level transient retry boundary.
+                if (request.Provider.Provider.Type != SpeechProviderType.Http &&
+                    synthesis.Failure?.Kind is ProviderSynthesisFailureKind.Network or ProviderSynthesisFailureKind.Timeout &&
+                    transientRetries < maxTransientRetries)
+                {
+                    transientRetries++;
                     continue;
                 }
                 if (!synthesis.IsSuccess)

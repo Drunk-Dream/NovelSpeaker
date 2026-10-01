@@ -45,7 +45,7 @@ Provider 是否可用于播放，只由**是否完成必要配置**决定，不�
 - 未配置或被实验功能隐藏的 Provider 仍可存在于管理数据中，但不出现在播放页 Provider 选择器。
 - CurrentProvider 是全局设置，值为 ProviderId 或 None。
 - 播放页是唯一可以主动切换 CurrentProvider 的入口。
-- Provider 管理页只以轻量图标/标识展示哪个 Provider 正在使用，不提供“设为当前”动作。
+- Provider 管理页只以全局 Current 视觉语义展示哪个 Provider 正在使用，不提供“设为当前”动作。
 - 播放页不提供显式“None/不使用语音服务”选项。
 - 删除当前 Provider、隐藏当前 Edge Provider、或把当前 Provider 保存为未配置状态时，CurrentProvider 清空为 None，不自动回退。
 - Provider 重新出现或恢复配置后，不自动恢复为 CurrentProvider。
@@ -81,6 +81,7 @@ Provider 列表 | 当前 Provider 类型对应的编辑器
 → 试听 Draft / 保存 / 取消
 ```
 
+- 普通点击左侧 Provider 选择单项并切换右侧 Editor；Ctrl/Shift 点击只改变批量选择集，不切换右侧编辑对象。
 - 切换左侧 Provider 或离开页面时，如有 Dirty Draft，使用保存 / 放弃 / 取消保护。
 - 新建 HTTP Provider 先进入未持久化 Draft，保存后才进入 Provider 列表。
 - 试听直接使用当前未保存 Draft，不要求先保存。
@@ -113,7 +114,7 @@ NovelSpeaker 的公共 `SpeakSpeed` 是 Provider 无关的整数控制量：
 | Microsoft Edge | 否 | 是 | 否 | 否 | 否 | 是 | 否 | 是 |
 | Local | 按实际类型决定 | 按实际类型决定 | 按实际类型决定 | 按实际类型决定 | 按实际类型决定 | 按实际类型决定 | 按实际类型决定 | 是 |
 
-当前只有 HTTP 支持用户创建与导入。不要仅为动作矩阵建立通用 capability framework；类型分派保持简单，直到更多 Provider 类型产生真实压力。
+当前只有 HTTP 支持用户创建与导入/导出。不要仅为动作矩阵建立通用 capability framework；类型分派保持简单，直到更多 Provider 类型产生真实压力。
 
 ## 7. HTTP Provider 配置
 
@@ -229,7 +230,7 @@ HTML、JSON 错误页、空响应或损坏音频不能作为正常缓存写入�
 
 ## 11. HTTP Provider 导入与导出
 
-NovelSpeaker 使用自有版本化 Provider 交换格式。文件或剪贴板可以一次包含一个或多个 Provider；当前导出动作仍一次只导出一个 Provider，但使用相同 envelope。
+NovelSpeaker 使用自有版本化 Provider 交换格式。文件或剪贴板可以一次包含一个或多个 Provider；单项和批量导出共用相同 envelope。
 
 长期形状：
 
@@ -262,7 +263,7 @@ NovelSpeaker 使用自有版本化 Provider 交换格式。文件或剪贴板可
 
 导入规则：
 
-- 每项独立解析与校验，单项失败不回滚其它有效项；
+- 一个文档可以包含一条或多条 Provider，逐项独立解析与校验，单项失败不回滚其它有效项；
 - 只有名称大小写不敏感地相同、且规范化 typed config 各字段相同时才视为完全相同并跳过。Method、Header 键大小写与顺序等使用确定性规范化；不执行模板或联网判断“等价”；
 - 配置相同但名称不同仍新增；同名但配置不同则自动生成唯一名称后新增；
 - 不覆盖既有 Provider；
@@ -270,7 +271,17 @@ NovelSpeaker 使用自有版本化 Provider 交换格式。文件或剪贴板可
 - 新 Provider 按导入顺序追加到排序末尾；
 - 未知 Provider Type 或已知但不支持 Import 的类型按单项失败报告。
 
-导出完整保存 HTTP 配置，包括其中可能存在的 API Key、Token、Cookie。导出前明确提示文件可能包含敏感凭据；不建立自动 Secret 分离或自动脱敏导出。
+导出规则：
+
+- 普通单项导出和 Ctrl/Shift 多选后的批量导出使用同一 envelope；
+- 批量导出按当前选择集中可分享 Provider 的稳定可见顺序写入一个文件/剪贴板文档；
+- Microsoft Edge 等不可分享 Provider 不进入批量导出选择；
+- 右键已选中 Provider 时，“导出到文件/剪贴板”作用于当前选择集；
+- 导出完整保存 HTTP 配置，包括其中可能存在的 API Key、Token、Cookie。
+
+导出前明确提示文件可能包含敏感凭据；不建立自动 Secret 分离或自动脱敏导出。
+
+私人完整配置备份不复用本节的“分享交换格式”语义；备份可以保存 ProviderId、SortOrder、CurrentProvider 等恢复完整配置所需身份，见 `05_DATA_AND_COMPATIBILITY.md`。
 
 ## 12. Microsoft Edge Provider
 
@@ -429,8 +440,10 @@ Settings 首页在“应用”分组中提供“实验性功能”入口，顺�
 - Settings 入口名称使用“语音服务”。
 - 桌面端保持双栏布局，不改成层层跳转的配置子页。
 - 左侧 Provider 列表不按类型分组，按统一 SortOrder 展示。
-- 左侧选中表示“正在编辑”；CurrentProvider 使用独立轻量状态图标/标识，不使用“当前”文字，也不能点击该标识切换。
-- HTTP 支持复制、单条导出、删除；Edge 不显示无意义动作。
+- 左侧普通点击选择表示“正在编辑”，使用全局 Selected surface；CurrentProvider 使用全局 Current 左侧 Accent rail，不显示“当前”文字。
+- Current 与 Selected 可以同时存在；正在编辑 CurrentProvider 时表现为 Current rail + Selected surface。
+- Ctrl/Shift 点击只修改批量选择集，不切换右侧 Editor；批量导出复用当前选择集。
+- HTTP 支持复制、单项/批量导出、删除；Edge 不显示无意义动作，也不进入批量导出选择。
 - 页首提供新建与导入；当前只有 HTTP 可创建时，不显示多余类型选择器。
 - HTTP 模板帮助只属于 HTTP 编辑器语境。
 
@@ -441,10 +454,10 @@ Settings 首页在“应用”分组中提供“实验性功能”入口，顺�
 - 使用统一 Provider SortOrder；
 - 不显示 None 选项；
 - 每个可选项等宽并横向占满浮窗内容区，整行可点击；
-- 浮窗自身保留合理内边距；
-- 当前 Provider 使用与目录 Current Item 一致的整项选择视觉，不显示“当前”文字；
-- CurrentProvider=None 时没有任何选中项；
-- 底部保留“前往语音服务管理”导航动作。
+- 行高/内边距和文字大小保证 Provider 名称垂直居中且可快速扫视，长名称省略；
+- 当前 Provider 使用全局 Current 左侧 Accent rail，不显示“当前”文字，也不使用 Selected 背景代替 Current；
+- CurrentProvider=None 时没有任何 Current 项；
+- 底部使用独立“语音服务管理”导航行，与选择列表通过轻量分隔线区分。
 
 ### 拖拽排序
 
@@ -455,7 +468,7 @@ Settings 首页在“应用”分组中提供“实验性功能”入口，顺�
 - 相邻卡片的 After/Before 不再形成两个等价目标；
 - 列表顶部和底部均存在唯一插入槽；
 - 隐藏 item 不产生不可见的额外命中边界；
-- 章节规则、正则规则、Provider 等现有排序列表复用同一交互原则。
+- 章节规则、正则规则、Provider、元数据规则等排序列表复用同一交互原则。
 
 ## 15. 兼容与迁移
 
@@ -466,7 +479,7 @@ Provider 化是开发阶段的模型重构，不长期保留旧 `TtsRule`/Legado
 - `source`、`java.*` 等仅为 Legado 兼容存在的模板 API 移除。
 - 现有本地 HTTP TTS 规则通过一次性 migration 逐项转换：能按新请求语义安全表达且通过本地校验的项迁移为 HTTP Provider，依赖已移除模板 API、无法等价转换或数据损坏的项静默跳过，不展示或持久化跳过数量与原因。旧表重名时确定性改名；旧禁用状态不迁移，原本禁用的规则不能自动成为 CurrentProvider。不为跳过项保留旧格式运行或恢复接口。迁移完成后删除旧运行路径，不维持双读/双写。
 - 已存在音频缓存文件不要求删除；Provider synthesis identity 不匹配时保留但不作为当前配置可用缓存。
-- 新 Provider 交换格式从 schemaVersion 1 开始独立演进。
+- Provider 交换格式从 schemaVersion 1 开始独立演进，并继续支持单项/多项同 envelope。
 - 本阶段把公共 `SpeakSpeed` 合同直接从旧 `1–20` 切换为 `0–100`，新默认值为 `50`；不为旧范围保留运行时兼容层。
 - 不修改已有 `settings.json` 中保存的 `DefaultSpeakSpeed` 数值；旧值若仍位于 `0–100` 合法范围内按新语义直接使用，由用户自行调整。
 - 不扫描、不识别、不自动改写已有 HTTP Provider/旧规则中的 `speakSpeed` 模板表达式；模板升级后的语义由用户自行调整。

@@ -271,6 +271,35 @@ public sealed class HttpProviderWorkflowTests
             copy.Name, (HttpSpeechProviderConfiguration)copy.Configuration));
     }
 
+    [Fact]
+    public async Task Bulk_export_keeps_credentials_and_stable_order_excludes_edge_and_requires_warning()
+    {
+        var first = CreateProvider("First") with
+        {
+            SortOrder = 10,
+            Configuration = new HttpSpeechProviderConfiguration("https://example.com/audio", "GET",
+                new Dictionary<string, string> { ["Authorization"] = "Bearer fixture-token" }, null, null)
+        };
+        var second = CreateProvider("Second") with { SortOrder = 30 };
+        var edge = new SpeechProviderInstance(ProviderId.New(), "Microsoft Edge", 20,
+            new EdgeSpeechProviderConfiguration(null), DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        var settings = new FakeSettings(AppSettings.Default with { CurrentProviderId = first.Id });
+        var workspace = new SpeechProviderWorkspace(new RecordingProviderStore(first, edge, second), TimeProvider.System, settings);
+
+        var warning = await workspace.ExportAsync([second.Id, edge.Id, first.Id], false, CancellationToken.None);
+        Assert.Equal(ProviderExportStatus.ConfirmationRequired, warning.Status);
+        Assert.Null(warning.Json);
+        var exported = await workspace.ExportAsync([second.Id, edge.Id, first.Id], true, CancellationToken.None);
+        var items = ProviderEnvelopeCodec.Read(exported.Json!).Items;
+        Assert.Equal(["First", "Second"], items.Select(item => item.Name));
+        Assert.Equal("Bearer fixture-token", items[0].Configuration!.Headers["Authorization"]);
+        var imported = await workspace.ImportAsync(exported.Json!, CancellationToken.None);
+        Assert.Equal(2, imported.DuplicateCount);
+        Assert.Equal(first.Id, settings.Current.CurrentProviderId);
+        Assert.Equal(ProviderExportStatus.ProviderUnavailable,
+            (await workspace.ExportAsync([edge.Id], true, CancellationToken.None)).Status);
+    }
+
     private static SpeechProviderInstance CreateProvider(string name) =>
         new(ProviderId.New(), name, 0,
             new HttpSpeechProviderConfiguration("https://example.com/audio", "GET",

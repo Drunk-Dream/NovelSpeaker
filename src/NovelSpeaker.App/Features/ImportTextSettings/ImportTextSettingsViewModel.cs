@@ -13,11 +13,10 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
     private readonly IAppSettingsService _settingsService;
     private readonly TimeProvider _timeProvider;
     private bool _isLoading;
-    private CancellationTokenSource? _templateDebounceCts;
     private CancellationTokenSource? _thresholdDebounceCts;
-    private int _templateVersion;
     private int _thresholdVersion;
     private int _longParagraphSplitVersion;
+    private int _blankLineSplitVersion;
 
     public ImportTextSettingsViewModel(
         IAppSettingsService settingsService,
@@ -31,10 +30,10 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
     }
 
     [ObservableProperty]
-    private string bookFileNameTemplateText = string.Empty;
+    private bool enableLongParagraphSplitting;
 
     [ObservableProperty]
-    private bool enableLongParagraphSplitting;
+    private bool splitChaptersOnBlankLines;
 
     [ObservableProperty]
     private string longParagraphThresholdText = string.Empty;
@@ -50,8 +49,8 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         {
             cancellationToken.ThrowIfCancellationRequested();
             var settings = _settingsService.Current;
-            BookFileNameTemplateText = settings.BookFileNameTemplate ?? string.Empty;
             EnableLongParagraphSplitting = settings.EnableLongParagraphSplitting;
+            SplitChaptersOnBlankLines = settings.SplitChaptersOnBlankLines;
             LongParagraphThresholdText = settings.LongParagraphThreshold.ToString();
             LongParagraphThresholdErrorText = string.Empty;
         }
@@ -63,51 +62,21 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
 
     public override void Deactivate()
     {
-        CancelPendingSave(ref _templateDebounceCts);
         CancelPendingSave(ref _thresholdDebounceCts);
         base.Deactivate();
     }
 
-    public async Task CommitBookFileNameTemplateAsync(CancellationToken cancellationToken)
-    {
-        CompleteOrCancelPendingSave(ref _templateDebounceCts, cancellationToken);
-        var version = Interlocked.Increment(ref _templateVersion);
-
-        try
-        {
-            var settings = await _settingsService.UpdateAsync(
-                new AppSettingsUpdate
-                {
-                    BookFileNameTemplate = BookFileNameTemplateText
-                },
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (version != Volatile.Read(ref _templateVersion))
-            {
-                return;
-            }
-
-            BookFileNameTemplateText = settings.BookFileNameTemplate ?? string.Empty;
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            if (!cancellationToken.IsCancellationRequested &&
-                version == Volatile.Read(ref _templateVersion))
-            {
-                ShowSaveFailure("保存文件名模板失败", exception);
-            }
-        }
-    }
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private Task OpenChapterRulesAsync(CancellationToken cancellationToken) =>
+        Navigator.NavigateAsync(AppRoutes.ChapterRules, cancellationToken);
 
     [CommunityToolkit.Mvvm.Input.RelayCommand]
-    private Task OpenRegexReplacementRulesAsync(CancellationToken cancellationToken)
-    {
-        return Navigator.NavigateAsync(AppRoutes.RegexReplacementRules, cancellationToken);
-    }
+    private Task OpenFileNameMetadataRulesAsync(CancellationToken cancellationToken) =>
+        Navigator.NavigateAsync(AppRoutes.FileNameMetadataRules, cancellationToken);
+
+    [CommunityToolkit.Mvvm.Input.RelayCommand]
+    private Task OpenTextHeaderMetadataRulesAsync(CancellationToken cancellationToken) =>
+        Navigator.NavigateAsync(AppRoutes.TextHeaderMetadataRules, cancellationToken);
 
     public async Task CommitLongParagraphThresholdAsync(CancellationToken cancellationToken)
     {
@@ -151,16 +120,6 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         }
     }
 
-    partial void OnBookFileNameTemplateTextChanged(string value)
-    {
-        if (_isLoading)
-        {
-            return;
-        }
-
-        ScheduleDebouncedCommit(ref _templateDebounceCts, ct => CommitBookFileNameTemplateAsync(ct));
-    }
-
     partial void OnEnableLongParagraphSplittingChanged(bool value)
     {
         if (_isLoading)
@@ -172,6 +131,36 @@ public sealed partial class ImportTextSettingsViewModel : SettingsSubpageViewMod
         RunPageOperation(
             "保存超长段落拆分设置失败",
             cancellationToken => SaveLongParagraphSplittingAsync(value, version, cancellationToken));
+    }
+
+    partial void OnSplitChaptersOnBlankLinesChanged(bool value)
+    {
+        if (_isLoading) return;
+        var version = Interlocked.Increment(ref _blankLineSplitVersion);
+        RunPageOperation(
+            "保存空行分章设置失败",
+            cancellationToken => SaveBlankLineSplittingAsync(value, version, cancellationToken));
+    }
+
+    private async Task SaveBlankLineSplittingAsync(bool value, int version, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _settingsService.UpdateAsync(
+                new AppSettingsUpdate { SplitChaptersOnBlankLines = value }, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentActivation(cancellationToken) || version != Volatile.Read(ref _blankLineSplitVersion)) return;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            if (IsCurrentActivation(cancellationToken) && version == Volatile.Read(ref _blankLineSplitVersion))
+            {
+                ShowSaveFailure("保存空行分章设置失败", exception);
+            }
+        }
     }
 
     partial void OnLongParagraphThresholdTextChanged(string value)

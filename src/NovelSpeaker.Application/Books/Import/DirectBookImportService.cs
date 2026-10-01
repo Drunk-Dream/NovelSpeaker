@@ -20,8 +20,10 @@ public sealed class DirectBookImportService : IDirectBookImportService
     private readonly IBookFileStore _bookFileStore;
     private readonly IBookImportRepository _bookImportRepository;
     private readonly IBookOperationJournal _operationJournal;
-    private readonly IBookFileNameTemplateProvider _bookFileNameTemplateProvider;
-    private readonly BookFileNameMetadataParser _bookFileNameMetadataParser;
+    private readonly IFileNameMetadataRuleRepository _fileNameRules;
+    private readonly ITextHeaderMetadataRuleRepository _headerRules;
+    private readonly IAppSettingsService _settings;
+    private readonly ImportMetadataExtractor _metadataExtractor;
     private readonly TimeProvider _timeProvider;
     private readonly IBookImportIdGenerator _idGenerator;
 
@@ -35,8 +37,10 @@ public sealed class DirectBookImportService : IDirectBookImportService
         IBookFileStore bookFileStore,
         IBookImportRepository bookImportRepository,
         IBookOperationJournal operationJournal,
-        IBookFileNameTemplateProvider bookFileNameTemplateProvider,
-        BookFileNameMetadataParser bookFileNameMetadataParser,
+        IFileNameMetadataRuleRepository fileNameRules,
+        ITextHeaderMetadataRuleRepository headerRules,
+        IAppSettingsService settings,
+        ImportMetadataExtractor metadataExtractor,
         TimeProvider timeProvider,
         IBookImportIdGenerator idGenerator)
     {
@@ -49,8 +53,10 @@ public sealed class DirectBookImportService : IDirectBookImportService
         _bookFileStore = bookFileStore;
         _bookImportRepository = bookImportRepository;
         _operationJournal = operationJournal;
-        _bookFileNameTemplateProvider = bookFileNameTemplateProvider;
-        _bookFileNameMetadataParser = bookFileNameMetadataParser;
+        _fileNameRules = fileNameRules;
+        _headerRules = headerRules;
+        _settings = settings;
+        _metadataExtractor = metadataExtractor;
         _timeProvider = timeProvider;
         _idGenerator = idGenerator;
     }
@@ -74,12 +80,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
                     EncodingSelectionPrompt: BuildPrompt(request.FilePath, analyzedText));
             }
 
-            var fileNameTemplate = await _bookFileNameTemplateProvider
-                .GetCurrentTemplateAsync(cancellationToken)
-                .ConfigureAwait(false);
-            var metadata = _bookFileNameMetadataParser.Parse(analyzedText.SourceNameWithoutExtension, fileNameTemplate);
-
-            return await ImportDecodedTextAsync(request.FilePath, metadata, analyzedText, progress, cancellationToken);
+            return await ImportDecodedTextAsync(request.FilePath, analyzedText, progress, cancellationToken);
         }
         catch (DecoderFallbackException)
         {
@@ -104,7 +105,6 @@ public sealed class DirectBookImportService : IDirectBookImportService
 
     private async Task<DirectBookImportResult> ImportDecodedTextAsync(
         string filePath,
-        BookFileNameMetadataParseResult metadata,
         TextFileAnalysis analyzedText,
         IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken)
@@ -127,7 +127,16 @@ public sealed class DirectBookImportService : IDirectBookImportService
             "正在识别章节。"));
 
         var rules = await _chapterRuleRepository.GetEnabledAsync(cancellationToken);
-        var chapters = _chapterSplitter.Split(normalizedText, rules);
+        var firstTitleOffset = _chapterSplitter.FindFirstExplicitTitleOffset(normalizedText, rules);
+        var fileNameRules = await _fileNameRules.GetAllAsync(cancellationToken);
+        var headerRules = await _headerRules.GetAllAsync(cancellationToken);
+        var metadata = _metadataExtractor.Extract(
+            analyzedText.SourceNameWithoutExtension,
+            normalizedText,
+            firstTitleOffset,
+            fileNameRules,
+            headerRules);
+        var chapters = _chapterSplitter.Split(normalizedText, rules, _settings.Current.SplitChaptersOnBlankLines);
         if (string.IsNullOrWhiteSpace(normalizedText) || chapters.Count == 0)
         {
             return new DirectBookImportResult(
@@ -158,8 +167,8 @@ public sealed class DirectBookImportService : IDirectBookImportService
 
         var book = new Book(
             bookId,
-            metadata.SuggestedTitle,
-            metadata.SuggestedAuthor,
+            metadata.Title,
+            metadata.Author,
             analyzedText.SourceFileName,
             copyHandle.FinalPath,
             sourceHash,
@@ -167,7 +176,8 @@ public sealed class DirectBookImportService : IDirectBookImportService
             now,
             now,
             null,
-            now);
+            now,
+            metadata.Description);
         var chapterEntities = chapters
             .Select(chapter => new Chapter(
                 _idGenerator.CreateChapterId(),

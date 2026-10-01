@@ -10,7 +10,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 9;
+    private const int CurrentSchemaVersion = 11;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -267,6 +267,52 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 FOREIGN KEY(ProviderId) REFERENCES SpeechProviders(Id) ON DELETE CASCADE
             );
             CREATE UNIQUE INDEX IX_SpeechProviders_EdgeSingleton ON SpeechProviders(Type) WHERE Type = 2;
+            """),
+        new(10,
+            """
+            ALTER TABLE Books ADD COLUMN Description TEXT NULL;
+
+            CREATE TABLE FileNameMetadataRules (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Pattern TEXT NOT NULL,
+                SortOrder INTEGER NOT NULL,
+                IsEnabled INTEGER NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
+            CREATE INDEX IX_FileNameMetadataRules_SortOrder
+                ON FileNameMetadataRules(SortOrder, Id);
+
+            CREATE TABLE TextHeaderMetadataRules (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Pattern TEXT NOT NULL,
+                SortOrder INTEGER NOT NULL,
+                IsEnabled INTEGER NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
+            CREATE INDEX IX_TextHeaderMetadataRules_SortOrder
+                ON TextHeaderMetadataRules(SortOrder, Id);
+            """),
+        new(11,
+            """
+            INSERT OR IGNORE INTO FileNameMetadataRules
+                (Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt)
+            VALUES
+                ('default:filename-name-author', '书名与作者', '^(?<name>.+?)\s+作者[:：]\s*(?<author>.+)$', 10, 1,
+                 '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00');
+
+            INSERT OR IGNORE INTO TextHeaderMetadataRules
+                (Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt)
+            VALUES
+                ('default:header-name', '书名', '^书名[:：]\s*(?<name>.+)$', 10, 1,
+                 '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00'),
+                ('default:header-author', '作者', '^作者[:：]\s*(?<author>.+)$', 20, 1,
+                 '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00'),
+                ('default:header-description', '简介', '^简介[:：]\s*(?<description>.+)$', 30, 1,
+                 '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00');
             """)
     ];
 

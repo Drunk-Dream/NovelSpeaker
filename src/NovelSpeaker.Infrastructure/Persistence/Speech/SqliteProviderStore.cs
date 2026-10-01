@@ -39,7 +39,14 @@ public sealed class SqliteProviderStore : IProviderStore
     public async Task<IReadOnlyList<SpeechProviderInstance>> GetAllAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
+        return await ReadAllAsync(connection, null, cancellationToken);
+    }
+
+    internal static async Task<IReadOnlyList<SpeechProviderInstance>> ReadAllAsync(
+        SqliteConnection connection, SqliteTransaction? transaction, CancellationToken cancellationToken)
+    {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = ProviderSelect + " ORDER BY p.SortOrder, p.Id;";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var providers = new List<SpeechProviderInstance>();

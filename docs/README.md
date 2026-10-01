@@ -22,6 +22,7 @@
 
 `docs/specs/` 只保存必须精确定义、不能用简要架构文档替代的协议/流水线合同：
 
+- `specs/BOOK_IMPORT.md`
 - `specs/HTTP_TTS.md`
 - `specs/REGEX_REPLACEMENT.md`
 

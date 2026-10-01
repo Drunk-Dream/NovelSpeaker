@@ -29,6 +29,7 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
     private readonly DiagnosticRegistry _registry;
     private readonly IDiagnosticFailureReporter? _failureReporter;
     private readonly DiagnosticBundleWriter _bundleWriter = new();
+    private readonly RelatedProductionLogReader _logReader;
 
     public SqliteDiagnosticSessionExportService(
         SqliteDiagnosticSessionStore store,
@@ -42,6 +43,7 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
         _pathResolver = pathResolver ?? new AppStoragePathResolver(_directories);
         _registry = registry ?? DiagnosticRegistry.Default;
         _failureReporter = failureReporter;
+        _logReader = new RelatedProductionLogReader(_directories, _pathResolver);
     }
 
     public Task ExportLastEndedAsync(string destinationPath, CancellationToken cancellationToken)
@@ -87,16 +89,23 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
             stage = DiagnosticFailureStage.ReadSession;
             var data = await ReadAsync(sourcePath, cancellationToken).ConfigureAwait(false);
             stage = DiagnosticFailureStage.ReadLogs;
-            var logLines = ReadRelatedLogLines(data.Session.SessionId, cancellationToken);
+            var logs = _logReader.Read(data.Session.SessionId, cancellationToken);
+            if (logs.FirstFailure is not null)
+            {
+                _failureReporter?.ReportFailure(
+                    DiagnosticFailureOperation.ProblemDiagnosticsExport,
+                    DiagnosticFailureStage.ReadLogs,
+                    logs.FirstFailure);
+            }
 
             stage = DiagnosticFailureStage.BuildBundle;
             await _bundleWriter.WriteAsync(
                 outputPath,
                 async (archive, token) =>
                 {
-                    WriteEntry(archive, "summary.md", BuildSummary(data));
+                    WriteEntry(archive, "summary.md", BuildSummary(data, logs));
                     WriteEntry(archive, "timeline.md", BuildTimeline(data));
-                    WriteEntry(archive, "logs.jsonl", BuildLogs(logLines));
+                    WriteEntry(archive, "logs.jsonl", BuildLogs(logs.Lines));
                     WriteEntry(archive, "environment.json", JsonSerializer.Serialize(data.Environment, JsonOptions));
                     WriteEntry(archive, "diagnostics-schema.json", BuildSchema(data));
                     await CopyEntryAsync(archive, "session.nsdiag", sourcePath, token).ConfigureAwait(false);
@@ -342,7 +351,7 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
             JsonOptions);
     }
 
-    private static string BuildSummary(ExportData data)
+    private static string BuildSummary(ExportData data, RelatedLogReadResult logs)
     {
         var session = data.Session;
         var endedText = session.EndedAtUtc?.ToString("O", CultureInfo.InvariantCulture) ?? "未结束";
@@ -360,14 +369,16 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
                 $"- Activity 数量：{data.Activities.Count}",
                 $"- Event 数量：{data.Events.Count}",
                 $"- Snapshot 数量：{data.Snapshots.Count}",
-            $"- 资源采样数量：{data.ResourceSampleCount}",
+                $"- 资源采样数量：{data.ResourceSampleCount}",
                 $"- 匿名对象关联数量：{data.AnonymousAssociationCount}",
                 $"- 主动截图数量：{data.Attachments.Count}",
                 $"- 硬容量上限：{session.HardCapBytes} bytes",
                 $"- 记录估算大小：{session.RecordedBytes} bytes",
                 $"- 是否因容量停止：{session.CaptureStopped}",
                 $"- 采集停止原因：{session.CaptureStoppedReason ?? "none"}",
-                $"- 是否记录到意外 Process 结束：{session.EndedUnexpectedly}"
+                $"- 是否记录到意外 Process 结束：{session.EndedUnexpectedly}",
+                $"- 关联生产日志证据：{logs.Status.ToString().ToLowerInvariant()}",
+                $"- 关联生产日志记录数：{logs.Lines.Count}"
             ]);
     }
 
@@ -407,58 +418,6 @@ public sealed class SqliteDiagnosticSessionExportService : IDiagnosticSessionExp
 
     private static string BuildLogs(IReadOnlyList<string> lines) =>
         lines.Count == 0 ? string.Empty : string.Join('\n', lines) + "\n";
-
-    private IReadOnlyList<string> ReadRelatedLogLines(string sessionId, CancellationToken cancellationToken)
-    {
-        var lines = new List<string>();
-        try
-        {
-            if (!Directory.Exists(_directories.LogsDirectoryPath))
-            {
-                return lines;
-            }
-
-            foreach (var path in Directory.EnumerateFiles(_directories.LogsDirectoryPath, "novelspeaker-*.jsonl"))
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
-                {
-                    foreach (var line in File.ReadLines(_pathResolver.ResolvePath(path)))
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                        if (string.IsNullOrWhiteSpace(line))
-                        {
-                            continue;
-                        }
-
-                        using var document = JsonDocument.Parse(line);
-                        if (document.RootElement.TryGetProperty("diagnosticSessionId", out var value) &&
-                            string.Equals(value.GetString(), sessionId, StringComparison.Ordinal))
-                        {
-                            lines.Add(line);
-                        }
-                    }
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch
-                {
-                    // A missing or malformed log file must not prevent session export.
-                }
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch
-        {
-        }
-
-        return lines;
-    }
 
     private static async Task CopyEntryAsync(
         ZipArchive archive,

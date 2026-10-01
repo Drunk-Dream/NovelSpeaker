@@ -151,7 +151,7 @@ public sealed class CacheCatalog : ICacheCatalog
                 summary.ChapterIndex,
                 titlesByIndex.GetValueOrDefault(
                     summary.ChapterIndex,
-                    $"第 {summary.ChapterIndex + 1} 章")))
+                    "章节标题不可用")))
             .ToArray());
     }
 
@@ -202,7 +202,7 @@ public sealed class CacheCatalog : ICacheCatalog
                 summary.ChapterIndex,
                 titlesByIndex.GetValueOrDefault(
                     summary.ChapterIndex,
-                    $"第 {summary.ChapterIndex + 1} 章"),
+                    "章节标题不可用"),
                 summary.DistinctSegmentCount,
                 summary.EntryCount,
                 summary.TotalSizeBytes))

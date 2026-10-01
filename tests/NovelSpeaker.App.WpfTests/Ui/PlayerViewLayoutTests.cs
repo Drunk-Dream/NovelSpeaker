@@ -22,6 +22,7 @@ using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
@@ -297,7 +298,7 @@ public sealed partial class PlayerViewTests
         {
             var context = CreateDefaultVisualContext(providers: new ObservableCollection<PlayerProviderItemViewModel>
             {
-                new(TestSpeechProviders.Id(1), "回归测试 Provider", isSelected: false)
+                new(TestSpeechProviders.Id(1), "回归测试 Provider", isCurrent: true)
             });
             var view = new PlayerView { DataContext = context };
             var window = new Window { Content = view, Width = 1280, Height = 760, ShowInTaskbar = false };
@@ -309,6 +310,11 @@ public sealed partial class PlayerViewTests
 
             Assert.True(context.HasProviders);
             Assert.True(popup.IsOpen);
+            var providerSurface = Assert.IsType<SelectionSurface>(
+                VisualTreeTestHelper.FindDescendant<SelectionSurface>(popup.Child));
+            Assert.True(providerSurface.IsCurrent);
+            Assert.NotSame(System.Windows.Application.Current.FindResource("App.Brush.Interaction.Surface.Selected"),
+                providerSurface.Background);
             popup.IsOpen = false;
         });
     }

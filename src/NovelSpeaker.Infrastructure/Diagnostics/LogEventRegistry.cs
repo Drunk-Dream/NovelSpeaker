@@ -40,6 +40,22 @@ public static class LogEventRegistry
         LogLevel.Error,
         "A process lifecycle operation failed or degraded.");
 
+    public static LogEventDefinition RuntimeFailure { get; } = Define(
+        1004,
+        "app.runtime.failure",
+        "runtime",
+        null,
+        LogLevel.Critical,
+        "A classified runtime failure was observed.");
+
+    public static LogEventDefinition ProcessExit { get; } = Define(
+        1005,
+        "app.process.exit",
+        "lifecycle",
+        OperationCatalog.AppShutdown,
+        LogLevel.Information,
+        "The lifetime owner reported the final process exit reason.");
+
     public static LogEventDefinition TtsRequestFailed { get; } = Define(
         1101,
         "tts.request.failed",
@@ -110,6 +126,8 @@ public static class LogEventRegistry
         StartupStage,
         StartupFailure,
         LifecycleFailure,
+        RuntimeFailure,
+        ProcessExit,
         TtsRequestFailed,
         TtsResponseValidationFailed,
         CacheOperationFailed,

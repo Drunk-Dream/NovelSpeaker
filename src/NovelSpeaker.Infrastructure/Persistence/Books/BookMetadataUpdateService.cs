@@ -50,8 +50,14 @@ public sealed class BookMetadataUpdateService : IBookMetadataUpdateService
                 throw new InvalidOperationException("未找到要更新的书籍。");
             }
 
+            var descriptionCommand = connection.CreateCommand();
+            descriptionCommand.Transaction = (Microsoft.Data.Sqlite.SqliteTransaction)transaction;
+            descriptionCommand.CommandText = "SELECT Description FROM Books WHERE Id = $bookId;";
+            descriptionCommand.Parameters.AddWithValue("$bookId", request.BookId);
+            var description = await descriptionCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
+
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
-            return new BookDetailsHeader(request.BookId, title, author);
+            return new BookDetailsHeader(request.BookId, title, author, description);
         }
         catch
         {

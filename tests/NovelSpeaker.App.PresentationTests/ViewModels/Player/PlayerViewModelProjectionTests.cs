@@ -370,6 +370,30 @@ public sealed partial class PlayerViewModelTests
         Faulted_snapshot_shows_error_bar_and_retry_flow();
 
     [Fact]
+    public async Task Recovery_pause_shows_error_and_keeps_play_action_available()
+    {
+        var coordinator = new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
+            "book-1", "示例小说", 0, "第一章", 3, 5,
+            TestSpeechProviders.Id(1), "默认规则", 10, 0, 0,
+            "已连续跳过 3 个播放失败的段落，已暂停。",
+            false, true, "作者甲"));
+        var viewModel = CreateViewModel(
+            coordinator,
+            new FakeBookPlaybackContentService(
+                new PlaybackBookContent("book-1", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
+                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")])));
+
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
+            CancellationToken.None);
+
+        Assert.True(viewModel.ShowPlaybackErrorBar);
+        Assert.True(viewModel.CanTogglePlayPause);
+        Assert.Contains("连续跳过 3", viewModel.ErrorText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Player_progress_contracts_cover_same_and_new_segment_commits()
     {
         await CommitSegmentProgressAsync_same_segment_is_noop();

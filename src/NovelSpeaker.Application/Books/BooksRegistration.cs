@@ -17,7 +17,7 @@ public static class BooksRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IChapterRuleManagementService, ChapterRuleManagementService>();
-        services.TryAddSingleton<BookFileNameMetadataParser>();
+        services.TryAddSingleton<ImportMetadataExtractor>();
         services.TryAddSingleton<ITextNormalizer, TextNormalizer>();
         services.TryAddSingleton<IChapterSplitter, ChapterSplitter>();
         services.TryAddSingleton<IBookImportIdGenerator, BookImportIdGenerator>();
@@ -25,7 +25,8 @@ public static class BooksRegistration
         services.TryAddSingleton<IBookDeletionService, BookDeletionService>();
         services.TryAddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
         services.TryAddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
-        services.TryAddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();
+        services.TryAddSingleton<RegexReplacementRuleWorkspaceService>();
+        services.TryAddSingleton<IRegexReplacementRuleWorkspaceService>(provider => provider.GetRequiredService<RegexReplacementRuleWorkspaceService>());
         services.TryAddSingleton<IRegexReplacementPipeline, RegexReplacementPipeline>();
         services.TryAddSingleton<ITextSegmenter, TextSegmenter>();
         return services;

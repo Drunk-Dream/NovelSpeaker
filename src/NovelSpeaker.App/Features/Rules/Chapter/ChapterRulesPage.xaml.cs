@@ -1,3 +1,6 @@
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using System.Windows;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
@@ -7,6 +10,8 @@ namespace NovelSpeaker.App.Features.Rules.Chapter;
 
 public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<ChapterRulesViewModel>
 {
+    public ICommand SelectionCommand { get; }
+
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
     private readonly PageEventOperationRunner _eventOperations;
@@ -28,10 +33,18 @@ public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigatio
         ViewModel = null!;
         _navigationGuardService = null!;
         _eventOperations = PageEventOperationRunner.DesignTime;
+        SelectionCommand = new AsyncRelayCommand<ChapterRuleListItemViewModel>(SelectWithModifiersAsync);
         InitializeComponent();
     }
 
     public ChapterRulesViewModel ViewModel { get; }
+
+    private Task SelectWithModifiersAsync(ChapterRuleListItemViewModel? item)
+    {
+        var modifiers = DesktopSelectionInput.ReadModifiers();
+        return _eventOperations.RunAsync(_activation, "选择章节规则失败",
+            token => ViewModel.SelectRuleWithModifiersAsync(item, modifiers, token));
+    }
 
     public async Task OnNavigatedToAsync()
     {

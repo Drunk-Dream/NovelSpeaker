@@ -2,6 +2,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.PresentationTests.TestDoubles;
 using NovelSpeaker.Domain.Books;
 using Xunit;
@@ -10,6 +11,33 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class RegexReplacementRulesViewModelTests
 {
+    [Fact]
+    public async Task Bulk_selection_and_import_preserve_dirty_editor_and_export_visible_order()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Cancel, ruleCount: 3);
+        var vm = fixture.ViewModel;
+        await LoadAndSelectFirstAsync(fixture);
+        var ids = vm.Rules.Select(rule => rule.Id).ToArray();
+        vm.DraftPattern = "Unsaved";
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
+        Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Shift, CancellationToken.None);
+        Assert.All(vm.Rules, rule => Assert.True(rule.IsSelected));
+        Assert.Equal(ids[0], vm.SelectedRuleId);
+        Assert.Equal("Unsaved", vm.DraftPattern);
+        await vm.CopyRuleCommand.ExecuteAsync(vm.Rules[1]);
+        Assert.Equal(ids, fixture.Workspace.LastExportedIds);
+        fixture.Documents.FileDocument = new RuleImportDocument("{}", "fixture");
+        await vm.ImportRuleFileAsync(CancellationToken.None);
+        Assert.Equal(ids[0], vm.SelectedRuleId);
+        Assert.Equal("Unsaved", vm.DraftPattern);
+        Assert.True(vm.HasUnsavedChanges);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+    }
+
     private async Task LoadAsync_leaves_editor_closed_until_a_rule_is_clicked()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
@@ -330,6 +358,13 @@ public sealed class RegexReplacementRulesViewModelTests
 
         public Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(ExportedJson);
+
+        public IReadOnlyList<Guid>? LastExportedIds { get; private set; }
+        public Task<string?> ExportRulesJsonAsync(IReadOnlyList<Guid> ruleIds, CancellationToken cancellationToken)
+        {
+            LastExportedIds = ruleIds.ToArray();
+            return ExportRuleJsonAsync(ruleIds[0], cancellationToken);
+        }
 
         public async Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken)
         {

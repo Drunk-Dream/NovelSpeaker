@@ -10,7 +10,7 @@ namespace NovelSpeaker.Infrastructure.Persistence.Books;
 /// </summary>
 public sealed class BookDetailsQuery : IBookDetailsQuery
 {
-    internal const string HeaderSql = "SELECT Id, Title, Author FROM Books WHERE Id = $bookId LIMIT 1;";
+    internal const string HeaderSql = "SELECT Id, Title, Author, Description FROM Books WHERE Id = $bookId LIMIT 1;";
 
     internal const string CatalogSql =
         """
@@ -61,7 +61,8 @@ public sealed class BookDetailsQuery : IBookDetailsQuery
             ? new BookDetailsHeader(
                 reader.GetString(0),
                 reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2))
+                reader.IsDBNull(2) ? null : reader.GetString(2),
+                reader.IsDBNull(3) ? null : reader.GetString(3))
             : null;
     }
 

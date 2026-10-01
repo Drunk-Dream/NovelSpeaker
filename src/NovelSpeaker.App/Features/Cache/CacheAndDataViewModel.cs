@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Configuration;
+using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Settings;
@@ -31,9 +33,14 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private readonly IAppFeedbackService _feedbackService;
     private readonly IUiScheduler _uiScheduler;
     private readonly TimeProvider _timeProvider;
+    private readonly IConfigurationBackupService _configurationBackup;
+    private readonly IPresentationFileDialogService _fileDialogs;
+    private readonly IUserDocumentFileOperations _files;
     private readonly OwnedTaskRegistry _liveRefreshTasks = new();
     private readonly object _overviewRefreshSync = new();
     private CancellationTokenSource? _cacheLimitDebounceCts;
+    private CancellationTokenSource _cacheLimitCommitCancellation = new();
+    private readonly SemaphoreSlim _configurationWriteGate = new(1, 1);
     private CacheOverviewModel? _overview;
     private TaskCompletionSource? _overviewRefreshCompletion;
     private bool _overviewRefreshRequested;
@@ -53,6 +60,9 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         IAppNavigator navigator,
         IAppDialogService dialogService,
         IAppFeedbackService feedbackService,
+        IConfigurationBackupService configurationBackup,
+        IPresentationFileDialogService fileDialogs,
+        IUserDocumentFileOperations files,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
         : base(navigator, feedbackService)
@@ -67,6 +77,9 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         _feedbackService = feedbackService;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _configurationBackup = configurationBackup;
+        _fileDialogs = fileDialogs;
+        _files = files;
     }
 
     public IReadOnlyList<string> CacheLimitUnits { get; } = ["GB", "MB"];
@@ -104,10 +117,93 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     [ObservableProperty]
     private bool isClearingAll;
 
+    [ObservableProperty]
+    private bool isConfigurationBusy;
+
+    public bool CanManageConfiguration => !IsConfigurationBusy && !IsClearingAll;
+
+    partial void OnIsConfigurationBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanManageConfiguration));
+        BackupConfigurationCommand.NotifyCanExecuteChanged();
+        RestoreConfigurationCommand.NotifyCanExecuteChanged();
+        NotifyClearAllCommandState();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanManageConfiguration), AllowConcurrentExecutions = false)]
+    private Task BackupConfigurationAsync(CancellationToken cancellationToken) =>
+        RunConfigurationOperationAsync(false, cancellationToken);
+
+    [RelayCommand(CanExecute = nameof(CanManageConfiguration), AllowConcurrentExecutions = false)]
+    private Task RestoreConfigurationAsync(CancellationToken cancellationToken) =>
+        RunConfigurationOperationAsync(true, cancellationToken);
+
+    private async Task RunConfigurationOperationAsync(bool restore, CancellationToken cancellationToken)
+    {
+        if (!CanManageConfiguration) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ActivationToken);
+        var token = linked.Token;
+        IsConfigurationBusy = true;
+        CancelPendingSave();
+        RetireCacheLimitCommits();
+        var ownsWriteGate = false;
+        try
+        {
+            await _configurationWriteGate.WaitAsync(token);
+            ownsWriteGate = true;
+            if (restore)
+            {
+                var path = await _fileDialogs.PickOpenFileAsync(
+                    new PresentationFileDialogOptions("配置备份 (*.json)|*.json"), token);
+                if (string.IsNullOrWhiteSpace(path)) return;
+                var plan = await _configurationBackup.PrepareRestoreAsync(await _files.ReadTextAsync(path, token), token);
+                if (await _dialogService.ShowConfirmationAsync("恢复配置",
+                    "将替换当前全部设置、语音服务（含凭据）和四类规则。不会修改书籍、阅读进度、缓存或诊断数据。建议先备份当前配置。",
+                    "替换配置", "取消", token) != AppConfirmationDecision.Confirm) return;
+                token.ThrowIfCancellationRequested();
+                await _configurationBackup.RestoreAsync(plan, token);
+                if (token.IsCancellationRequested) return;
+                _savedCacheLimitBytes = _settingsService.Current.CacheLimitBytes;
+                ApplyCacheLimit(_savedCacheLimitBytes);
+                CacheLimitErrorText = string.Empty;
+                ShowSuccess("配置已恢复", "已替换设置、语音服务和规则。");
+                try { await RequestOverviewRefreshAsync(token); }
+                catch (OperationCanceledException) { }
+                catch { _feedbackService.ShowWarning("配置已恢复", "缓存总览刷新失败，重新打开页面可刷新。"); }
+            }
+            else
+            {
+                if (await _dialogService.ShowConfirmationAsync("备份私人配置",
+                    "备份是明文文件，包含 HTTP Provider 的 API Key、Token、Cookie 等完整敏感凭据。请作为私密文件保存，不要公开分享。",
+                    "继续备份", "取消", token) != AppConfirmationDecision.Confirm) return;
+                var path = await _fileDialogs.PickSaveFileAsync(new PresentationFileDialogOptions(
+                    "配置备份 (*.json)|*.json", "NovelSpeaker-configuration-backup.json"), token);
+                if (string.IsNullOrWhiteSpace(path)) return;
+                var json = await _configurationBackup.CreateBackupAsync(token);
+                await _files.WriteTextAsync(path, json, token);
+                if (!token.IsCancellationRequested) ShowSuccess("配置已备份", "请妥善保管包含敏感凭据的私人备份文件。");
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch
+        {
+            // Never pass backup/parser/storage exceptions containing private content to diagnostics.
+            if (!token.IsCancellationRequested)
+                _feedbackService.ShowWarning(restore ? "恢复配置失败" : "备份配置失败",
+                    restore ? "请检查备份内容、版本及存储权限后重试。" : "请检查当前配置和目标文件的存储权限后重试。");
+        }
+        finally
+        {
+            if (ownsWriteGate) _configurationWriteGate.Release();
+            IsConfigurationBusy = false;
+        }
+    }
+
     public bool CanClearAll =>
         IsOverviewLoaded &&
         !_isLoading &&
         !IsClearingAll &&
+        !IsConfigurationBusy &&
         _overview is { EntryCount: > 0 };
 
     public override async Task LoadAsync(CancellationToken cancellationToken)
@@ -156,6 +252,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public override void Deactivate()
     {
         CancelPendingSave();
+        RetireCacheLimitCommits();
         UnregisterInvalidationSubscription();
         TaskCompletionSource? retiredRefresh;
         lock (_overviewRefreshSync)
@@ -265,7 +362,22 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     public async Task CommitCacheLimitAsync(CancellationToken cancellationToken)
     {
+        if (IsConfigurationBusy) return;
         CompleteOrCancelPendingSave(cancellationToken);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cacheLimitCommitCancellation.Token);
+        var ownsWriteGate = false;
+        try
+        {
+            await _configurationWriteGate.WaitAsync(linked.Token);
+            ownsWriteGate = true;
+            if (!IsConfigurationBusy) await CommitCacheLimitCoreAsync(linked.Token);
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+        finally { if (ownsWriteGate) _configurationWriteGate.Release(); }
+    }
+
+    private async Task CommitCacheLimitCoreAsync(CancellationToken cancellationToken)
+    {
         var version = Interlocked.Increment(ref _cacheLimitVersion);
 
         if (!TryParseCacheLimitBytes(CacheLimitValueText, SelectedCacheLimitUnit, out var cacheLimitBytes, out var errorMessage))
@@ -508,7 +620,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     {
         while (true)
         {
-            await EnsureOverviewCurrentAsync(cancellationToken).ConfigureAwait(false);
+            await EnsureOverviewCurrentAsync(cancellationToken).WaitAsync(cancellationToken).ConfigureAwait(false);
             lock (_overviewRefreshSync)
             {
                 if (_overview is not null &&
@@ -672,8 +784,19 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         _cacheLimitDebounceCts = null;
     }
 
+    private void RetireCacheLimitCommits()
+    {
+        var previous = _cacheLimitCommitCancellation;
+        _cacheLimitCommitCancellation = new CancellationTokenSource();
+        previous.Cancel();
+        previous.Dispose();
+    }
+
     partial void OnIsClearingAllChanged(bool value)
     {
+        OnPropertyChanged(nameof(CanManageConfiguration));
+        BackupConfigurationCommand.NotifyCanExecuteChanged();
+        RestoreConfigurationCommand.NotifyCanExecuteChanged();
         NotifyClearAllCommandState();
     }
 

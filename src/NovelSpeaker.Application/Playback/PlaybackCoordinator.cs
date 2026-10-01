@@ -111,6 +111,7 @@ public sealed class PlaybackCoordinator :
         _audioController.SnapshotChanged += OnLocalSnapshotChanged;
         _audioController.PlaybackCompleted += OnLocalPlaybackCompleted;
         _audioController.PlaybackFailed += OnLocalPlaybackFailed;
+        _appSettingsService.Changed += OnSettingsChanged;
     }
 
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -229,17 +230,32 @@ public sealed class PlaybackCoordinator :
 
     public void SetVolume(double volume)
     {
-        ThrowIfDisposed();
-        var previousVolume = _audioController.Volume;
-        _audioController.SetVolume(volume);
-        var normalizedVolume = _audioController.Volume;
-        PublishSnapshot(_currentSnapshot with
+        lock (_volumePersistenceGate)
         {
-            Volume = normalizedVolume
-        });
-        if (normalizedVolume != previousVolume)
+            ThrowIfDisposed();
+            var previousVolume = _audioController.Volume;
+            _audioController.SetVolume(volume);
+            var normalizedVolume = _audioController.Volume;
+            PublishSnapshot(_currentSnapshot with { Volume = normalizedVolume });
+            if (normalizedVolume != previousVolume)
+                ScheduleVolumePersistence(normalizedVolume);
+        }
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs change)
+    {
+        if (!change.IsSnapshotReplacement && change.Previous.PlaybackVolume == change.Current.PlaybackVolume) return;
+        lock (_volumePersistenceGate)
         {
-            ScheduleVolumePersistence(normalizedVolume);
+            if (_disposed) return;
+            // An older slider save must not overwrite a newer slider value. Snapshot replacement,
+            // however, is authoritative even when it restores the same persisted volume.
+            if (!change.IsSnapshotReplacement && _hasPendingVolumePersistence &&
+                _pendingVolume != change.Current.PlaybackVolume) return;
+            _hasPendingVolumePersistence = false;
+            _volumePersistenceCancellation?.Cancel();
+            _audioController.SetVolume(change.Current.PlaybackVolume);
+            PublishSnapshot(_currentSnapshot with { Volume = _audioController.Volume });
         }
     }
 
@@ -272,6 +288,7 @@ public sealed class PlaybackCoordinator :
     private async Task DisposeCoreAsync()
     {
         _disposed = true;
+        _appSettingsService.Changed -= OnSettingsChanged;
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _commandProcessor.BeginShutdown();
         _currentSession?.Cancel();
@@ -538,6 +555,7 @@ public sealed class PlaybackCoordinator :
             }
 
             _currentProvider = provider;
+            _currentSession.SetConsecutiveSegmentFailureCount(0);
             await PlayCurrentSegmentAsync(
                 _currentSession,
                 _currentSession.ResumePositionMilliseconds,
@@ -938,7 +956,6 @@ public sealed class PlaybackCoordinator :
         }
 
         var currentPosition = GetCurrentPosition();
-        var previousFailureCount = _currentSession?.ConsecutiveSegmentFailureCount ?? 0;
         var retryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
             _lastFailureKind ?? TtsErrorKind.Unknown,
             _currentSnapshot.Message ?? "正在重试当前段落。",
@@ -957,7 +974,7 @@ public sealed class PlaybackCoordinator :
             pausedState: PlaybackState.Paused,
             pausedMessage: "已恢复到当前位置，等待播放。",
             cancellationToken,
-            initialConsecutiveFailureCount: previousFailureCount);
+            initialConsecutiveFailureCount: 0);
     }
 
     private async Task ChangeProviderCoreAsync(ProviderId providerId, CancellationToken cancellationToken)
@@ -1026,7 +1043,8 @@ public sealed class PlaybackCoordinator :
         string pausedMessage,
         CancellationToken cancellationToken,
         int initialConsecutiveFailureCount = 0,
-        bool checkpointNewPosition = false)
+        bool checkpointNewPosition = false,
+        bool pausedCanRetry = false)
     {
         _stopTimer.Cancel();
         _commandProcessor.AdvanceEventEpoch();
@@ -1154,7 +1172,7 @@ public sealed class PlaybackCoordinator :
             0,
             pausedMessage,
             false,
-            false));
+            pausedCanRetry));
     }
 
     private void RestorePreviousSessionAfterReplacementFailure(
@@ -1332,22 +1350,33 @@ public sealed class PlaybackCoordinator :
             await HandleSegmentFailureAsync(
                 session,
                 audio.Failure!,
-                linkedCts.Token).ConfigureAwait(false);
+                cancellationToken).ConfigureAwait(false);
             return;
         }
-
-        session.SetConsecutiveSegmentFailureCount(0);
-        _lastFailureKind = null;
-        _lastRecoveredCorruptSegmentKey = null;
-        session.SetResumePosition(resumePositionMilliseconds);
-        ReplaceProtectedPlaybackFile(audio.FilePath);
 
         var local = run.LocalSnapshot;
         session.UpdateAudio(local);
         if (local.State is PlaybackState.Faulted or PlaybackState.Stopped)
         {
-            ClearProtectedPlaybackFile();
+            PublishSnapshot(BuildSnapshot(
+                local.State,
+                _currentBook,
+                chapter.ChapterIndex,
+                session.SegmentIndex,
+                provider,
+                session.SpeakSpeed,
+                local.PositionMilliseconds,
+                local.DurationMilliseconds,
+                local.Message,
+                local.IsUsingCache,
+                false));
+            return;
         }
+
+        session.SetConsecutiveSegmentFailureCount(0);
+        _lastFailureKind = null;
+        session.SetResumePosition(resumePositionMilliseconds);
+        ReplaceProtectedPlaybackFile(audio.FilePath);
 
         PublishSnapshot(BuildSnapshot(
             local.State,
@@ -1385,20 +1414,13 @@ public sealed class PlaybackCoordinator :
         _lastFailureKind = failure.Kind;
         if (decision.ShouldSkipCurrentSegment)
         {
-            await SkipEmptyAudioSegmentAsync(session, cancellationToken).ConfigureAwait(false);
-            return;
+            await SkipFailedSegmentAsync(session, decision, cancellationToken).ConfigureAwait(false);
         }
-
-        PublishSnapshot(_currentSnapshot with
-        {
-            State = PlaybackState.Faulted,
-            Message = decision.Message,
-            CanRetry = decision.CanRetry
-        });
     }
 
-    private async Task SkipEmptyAudioSegmentAsync(
+    private async Task SkipFailedSegmentAsync(
         PlaybackSessionState session,
+        PlaybackRecoveryDecision decision,
         CancellationToken cancellationToken)
     {
         if (_currentBook is null)
@@ -1425,21 +1447,27 @@ public sealed class PlaybackCoordinator :
             {
                 State = PlaybackState.Stopped,
                 PositionMilliseconds = 0,
-                Message = "当前段未生成音频，已跳过并结束播放。",
+                Message = "当前段播放失败，已跳过并结束播放。",
                 CanRetry = false
             });
             return;
         }
 
-        _currentBook = next.Value.Book;
-        session.SetPosition(next.Value.ChapterIndex, next.Value.SegmentIndex);
-        session.SetResumePosition(0);
-        await _progressController.SaveAsync(
-            session,
+        await StartNewSessionAsync(
+            next.Value.Book,
+            next.Value.ChapterIndex,
+            next.Value.SegmentIndex,
             0,
-            _audioController.CurrentSnapshot,
-            cancellationToken).ConfigureAwait(false);
-        await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, cancellationToken).ConfigureAwait(false);
+            _currentProvider,
+            session.SpeakSpeed,
+            forceInvalidate: false,
+            playImmediately: !decision.ShouldPause,
+            pausedState: PlaybackState.Paused,
+            pausedMessage: decision.Message,
+            cancellationToken,
+            initialConsecutiveFailureCount: decision.ConsecutiveSegmentFailureCount,
+            checkpointNewPosition: true,
+            pausedCanRetry: decision.ShouldPause);
     }
 
     private void PublishPlaybackFailure(string message, TtsErrorKind failureKind)
@@ -1614,10 +1642,12 @@ public sealed class PlaybackCoordinator :
             switch (command.Kind)
             {
                 case PlaybackEventCommandKind.Completed:
-                    await ProcessPlaybackCompletedAsync(session, command.Snapshot, linkedCancellation.Token).ConfigureAwait(false);
+                    await ProcessPlaybackCompletedAsync(
+                        session, command.Snapshot, linkedCancellation.Token, cancellationToken).ConfigureAwait(false);
                     break;
                 case PlaybackEventCommandKind.Failed:
-                    await ProcessPlaybackFailedAsync(session, command.Error!, command.Snapshot, linkedCancellation.Token).ConfigureAwait(false);
+                    await ProcessPlaybackFailedAsync(
+                        session, command.Error!, command.Snapshot, linkedCancellation.Token, cancellationToken).ConfigureAwait(false);
                     break;
                 case PlaybackEventCommandKind.SnapshotChanged:
                     ProcessSnapshotChanged(session, command.Snapshot);
@@ -1637,7 +1667,8 @@ public sealed class PlaybackCoordinator :
     private async Task ProcessPlaybackCompletedAsync(
         PlaybackSessionState session,
         LocalAudioPlaybackSnapshot snapshot,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CancellationToken replacementCancellationToken)
     {
         if (_currentBook is null)
         {
@@ -1680,14 +1711,15 @@ public sealed class PlaybackCoordinator :
         _currentBook = next.Value.Book;
         session.SetPosition(next.Value.ChapterIndex, next.Value.SegmentIndex);
         session.SetResumePosition(0);
-        await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, cancellationToken).ConfigureAwait(false);
+        await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, replacementCancellationToken).ConfigureAwait(false);
     }
 
     private async Task ProcessPlaybackFailedAsync(
         PlaybackSessionState session,
         PlaybackErrorEventArgs error,
         LocalAudioPlaybackSnapshot snapshot,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        CancellationToken replacementCancellationToken)
     {
         if (_currentBook is null)
         {
@@ -1695,7 +1727,7 @@ public sealed class PlaybackCoordinator :
         }
 
         session.UpdateAudio(snapshot);
-        if (error.Kind == PlaybackErrorKind.AudioDecode)
+        if (error.Kind is PlaybackErrorKind.AudioDecode or PlaybackErrorKind.UnsupportedFormat)
         {
             var recoveryKey = $"{session.SessionId:N}:{session.ChapterIndex}:{session.SegmentIndex}:{session.ProviderId}:{session.SpeakSpeed}";
             var recoveryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
@@ -1710,14 +1742,15 @@ public sealed class PlaybackCoordinator :
             if (recoveryDecision.ShouldRetryCurrentSegment)
             {
                 _lastRecoveredCorruptSegmentKey = recoveryKey;
-                await PlayCurrentSegmentAsync(session, 0, forceInvalidate: true, cancellationToken).ConfigureAwait(false);
+                await PlayCurrentSegmentAsync(session, 0, forceInvalidate: true, replacementCancellationToken).ConfigureAwait(false);
                 return;
             }
         }
 
-        PublishPlaybackFailure(
-            error.Message,
-            TtsErrorKind.AudioDecode);
+        await HandleSegmentFailureAsync(
+            session,
+            new TtsExecutionFailure(TtsErrorKind.AudioDecode, error.Message, null, null, null, null),
+            replacementCancellationToken).ConfigureAwait(false);
     }
 
     private void ProcessSnapshotChanged(PlaybackSessionState session, LocalAudioPlaybackSnapshot snapshot)

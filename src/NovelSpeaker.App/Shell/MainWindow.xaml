@@ -3,6 +3,7 @@
                   xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                   xmlns:behaviors="clr-namespace:NovelSpeaker.App.Shared.Presentation.Behaviors"
                   xmlns:shell="clr-namespace:NovelSpeaker.App.Shell"
+                  xmlns:selection="clr-namespace:NovelSpeaker.App.Shared.Presentation.Selection"
                   xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                   Title="NovelSpeaker"
                   Icon="pack://application:,,,/NovelSpeaker;component/Assets/Branding/app.ico"
@@ -216,22 +217,19 @@
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <Border Padding="10,8"
+                                <selection:SelectionSurface Padding="10,8"
                                         CornerRadius="8">
-                                    <Border.Style>
-                                        <Style TargetType="Border"
+                                    <selection:SelectionSurface.Style>
+                                        <Style TargetType="selection:SelectionSurface"
                                                BasedOn="{StaticResource App.Selection.ListItem}">
                                             <Setter Property="Background" Value="Transparent" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsCurrent}" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                                                </DataTrigger>
                                                 <DataTrigger Binding="{Binding IsFailed}" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </Border.Style>
+                                    </selection:SelectionSurface.Style>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*" />
@@ -245,7 +243,7 @@
                                                    Style="{StaticResource App.Selection.Content.Secondary}"
                                                    Text="{Binding StatusText}" />
                                     </Grid>
-                                </Border>
+                                </selection:SelectionSurface>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>

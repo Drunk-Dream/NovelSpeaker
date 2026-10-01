@@ -22,7 +22,8 @@ public sealed partial class LibraryViewModel : ObservableObject
     private static readonly IReadOnlyList<LibrarySortOption> SortOptions =
     [
         new(LibrarySortMode.RecentReading, "最近阅读"),
-        new(LibrarySortMode.Title, "书名")
+        new(LibrarySortMode.Title, "书名"),
+        new(LibrarySortMode.RecentImport, "最近导入")
     ];
 
     private readonly IBookLibraryQuery _bookLibraryQuery;
@@ -889,9 +890,12 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     private static string BuildLibrarySummary(int totalBooks, LibrarySortMode sortMode)
     {
-        return sortMode == LibrarySortMode.Title
-            ? $"共 {totalBooks} 本 · 按书名排序"
-            : $"共 {totalBooks} 本 · 最近阅读优先";
+        return sortMode switch
+        {
+            LibrarySortMode.Title => $"共 {totalBooks} 本 · 按书名排序",
+            LibrarySortMode.RecentImport => $"共 {totalBooks} 本 · 最近导入优先",
+            _ => $"共 {totalBooks} 本 · 最近阅读优先"
+        };
     }
 
     private void InvalidateVisibleProjection()

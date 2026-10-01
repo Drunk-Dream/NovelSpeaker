@@ -1,6 +1,7 @@
 ﻿using System.Windows;
 using System.Windows.Threading;
 using NovelSpeaker.App.Shell.Input;
+using NovelSpeaker.Application.Diagnostics;
 
 namespace NovelSpeaker.App.Bootstrap;
 
@@ -40,7 +41,8 @@ public partial class App : System.Windows.Application
         }
         catch (Exception exception)
         {
-            _startupCoordinator.RecordUnhandledFailure(
+            _startupCoordinator.RecordProcessFailure(
+                ProcessFailure.Startup,
                 "startup-bridge-failed",
                 "启动事件桥接出现未处理异常。",
                 exception);
@@ -58,7 +60,7 @@ public partial class App : System.Windows.Application
         var shutdownTask = _startupCoordinator?.DisposeAsync().AsTask();
         if (shutdownTask is not null && !shutdownTask.Wait(TimeSpan.FromSeconds(5)))
         {
-            _startupCoordinator?.RecordUnhandledFailure(
+            _startupCoordinator?.RecordLifecycleFailure(
                 "exit-bridge-timeout",
                 "同步退出桥接超时，将由进程结束回收剩余资源。",
                 null);
@@ -69,22 +71,30 @@ public partial class App : System.Windows.Application
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
-        _startupCoordinator?.RecordUnhandledFailure(
+        _startupCoordinator?.RecordProcessFailure(
+            ProcessFailure.FatalUi,
             "dispatcher-unhandled-exception",
             "UI 线程出现未处理异常。",
             e.Exception);
-        MessageBox.Show(
-            "应用遇到未处理错误，即将关闭。请查看日志了解更多信息。",
-            "NovelSpeaker 发生错误",
-            MessageBoxButton.OK,
-            MessageBoxImage.Error);
         e.Handled = true;
-        Shutdown(-1);
+        try
+        {
+            MessageBox.Show(
+                "应用遇到未处理错误，即将关闭。请查看日志了解更多信息。",
+                "NovelSpeaker 发生错误",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+        finally
+        {
+            Shutdown(-1);
+        }
     }
 
     private void OnCurrentDomainUnhandledException(object? sender, UnhandledExceptionEventArgs e)
     {
-        _startupCoordinator?.RecordUnhandledFailure(
+        _startupCoordinator?.RecordProcessFailure(
+            e.IsTerminating ? ProcessFailure.FatalRuntime : ProcessFailure.ObservedRuntime,
             "appdomain-unhandled-exception",
             "后台线程出现未处理异常。",
             e.ExceptionObject as Exception);
@@ -92,7 +102,8 @@ public partial class App : System.Windows.Application
 
     private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        _startupCoordinator?.RecordUnhandledFailure(
+        _startupCoordinator?.RecordProcessFailure(
+            ProcessFailure.ObservedTask,
             "task-unobserved-exception",
             "检测到未观察的任务异常。",
             e.Exception);

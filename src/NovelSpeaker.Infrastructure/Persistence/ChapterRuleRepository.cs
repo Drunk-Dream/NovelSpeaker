@@ -23,7 +23,14 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
     public async Task<IReadOnlyList<ChapterRule>> GetAllAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        return await ReadAllAsync(connection, null, cancellationToken);
+    }
+
+    internal static async Task<IReadOnlyList<ChapterRule>> ReadAllAsync(
+        SqliteConnection connection, SqliteTransaction? transaction, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             SELECT Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt

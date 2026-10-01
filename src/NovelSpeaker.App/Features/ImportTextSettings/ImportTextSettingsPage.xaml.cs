@@ -49,28 +49,6 @@ public partial class ImportTextSettingsPage : System.Windows.Controls.Page, INav
         return Task.CompletedTask;
     }
 
-    private async void BookFileNameTemplateTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        await _eventOperations.RunAsync(
-            _activation,
-            "保存文件名模板失败",
-            ViewModel.CommitBookFileNameTemplateAsync);
-    }
-
-    private async void BookFileNameTemplateTextBox_OnLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
-    {
-        await _eventOperations.RunAsync(
-            _activation,
-            "保存文件名模板失败",
-            ViewModel.CommitBookFileNameTemplateAsync);
-    }
-
     private async void LongParagraphThresholdTextBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter)

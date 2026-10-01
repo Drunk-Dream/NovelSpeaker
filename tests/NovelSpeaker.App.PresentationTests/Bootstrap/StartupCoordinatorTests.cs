@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Bootstrap;
+using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.Domain.Settings;
 using Xunit;
 
@@ -31,6 +32,8 @@ public sealed class StartupCoordinatorTests
             ],
             runtime.CompletedStages);
         Assert.Equal(1, runtime.ShellCalls);
+        await coordinator.ShutdownAsync();
+        Assert.Equal(ProcessExitReason.Normal, runtime.ExitReason);
     }
 
     private async Task StartAsync_projects_each_required_stage_failure_and_blocks_shell()
@@ -74,6 +77,8 @@ public sealed class StartupCoordinatorTests
         Assert.Equal(stage == StartupStage.Shell ? 1 : 0, runtime.ShellCalls);
         Assert.True(runtime.StatusClosed);
         Assert.Equal(["show", "failure", "close"], runtime.StartupStatusEvents);
+        await coordinator.ShutdownAsync();
+        Assert.Equal(ProcessExitReason.StartupFailure, runtime.ExitReason);
     }
 
     private async Task StartAsync_database_or_recovery_failure_prevents_theme_and_shell()
@@ -196,7 +201,7 @@ public sealed class StartupCoordinatorTests
         await coordinator.ShutdownAsync();
 
         Assert.Equal(
-            ["gate", "desktop", "media-controls", "playback", "background", "flush", "dispose"],
+            ["gate", "desktop", "media-controls", "playback", "background", "flush", "process-exit", "dispose"],
             runtime.ShutdownSteps);
         Assert.True(runtime.ProcessCancelledBeforeBackgroundWait);
     }
@@ -213,7 +218,7 @@ public sealed class StartupCoordinatorTests
         await coordinator.ShutdownAsync();
 
         Assert.Equal(
-            ["gate", "desktop", "media-controls", "playback", "background", "flush", "dispose"],
+            ["gate", "desktop", "media-controls", "playback", "background", "flush", "process-exit", "dispose"],
             runtime.ShutdownSteps);
         Assert.Contains(
             runtime.RecordedFailures,
@@ -232,7 +237,7 @@ public sealed class StartupCoordinatorTests
         await coordinator.ShutdownAsync();
 
         Assert.Equal(
-            ["gate", "desktop", "media-controls", "playback", "background", "flush", "dispose"],
+            ["gate", "desktop", "media-controls", "playback", "background", "flush", "process-exit", "dispose"],
             runtime.ShutdownSteps);
         Assert.Contains(
             runtime.RecordedFailures,
@@ -282,6 +287,40 @@ public sealed class StartupCoordinatorTests
         await ShutdownAsync_continues_after_playback_save_failure();
         await ShutdownAsync_continues_after_media_control_unregistration_failure();
         await Repeated_shutdown_requests_share_one_task_and_release_resources_once();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Fatal_ui_reason_survives_orderly_shutdown_and_diagnostic_failure(bool diagnosticsUnavailable)
+    {
+        var runtime = new RecordingStartupRuntime { ThrowOnProcessDiagnostics = diagnosticsUnavailable };
+        await using var coordinator = new StartupCoordinator(runtime);
+        await coordinator.StartAsync();
+
+        coordinator.RecordProcessFailure(ProcessFailure.FatalUi, "dispatcher", "UI failure.", new InvalidOperationException());
+        coordinator.RecordProcessFailure(ProcessFailure.ObservedTask, "task", "Observed failure.", new InvalidOperationException());
+        coordinator.RecordProcessFailure(ProcessFailure.FatalRuntime, "runtime", "Secondary failure.", new InvalidOperationException());
+        await coordinator.ShutdownAsync();
+
+        Assert.Equal(ProcessExitReason.FatalUiFailure, runtime.ExitReason);
+        Assert.Equal(1, runtime.DisposeCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Runtime_failure_severity_determines_exit_reason(bool fatal)
+    {
+        var runtime = new RecordingStartupRuntime();
+        await using var coordinator = new StartupCoordinator(runtime);
+        await coordinator.StartAsync();
+
+        coordinator.RecordProcessFailure(fatal ? ProcessFailure.FatalRuntime : ProcessFailure.ObservedTask,
+            "background", "Background failure.", new InvalidOperationException());
+        await coordinator.ShutdownAsync();
+
+        Assert.Equal(fatal ? ProcessExitReason.FatalRuntimeFailure : ProcessExitReason.Normal, runtime.ExitReason);
     }
 
     private sealed class RecordingStartupRuntime : IStartupRuntime
@@ -337,6 +376,25 @@ public sealed class StartupCoordinatorTests
         public bool ProcessCancelledBeforeBackgroundWait { get; private set; }
 
         public int DisposeCalls { get; private set; }
+
+        public ProcessExitReason? ExitReason { get; private set; }
+
+        public bool ThrowOnProcessDiagnostics { get; init; }
+
+        public void RecordProcessFailure(ProcessFailure failure, string source, string safeMessage, Exception? exception)
+        {
+            if (ThrowOnProcessDiagnostics)
+            {
+                throw new IOException("Diagnostic sink unavailable.");
+            }
+        }
+
+        public Task NotifyProcessExitAsync(ProcessExitReason exitReason, CancellationToken cancellationToken)
+        {
+            ExitReason = exitReason;
+            ShutdownSteps.Add("process-exit");
+            return Task.CompletedTask;
+        }
 
         private readonly TaskCompletionSource _backgroundCancellation =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -403,7 +461,7 @@ public sealed class StartupCoordinatorTests
             RecordedFailures.Add((stage, safeMessage));
         }
 
-        public void RecordLifecycleFailure(string name, string safeMessage, Exception exception)
+        public void RecordLifecycleFailure(string name, string safeMessage, Exception? exception)
         {
             RecordedFailures.Add((StartupStage.Shell, safeMessage));
         }

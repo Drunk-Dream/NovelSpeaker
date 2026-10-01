@@ -130,7 +130,7 @@ public sealed class DiagnosticToolWindowTests
             return Task.FromResult(LastEnded);
         }
 
-        public Task NotifyProcessShutdownAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task NotifyProcessShutdownAsync(ProcessExitReason exitReason, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task AddAttachmentAsync(DiagnosticAttachment attachment, CancellationToken cancellationToken) =>
             Task.CompletedTask;

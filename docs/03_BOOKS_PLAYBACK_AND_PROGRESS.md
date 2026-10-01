@@ -4,6 +4,7 @@
 
 ```text
 TXT source
+→ metadata / chapter recognition
 → Book / Chapter catalog
 → normalized chapter text
 → text processing / segmentation
@@ -18,8 +19,11 @@ Books、Speech、Playback、Cache 各自拥有自己的稳定职责，不通过�
 ## 2. Book 与 Chapter
 
 - 外部 TXT 是正文权威来源，应用不写回。
-- SQLite 保存书籍、章节和必要定位元数据。
-- 章节规则变化后可以重建章节结构。
+- 持久化书籍元数据至少包含 Title、Author 和可选 Description；章节保存稳定内部索引与章节 Title。
+- ChapterIndex 只用于排序、定位、播放、进度与缓存等内部事实，不作为面向用户的章节编号显示。
+- 用户可见章节目录、当前章节和其它章节名称位置直接展示 `Chapter.Title`；只有源内容没有标题而系统必须生成标题时，才展示系统生成的“第 N 节”。
+- 元数据与章节识别的精确导入语义见 `specs/BOOK_IMPORT.md`。
+- 章节识别配置变化后可以在明确的重新导入/重建流程中重建章节结构；配置变化本身不静默重写已有书籍。
 - 大型章节 catalog 只包含稳定轻量字段；Current/Selected/CachePercentage/Loading 等动态状态作为独立 decoration。
 - 页面通过场景化 read model 查询 Library、Book Header、Chapter Catalog 与当前阅读位置。
 
@@ -35,7 +39,9 @@ chapter source
 → current ChapterSpeechPlan
 ```
 
-规则的精确执行语义见 `specs/REGEX_REPLACEMENT.md`。
+正常朗读分段继续保持“每一个非空行是一个自然段”；导入期“空行分章”只影响 Chapter catalog，不改变运行时 TextSegmenter 的自然段语义。
+
+正则规则的精确执行语义见 `specs/REGEX_REPLACEMENT.md`。
 
 Speech Plan 是当前配置下的派生数据，用于稳定段身份、朗读列表和缓存完整度，不成为正文权威来源。
 
@@ -55,6 +61,18 @@ Playback session 是当前活动书籍、章节、段落和播放状态唯一运
 - 页面切换、托盘和迷你播放器之间持续播放。
 
 所有改变 session 的命令必须在受控边界中提交；失败/取消不能提前改变逻辑位置。
+
+### 播放失败恢复
+
+播放失败恢复必须限制内容损失，同时避免单个坏段永久阻塞连续播放：
+
+- 网络瞬断、超时、有限服务端错误等可恢复失败可以在拥有该失败语义的稳定边界执行有限重试；不要在 Provider Runtime 与 Playback 同时建立竞争的双重重试循环。
+- 明显的无效配置、认证/权限失败或其它已知非瞬时错误不进行机械重复请求；它们可以直接进入“本段最终失败”。
+- 一个段在有限重试后仍最终失败时，Playback 自动跳过该段并尝试下一段。
+- 任一后续段成功得到可播放音频并正常进入播放后，连续自动跳过计数清零。
+- 连续自动跳过达到 3 段后，在已经跳过第 3 个失败段后暂停自动推进；下一段不自动继续，等待用户重新播放、重试或调整 Provider/配置。
+- 用户显式恢复播放后重新开始新的连续失败观察窗口；若根因仍未解决，最多再自动跳过有限段后再次暂停。
+- 自动跳过必须复用正常受控推进与 checkpoint 语义，不允许一次错误直接跳过大量章节或把失败位置错误提交为远端新位置。
 
 ## 5. Reading Progress
 
@@ -118,7 +136,8 @@ Library、BookDetails、Player 从稳定 read model/snapshot 构造 presentation
 - Library 只更新受影响卡片，不因播放位置变化重新查询整个书库。
 - BookDetails 的 catalog 与动态 decoration 分离。
 - Player XAML 继续绑定一个页面 ViewModel，但内部可以使用 Feature-local controller 分离目录、正文、缓存 decoration 与交互。
-- Provider 选择器使用管理页同一 SortOrder，只展示名称；CurrentProvider 以整项选中视觉表达，不额外显示“当前”文字。
+- 面向用户的章节名称只使用 Chapter.Title；内部 ChapterIndex 不格式化为额外“第 N 章”。
+- Provider 选择器使用管理页同一 SortOrder，只展示名称；CurrentProvider 使用全局 Current 视觉语义，不显示“当前”文字。
 - 用户主动定位优先于后台 decoration。
 
 ## 10. 必须保护的行为
@@ -127,6 +146,7 @@ Library、BookDetails、Player 从稳定 read model/snapshot 构造 presentation
 - 失败/取消的跳转不提交目标位置。
 - 迟到的 Provider/cache/audio 结果不能覆盖新 session。
 - 当前句与下一句之间的 Provider/config 切换语义稳定。
+- 连续失败只能造成有限自动跳过；达到阈值后必须暂停等待用户。
 - 页面生命周期不能销毁 Playback session。
 - 主窗口、MiniPlayer、SMTC 共用同一播放状态。
 - 超长章节目录仍可连续定位、滚动和播放。

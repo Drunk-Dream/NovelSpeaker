@@ -12,6 +12,8 @@ public sealed record AppSettingsUpdate
 
     public int? LongParagraphThreshold { get; init; }
 
+    public bool? SplitChaptersOnBlankLines { get; init; }
+
     public int? DefaultSpeakSpeed { get; init; }
 
     public int? PrefetchCount { get; init; }
@@ -19,8 +21,6 @@ public sealed record AppSettingsUpdate
     public string? LogLevel { get; init; }
 
     public string? Theme { get; init; }
-
-    public string? BookFileNameTemplate { get; init; }
 
     public long? CacheLimitBytes { get; init; }
 

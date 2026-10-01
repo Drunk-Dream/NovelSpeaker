@@ -97,6 +97,54 @@ public sealed class LibraryViewModelTests
         Assert.Equal(["Alpha", "beta", "charlie"], viewModel.Books.Select(static book => book.Title));
     }
 
+    private async Task Recent_import_sort_is_stable_across_sort_changes_search_and_reload()
+    {
+        var importedAt = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
+        var summaries = new BookSummary[]
+        {
+            new("book-z", "Alpha", "Writer", "章一", importedAt.AddDays(-1), importedAt, HasReadingProgress: true),
+            new("book-b", " beta ", null, "章一", importedAt.ToOffset(TimeSpan.FromHours(8))),
+            new("book-a", "Beta", "Writer", "章一", importedAt),
+            new("book-c", "Alpha", null, "章一", importedAt),
+            new("book-d", "Zeta", null, "章一", importedAt.AddDays(1))
+        };
+        var catalogService = new FakeBookCatalogService(summaries);
+        var viewModel = CreateViewModel(catalogService: catalogService, timeProvider: new ManualTimeProvider());
+        await viewModel.LoadAsync(CancellationToken.None);
+
+        Assert.Equal(LibrarySortMode.RecentReading, viewModel.SelectedSortMode);
+        viewModel.SelectedSortMode = LibrarySortMode.RecentImport;
+        Assert.Equal(["book-d", "book-c", "book-a", "book-b", "book-z"],
+            viewModel.Books.Select(static book => book.BookId));
+
+        viewModel.SelectedSortMode = LibrarySortMode.Title;
+        Assert.Equal(["book-c", "book-z", "book-a", "book-b", "book-d"],
+            viewModel.Books.Select(static book => book.BookId));
+        viewModel.SelectedSortMode = LibrarySortMode.RecentReading;
+        Assert.Equal(["book-z", "book-c", "book-a", "book-b", "book-d"],
+            viewModel.Books.Select(static book => book.BookId));
+
+        viewModel.SelectedSortMode = LibrarySortMode.RecentImport;
+        catalogService.Books = summaries.Reverse().ToArray();
+        await viewModel.LoadAsync(CancellationToken.None);
+        Assert.Equal(LibrarySortMode.RecentImport, viewModel.SelectedSortMode);
+        Assert.Equal(["book-d", "book-c", "book-a", "book-b", "book-z"],
+            viewModel.Books.Select(static book => book.BookId));
+
+        foreach (var (search, expectedIds) in new (string, string[])[]
+        {
+            (" writer ", ["book-a", "book-z"]),
+            ("ALPHA", ["book-c", "book-z"])
+        })
+        {
+            viewModel.SearchText = search;
+            await viewModel.LoadAsync(CancellationToken.None);
+            Assert.Equal(expectedIds, viewModel.Books.Select(static book => book.BookId));
+        }
+
+        viewModel.HandleNavigatedFrom();
+    }
+
     private async Task DeleteBookAsync_keeps_current_filter_and_removes_deleted_book()
     {
         var timeProvider = new ManualTimeProvider();
@@ -678,6 +726,7 @@ public sealed class LibraryViewModelTests
         await Search_filters_books_by_title_and_author();
         await LoadAsync_sorts_recent_reading_before_unplayed_books_by_default();
         await Selecting_title_sort_orders_books_by_normalized_title();
+        await Recent_import_sort_is_stable_across_sort_changes_search_and_reload();
         await LoadAsync_keeps_search_and_sort_state();
         await Loading_a_10000_book_library_uses_batched_collection_projection();
         await Responsive_rows_rebuild_from_the_flat_projection_when_width_changes();

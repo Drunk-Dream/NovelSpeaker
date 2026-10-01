@@ -112,7 +112,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            PublishFailure(PlaybackErrorMapper.Map(exception));
+            var error = PlaybackErrorMapper.Map(exception);
+            PublishFailure(error);
+            PlaybackFailed?.Invoke(this, error);
         }
         finally
         {

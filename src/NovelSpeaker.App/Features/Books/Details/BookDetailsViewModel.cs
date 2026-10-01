@@ -113,6 +113,12 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private string displayAuthor = "未知作者";
 
     [ObservableProperty]
+    private string displayDescription = string.Empty;
+
+    [ObservableProperty]
+    private bool hasDescription;
+
+    [ObservableProperty]
     private string totalChapterCountText = string.Empty;
 
     [ObservableProperty]
@@ -642,6 +648,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         HasBook = true;
         Title = header.Title;
         DisplayAuthor = string.IsNullOrWhiteSpace(header.Author) ? "未知作者" : header.Author.Trim();
+        DisplayDescription = header.Description?.Trim() ?? string.Empty;
+        HasDescription = DisplayDescription.Length > 0;
         Cover = _bookCoverGenerator.Generate(header.Title);
 
         if (!preserveEditor || !hadUnsavedChanges)
@@ -714,6 +722,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         EditTitle = string.Empty;
         EditAuthor = string.Empty;
         DisplayAuthor = "未知作者";
+        DisplayDescription = string.Empty;
+        HasDescription = false;
         TotalChapterCountText = string.Empty;
         CurrentChapterText = "未开始";
         ChapterCatalogSummaryText = string.Empty;
@@ -962,7 +972,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             ? progress.CurrentChapterTitle
             : "未开始";
         ChapterCatalogSummaryText = progress.HasReadingProgress && progress.CurrentChapterIndex is not null
-            ? $"共 {_projection.CatalogCount} 章 · 当前第 {progress.CurrentChapterIndex.Value + 1} 章"
+            ? $"共 {_projection.CatalogCount} 章 · 当前：{progress.CurrentChapterTitle}"
             : $"共 {_projection.CatalogCount} 章 · 未开始";
         ProgressRatio = Math.Clamp(progress.OverallProgress, 0, 1);
         ProgressText = $"{ProgressRatio:P0}";

@@ -1,4 +1,5 @@
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.Application.Diagnostics;
 
 namespace NovelSpeaker.App.Bootstrap;
 
@@ -8,6 +9,7 @@ namespace NovelSpeaker.App.Bootstrap;
 internal sealed class StartupCoordinator : IAsyncDisposable
 {
     private readonly IStartupRuntime _runtime;
+    private readonly ProcessLifetime _processLifetime = new();
     private readonly CancellationTokenSource _processCancellation = new();
     private CancellationTokenSource? _startupCancellation;
     private readonly object _shutdownGate = new();
@@ -84,7 +86,7 @@ internal sealed class StartupCoordinator : IAsyncDisposable
         catch (StartupStageException exception)
         {
             var failure = StartupFailureProjector.Project(exception.Stage);
-            TryRecordFailure(exception.Stage, failure.Message, exception.InnerException!);
+            RecordProcessFailure(ProcessFailure.Startup, exception.Stage.ToString(), failure.Message, exception.InnerException);
             _runtime.ShowStartupFailure(failure);
             _runtime.CloseStartupStatus();
             return StartupResult.Failed(failure);
@@ -102,13 +104,21 @@ internal sealed class StartupCoordinator : IAsyncDisposable
         }
     }
 
-    public void RecordUnhandledFailure(string stage, string safeMessage, Exception? exception)
+    public void RecordProcessFailure(ProcessFailure failure, string source, string safeMessage, Exception? exception)
     {
-        TryRecordFailure(
-            StartupStage.Shell,
-            $"{stage}: {safeMessage}",
-            exception ?? new InvalidOperationException("未提供异常对象。"));
+        _processLifetime.ReportFailure(failure);
+        try
+        {
+            _runtime.RecordProcessFailure(failure, source, safeMessage, exception);
+        }
+        catch
+        {
+            // The exit reason is retained even when diagnostic sinks are unavailable.
+        }
     }
+
+    public void RecordLifecycleFailure(string name, string safeMessage, Exception? exception) =>
+        TryRecordLifecycleFailure(name, safeMessage, exception);
 
     public async ValueTask DisposeAsync()
     {
@@ -172,6 +182,12 @@ internal sealed class StartupCoordinator : IAsyncDisposable
             "flush-shutdown",
             "刷新设置或日志失败，将继续关闭。",
             _runtime.FlushAsync,
+            cancellationToken).ConfigureAwait(false);
+
+        await RunShutdownStepAsync(
+            "process-exit",
+            "保存进程退出原因失败，将继续关闭。",
+            token => _runtime.NotifyProcessExitAsync(_processLifetime.ExitReason, token),
             cancellationToken).ConfigureAwait(false);
 
         try
@@ -291,7 +307,7 @@ internal sealed class StartupCoordinator : IAsyncDisposable
         }
     }
 
-    private void TryRecordLifecycleFailure(string name, string safeMessage, Exception exception)
+    private void TryRecordLifecycleFailure(string name, string safeMessage, Exception? exception)
     {
         try
         {

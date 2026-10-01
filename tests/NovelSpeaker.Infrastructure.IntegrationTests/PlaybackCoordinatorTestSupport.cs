@@ -95,6 +95,19 @@ public sealed partial class PlaybackCoordinatorTests
             ]);
     }
 
+    private static PlaybackBookContent CreateSegmentBook(int segmentCount)
+    {
+        return new PlaybackBookContent(
+            "book-1",
+            "示例小说",
+            [PlaybackChapterContent.FromLoaded(
+                0,
+                "第一章 开始",
+                Enumerable.Range(0, segmentCount)
+                    .Select(index => new SpeechSegment(index, index * 6, 6, $"第 {index + 1} 段", $"第 {index + 1} 段"))
+                    .ToArray())]);
+    }
+
     private static PlaybackBookContent CreateRemappedBook()
     {
         return new PlaybackBookContent(
@@ -565,15 +578,24 @@ public sealed partial class PlaybackCoordinatorTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public AppSettings Current => Settings;
-        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed;
+
+        public void ReplaceSnapshot(AppSettings settings)
+        {
+            var previous = Settings;
+            Settings = settings.Normalize();
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, Settings, isSnapshotReplacement: true));
+        }
 
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
             Updates.Add(update);
+            var previous = Settings;
             Settings = (Settings with
             {
                 PlaybackVolume = update.PlaybackVolume ?? Settings.PlaybackVolume
             }).Normalize();
+            Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, Settings));
             UpdateCompleted.TrySetResult(update);
             return Task.FromResult(Settings);
         }

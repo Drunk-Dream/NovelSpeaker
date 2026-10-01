@@ -1858,7 +1858,6 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         return new CachedChapterListItemViewModel(
             chapter.BookId,
             chapter.ChapterIndex,
-            $"第 {chapter.ChapterIndex + 1} 章",
             decoration.Title,
             CacheCleanupFeedbackFormatter.FormatBytes(decoration.TotalSizeBytes),
             $"{decoration.EntryCount} 条缓存",

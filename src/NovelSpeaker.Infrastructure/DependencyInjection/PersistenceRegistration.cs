@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Abstractions;
+using NovelSpeaker.Application.Configuration;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
@@ -20,10 +21,13 @@ public static class PersistenceRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<ISqliteConnectionFactory, SqliteConnectionFactory>();
+        services.TryAddSingleton<IConfigurationSnapshotStore, ConfigurationSnapshotStore>();
         services.TryAddSingleton<IDatabaseSchemaVersionProvider, SqliteDatabaseSchemaVersionProvider>();
         services.TryAddSingleton<SqliteMigrationRunner>();
         services.TryAddSingleton<IProviderStore, SqliteProviderStore>();
         services.TryAddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
+        services.TryAddSingleton<IFileNameMetadataRuleRepository, FileNameMetadataRuleRepository>();
+        services.TryAddSingleton<ITextHeaderMetadataRuleRepository, TextHeaderMetadataRuleRepository>();
         services.TryAddSingleton<IRegexReplacementRuleRepository, RegexReplacementRuleRepository>();
         services.TryAddSingleton<IBookImportRepository, BookImportRepository>();
         services.TryAddSingleton<IBookOperationJournal, SqliteBookOperationJournal>();

@@ -1,6 +1,8 @@
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
+using NovelSpeaker.Application.Configuration;
+using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
@@ -13,6 +15,75 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class CacheAndDataViewModelTests
 {
+    [Fact]
+    public async Task Restore_retires_incomplete_focus_save_before_replacing_settings_without_trimming_cache()
+    {
+        var settings = new FakeAppSettingsService(AppSettings.Default);
+        var store = new CacheStoreTestDouble();
+        var invalidation = new CacheInvalidationTestDouble();
+        var restored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var backup = new BackupTestDouble
+        {
+            AcceptRestore = true,
+            OnRestore = () =>
+            {
+                settings.ReplaceSnapshot(AppSettings.Default with { CacheLimitBytes = 4L * 1024 * 1024 * 1024 });
+                restored.SetResult();
+            }
+        };
+        var viewModel = CreateViewModel(settings, store, invalidation, backup: backup, timeProvider: new ManualTimeProvider());
+        await viewModel.LoadAsync(CancellationToken.None);
+        var overview = new TaskCompletionSource<AudioCacheStoreSummary>(TaskCreationOptions.RunContinuationsAsynchronously);
+        store.PendingSummaryTasks.Enqueue(overview);
+        invalidation.Publish(CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary));
+        await store.SummaryLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        viewModel.CacheLimitValueText = "1";
+        var focusSave = viewModel.CommitCacheLimitAsync(CancellationToken.None);
+        var restore = viewModel.RestoreConfigurationCommand.ExecuteAsync(null);
+        await restored.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        overview.SetResult(new AudioCacheStoreSummary(3L * 1024 * 1024 * 1024, 10, 4L * 1024 * 1024 * 1024, false));
+        await Task.WhenAll(focusSave, restore);
+        Assert.Equal(4L * 1024 * 1024 * 1024, settings.Current.CacheLimitBytes);
+        Assert.False(store.MaintenanceCalled);
+        Assert.Equal("4", viewModel.CacheLimitValueText);
+    }
+
+    [Fact]
+    public async Task Canceling_restore_overwrite_confirmation_keeps_current_configuration()
+    {
+        var backup = new BackupTestDouble { AcceptRestore = true };
+        var viewModel = CreateViewModel(backup: backup, dialogService: new FakeAppDialogService
+        { NextConfirmationDecision = AppConfirmationDecision.Cancel });
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.RestoreConfigurationCommand.ExecuteAsync(null);
+        Assert.Equal(0, backup.RestoreCount);
+    }
+
+    [Fact]
+    public async Task Canceling_private_backup_warning_never_reads_or_writes_configuration()
+    {
+        var backup = new BackupTestDouble();
+        var files = new BackupFilesTestDouble();
+        var viewModel = CreateViewModel(dialogService: new FakeAppDialogService
+        { NextConfirmationDecision = AppConfirmationDecision.Cancel }, backup: backup, files: files);
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.BackupConfigurationCommand.ExecuteAsync(null);
+        Assert.Equal(0, backup.BackupCount);
+        Assert.Equal(0, files.WriteCount);
+    }
+
+    [Fact]
+    public async Task Invalid_backup_fails_before_overwrite_confirmation_or_restore()
+    {
+        var backup = new BackupTestDouble();
+        var dialogs = new FakeAppDialogService();
+        var viewModel = CreateViewModel(dialogService: dialogs, backup: backup);
+        await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.RestoreConfigurationCommand.ExecuteAsync(null);
+        Assert.Equal(0, dialogs.ConfirmationCount);
+        Assert.Equal(0, backup.RestoreCount);
+    }
+
     [Fact]
     public async Task CommitCacheLimitAsync_blocks_values_below_minimum()
     {
@@ -238,7 +309,9 @@ public sealed class CacheAndDataViewModelTests
         FakeAppDialogService? dialogService = null,
         FakeFeedbackService? feedbackService = null,
         FakeDiagnosticsService? diagnosticsService = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        BackupTestDouble? backup = null,
+        BackupFilesTestDouble? files = null)
     {
         var store = cacheStore ?? new CacheStoreTestDouble();
         var invalidation = invalidationCoordinator ?? new CacheInvalidationTestDouble();
@@ -251,6 +324,9 @@ public sealed class CacheAndDataViewModelTests
             new FakeNavigationService(),
             dialogService ?? new FakeAppDialogService(),
             feedbackService ?? new FakeFeedbackService(),
+            backup ?? new BackupTestDouble(),
+            new BackupDialogsTestDouble(),
+            files ?? new BackupFilesTestDouble(),
             timeProvider,
             new InlineUiScheduler());
     }
@@ -282,6 +358,7 @@ public sealed class CacheAndDataViewModelTests
 
         public AppSettings CurrentSettings { get; private set; }
         public AppSettings Current => CurrentSettings;
+        public void ReplaceSnapshot(AppSettings settings) => CurrentSettings = settings.Normalize();
         public Task UpdateCompleted => _updateCompleted.Task;
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
@@ -328,6 +405,7 @@ public sealed class CacheAndDataViewModelTests
 
     private sealed class FakeAppDialogService : IAppDialogService
     {
+        public int ConfirmationCount { get; private set; }
         public AppConfirmationDecision NextConfirmationDecision { get; set; } = AppConfirmationDecision.Confirm;
 
         public Task<AppConfirmationDecision> ShowConfirmationAsync(
@@ -337,6 +415,7 @@ public sealed class CacheAndDataViewModelTests
             string closeButtonText,
             CancellationToken cancellationToken)
         {
+            ConfirmationCount++;
             return Task.FromResult(NextConfirmationDecision);
         }
 
@@ -350,6 +429,50 @@ public sealed class CacheAndDataViewModelTests
         {
             return Task.FromResult(UnsavedChangesDecision.Cancel);
         }
+    }
+
+    private sealed class BackupTestDouble : IConfigurationBackupService
+    {
+        public bool AcceptRestore { get; init; }
+        public Action? OnRestore { get; init; }
+        public int BackupCount { get; private set; }
+        public int RestoreCount { get; private set; }
+        public Task<string> CreateBackupAsync(CancellationToken cancellationToken)
+        {
+            BackupCount++;
+            return Task.FromResult("{}");
+        }
+        public Task<ConfigurationRestorePlan> PrepareRestoreAsync(string json, CancellationToken cancellationToken) =>
+            AcceptRestore ? Task.FromResult(new ConfigurationRestorePlan("validated")) : throw new InvalidOperationException("Invalid backup");
+        public Task RestoreAsync(ConfigurationRestorePlan plan, CancellationToken cancellationToken)
+        {
+            RestoreCount++;
+            OnRestore?.Invoke();
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class BackupFilesTestDouble : IUserDocumentFileOperations
+    {
+        public int WriteCount { get; private set; }
+        public Task<UserDocumentFileMetadata?> GetMetadataAsync(string path, CancellationToken cancellationToken) =>
+            Task.FromResult<UserDocumentFileMetadata?>(null);
+        public Task<string> ReadTextAsync(string path, CancellationToken cancellationToken) => Task.FromResult("broken");
+        public Task WriteTextAsync(string path, string content, CancellationToken cancellationToken)
+        {
+            WriteCount++;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class BackupDialogsTestDouble : IPresentationFileDialogService
+    {
+        public Task<string?> PickOpenFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>("backup.json");
+        public Task<string?> PickSaveFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>("backup.json");
+        public Task<string?> PickFolderAsync(PresentationFolderDialogOptions options, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(null);
     }
 
     private sealed class FakeFeedbackService : IAppFeedbackService

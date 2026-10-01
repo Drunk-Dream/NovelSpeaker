@@ -30,7 +30,7 @@ internal sealed record PlaybackRecoveryDecision(
 /// </summary>
 internal sealed class PlaybackRecoveryPolicy
 {
-    internal const int FailurePauseThreshold = 2;
+    internal const int FailurePauseThreshold = 3;
 
     public PlaybackRecoveryDecision Decide(PlaybackRecoveryInput input)
     {
@@ -60,37 +60,16 @@ internal sealed class PlaybackRecoveryPolicy
                 CanRetry: true);
         }
 
-        if (input.FailureKind == TtsErrorKind.EmptyAudioResponse)
-        {
-            var emptyResponseCount = checked(input.ConsecutiveSegmentFailureCount + 1);
-            var shouldPauseAfterEmptyResponse = emptyResponseCount >= FailurePauseThreshold;
-            return new PlaybackRecoveryDecision(
-                ShouldInvalidateAudio: false,
-                ShouldRetryCurrentSegment: false,
-                ShouldSkipCurrentSegment: !shouldPauseAfterEmptyResponse,
-                shouldPauseAfterEmptyResponse,
-                emptyResponseCount,
-                shouldPauseAfterEmptyResponse
-                    ? $"已连续 {emptyResponseCount} 段未生成音频，请重试、切换语音服务或停止。"
-                    : input.FailureMessage,
-                CanRetry: true);
-        }
-
-        // A corrupt local file is already a recovery attempt boundary. Keep the
-        // existing failure count semantics for the repeated-corruption path; the
-        // generation failure counter is for consecutive TTS segment failures.
-        var failureCount = input.IsCorruptAudio
-            ? input.ConsecutiveSegmentFailureCount
-            : checked(input.ConsecutiveSegmentFailureCount + 1);
-        var shouldPause = !input.IsCorruptAudio && failureCount >= FailurePauseThreshold;
+        var failureCount = checked(input.ConsecutiveSegmentFailureCount + 1);
+        var shouldPause = failureCount >= FailurePauseThreshold;
         var message = shouldPause
-            ? $"已连续 {failureCount} 段播放失败，请重试、跳过或停止。"
+            ? $"已连续跳过 {failureCount} 个播放失败的段落，已暂停。请重试、切换语音服务或停止。"
             : input.FailureMessage;
 
         return new PlaybackRecoveryDecision(
             ShouldInvalidateAudio: false,
             ShouldRetryCurrentSegment: false,
-            ShouldSkipCurrentSegment: false,
+            ShouldSkipCurrentSegment: true,
             shouldPause,
             failureCount,
             message,

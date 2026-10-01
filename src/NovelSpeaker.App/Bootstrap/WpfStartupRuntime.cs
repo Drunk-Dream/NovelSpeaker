@@ -51,7 +51,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     private StartupStatusWindow? _statusWindow;
     private AppDataDirectoryProvider? _directories;
     private JsonAppSettingsStore? _settingsStore;
-    private StartupDiagnosticsRecorder? _diagnostics;
+    private ProcessDiagnosticsRecorder? _diagnostics;
+    private IObservability? _observability;
     private RollingFileLoggerProvider? _loggerProvider;
     private ObservabilityContextAccessor? _observabilityContextAccessor;
     private IOperationScope? _startupOperation;
@@ -92,7 +93,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     {
         cancellationToken.ThrowIfCancellationRequested();
         var text = StageText[stage];
-        _diagnostics?.RecordStage(stage.ToString(), text.Status);
+        _diagnostics?.RecordStartupStage(stage.ToString(), text.Status);
 
         await _dispatcher.InvokeAsync(
             () =>
@@ -129,8 +130,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         _loggerProvider = new RollingFileLoggerProvider(
             RequireDirectories(),
             _observabilityContextAccessor);
-        _diagnostics = new StartupDiagnosticsRecorder(
-            _loggerProvider.CreateLogger("StartupDiagnosticsRecorder"));
+        _diagnostics = new ProcessDiagnosticsRecorder(
+            _loggerProvider.CreateLogger("ProcessDiagnosticsRecorder"));
         return Task.CompletedTask;
     }
 
@@ -162,9 +163,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         services.AddNovelSpeakerDesktop();
 
         _serviceProvider = BuildValidatedServiceProvider(services);
-        _startupOperation = _serviceProvider
-            .GetRequiredService<IObservability>()
-            .StartOperation(OperationCatalog.AppStartup);
+        _observability = _serviceProvider.GetRequiredService<IObservability>();
+        _startupOperation = _observability.StartOperation(OperationCatalog.AppStartup);
         _serviceProvider.GetRequiredService<ICacheInvalidationCoordinator>();
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
@@ -429,18 +429,21 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     public void RecordFailure(StartupStage stage, string safeMessage, Exception exception)
     {
-        _diagnostics?.RecordFailure(stage.ToString(), safeMessage, exception);
+        _diagnostics?.RecordStartupFailure(stage.ToString(), safeMessage, exception);
     }
 
-    public void RecordLifecycleFailure(string name, string safeMessage, Exception exception)
+    public void RecordLifecycleFailure(string name, string safeMessage, Exception? exception)
     {
-        _diagnostics?.RecordFailure(name, safeMessage, exception);
+        _diagnostics?.RecordLifecycleFailure(name, safeMessage, exception);
     }
 
     public void RecordStage(string name, string safeMessage)
     {
-        _diagnostics?.RecordStage(name, safeMessage);
+        _diagnostics?.RecordLifecycleStage(name, safeMessage);
     }
+
+    public void RecordProcessFailure(ProcessFailure failure, string source, string safeMessage, Exception? exception) =>
+        _diagnostics?.RecordProcessFailure(failure, source, safeMessage, exception, _observability);
 
     void IProcessLifecycleDiagnostics.RecordFailure(
         string name,
@@ -466,28 +469,25 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         _statusWindow = null;
     }
 
+    public async Task NotifyProcessExitAsync(ProcessExitReason exitReason, CancellationToken cancellationToken)
+    {
+        _startupOperation?.Complete(OperationResult.Cancelled());
+        _shutdownOperation?.Complete(OperationResult.Succeeded());
+        _diagnostics?.RecordProcessExit(exitReason);
+        if (_serviceProvider is not null)
+        {
+            await _serviceProvider
+                .GetRequiredService<IDiagnosticSessionService>()
+                .NotifyProcessShutdownAsync(exitReason, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         CloseStartupStatus();
-        _startupOperation?.Complete(OperationResult.Cancelled());
-        _shutdownOperation?.Complete(OperationResult.Succeeded());
         if (_serviceProvider is not null)
         {
-            try
-            {
-                await _serviceProvider
-                    .GetRequiredService<IDiagnosticSessionService>()
-                    .NotifyProcessShutdownAsync(CancellationToken.None)
-                    .ConfigureAwait(false);
-            }
-            catch (Exception exception)
-            {
-                RecordLifecycleFailure(
-                    "diagnostic-session-shutdown",
-                    "保存诊断进程退出状态失败，将继续关闭。",
-                    exception);
-            }
-
             await _serviceProvider.DisposeAsync().ConfigureAwait(false);
             _serviceProvider = null;
         }

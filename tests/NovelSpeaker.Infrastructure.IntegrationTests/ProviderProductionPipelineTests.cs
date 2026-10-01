@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NAudio.Wave;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Cache;
@@ -31,7 +32,7 @@ public sealed class ProviderProductionPipelineTests
 {
     [Theory]
     [InlineData("empty-once", PlaybackState.Playing)]
-    [InlineData("empty", PlaybackState.Faulted)]
+    [InlineData("empty", PlaybackState.Stopped)]
     public async Task Real_http_empty_audio_preserves_skip_and_consecutive_failure_recovery(string path, PlaybackState expectedState)
     {
         await using var fixture = await Fixture.CreateAsync(false, 0);
@@ -46,8 +47,8 @@ public sealed class ProviderProductionPipelineTests
             Assert.True(playback.CurrentSnapshot.HasLoadedAudio);
         else
         {
-            Assert.Contains("连续 2 段未生成音频", playback.CurrentSnapshot.Message);
-            Assert.True(playback.CurrentSnapshot.CanRetry);
+            Assert.Contains("已跳过并结束播放", playback.CurrentSnapshot.Message);
+            Assert.False(playback.CurrentSnapshot.CanRetry);
             Assert.False(playback.CurrentSnapshot.HasLoadedAudio);
         }
     }
@@ -106,6 +107,41 @@ public sealed class ProviderProductionPipelineTests
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(2, fixture.Server.GetRequestCount("/rate-limited"));
         Assert.True(File.Exists(fixture.Player.LoadedFile));
+    }
+
+    [Fact]
+    public async Task Non_http_transient_synthesis_failures_are_retried_at_the_shared_audio_boundary()
+    {
+        await using var fixture = await Fixture.CreateAsync(true, 0);
+        fixture.Edge.Failures.Enqueue(new ProviderSynthesisFailure(ProviderSynthesisFailureKind.Network, "连接失败。"));
+        fixture.Edge.Failures.Enqueue(new ProviderSynthesisFailure(ProviderSynthesisFailureKind.Timeout, "连接超时。"));
+
+        var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
+        await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
+        Assert.Equal(3, fixture.Edge.Calls.Count);
+    }
+
+    [Fact]
+    public async Task Rate_limited_synthesis_stops_after_bounded_retries()
+    {
+        await using var fixture = await Fixture.CreateAsync(true, 0);
+        fixture.Edge.DefaultFailure = new ProviderSynthesisFailure(
+            ProviderSynthesisFailureKind.RateLimited, "请求过于频繁。", TimeSpan.Zero);
+        var provider = await fixture.Services.GetRequiredService<ICurrentSpeechProvider>()
+            .GetSelectedProviderAsync(CancellationToken.None);
+        var audio = fixture.Services.GetRequiredService<IAudioGenerationProvider>();
+
+        var result = await audio.GetAudioAsync(
+            new AudioGenerationRequest("book", 0, 0, "Rate limited", provider!, 0, Guid.NewGuid())
+            { ChapterId = "chapter", StableSegmentIdentity = StableSpeechSegmentIdentity.Body(0, 1) },
+            AudioGenerationPriority.Current,
+            null,
+            CancellationToken.None);
+
+        Assert.Equal(TtsErrorKind.RateLimited, result.Failure?.Kind);
+        Assert.Equal(3, fixture.Edge.Calls.Count);
     }
 
     [Fact]
@@ -331,6 +367,9 @@ public sealed class ProviderProductionPipelineTests
                 .AddSingleton<IAudioPlayer>(fixture.Player)
                 .AddSingleton<IEdgeSpeechTransport>(fixture.Edge)
                 .AddNovelSpeakerApplication(settings).AddNovelSpeakerInfrastructure();
+            services.RemoveAll<ISqliteConnectionFactory>();
+            services.AddSingleton<ISqliteConnectionFactory>(provider =>
+                new SqliteConnectionFactory(provider.GetRequiredService<IAppDataDirectoryProvider>(), null, pooling: false));
             if (observeConcurrentRequests)
             {
                 services.AddSingleton<ProviderRequestLimiter>().AddSingleton<AdmissionObserver>()
@@ -389,15 +428,8 @@ public sealed class ProviderProductionPipelineTests
 
         public async ValueTask DisposeAsync()
         {
-            var databasePath = Services.GetRequiredService<IAppDataDirectoryProvider>().DatabasePath;
             await Services.DisposeAsync();
             await Server.DisposeAsync();
-            using (var connection = new SqliteConnection($"Data Source={databasePath}"))
-            {
-                connection.Open();
-                SqliteConnection.ClearPool(connection);
-                connection.Close();
-            }
             Directory.Delete(_root, true);
         }
     }
@@ -437,6 +469,8 @@ public sealed class ProviderProductionPipelineTests
     {
         public List<int> Rates { get; } = [];
         public List<(string Voice, string Text, int Rate)> Calls { get; } = [];
+        public Queue<ProviderSynthesisFailure> Failures { get; } = new();
+        public ProviderSynthesisFailure? DefaultFailure { get; set; }
         public bool BlockNext { get; set; }
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource SecondStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -454,6 +488,9 @@ public sealed class ProviderProductionPipelineTests
                 Started.TrySetResult();
                 await Release.Task.WaitAsync(cancellationToken);
             }
+            var failure = Failures.Count > 0 ? Failures.Dequeue() : DefaultFailure;
+            if (failure is not null)
+                return new ProviderSynthesisResult(null, null, failure);
             return new ProviderSynthesisResult(File.OpenRead(Path.Combine(AppContext.BaseDirectory, "TestAssets", "Audio", "demo-tone.mp3")), "audio/mpeg", null, "mp3");
         }
     }

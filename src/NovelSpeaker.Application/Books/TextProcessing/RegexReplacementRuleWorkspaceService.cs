@@ -15,6 +15,20 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
     private readonly TimeProvider _timeProvider;
     public event EventHandler<RegexReplacementRulesChangedEventArgs>? Changed;
 
+    internal void NotifyConfigurationRestored()
+    {
+        _errorStore.Replace(new Dictionary<Guid, string>());
+        foreach (var handler in Changed?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler<RegexReplacementRulesChangedEventArgs>)handler)(this,
+                new RegexReplacementRulesChangedEventArgs(RegexReplacementRulesChangeKind.Restored, true));
+            }
+            catch { /* Persistence already succeeded; continue notifying the remaining owners. */ }
+        }
+    }
+
     public RegexReplacementRuleWorkspaceService(
         IRegexReplacementRuleRepository repository,
         IRegexReplacementRuleErrorStore errorStore,
@@ -100,24 +114,43 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
         }
     }
 
-    public async Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken)
+    public Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken) =>
+        ExportRulesJsonAsync([ruleId], cancellationToken);
+
+    public async Task<string?> ExportRulesJsonAsync(IReadOnlyList<Guid> ruleIds, CancellationToken cancellationToken)
     {
-        var rule = (await _repository.GetAllAsync(cancellationToken)).FirstOrDefault(item => item.Id == ruleId);
-        return rule is null ? null : SerializePortableRule(rule);
+        ArgumentNullException.ThrowIfNull(ruleIds);
+        var selected = ruleIds.ToHashSet();
+        var rules = (await _repository.GetAllAsync(cancellationToken))
+            .Where(rule => selected.Contains(rule.Id))
+            .OrderBy(rule => rule.SortOrder)
+            .ThenBy(rule => rule.Id)
+            .ToArray();
+        return rules.Length == 0 ? null : SerializePortableRules(rules);
     }
 
     public async Task<RuleJsonImportResult> ImportJsonAsync(
         string json,
         CancellationToken cancellationToken)
     {
-        var candidates = ParsePortableRules(json);
+        var candidates = RuleExchangeDocument.Read(json, "regex-replacement");
         var existing = (await _repository.GetAllAsync(cancellationToken)).ToList();
         var imported = 0;
         var skipped = 0;
 
-        foreach (var candidate in candidates)
+        foreach (var element in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            PortableRegexReplacementRule candidate;
+            try
+            {
+                candidate = ParsePortableRule(element);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
+            {
+                continue;
+            }
+
             if (existing.Any(rule => PortableFieldsEqual(rule, candidate)))
             {
                 skipped++;
@@ -241,30 +274,6 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
     private static bool IsEffectiveSpeechRule(RegexReplacementRule? rule) =>
         rule is { IsEnabled: true, Scope: RegexReplacementScope.Speech or RegexReplacementScope.Both };
 
-    private static IReadOnlyList<PortableRegexReplacementRule> ParsePortableRules(string json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            throw new InvalidOperationException("规则 JSON 不能为空。");
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(json);
-            var elements = document.RootElement.ValueKind switch
-            {
-                JsonValueKind.Object => [document.RootElement.Clone()],
-                JsonValueKind.Array => document.RootElement.EnumerateArray().Select(element => element.Clone()).ToArray(),
-                _ => throw new InvalidOperationException("规则 JSON 必须是单条对象或对象数组。")
-            };
-            return elements.Select(ParsePortableRule).ToArray();
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidOperationException("规则 JSON 格式无效。", exception);
-        }
-    }
-
     private static PortableRegexReplacementRule ParsePortableRule(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -291,7 +300,7 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
             ReadBoolean(element, "isEnabled", true));
     }
 
-    private static string SerializePortableRule(RegexReplacementRule rule)
+    private static string SerializePortableRules(IReadOnlyList<RegexReplacementRule> rules)
     {
         using var stream = new MemoryStream();
         using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
@@ -299,11 +308,20 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         });
         writer.WriteStartObject();
-        writer.WriteString("name", rule.Name);
-        writer.WriteString("pattern", rule.Pattern);
-        writer.WriteString("replacement", rule.Replacement);
-        writer.WriteString("scope", rule.Scope.ToString());
-        writer.WriteBoolean("isEnabled", rule.IsEnabled);
+        writer.WriteNumber("schemaVersion", 1);
+        writer.WriteString("ruleType", "regex-replacement");
+        writer.WriteStartArray("rules");
+        foreach (var rule in rules)
+        {
+            writer.WriteStartObject();
+            writer.WriteString("name", rule.Name);
+            writer.WriteString("pattern", rule.Pattern);
+            writer.WriteString("replacement", rule.Replacement);
+            writer.WriteString("scope", rule.Scope.ToString());
+            writer.WriteBoolean("isEnabled", rule.IsEnabled);
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
         writer.WriteEndObject();
         writer.Flush();
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());

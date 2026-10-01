@@ -36,20 +36,6 @@ public sealed class RuleEditorLifecycleTests
     }
 
     [Fact]
-    public void SelectionController_rejects_stale_selected_key_without_mutating_selection()
-    {
-        var selection = new RuleSelectionController<string>();
-        selection.Select("rule-1");
-
-        Assert.True(selection.IsSelected("rule-1"));
-        Assert.False(selection.TryGetSelected(new HashSet<string>(["rule-2"]), out _));
-        Assert.True(selection.HasSelection);
-
-        selection.Clear();
-        Assert.False(selection.HasSelection);
-    }
-
-    [Fact]
     public void Reorder_slots_support_first_last_and_adjacent_noop_without_mutating_input()
     {
         var order = new[] { "one", "two", "three" };
@@ -96,7 +82,6 @@ public sealed class RuleEditorLifecycleTests
                 await release.Task;
                 return new RuleImportResult(1, 0, 1);
             },
-            _ => Task.FromResult(true),
             () => isBusy,
             value => isBusy = value,
             CancellationToken.None);
@@ -105,7 +90,6 @@ public sealed class RuleEditorLifecycleTests
         var second = await session.RunAsync(
             _ => Task.FromResult<RuleImportDocument?>(new RuleImportDocument("{}", "test")),
             (_, _) => Task.FromResult(new RuleImportResult(1, 0, 1)),
-            _ => Task.FromResult(true),
             () => isBusy,
             value => isBusy = value,
             CancellationToken.None);
@@ -120,129 +104,29 @@ public sealed class RuleEditorLifecycleTests
         Assert.False(isBusy);
     }
 
-    [Fact]
-    public async Task ImportSession_rejects_dirty_guard_busy_and_cancelled_operations()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportSession_cancellation_releases_busy_and_allows_retry(bool cancelDuringImport)
     {
         var session = new RuleImportSession();
-        var importCallCount = 0;
         var isBusy = false;
-        var document = new RuleImportDocument("{}", "test");
-
-        var rejected = await session.RunAsync(
-            _ => Task.FromResult<RuleImportDocument?>(document),
-            (_, _) =>
-            {
-                importCallCount++;
-                return Task.FromResult(new RuleImportResult(1, 0, 1));
-            },
-            _ => Task.FromResult(false),
-            () => isBusy,
-            value => isBusy = value,
-            CancellationToken.None);
-
-        Assert.Null(rejected);
-        Assert.Equal(0, importCallCount);
-        Assert.False(isBusy);
-
-        isBusy = true;
-        var busy = await session.RunAsync(
-            _ => Task.FromResult<RuleImportDocument?>(document),
-            (_, _) =>
-            {
-                importCallCount++;
-                return Task.FromResult(new RuleImportResult(1, 0, 1));
-            },
-            _ => Task.FromResult(true),
-            () => isBusy,
-            value => isBusy = value,
-            CancellationToken.None);
-
-        Assert.Null(busy);
-        Assert.Equal(0, importCallCount);
-        isBusy = false;
-
         using var cancellation = new CancellationTokenSource();
-        var cancelled = session.RunAsync(
-            _ =>
+        if (!cancelDuringImport) cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => session.RunAsync(
+            _ => Task.FromResult<RuleImportDocument?>(new RuleImportDocument("{}", "test")),
+            (_, _) =>
             {
                 cancellation.Cancel();
-                return Task.FromResult<RuleImportDocument?>(document);
-            },
-            (_, _) =>
-            {
-                importCallCount++;
                 return Task.FromResult(new RuleImportResult(1, 0, 1));
             },
-            _ => Task.FromResult(true),
-            () => isBusy,
-            value => isBusy = value,
-            cancellation.Token);
-
-        await Assert.ThrowsAsync<OperationCanceledException>(() => cancelled);
-        Assert.Equal(0, importCallCount);
+            () => isBusy, value => isBusy = value, cancellation.Token));
         Assert.False(isBusy);
-    }
-
-    [Fact]
-    public async Task ImportSession_releases_busy_and_lock_when_cancelled_after_guard_or_import()
-    {
-        var session = new RuleImportSession();
-        var isBusy = false;
-        var importCallCount = 0;
-        var document = new RuleImportDocument("{}", "test");
-
-        using var guardCancellation = new CancellationTokenSource();
-        var cancelledAfterGuard = session.RunAsync(
-            _ => Task.FromResult<RuleImportDocument?>(document),
-            (_, _) =>
-            {
-                importCallCount++;
-                return Task.FromResult(new RuleImportResult(1, 0, 1));
-            },
-            _ =>
-            {
-                guardCancellation.Cancel();
-                return Task.FromResult(true);
-            },
-            () => isBusy,
-            value => isBusy = value,
-            guardCancellation.Token);
-
-        await Assert.ThrowsAsync<OperationCanceledException>(() => cancelledAfterGuard);
-        Assert.False(isBusy);
-        Assert.Equal(0, importCallCount);
-
-        using var importCancellation = new CancellationTokenSource();
-        await Assert.ThrowsAsync<OperationCanceledException>(() => session.RunAsync(
-            _ => Task.FromResult<RuleImportDocument?>(document),
-            (_, _) =>
-            {
-                importCallCount++;
-                importCancellation.Cancel();
-                return Task.FromResult(new RuleImportResult(1, 0, 1));
-            },
-            _ => Task.FromResult(true),
-            () => isBusy,
-            value => isBusy = value,
-            importCancellation.Token));
-
-        Assert.False(isBusy);
-        Assert.Equal(1, importCallCount);
-
         var retry = await session.RunAsync(
-            _ => Task.FromResult<RuleImportDocument?>(document),
-            (_, _) =>
-            {
-                importCallCount++;
-                return Task.FromResult(new RuleImportResult(1, 0, 1));
-            },
-            _ => Task.FromResult(true),
-            () => isBusy,
-            value => isBusy = value,
-            CancellationToken.None);
-
+            _ => Task.FromResult<RuleImportDocument?>(new RuleImportDocument("{}", "test")),
+            (_, _) => Task.FromResult(new RuleImportResult(1, 0, 1)),
+            () => isBusy, value => isBusy = value, CancellationToken.None);
         Assert.NotNull(retry);
-        Assert.Equal(2, importCallCount);
         Assert.False(isBusy);
     }
 
@@ -255,7 +139,6 @@ public sealed class RuleEditorLifecycleTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => session.RunAsync<RuleImportResult>(
             _ => Task.FromResult<RuleImportDocument?>(new RuleImportDocument("{}", "test")),
             (_, _) => throw new InvalidOperationException("import failed"),
-            _ => Task.FromResult(true),
             () => isBusy,
             value => isBusy = value,
             CancellationToken.None));

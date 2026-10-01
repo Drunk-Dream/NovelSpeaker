@@ -13,7 +13,6 @@ public sealed record AppSettings(
     int PrefetchCount = 2,
     string LogLevel = "Information",
     string Theme = "System",
-    string? BookFileNameTemplate = "{{name}} 作者：{{author}}",
     long CacheLimitBytes = 2L * 1024 * 1024 * 1024,
     ProviderId? CurrentProviderId = null,
     MainWindowCloseBehavior MainWindowCloseBehavior = MainWindowCloseBehavior.MinimizeToTray,
@@ -24,7 +23,8 @@ public sealed record AppSettings(
     bool ReadChapterTitle = true,
     double PlaybackVolume = 1d,
     bool EnablePerformanceTelemetry = false,
-    IReadOnlyList<string>? EnabledExperimentalFeatureIds = null)
+    IReadOnlyList<string>? EnabledExperimentalFeatureIds = null,
+    bool SplitChaptersOnBlankLines = false)
 {
     public const int MinSpeakSpeed = 0;
     public const int MaxSpeakSpeed = 100;
@@ -32,7 +32,6 @@ public sealed record AppSettings(
     public const int DefaultPrefetchCountValue = 2;
     public const string DefaultLogLevel = "Information";
     public const string DefaultTheme = "System";
-    public const string DefaultBookFileNameTemplate = "{{name}} 作者：{{author}}";
     public const long DefaultCacheLimitBytes = 2L * 1024 * 1024 * 1024;
     public const long MinCacheLimitBytes = 256L * 1024 * 1024;
     public const double DefaultPlaybackVolumeValue = 1d;
@@ -51,7 +50,6 @@ public sealed record AppSettings(
             DefaultPrefetchCountValue,
             DefaultLogLevel,
             DefaultTheme,
-            DefaultBookFileNameTemplate,
             DefaultCacheLimitBytes,
             null,
             MainWindowCloseBehavior.MinimizeToTray,
@@ -93,7 +91,6 @@ public sealed record AppSettings(
                 : Math.Min(PrefetchCount, DefaultPrefetchCountValue),
             LogLevel = NormalizeOption(LogLevel, SupportedLogLevels, DefaultLogLevel),
             Theme = NormalizeOption(Theme, SupportedThemes, DefaultTheme),
-            BookFileNameTemplate = NormalizeFileNameTemplate(BookFileNameTemplate),
             CacheLimitBytes = NormalizeCacheLimitBytes(CacheLimitBytes),
             PlaybackVolume = NormalizePlaybackVolume(PlaybackVolume),
             EnabledExperimentalFeatureIds = Array.AsReadOnly((EnabledExperimentalFeatureIds ?? [])
@@ -121,16 +118,6 @@ public sealed record AppSettings(
         return double.IsFinite(playbackVolume)
             ? Math.Clamp(playbackVolume, 0d, 1d)
             : DefaultPlaybackVolumeValue;
-    }
-
-    private static string NormalizeFileNameTemplate(string? value)
-    {
-        if (value is null)
-        {
-            return DefaultBookFileNameTemplate;
-        }
-
-        return value.Trim();
     }
 
     private static string NormalizeOption(string? value, IReadOnlyList<string> supportedValues, string defaultValue)

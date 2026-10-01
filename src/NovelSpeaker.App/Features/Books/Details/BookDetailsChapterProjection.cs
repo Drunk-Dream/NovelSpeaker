@@ -21,8 +21,6 @@ public sealed class BookDetailsChapterProjection
 
     public int ChapterIndex { get; }
 
-    public string IndexText => $"第 {ChapterIndex + 1} 章";
-
     public string Title { get; }
 
     public bool IsCurrent { get; }
@@ -53,7 +51,7 @@ public sealed class BookDetailsChapterProjection
         var states = new[] { state, cacheState }.Where(static item => item is not null);
         var suffix = string.Join('，', states);
         return string.IsNullOrEmpty(suffix)
-            ? $"{IndexText}，{Title}"
-            : $"{IndexText}，{Title}，{suffix}";
+            ? Title
+            : $"{Title}，{suffix}";
     }
 }

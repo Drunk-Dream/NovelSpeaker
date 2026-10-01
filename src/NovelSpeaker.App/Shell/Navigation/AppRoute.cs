@@ -10,6 +10,8 @@ public enum AppRouteId
     ImportTextSettings,
     RegexReplacementRules,
     ChapterRules,
+    FileNameMetadataRules,
+    TextHeaderMetadataRules,
     CacheAndData,
     CacheManagement,
     GeneralSettings,
@@ -115,6 +117,8 @@ public static class AppRoutes
     public static AppRoute ImportTextSettings { get; } = new ParameterlessAppRoute(AppRouteId.ImportTextSettings);
     public static AppRoute RegexReplacementRules { get; } = new ParameterlessAppRoute(AppRouteId.RegexReplacementRules);
     public static AppRoute ChapterRules { get; } = new ParameterlessAppRoute(AppRouteId.ChapterRules);
+    public static AppRoute FileNameMetadataRules { get; } = new ParameterlessAppRoute(AppRouteId.FileNameMetadataRules);
+    public static AppRoute TextHeaderMetadataRules { get; } = new ParameterlessAppRoute(AppRouteId.TextHeaderMetadataRules);
     public static AppRoute CacheAndData { get; } = new ParameterlessAppRoute(AppRouteId.CacheAndData);
     public static AppRoute CacheManagement { get; } = new ParameterlessAppRoute(AppRouteId.CacheManagement);
     public static AppRoute GeneralSettings { get; } = new ParameterlessAppRoute(AppRouteId.GeneralSettings);

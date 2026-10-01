@@ -2,10 +2,11 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:NovelSpeaker.App.Features.Books.Shared"
+             xmlns:selection="clr-namespace:NovelSpeaker.App.Shared.Presentation.Selection"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              x:Name="Root"
              Background="Transparent">
-    <Border x:Name="CardSurface"
+    <selection:SelectionSurface x:Name="CardSurface"
             Padding="0"
             Style="{StaticResource App.Selection.CardItem}">
         <Grid>
@@ -105,5 +106,5 @@
                 </ui:Button.ContextMenu>
             </ui:Button>
         </Grid>
-    </Border>
+    </selection:SelectionSurface>
 </UserControl>

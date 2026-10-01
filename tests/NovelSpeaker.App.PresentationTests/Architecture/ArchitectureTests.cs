@@ -369,6 +369,7 @@ public sealed class ArchitectureTests
             "src/NovelSpeaker.App/Shell/Navigation/AppNavigationPageProvider.cs",
             "src/NovelSpeaker.App/Shell/ShellServiceCollectionExtensions.cs",
             "src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs",
+            "src/NovelSpeaker.Application/Books/BooksRegistration.cs",
             "src/NovelSpeaker.Application/Cache/CacheRegistration.cs",
             "src/NovelSpeaker.Application/Settings/SettingsRegistration.cs",
             "src/NovelSpeaker.Application/Speech/SpeechRegistration.cs",

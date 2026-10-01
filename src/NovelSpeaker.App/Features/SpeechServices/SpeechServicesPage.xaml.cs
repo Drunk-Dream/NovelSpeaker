@@ -1,3 +1,6 @@
+using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
 using Wpf.Ui.Abstractions.Controls;
@@ -6,6 +9,8 @@ namespace NovelSpeaker.App.Features.SpeechServices;
 
 public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<SpeechServicesViewModel>
 {
+    public ICommand SelectionCommand { get; }
+
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _navigationGuardService;
     private readonly PageEventOperationRunner _eventOperations;
@@ -27,10 +32,18 @@ public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigat
         ViewModel = null!;
         _navigationGuardService = null!;
         _eventOperations = PageEventOperationRunner.DesignTime;
+        SelectionCommand = new AsyncRelayCommand<SpeechProviderListItemViewModel>(SelectWithModifiersAsync);
         InitializeComponent();
     }
 
     public SpeechServicesViewModel ViewModel { get; }
+
+    private Task SelectWithModifiersAsync(SpeechProviderListItemViewModel? item)
+    {
+        var modifiers = DesktopSelectionInput.ReadModifiers();
+        return _eventOperations.RunAsync(_activation, "选择语音服务失败",
+            token => ViewModel.SelectProviderWithModifiersAsync(item, modifiers, token));
+    }
 
     public async Task OnNavigatedToAsync()
     {

@@ -6,6 +6,7 @@ using System.Windows.Data;
 using NovelSpeaker.App.Shared.Presentation.Controls.Common;
 using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 using Wpf.Ui.Controls;
 using WpfButton = System.Windows.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
@@ -106,7 +107,7 @@ internal static class GalleryListComponentScene
 
     private static Border CreateCard(string state, string automationId)
     {
-        var card = new Border
+        var card = new SelectionSurface
         {
             Margin = new Thickness(0, 8, 0, 0),
             Padding = new Thickness(12),
@@ -173,7 +174,7 @@ internal static class GalleryListComponentScene
 
     private static Border CreateListRow(string state, string automationId)
     {
-        var row = new Border
+        var row = new SelectionSurface
         {
             Margin = new Thickness(0, 8, 0, 0),
             Style = CreatePreviewStyle("App.Selection.CurrentItem"),
@@ -210,7 +211,7 @@ internal static class GalleryListComponentScene
 
     private static Border CreateSelectionRow(string state, string automationId)
     {
-        var row = new Border
+        var row = new SelectionSurface
         {
             Margin = new Thickness(0, 8, 0, 0),
             Style = CreatePreviewStyle("App.Selection.ListItem"),
@@ -310,7 +311,7 @@ internal static class GalleryListComponentScene
 
         for (var index = 0; index < 12; index++)
         {
-            var item = new Border
+            var item = new SelectionSurface
             {
                 Margin = new Thickness(0, 0, 0, 4),
                 Style = FindStyle("App.Selection.ListItem"),
@@ -376,11 +377,7 @@ internal static class GalleryListComponentScene
 
     private static Style CreatePreviewStyle(string baseStyleKey)
     {
-        var style = new Style(typeof(Border), FindStyle(baseStyleKey));
-        AddPreviewTrigger(
-            style,
-            nameof(ListFixtureState.IsCurrent),
-            new Setter(Border.BorderBrushProperty, new DynamicResourceExtension("App.Brush.Accent.Default")));
+        var style = new Style(typeof(SelectionSurface), FindStyle(baseStyleKey));
         AddPreviewTrigger(
             style,
             nameof(ListFixtureState.IsPreviewHover),
@@ -389,8 +386,7 @@ internal static class GalleryListComponentScene
             style,
             (nameof(ListFixtureState.IsSelected), true),
             (nameof(ListFixtureState.IsPreviewHover), true),
-            new Setter(Border.BackgroundProperty, new DynamicResourceExtension("App.Brush.Accent.Subtle.Hover")),
-            new Setter(Border.BorderBrushProperty, new DynamicResourceExtension("App.Brush.Accent.Hover")));
+            new Setter(Border.BackgroundProperty, new DynamicResourceExtension("App.Brush.Interaction.Surface.Selected.Hover")));
         AddPreviewTrigger(
             style,
             nameof(ListFixtureState.IsPreviewFocus),
