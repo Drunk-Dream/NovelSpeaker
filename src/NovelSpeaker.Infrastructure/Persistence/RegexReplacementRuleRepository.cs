@@ -22,7 +22,14 @@ public sealed class RegexReplacementRuleRepository : IRegexReplacementRuleReposi
     public async Task<IReadOnlyList<RegexReplacementRule>> GetAllAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        return await ReadAllAsync(connection, null, cancellationToken);
+    }
+
+    internal static async Task<IReadOnlyList<RegexReplacementRule>> ReadAllAsync(
+        SqliteConnection connection, SqliteTransaction? transaction, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             SELECT Id, Name, IsEnabled, SortOrder, Pattern, Replacement, Scope, CreatedAt, UpdatedAt

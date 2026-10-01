@@ -111,6 +111,7 @@ public sealed class PlaybackCoordinator :
         _audioController.SnapshotChanged += OnLocalSnapshotChanged;
         _audioController.PlaybackCompleted += OnLocalPlaybackCompleted;
         _audioController.PlaybackFailed += OnLocalPlaybackFailed;
+        _appSettingsService.Changed += OnSettingsChanged;
     }
 
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -229,17 +230,32 @@ public sealed class PlaybackCoordinator :
 
     public void SetVolume(double volume)
     {
-        ThrowIfDisposed();
-        var previousVolume = _audioController.Volume;
-        _audioController.SetVolume(volume);
-        var normalizedVolume = _audioController.Volume;
-        PublishSnapshot(_currentSnapshot with
+        lock (_volumePersistenceGate)
         {
-            Volume = normalizedVolume
-        });
-        if (normalizedVolume != previousVolume)
+            ThrowIfDisposed();
+            var previousVolume = _audioController.Volume;
+            _audioController.SetVolume(volume);
+            var normalizedVolume = _audioController.Volume;
+            PublishSnapshot(_currentSnapshot with { Volume = normalizedVolume });
+            if (normalizedVolume != previousVolume)
+                ScheduleVolumePersistence(normalizedVolume);
+        }
+    }
+
+    private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs change)
+    {
+        if (!change.IsSnapshotReplacement && change.Previous.PlaybackVolume == change.Current.PlaybackVolume) return;
+        lock (_volumePersistenceGate)
         {
-            ScheduleVolumePersistence(normalizedVolume);
+            if (_disposed) return;
+            // An older slider save must not overwrite a newer slider value. Snapshot replacement,
+            // however, is authoritative even when it restores the same persisted volume.
+            if (!change.IsSnapshotReplacement && _hasPendingVolumePersistence &&
+                _pendingVolume != change.Current.PlaybackVolume) return;
+            _hasPendingVolumePersistence = false;
+            _volumePersistenceCancellation?.Cancel();
+            _audioController.SetVolume(change.Current.PlaybackVolume);
+            PublishSnapshot(_currentSnapshot with { Volume = _audioController.Volume });
         }
     }
 
@@ -272,6 +288,7 @@ public sealed class PlaybackCoordinator :
     private async Task DisposeCoreAsync()
     {
         _disposed = true;
+        _appSettingsService.Changed -= OnSettingsChanged;
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _commandProcessor.BeginShutdown();
         _currentSession?.Cancel();

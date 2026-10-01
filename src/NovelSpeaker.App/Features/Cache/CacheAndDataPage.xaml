@@ -79,6 +79,7 @@
                 </settingsControls:AppSettingsRow>
 
                 <settingsControls:AppSettingsRow x:Name="CacheLimitRow"
+                                                 IsEnabled="{Binding CanManageConfiguration}"
                                                  Title="缓存上限"
                                                  Description="最低为 256 MB；超出上限时按最近最少使用顺序清理，正在播放或受保护的音频会暂时保留。"
                                                  AutomationProperties.Name="缓存上限">
@@ -140,6 +141,21 @@
                                ToolTip="清理全部缓存"
                                AutomationProperties.Name="清理全部缓存"
                                Icon="{ui:SymbolIcon Symbol=Delete24}" />
+                </settingsControls:AppSettingsRow>
+
+                <settingsControls:AppSettingsRow
+                    Title="配置备份/恢复"
+                    Description="私人备份包含设置、语音服务凭据和四类规则，不包含书籍、进度和缓存。"
+                    AutomationProperties.Name="配置备份/恢复">
+                    <StackPanel Orientation="Horizontal">
+                        <Button Style="{StaticResource App.Button.Secondary}"
+                                Content="备份配置"
+                                Command="{Binding BackupConfigurationCommand}" />
+                        <Button Margin="12,0,0,0"
+                                Style="{StaticResource App.Button.Secondary}"
+                                Content="恢复配置"
+                                Command="{Binding RestoreConfigurationCommand}" />
+                    </StackPanel>
                 </settingsControls:AppSettingsRow>
 
                 <settingsControls:AppSettingsNavigationRow

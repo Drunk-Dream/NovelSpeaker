@@ -9,7 +9,8 @@ internal enum ApplicationModule
     Cache,
     Playback,
     Settings,
-    Desktop
+    Desktop,
+    Configuration
 }
 
 internal sealed record ApplicationModuleDependency(
@@ -43,7 +44,8 @@ internal static partial class ArchitectureRules
             ApplicationModule.Cache,
             ApplicationModule.Playback,
             ApplicationModule.Settings,
-            ApplicationModule.Desktop
+            ApplicationModule.Desktop,
+            ApplicationModule.Configuration
         };
 
     private static readonly IReadOnlySet<string> StableCacheIdentityTypes =

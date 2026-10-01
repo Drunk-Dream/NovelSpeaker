@@ -21,5 +21,6 @@ public enum RegexReplacementRulesChangeKind
     EnabledChanged,
     Imported,
     Reordered,
-    Deleted
+    Deleted,
+    Restored
 }

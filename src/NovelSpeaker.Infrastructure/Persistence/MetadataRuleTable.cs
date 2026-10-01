@@ -8,7 +8,14 @@ internal sealed class MetadataRuleTable(ISqliteConnectionFactory connections, st
     public async Task<IReadOnlyList<MetadataRuleRow>> GetAllAsync(CancellationToken cancellationToken)
     {
         await using var connection = await connections.OpenConnectionAsync(cancellationToken);
+        return await ReadAllAsync(connection, null, tableName, cancellationToken);
+    }
+
+    internal static async Task<IReadOnlyList<MetadataRuleRow>> ReadAllAsync(
+        SqliteConnection connection, SqliteTransaction? transaction, string tableName, CancellationToken cancellationToken)
+    {
         await using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = $"SELECT Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt FROM {tableName} ORDER BY SortOrder, Id;";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         var rows = new List<MetadataRuleRow>();

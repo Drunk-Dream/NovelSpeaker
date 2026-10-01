@@ -73,6 +73,22 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
 
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
 
+    internal async Task<T> WithConfigurationLockAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        await _mutationGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await operation().ConfigureAwait(false); }
+        finally { _mutationGate.Release(); }
+    }
+
+    internal void NotifyConfigurationRestored()
+    {
+        foreach (var handler in Changed?.GetInvocationList() ?? [])
+        {
+            try { ((EventHandler<SpeechProvidersChangedEventArgs>)handler)(this, new(true)); }
+            catch { /* One observer cannot prevent the other runtime owners from refreshing. */ }
+        }
+    }
+
     public async Task<SpeechProviderInstance> CreateDraftAsync(CancellationToken cancellationToken)
     {
         var existing = await store.GetAllAsync(cancellationToken).ConfigureAwait(false);

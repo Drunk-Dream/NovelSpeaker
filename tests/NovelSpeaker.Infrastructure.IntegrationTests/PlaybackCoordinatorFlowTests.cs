@@ -13,6 +13,26 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed partial class PlaybackCoordinatorTests
 {
+    [Theory]
+    [InlineData(0.35)]
+    [InlineData(1.0)]
+    public async Task Replacing_settings_updates_live_volume_and_retires_old_slider_persistence(double restoredVolume)
+    {
+        var clock = new ManualTimeProvider();
+        var audio = new FakeLocalAudioPlaybackCoordinator();
+        var settings = new FakeAppSettingsStore(AppSettings.Default);
+        var coordinator = CreateCoordinator(audio, appSettingsStore: settings, timeProvider: clock);
+        coordinator.SetVolume(0.8);
+        settings.ReplaceSnapshot(settings.Current with { PlaybackVolume = restoredVolume });
+
+        Assert.Equal(restoredVolume, audio.Volume);
+        Assert.Equal(restoredVolume, coordinator.CurrentSnapshot.Volume);
+        clock.Advance(PlaybackCoordinator.VolumePersistenceDelay);
+        await coordinator.DisposeAsync();
+        Assert.Equal(restoredVolume, settings.Current.PlaybackVolume);
+        Assert.Empty(settings.Updates);
+    }
+
     [Fact]
     public async Task Constructor_restores_persisted_playback_volume()
     {

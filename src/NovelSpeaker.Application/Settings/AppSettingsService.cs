@@ -53,6 +53,34 @@ public sealed class AppSettingsService :
 
     public void Dispose() => _mutex.Dispose();
 
+    internal async Task<T> ReadConfigurationAsync<T>(
+        Func<AppSettings, CancellationToken, Task<T>> read, CancellationToken cancellationToken)
+    {
+        await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try { return await read(Current, cancellationToken).ConfigureAwait(false); }
+        finally { _mutex.Release(); }
+    }
+
+    internal async Task RestoreConfigurationAsync(AppSettings next,
+        Func<AppSettings, CancellationToken, Task> persist, CancellationToken cancellationToken)
+    {
+        next = next.Normalize();
+        await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var previous = Current;
+            await persist(previous, cancellationToken).ConfigureAwait(false);
+            Volatile.Write(ref _current, next);
+            var change = new AppSettingsChangedEventArgs(previous, next, isSnapshotReplacement: true);
+            foreach (var handler in Changed?.GetInvocationList() ?? [])
+            {
+                try { ((EventHandler<AppSettingsChangedEventArgs>)handler)(this, change); }
+                catch { /* Committed configuration must not be reported as a failed restore by an observer. */ }
+            }
+        }
+        finally { _mutex.Release(); }
+    }
+
     private static AppSettings ApplyUpdate(AppSettings current, AppSettingsUpdate update)
     {
         return current with

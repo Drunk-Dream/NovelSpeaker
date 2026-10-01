@@ -25,7 +25,8 @@ public static class BooksRegistration
         services.TryAddSingleton<IBookDeletionService, BookDeletionService>();
         services.TryAddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
         services.TryAddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
-        services.TryAddSingleton<IRegexReplacementRuleWorkspaceService, RegexReplacementRuleWorkspaceService>();
+        services.TryAddSingleton<RegexReplacementRuleWorkspaceService>();
+        services.TryAddSingleton<IRegexReplacementRuleWorkspaceService>(provider => provider.GetRequiredService<RegexReplacementRuleWorkspaceService>());
         services.TryAddSingleton<IRegexReplacementPipeline, RegexReplacementPipeline>();
         services.TryAddSingleton<ITextSegmenter, TextSegmenter>();
         return services;

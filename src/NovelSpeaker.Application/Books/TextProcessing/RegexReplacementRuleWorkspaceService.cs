@@ -15,6 +15,20 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
     private readonly TimeProvider _timeProvider;
     public event EventHandler<RegexReplacementRulesChangedEventArgs>? Changed;
 
+    internal void NotifyConfigurationRestored()
+    {
+        _errorStore.Replace(new Dictionary<Guid, string>());
+        foreach (var handler in Changed?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                ((EventHandler<RegexReplacementRulesChangedEventArgs>)handler)(this,
+                new RegexReplacementRulesChangedEventArgs(RegexReplacementRulesChangeKind.Restored, true));
+            }
+            catch { /* Persistence already succeeded; continue notifying the remaining owners. */ }
+        }
+    }
+
     public RegexReplacementRuleWorkspaceService(
         IRegexReplacementRuleRepository repository,
         IRegexReplacementRuleErrorStore errorStore,
