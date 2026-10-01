@@ -139,6 +139,7 @@
                                 </StackPanel.Style>
                                 <TextBlock Style="{StaticResource App.Typography.FormLabel}" Text="简介" />
                                 <TextBlock Margin="0,6,0,0"
+                                           Style="{StaticResource App.Typography.Body}"
                                            Text="{Binding DisplayDescription}"
                                            TextWrapping="Wrap" />
                             </StackPanel>
