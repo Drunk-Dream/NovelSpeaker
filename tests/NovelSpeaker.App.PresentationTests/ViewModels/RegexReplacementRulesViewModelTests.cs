@@ -331,6 +331,9 @@ public sealed class RegexReplacementRulesViewModelTests
         public Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(ExportedJson);
 
+        public Task<string?> ExportRulesJsonAsync(IReadOnlyList<Guid> ruleIds, CancellationToken cancellationToken) =>
+            ExportRuleJsonAsync(ruleIds[0], cancellationToken);
+
         public async Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken)
         {
             ImportCallCount++;

@@ -530,6 +530,9 @@ public sealed class ChapterRulesViewModelTests
         public Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>("""{"name":"规则"}""");
 
+        public Task<string?> ExportRulesJsonAsync(IReadOnlyList<string> ruleIds, CancellationToken cancellationToken) =>
+            ExportRuleJsonAsync(ruleIds[0], cancellationToken);
+
         public Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken)
         {
             return Task.FromResult(new RuleJsonImportResult(1, 0, 1));

@@ -110,6 +110,9 @@ public sealed class CacheConfigurationChangeObserverTests
         public Task<string?> ExportRuleJsonAsync(Guid ruleId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<string?> ExportRulesJsonAsync(IReadOnlyList<Guid> ruleIds, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 

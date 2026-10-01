@@ -16,6 +16,7 @@ public interface IChapterRuleWorkspaceService
     Task SetRuleEnabledAsync(string ruleId, bool isEnabled, CancellationToken cancellationToken);
 
     Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken);
+    Task<string?> ExportRulesJsonAsync(IReadOnlyList<string> ruleIds, CancellationToken cancellationToken);
 
     Task<RuleJsonImportResult> ImportJsonAsync(string json, CancellationToken cancellationToken);
 

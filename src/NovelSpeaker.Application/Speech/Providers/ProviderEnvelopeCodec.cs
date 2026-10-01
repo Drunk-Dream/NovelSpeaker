@@ -63,11 +63,14 @@ public static class ProviderEnvelopeCodec
         }
     }
 
-    public static string Write(SpeechProviderInstance provider)
+    public static string Write(SpeechProviderInstance provider) => Write([provider]);
+
+    public static string Write(IReadOnlyList<SpeechProviderInstance> providers)
     {
-        ArgumentNullException.ThrowIfNull(provider);
-        if (provider.Configuration is not HttpSpeechProviderConfiguration http ||
-            !ProviderConfigurationValidator.Validate(provider).IsValid)
+        ArgumentNullException.ThrowIfNull(providers);
+        if (providers.Count == 0 || providers.Any(provider =>
+                provider.Configuration is not HttpSpeechProviderConfiguration ||
+                !ProviderConfigurationValidator.Validate(provider).IsValid))
         {
             throw new InvalidOperationException("只能导出已配置的 HTTP Provider。");
         }
@@ -78,34 +81,38 @@ public static class ProviderEnvelopeCodec
             writer.WriteStartObject();
             writer.WriteNumber("schemaVersion", SchemaVersion);
             writer.WriteStartArray("providers");
-            writer.WriteStartObject();
-            writer.WriteString("providerType", "http");
-            writer.WriteString("name", provider.Name);
-            writer.WriteStartObject("configuration");
-            writer.WriteString("urlTemplate", http.UrlTemplate);
-            writer.WriteString("method", http.Method);
-            writer.WriteStartObject("headers");
-            foreach (var header in http.Headers.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+            foreach (var provider in providers)
             {
-                writer.WriteString(header.Key, header.Value);
-            }
+                var http = (HttpSpeechProviderConfiguration)provider.Configuration;
+                writer.WriteStartObject();
+                writer.WriteString("providerType", "http");
+                writer.WriteString("name", provider.Name);
+                writer.WriteStartObject("configuration");
+                writer.WriteString("urlTemplate", http.UrlTemplate);
+                writer.WriteString("method", http.Method);
+                writer.WriteStartObject("headers");
+                foreach (var header in http.Headers.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+                {
+                    writer.WriteString(header.Key, header.Value);
+                }
 
-            writer.WriteEndObject();
-            if (http.BodyTemplate is not null)
-            {
-                writer.WriteString("bodyTemplate", http.BodyTemplate);
-            }
+                writer.WriteEndObject();
+                if (http.BodyTemplate is not null)
+                {
+                    writer.WriteString("bodyTemplate", http.BodyTemplate);
+                }
 
-            if (http.RateLimit is { } limit)
-            {
-                writer.WriteStartObject("rateLimit");
-                writer.WriteNumber("maxRequests", limit.MaxRequests);
-                writer.WriteNumber("windowMilliseconds", limit.WindowMilliseconds);
+                if (http.RateLimit is { } limit)
+                {
+                    writer.WriteStartObject("rateLimit");
+                    writer.WriteNumber("maxRequests", limit.MaxRequests);
+                    writer.WriteNumber("windowMilliseconds", limit.WindowMilliseconds);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndObject();
                 writer.WriteEndObject();
             }
-
-            writer.WriteEndObject();
-            writer.WriteEndObject();
             writer.WriteEndArray();
             writer.WriteEndObject();
         }

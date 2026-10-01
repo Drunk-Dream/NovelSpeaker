@@ -102,26 +102,43 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
         }, cancellationToken);
     }
 
-    public async Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken)
+    public Task<string?> ExportRuleJsonAsync(string ruleId, CancellationToken cancellationToken) =>
+        ExportRulesJsonAsync([ruleId], cancellationToken);
+
+    public async Task<string?> ExportRulesJsonAsync(IReadOnlyList<string> ruleIds, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(ruleId);
-        var rule = (await _repository.GetAllAsync(cancellationToken)).FirstOrDefault(candidate =>
-            string.Equals(candidate.Id, ruleId, StringComparison.Ordinal));
-        return rule is null ? null : SerializePortableRule(rule);
+        ArgumentNullException.ThrowIfNull(ruleIds);
+        var selected = ruleIds.ToHashSet();
+        var rules = (await _repository.GetAllAsync(cancellationToken))
+            .Where(rule => selected.Contains(rule.Id))
+            .OrderBy(rule => rule.SortOrder)
+            .ThenBy(rule => rule.Name, StringComparer.Ordinal)
+            .ToArray();
+        return rules.Length == 0 ? null : SerializePortableRules(rules);
     }
 
     public async Task<RuleJsonImportResult> ImportJsonAsync(
         string json,
         CancellationToken cancellationToken)
     {
-        var candidates = ParsePortableRules(json);
+        var candidates = RuleExchangeDocument.Read(json, "chapter");
         var existing = (await _repository.GetAllAsync(cancellationToken)).ToList();
         var imported = 0;
         var skipped = 0;
 
-        foreach (var candidate in candidates)
+        foreach (var element in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            PortableChapterRule candidate;
+            try
+            {
+                candidate = ParsePortableRule(element);
+            }
+            catch (Exception exception) when (exception is InvalidOperationException or ArgumentException)
+            {
+                continue;
+            }
+
             if (existing.Any(rule => PortableFieldsEqual(rule, candidate)))
             {
                 skipped++;
@@ -194,31 +211,6 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
         return allRules.Count == 0 ? SortOrderStep : allRules.Max(rule => rule.SortOrder) + SortOrderStep;
     }
 
-    private static IReadOnlyList<PortableChapterRule> ParsePortableRules(string json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            throw new InvalidOperationException("规则 JSON 不能为空。");
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(json);
-            var elements = document.RootElement.ValueKind switch
-            {
-                JsonValueKind.Object => [document.RootElement.Clone()],
-                JsonValueKind.Array => document.RootElement.EnumerateArray().Select(element => element.Clone()).ToArray(),
-                _ => throw new InvalidOperationException("规则 JSON 必须是单条对象或对象数组。")
-            };
-            var rules = elements.Select(ParsePortableRule).ToArray();
-            return rules;
-        }
-        catch (JsonException exception)
-        {
-            throw new InvalidOperationException("规则 JSON 格式无效。", exception);
-        }
-    }
-
     private static PortableChapterRule ParsePortableRule(JsonElement element)
     {
         if (element.ValueKind != JsonValueKind.Object)
@@ -232,7 +224,7 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
         return new PortableChapterRule(name, pattern, ReadBoolean(element, "isEnabled", true));
     }
 
-    private static string SerializePortableRule(ChapterRule rule)
+    private static string SerializePortableRules(IReadOnlyList<ChapterRule> rules)
     {
         using var stream = new MemoryStream();
         using var writer = new Utf8JsonWriter(stream, new JsonWriterOptions
@@ -240,9 +232,18 @@ public sealed class ChapterRuleWorkspaceService : IChapterRuleWorkspaceService
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         });
         writer.WriteStartObject();
-        writer.WriteString("name", rule.Name);
-        writer.WriteString("pattern", rule.Pattern);
-        writer.WriteBoolean("isEnabled", rule.IsEnabled);
+        writer.WriteNumber("schemaVersion", 1);
+        writer.WriteString("ruleType", "chapter");
+        writer.WriteStartArray("rules");
+        foreach (var rule in rules)
+        {
+            writer.WriteStartObject();
+            writer.WriteString("name", rule.Name);
+            writer.WriteString("pattern", rule.Pattern);
+            writer.WriteBoolean("isEnabled", rule.IsEnabled);
+            writer.WriteEndObject();
+        }
+        writer.WriteEndArray();
         writer.WriteEndObject();
         writer.Flush();
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());

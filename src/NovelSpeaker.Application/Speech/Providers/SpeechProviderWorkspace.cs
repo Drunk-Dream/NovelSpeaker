@@ -202,14 +202,27 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
         }
     }
 
-    public async Task<ProviderExportResult> ExportAsync(
+    public Task<ProviderExportResult> ExportAsync(
         ProviderId providerId,
+        bool credentialsWarningAcknowledged,
+        CancellationToken cancellationToken) =>
+        ExportAsync([providerId], credentialsWarningAcknowledged, cancellationToken);
+
+    public async Task<ProviderExportResult> ExportAsync(
+        IReadOnlyList<ProviderId> providerIds,
         bool credentialsWarningAcknowledged,
         CancellationToken cancellationToken)
     {
-        var provider = await store.GetByIdAsync(providerId, cancellationToken).ConfigureAwait(false);
-        if (provider is null || provider.Configuration is not HttpSpeechProviderConfiguration ||
-            !ProviderConfigurationValidator.Validate(provider).IsValid)
+        ArgumentNullException.ThrowIfNull(providerIds);
+        var selected = providerIds.ToHashSet();
+        var providers = (await store.GetAllAsync(cancellationToken).ConfigureAwait(false))
+            .Where(provider => selected.Contains(provider.Id) &&
+                provider.Configuration is HttpSpeechProviderConfiguration &&
+                ProviderConfigurationValidator.Validate(provider).IsValid)
+            .OrderBy(provider => provider.SortOrder)
+            .ThenBy(provider => provider.Id.Value)
+            .ToArray();
+        if (providers.Length == 0)
         {
             return new ProviderExportResult(ProviderExportStatus.ProviderUnavailable, null,
                 "HTTP Provider 不可导出。");
@@ -217,7 +230,7 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
 
         return credentialsWarningAcknowledged
             ? new ProviderExportResult(ProviderExportStatus.Ready,
-                ProviderEnvelopeCodec.Write(provider), string.Empty)
+                ProviderEnvelopeCodec.Write(providers), string.Empty)
             : new ProviderExportResult(ProviderExportStatus.ConfirmationRequired, null, ExportWarning);
     }
 
