@@ -54,7 +54,7 @@ public sealed class BookImportRepositoryTests
 
         var repository = new BookImportRepository(factory);
         var now = DateTimeOffset.UtcNow;
-        var book = new Book("book-2", "书名", null, "demo.txt", "stored.txt", "hash-2", "utf-8", now, now, null, now);
+        var book = new Book("book-2", "书名", null, "demo.txt", "stored.txt", "hash-2", "utf-8", now, now, null, now, "简介");
         Chapter[] chapters =
         [
             new("c-1", "book-2", 0, 25, "第一章", 4, 3)
@@ -74,5 +74,8 @@ public sealed class BookImportRepositoryTests
         chapterCommand.CommandText = "SELECT SortOrder FROM Chapters WHERE BookId = 'book-2';";
         var sortOrder = Convert.ToInt32(await chapterCommand.ExecuteScalarAsync(CancellationToken.None));
         Assert.Equal(25, sortOrder);
+
+        var header = await new BookDetailsQuery(factory).GetHeaderAsync("book-2", CancellationToken.None);
+        Assert.Equal("简介", header?.Description);
     }
 }

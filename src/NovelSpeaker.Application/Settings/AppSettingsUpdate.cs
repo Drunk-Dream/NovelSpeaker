@@ -12,6 +12,8 @@ public sealed record AppSettingsUpdate
 
     public int? LongParagraphThreshold { get; init; }
 
+    public bool? SplitChaptersOnBlankLines { get; init; }
+
     public int? DefaultSpeakSpeed { get; init; }
 
     public int? PrefetchCount { get; init; }

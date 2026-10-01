@@ -29,12 +29,13 @@ public sealed class BookImportRepository : IBookImportRepository
             bookCommand.Transaction = transaction;
             bookCommand.CommandText =
                 """
-                INSERT INTO Books (Id, Title, Author, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, LastImportedAt, LastPlayedAt, UpdatedAt)
-                VALUES ($id, $title, $author, $originalFileName, $storedFilePath, $sourceHash, $encoding, $importedAt, $lastImportedAt, $lastPlayedAt, $updatedAt);
+                INSERT INTO Books (Id, Title, Author, Description, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, LastImportedAt, LastPlayedAt, UpdatedAt)
+                VALUES ($id, $title, $author, $description, $originalFileName, $storedFilePath, $sourceHash, $encoding, $importedAt, $lastImportedAt, $lastPlayedAt, $updatedAt);
                 """;
             bookCommand.Parameters.AddWithValue("$id", book.Id);
             bookCommand.Parameters.AddWithValue("$title", book.Title);
             bookCommand.Parameters.AddWithValue("$author", (object?)book.Author ?? DBNull.Value);
+            bookCommand.Parameters.AddWithValue("$description", (object?)book.Description ?? DBNull.Value);
             bookCommand.Parameters.AddWithValue("$originalFileName", book.OriginalFileName);
             bookCommand.Parameters.AddWithValue("$storedFilePath", book.StoredFilePath);
             bookCommand.Parameters.AddWithValue("$sourceHash", book.SourceHash);

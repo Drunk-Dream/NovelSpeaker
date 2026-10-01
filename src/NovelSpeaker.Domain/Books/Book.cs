@@ -14,4 +14,5 @@ public sealed record Book(
     DateTimeOffset ImportedAt,
     DateTimeOffset LastImportedAt,
     DateTimeOffset? LastPlayedAt,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? Description = null);

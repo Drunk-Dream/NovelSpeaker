@@ -38,6 +38,7 @@ public sealed class JsonAppSettingsStoreTests
         var settings = await store.LoadAsync(CancellationToken.None);
 
         Assert.True(settings.EnableLongParagraphSplitting);
+        Assert.False(settings.SplitChaptersOnBlankLines);
         Assert.Equal(300, settings.LongParagraphThreshold);
         Assert.Equal(50, settings.DefaultSpeakSpeed);
         Assert.Equal(2, settings.PrefetchCount);
@@ -61,6 +62,7 @@ public sealed class JsonAppSettingsStoreTests
         var settings = (await store.LoadAsync(CancellationToken.None)) with
         {
             EnableLongParagraphSplitting = false,
+            SplitChaptersOnBlankLines = true,
             LongParagraphThreshold = 42,
             CurrentProviderId = ProviderId.FromLegacyHttpTtsRuleId(42),
             ReadChapterTitle = true,
@@ -79,6 +81,7 @@ public sealed class JsonAppSettingsStoreTests
         var reloaded = await store.LoadAsync(CancellationToken.None);
 
         Assert.False(reloaded.EnableLongParagraphSplitting);
+        Assert.True(reloaded.SplitChaptersOnBlankLines);
         Assert.Equal(50, reloaded.LongParagraphThreshold);
         Assert.Equal(ProviderId.FromLegacyHttpTtsRuleId(42), reloaded.CurrentProviderId);
         Assert.True(reloaded.ReadChapterTitle);

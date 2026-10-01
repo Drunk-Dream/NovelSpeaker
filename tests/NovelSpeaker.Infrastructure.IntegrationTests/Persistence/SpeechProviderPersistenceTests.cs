@@ -37,7 +37,7 @@ public sealed class SpeechProviderPersistenceTests
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
         await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
-        Assert.Equal(9, await GetSchemaVersionAsync(factory));
+        Assert.Equal(10, await GetSchemaVersionAsync(factory));
         var http = Assert.Single(await store.GetAllAsync(CancellationToken.None));
         Assert.Equal("HTTP", http.Name);
         Assert.Equal(5, http.SortOrder);
@@ -153,7 +153,7 @@ public sealed class SpeechProviderPersistenceTests
 
         await Assert.ThrowsAsync<IOException>(() => initializer.InitializeAsync(CancellationToken.None));
         Assert.Equal(missingLegacySelection, settingsService.Current.CurrentProviderId);
-        Assert.Equal(9, await GetSchemaVersionAsync(factory));
+        Assert.Equal(10, await GetSchemaVersionAsync(factory));
 
         await initializer.InitializeAsync(CancellationToken.None);
 

@@ -24,6 +24,8 @@ public static class PersistenceRegistration
         services.TryAddSingleton<SqliteMigrationRunner>();
         services.TryAddSingleton<IProviderStore, SqliteProviderStore>();
         services.TryAddSingleton<IChapterRuleRepository, ChapterRuleRepository>();
+        services.TryAddSingleton<IFileNameMetadataRuleRepository, FileNameMetadataRuleRepository>();
+        services.TryAddSingleton<ITextHeaderMetadataRuleRepository, TextHeaderMetadataRuleRepository>();
         services.TryAddSingleton<IRegexReplacementRuleRepository, RegexReplacementRuleRepository>();
         services.TryAddSingleton<IBookImportRepository, BookImportRepository>();
         services.TryAddSingleton<IBookOperationJournal, SqliteBookOperationJournal>();

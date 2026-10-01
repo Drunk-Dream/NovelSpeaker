@@ -10,7 +10,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 9;
+    private const int CurrentSchemaVersion = 10;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -267,6 +267,34 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 FOREIGN KEY(ProviderId) REFERENCES SpeechProviders(Id) ON DELETE CASCADE
             );
             CREATE UNIQUE INDEX IX_SpeechProviders_EdgeSingleton ON SpeechProviders(Type) WHERE Type = 2;
+            """),
+        new(10,
+            """
+            ALTER TABLE Books ADD COLUMN Description TEXT NULL;
+
+            CREATE TABLE FileNameMetadataRules (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Pattern TEXT NOT NULL,
+                SortOrder INTEGER NOT NULL,
+                IsEnabled INTEGER NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
+            CREATE INDEX IX_FileNameMetadataRules_SortOrder
+                ON FileNameMetadataRules(SortOrder, Id);
+
+            CREATE TABLE TextHeaderMetadataRules (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Name TEXT NOT NULL,
+                Pattern TEXT NOT NULL,
+                SortOrder INTEGER NOT NULL,
+                IsEnabled INTEGER NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL
+            );
+            CREATE INDEX IX_TextHeaderMetadataRules_SortOrder
+                ON TextHeaderMetadataRules(SortOrder, Id);
             """)
     ];
 

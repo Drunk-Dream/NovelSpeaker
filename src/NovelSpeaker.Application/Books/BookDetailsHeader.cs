@@ -6,4 +6,5 @@ namespace NovelSpeaker.Application.Books;
 public sealed record BookDetailsHeader(
     string Id,
     string Title,
-    string? Author);
+    string? Author,
+    string? Description = null);

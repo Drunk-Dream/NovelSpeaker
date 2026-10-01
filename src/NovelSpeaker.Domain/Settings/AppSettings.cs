@@ -24,7 +24,8 @@ public sealed record AppSettings(
     bool ReadChapterTitle = true,
     double PlaybackVolume = 1d,
     bool EnablePerformanceTelemetry = false,
-    IReadOnlyList<string>? EnabledExperimentalFeatureIds = null)
+    IReadOnlyList<string>? EnabledExperimentalFeatureIds = null,
+    bool SplitChaptersOnBlankLines = false)
 {
     public const int MinSpeakSpeed = 0;
     public const int MaxSpeakSpeed = 100;

@@ -32,7 +32,7 @@ public sealed class BookLibraryPersistenceTests
     public async Task Independent_detail_queries_and_UpdateMetadataAsync_return_expected_projections()
     {
         var fixture = await CreateFixtureAsync();
-        await SeedBookAsync(fixture, "book-1", title: "原书名", author: null);
+        await SeedBookAsync(fixture, "book-1", title: "原书名", author: null, description: "旧简介");
         await fixture.ProgressStore.SaveAsync(new PlaybackProgressUpdate("book-1", 1, 0, 8, 240), CancellationToken.None);
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
@@ -55,12 +55,14 @@ public sealed class BookLibraryPersistenceTests
         Assert.NotNull(header);
         Assert.Equal("原书名", header!.Title);
         Assert.Null(header.Author);
+        Assert.Equal("旧简介", header.Description);
         Assert.Equal(2, catalog.Count);
         Assert.Equal(1, readingPosition!.ChapterIndex);
         Assert.NotNull(statistics);
         Assert.True(statistics!.CachedAudioBytes > 0);
         Assert.Equal("新书名", updated.Title);
         Assert.Equal("作者甲", updated.Author);
+        Assert.Equal("旧简介", updated.Description);
     }
 
     [Fact]
@@ -374,7 +376,12 @@ public sealed class BookLibraryPersistenceTests
         return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, query, detailsQuery, metadata, deletion);
     }
 
-    private static async Task<string> SeedBookAsync(TestFixture fixture, string bookId, string title, string? author)
+    private static async Task<string> SeedBookAsync(
+        TestFixture fixture,
+        string bookId,
+        string title,
+        string? author,
+        string? description = null)
     {
         var storedDirectory = Path.Combine(fixture.Directories.BooksDirectoryPath, bookId);
         Directory.CreateDirectory(storedDirectory);
@@ -395,7 +402,8 @@ public sealed class BookLibraryPersistenceTests
                 now,
                 now,
                 null,
-                now),
+                now,
+                description),
             [
                 new Domain.Books.Chapter($"{bookId}-chapter-1", bookId, 0, 0, "第一章", 0, 6),
                 new Domain.Books.Chapter($"{bookId}-chapter-2", bookId, 1, 1, "第二章", 6, 6)

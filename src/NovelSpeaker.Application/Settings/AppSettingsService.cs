@@ -66,6 +66,7 @@ public sealed class AppSettingsService :
         {
             EnableLongParagraphSplitting = update.EnableLongParagraphSplitting ?? current.EnableLongParagraphSplitting,
             LongParagraphThreshold = update.LongParagraphThreshold ?? current.LongParagraphThreshold,
+            SplitChaptersOnBlankLines = update.SplitChaptersOnBlankLines ?? current.SplitChaptersOnBlankLines,
             DefaultSpeakSpeed = update.DefaultSpeakSpeed ?? current.DefaultSpeakSpeed,
             PrefetchCount = update.PrefetchCount ?? current.PrefetchCount,
             LogLevel = update.LogLevel ?? current.LogLevel,
