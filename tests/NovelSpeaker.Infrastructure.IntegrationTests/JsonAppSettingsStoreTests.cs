@@ -45,7 +45,6 @@ public sealed class JsonAppSettingsStoreTests
         Assert.True(settings.ReadChapterTitle);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
-        Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
         Assert.Equal(AppSettings.DefaultCacheLimitBytes, settings.CacheLimitBytes);
         Assert.Equal(AppSettings.DefaultPlaybackVolumeValue, settings.PlaybackVolume);
     }
@@ -73,8 +72,7 @@ public sealed class JsonAppSettingsStoreTests
             MiniPlayerLeft = 123.5,
             MiniPlayerTop = 456.25,
             MiniPlayerTopmost = true,
-            EnabledExperimentalFeatureIds = ["microsoft-edge-tts", "unknown-feature"],
-            BookFileNameTemplate = "《{{name}}》 - {{author}}"
+            EnabledExperimentalFeatureIds = ["microsoft-edge-tts", "unknown-feature"]
         };
 
         await store.SaveAsync(settings, CancellationToken.None);
@@ -93,7 +91,6 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(456.25, reloaded.MiniPlayerTop);
         Assert.True(reloaded.MiniPlayerTopmost);
         Assert.Equal(["microsoft-edge-tts", "unknown-feature"], reloaded.EnabledExperimentalFeatureIds);
-        Assert.Equal("《{{name}}》 - {{author}}", reloaded.BookFileNameTemplate);
     }
 
     [Fact]
@@ -114,23 +111,6 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(ProviderId.FromLegacyHttpTtsRuleId(42), settings.CurrentProviderId);
         Assert.Contains("CurrentProviderId", persisted, StringComparison.Ordinal);
         Assert.DoesNotContain("SelectedTtsRuleId", persisted, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task SaveAsync_preserves_empty_file_name_template()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var root = temporaryDirectory.Path;
-        var directories = new AppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        await store.SaveAsync(
-            AppSettings.Default with { BookFileNameTemplate = "   " },
-            CancellationToken.None);
-        var reloaded = await store.LoadAsync(CancellationToken.None);
-
-        Assert.Equal(string.Empty, reloaded.BookFileNameTemplate);
     }
 
     [Fact]
@@ -165,7 +145,6 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(2, settings.PrefetchCount);
         Assert.Equal("Information", settings.LogLevel);
         Assert.Equal("System", settings.Theme);
-        Assert.Equal(AppSettings.DefaultBookFileNameTemplate, settings.BookFileNameTemplate);
         Assert.Equal(AppSettings.MinCacheLimitBytes, settings.CacheLimitBytes);
         Assert.Equal(AppSettings.DefaultPlaybackVolumeValue, settings.PlaybackVolume);
     }

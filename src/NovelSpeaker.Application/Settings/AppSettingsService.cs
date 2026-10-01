@@ -9,7 +9,6 @@ namespace NovelSpeaker.Application.Settings;
 /// </summary>
 public sealed class AppSettingsService :
     IAppSettingsService,
-    IBookFileNameTemplateProvider,
     ITextSegmentationOptionsProvider,
     IDisposable
 {
@@ -30,12 +29,6 @@ public sealed class AppSettingsService :
     public event EventHandler<AppSettingsChangedEventArgs>? Changed;
 
     public TextSegmentationOptions GetCurrent() => Current.ToTextSegmentationOptions();
-
-    public Task<string> GetCurrentTemplateAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(Current.BookFileNameTemplate!);
-    }
 
     public async Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
     {
@@ -71,7 +64,6 @@ public sealed class AppSettingsService :
             PrefetchCount = update.PrefetchCount ?? current.PrefetchCount,
             LogLevel = update.LogLevel ?? current.LogLevel,
             Theme = update.Theme ?? current.Theme,
-            BookFileNameTemplate = update.BookFileNameTemplate ?? current.BookFileNameTemplate,
             CacheLimitBytes = update.CacheLimitBytes ?? current.CacheLimitBytes,
             PlaybackVolume = update.PlaybackVolume ?? current.PlaybackVolume,
             EnablePerformanceTelemetry = update.EnablePerformanceTelemetry ?? current.EnablePerformanceTelemetry,

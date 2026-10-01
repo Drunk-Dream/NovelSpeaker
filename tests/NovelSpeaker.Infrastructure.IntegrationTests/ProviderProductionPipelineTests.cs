@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NAudio.Wave;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Cache;
@@ -366,6 +367,9 @@ public sealed class ProviderProductionPipelineTests
                 .AddSingleton<IAudioPlayer>(fixture.Player)
                 .AddSingleton<IEdgeSpeechTransport>(fixture.Edge)
                 .AddNovelSpeakerApplication(settings).AddNovelSpeakerInfrastructure();
+            services.RemoveAll<ISqliteConnectionFactory>();
+            services.AddSingleton<ISqliteConnectionFactory>(provider =>
+                new SqliteConnectionFactory(provider.GetRequiredService<IAppDataDirectoryProvider>(), null, pooling: false));
             if (observeConcurrentRequests)
             {
                 services.AddSingleton<ProviderRequestLimiter>().AddSingleton<AdmissionObserver>()
@@ -424,15 +428,8 @@ public sealed class ProviderProductionPipelineTests
 
         public async ValueTask DisposeAsync()
         {
-            var databasePath = Services.GetRequiredService<IAppDataDirectoryProvider>().DatabasePath;
             await Services.DisposeAsync();
             await Server.DisposeAsync();
-            using (var connection = new SqliteConnection($"Data Source={databasePath}"))
-            {
-                connection.Open();
-                SqliteConnection.ClearPool(connection);
-                connection.Close();
-            }
             Directory.Delete(_root, true);
         }
     }

@@ -7,6 +7,7 @@ using NovelSpeaker.App.Features.Appearance;
 using NovelSpeaker.App.Features.Books.Details;
 using NovelSpeaker.App.Features.Cache;
 using NovelSpeaker.App.Features.Rules.Chapter;
+using NovelSpeaker.App.Features.Rules.Metadata;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Features.GeneralSettings;
 using NovelSpeaker.App.Features.ExperimentalFeatures;
@@ -43,6 +44,7 @@ public static class ServiceCollectionExtensions
             .AddBookDetailsFeature()
             .AddCacheFeature()
             .AddChapterRulesFeature()
+            .AddMetadataRulesFeature()
             .AddDiagnosticsFeature()
             .AddGeneralSettingsFeature()
             .AddExperimentalFeaturesFeature()

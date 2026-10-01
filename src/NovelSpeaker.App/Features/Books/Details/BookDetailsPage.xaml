@@ -126,6 +126,23 @@
                                      Text="{Binding EditAuthor, UpdateSourceTrigger=PropertyChanged}"
                                      AutomationProperties.Name="作者" />
 
+                            <StackPanel Margin="0,16,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasDescription}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Style="{StaticResource App.Typography.FormLabel}" Text="简介" />
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="{Binding DisplayDescription}"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
                             <Grid Margin="0,20,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />

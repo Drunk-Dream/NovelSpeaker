@@ -3,6 +3,7 @@ using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.Import;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.TestKit.Common;
 using Xunit;
 
@@ -80,7 +81,7 @@ public sealed class BookImportServiceTests
     }
 
     [Fact]
-    public async Task ImportAsync_uses_template_metadata_when_match_succeeds()
+    public async Task ImportAsync_uses_filename_metadata_rule_when_match_succeeds()
     {
         var repository = new CapturingBookImportRepository();
         var service = CreateService(
@@ -99,6 +100,42 @@ public sealed class BookImportServiceTests
         Assert.NotNull(repository.SavedBook);
         Assert.Equal("信息全知者", repository.SavedBook!.Title);
         Assert.Equal("魔性沧月", repository.SavedBook.Author);
+    }
+
+    [Fact]
+    public async Task ImportAsync_recognizes_header_metadata_without_removing_text_and_obeys_blank_switch()
+    {
+        const string text = "书名：正文书名\n作者：正文作者\n简介：正文简介\n\n第一章 开始\n正文甲\n\n正文乙\n";
+        var repository = new CapturingBookImportRepository();
+        var fileStore = new FakeBookFileStore();
+        var service = CreateService(
+            normalizer: new FakeTextNormalizer(text),
+            splitter: new ChapterSplitter(),
+            fileStore: fileStore,
+            repository: repository,
+            fileNameRules: [],
+            headerRules:
+            [
+                new TextHeaderMetadataRule("name", "书名", @"^书名：(?<name>.+)$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+                new TextHeaderMetadataRule("author", "作者", @"^作者：(?<author>.+)$", 20, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch),
+                new TextHeaderMetadataRule("description", "简介", @"^简介：(?<description>.+)$", 30, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+            ],
+            rules: new FakeChapterRuleRepository(
+            [
+                new ChapterRule("chapter", "章节", @"^第一章 .+$", 10, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+            ]),
+            splitOnBlankLines: true,
+            idGenerator: new SequenceBookImportIdGenerator("book-id", "chapter-1", "chapter-2"));
+
+        var result = await service.ImportAsync(
+            new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None);
+
+        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
+        Assert.Equal("正文书名", repository.SavedBook?.Title);
+        Assert.Equal("正文作者", repository.SavedBook?.Author);
+        Assert.Equal("正文简介", repository.SavedBook?.Description);
+        Assert.Equal(text, fileStore.LastNormalizedText);
+        Assert.Equal(["第一章 开始", "第 2 节"], repository.SavedChapters?.Select(chapter => chapter.Title));
     }
 
     [Fact]
@@ -244,10 +281,13 @@ public sealed class BookImportServiceTests
         FakeContentHasher? hasher = null,
         FakeDuplicateDetector? duplicates = null,
         FakeChapterRuleRepository? rules = null,
-        FakeChapterSplitter? splitter = null,
+        IChapterSplitter? splitter = null,
         FakeBookFileStore? fileStore = null,
         IBookImportRepository? repository = null,
         IBookOperationJournal? journal = null,
+        IReadOnlyList<FileNameMetadataRule>? fileNameRules = null,
+        IReadOnlyList<TextHeaderMetadataRule>? headerRules = null,
+        bool splitOnBlankLines = false,
         TimeProvider? timeProvider = null,
         IBookImportIdGenerator? idGenerator = null)
     {
@@ -261,8 +301,14 @@ public sealed class BookImportServiceTests
             fileStore ?? new FakeBookFileStore(),
             repository ?? new FakeBookImportRepository(),
             journal ?? new FakeBookOperationJournal(),
-            new FakeBookFileNameTemplateProvider("{{name}} 作者：{{author}}"),
-            new BookFileNameMetadataParser(),
+            new FakeFileNameMetadataRuleRepository(fileNameRules ??
+            [
+                new FileNameMetadataRule("default", "默认", @"^(?<name>.+?)\s+作者[:：]\s*(?<author>.+)$", 10, true,
+                    DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch)
+            ]),
+            new FakeTextHeaderMetadataRuleRepository(headerRules ?? []),
+            new FakeAppSettingsService(AppSettings.Default with { SplitChaptersOnBlankLines = splitOnBlankLines }),
+            new ImportMetadataExtractor(),
             timeProvider ?? TimeProvider.System,
             idGenerator ?? new SequenceBookImportIdGenerator("book-id", "chapter-id"));
     }
@@ -504,19 +550,27 @@ public sealed class BookImportServiceTests
         }
     }
 
-    private sealed class FakeBookFileNameTemplateProvider : IBookFileNameTemplateProvider
+    private sealed class FakeFileNameMetadataRuleRepository(IReadOnlyList<FileNameMetadataRule> rules) : IFileNameMetadataRuleRepository
     {
-        private readonly string _template;
+        public Task<IReadOnlyList<FileNameMetadataRule>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult(rules);
+        public Task SaveAsync(FileNameMetadataRule rule, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DeleteAsync(string ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SaveOrderAsync(IReadOnlyList<(string RuleId, int SortOrder)> order, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
-        public FakeBookFileNameTemplateProvider(string template)
-        {
-            _template = template;
-        }
+    private sealed class FakeTextHeaderMetadataRuleRepository(IReadOnlyList<TextHeaderMetadataRule> rules) : ITextHeaderMetadataRuleRepository
+    {
+        public Task<IReadOnlyList<TextHeaderMetadataRule>> GetAllAsync(CancellationToken cancellationToken) => Task.FromResult(rules);
+        public Task SaveAsync(TextHeaderMetadataRule rule, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task DeleteAsync(string ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task SaveOrderAsync(IReadOnlyList<(string RuleId, int SortOrder)> order, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
-        public Task<string> GetCurrentTemplateAsync(CancellationToken cancellationToken)
-        {
-            return Task.FromResult(_template);
-        }
+    private sealed class FakeAppSettingsService(AppSettings settings) : IAppSettingsService
+    {
+        public AppSettings Current => settings;
+        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
+        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) => Task.FromResult(settings);
     }
 
     private sealed class CapturingBookImportRepository : IBookImportRepository

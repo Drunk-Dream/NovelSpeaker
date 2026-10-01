@@ -22,8 +22,6 @@ public sealed record AppSettingsUpdate
 
     public string? Theme { get; init; }
 
-    public string? BookFileNameTemplate { get; init; }
-
     public long? CacheLimitBytes { get; init; }
 
     public ProviderId? CurrentProviderId { get; init; }

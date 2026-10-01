@@ -17,7 +17,7 @@ public static class BooksRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<IChapterRuleManagementService, ChapterRuleManagementService>();
-        services.TryAddSingleton<BookFileNameMetadataParser>();
+        services.TryAddSingleton<ImportMetadataExtractor>();
         services.TryAddSingleton<ITextNormalizer, TextNormalizer>();
         services.TryAddSingleton<IChapterSplitter, ChapterSplitter>();
         services.TryAddSingleton<IBookImportIdGenerator, BookImportIdGenerator>();

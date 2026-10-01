@@ -20,6 +20,7 @@ using NovelSpeaker.App.Desktop.Lifecycle;
 using NovelSpeaker.App.Desktop.MiniPlayer;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Features.ExperimentalFeatures;
+using NovelSpeaker.App.Features.Rules.Metadata;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Features.Books.Library;
 using NovelSpeaker.App.Shell.Navigation;
@@ -113,6 +114,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<CacheAndDataViewModel>(provider.GetRequiredService<CacheAndDataViewModel>());
                 Assert.IsType<CacheManagementViewModel>(provider.GetRequiredService<CacheManagementViewModel>());
                 Assert.IsType<ChapterRulesViewModel>(provider.GetRequiredService<ChapterRulesViewModel>());
+                Assert.IsType<FileNameMetadataRulesViewModel>(provider.GetRequiredService<FileNameMetadataRulesViewModel>());
+                Assert.IsType<TextHeaderMetadataRulesViewModel>(provider.GetRequiredService<TextHeaderMetadataRulesViewModel>());
                 Assert.IsType<LibraryViewModel>(provider.GetRequiredService<LibraryViewModel>());
                 Assert.IsType<PlayerViewModel>(provider.GetRequiredService<PlayerViewModel>());
                 Assert.IsType<RegexReplacementRulesViewModel>(provider.GetRequiredService<RegexReplacementRulesViewModel>());
@@ -130,6 +133,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<PlayerPage>(provider.GetRequiredService<PlayerPage>());
                 Assert.IsType<SpeechServicesPage>(provider.GetRequiredService<SpeechServicesPage>());
                 Assert.IsType<ChapterRulesPage>(provider.GetRequiredService<ChapterRulesPage>());
+                Assert.IsType<FileNameMetadataRulesPage>(provider.GetRequiredService<FileNameMetadataRulesPage>());
+                Assert.IsType<TextHeaderMetadataRulesPage>(provider.GetRequiredService<TextHeaderMetadataRulesPage>());
                 Assert.IsType<BookDetailsPage>(provider.GetRequiredService<BookDetailsPage>());
                 Assert.IsType<CacheManagementPage>(provider.GetRequiredService<CacheManagementPage>());
                 Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
@@ -143,8 +148,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                 Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());
                 Assert.IsAssignableFrom<IAudioCacheLimitProvider>(provider.GetRequiredService<IAudioCacheLimitProvider>());
-                Assert.IsAssignableFrom<IBookFileNameTemplateProvider>(
-                    provider.GetRequiredService<IBookFileNameTemplateProvider>());
                 Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
                     provider.GetRequiredService<ITextSegmentationOptionsProvider>());
                 Assert.IsAssignableFrom<ITextSegmenter>(provider.GetRequiredService<ITextSegmenter>());
@@ -205,9 +208,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Equal(
                     provider.GetRequiredService<IAppSettingsService>().Current.CacheLimitBytes,
                     provider.GetRequiredService<IAudioCacheLimitProvider>().GetCurrentLimitBytes());
-                Assert.Same(
-                    provider.GetRequiredService<IAppSettingsService>(),
-                    provider.GetRequiredService<IBookFileNameTemplateProvider>());
                 Assert.Same(
                     provider.GetRequiredService<IAppSettingsService>(),
                     provider.GetRequiredService<ITextSegmentationOptionsProvider>());

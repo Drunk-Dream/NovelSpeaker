@@ -11,11 +11,18 @@ public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
 {
     private readonly IAppDataDirectoryProvider _directories;
     private readonly IObservability _observability;
+    private readonly bool _pooling;
 
     public SqliteConnectionFactory(IAppDataDirectoryProvider directories, IObservability? observability = null)
+        : this(directories, observability, pooling: true)
+    {
+    }
+
+    internal SqliteConnectionFactory(IAppDataDirectoryProvider directories, IObservability? observability, bool pooling)
     {
         _directories = directories;
         _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
+        _pooling = pooling;
         SqliteRuntimeInitializer.EnsureInitialized();
     }
 
@@ -24,7 +31,10 @@ public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
         cancellationToken.ThrowIfCancellationRequested();
         using var operation = _observability.StartOperation(OperationCatalog.StorageConnectionOpen);
 
-        var connection = new SqliteConnection($"Data Source={_directories.DatabasePath}")
+        var connectionString = _pooling
+            ? $"Data Source={_directories.DatabasePath}"
+            : new SqliteConnectionStringBuilder { DataSource = _directories.DatabasePath, Pooling = false }.ToString();
+        var connection = new SqliteConnection(connectionString)
         {
             DefaultTimeout = 5
         };

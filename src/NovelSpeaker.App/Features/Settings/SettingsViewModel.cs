@@ -22,10 +22,10 @@ public sealed partial class SettingsViewModel : ObservableObject
                     new SettingsNavigationItemViewModel("语音服务", SettingsNavigationIcon.SpeechServices, OpenSpeechServicesCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
-                "文本处理",
+                "导入与文本",
                 [
-                    new SettingsNavigationItemViewModel("导入与文本", SettingsNavigationIcon.ImportText, OpenImportTextSettingsCommand),
-                    new SettingsNavigationItemViewModel("章节规则", SettingsNavigationIcon.ChapterRules, OpenChapterRulesCommand)
+                    new SettingsNavigationItemViewModel("导入", SettingsNavigationIcon.ImportText, OpenImportTextSettingsCommand),
+                    new SettingsNavigationItemViewModel("正则替换", SettingsNavigationIcon.RegexReplacement, OpenRegexReplacementRulesCommand)
                 ]),
             new SettingsNavigationGroupViewModel(
                 "应用",
@@ -57,9 +57,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task OpenChapterRulesAsync(CancellationToken cancellationToken)
+    private Task OpenRegexReplacementRulesAsync(CancellationToken cancellationToken)
     {
-        return _navigator.NavigateAsync(AppRoutes.ChapterRules, cancellationToken);
+        return _navigator.NavigateAsync(AppRoutes.RegexReplacementRules, cancellationToken);
     }
 
     [RelayCommand]

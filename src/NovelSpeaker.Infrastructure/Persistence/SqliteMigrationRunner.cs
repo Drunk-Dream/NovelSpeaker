@@ -10,7 +10,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 10;
+    private const int CurrentSchemaVersion = 11;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -295,6 +295,24 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
             );
             CREATE INDEX IX_TextHeaderMetadataRules_SortOrder
                 ON TextHeaderMetadataRules(SortOrder, Id);
+            """),
+        new(11,
+            """
+            INSERT OR IGNORE INTO FileNameMetadataRules
+                (Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt)
+            VALUES
+                ('default:filename-name-author', '书名与作者', '^(?<name>.+?)\s+作者[:：]\s*(?<author>.+)$', 10, 1,
+                 '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00');
+
+            INSERT OR IGNORE INTO TextHeaderMetadataRules
+                (Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt)
+            VALUES
+                ('default:header-name', '书名', '^书名[:：]\s*(?<name>.+)$', 10, 1,
+                 '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00'),
+                ('default:header-author', '作者', '^作者[:：]\s*(?<author>.+)$', 20, 1,
+                 '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00'),
+                ('default:header-description', '简介', '^简介[:：]\s*(?<description>.+)$', 30, 1,
+                 '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00');
             """)
     ];
 

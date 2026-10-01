@@ -37,7 +37,7 @@ public sealed class SpeechProviderPersistenceTests
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
         await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
-        Assert.Equal(10, await GetSchemaVersionAsync(factory));
+        Assert.Equal(11, await GetSchemaVersionAsync(factory));
         var http = Assert.Single(await store.GetAllAsync(CancellationToken.None));
         Assert.Equal("HTTP", http.Name);
         Assert.Equal(5, http.SortOrder);
@@ -153,7 +153,7 @@ public sealed class SpeechProviderPersistenceTests
 
         await Assert.ThrowsAsync<IOException>(() => initializer.InitializeAsync(CancellationToken.None));
         Assert.Equal(missingLegacySelection, settingsService.Current.CurrentProviderId);
-        Assert.Equal(10, await GetSchemaVersionAsync(factory));
+        Assert.Equal(11, await GetSchemaVersionAsync(factory));
 
         await initializer.InitializeAsync(CancellationToken.None);
 
@@ -200,7 +200,7 @@ public sealed class SpeechProviderPersistenceTests
         using var temporaryDirectory = new TemporaryDatabase();
         var directories = new AppDataDirectoryProvider(temporaryDirectory.Path);
         await directories.EnsureCreatedAsync(CancellationToken.None);
-        var factory = new SqliteConnectionFactory(directories);
+        var factory = new SqliteConnectionFactory(directories, null, pooling: false);
         await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
         var store = new SqliteProviderStore(factory);
         var first = CreateProvider("First", sortOrder: 1);
@@ -247,7 +247,7 @@ public sealed class SpeechProviderPersistenceTests
     {
         var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
-        var factory = new SqliteConnectionFactory(directories);
+        var factory = new SqliteConnectionFactory(directories, null, pooling: false);
         var migrations = SqliteMigrationRunner.AllMigrations.Where(migration => migration.Version <= 7).ToArray();
         await new SqliteMigrationRunner(factory, migrations).InitializeAsync(CancellationToken.None);
         return (directories, factory);
@@ -569,10 +569,6 @@ public sealed class SpeechProviderPersistenceTests
 
         public void Dispose()
         {
-            using var connection = new SqliteConnection($"Data Source={System.IO.Path.Combine(Path, "app.db")}");
-            connection.Open();
-            SqliteConnection.ClearPool(connection);
-            connection.Close();
             _directory.Dispose();
         }
     }

@@ -8,7 +8,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 public sealed class SqliteMigrationRunnerTests
 {
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_10()
+    public async Task InitializeAsync_creates_current_schema_as_version_11()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -29,7 +29,7 @@ public sealed class SqliteMigrationRunnerTests
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
         Assert.Equal(17, tableCount);
-        Assert.Equal(10, version);
+        Assert.Equal(11, version);
     }
 
     [Fact]
@@ -74,8 +74,53 @@ public sealed class SqliteMigrationRunnerTests
         Assert.Equal("旧书", reader.GetString(0));
         Assert.True(reader.IsDBNull(1));
         Assert.Equal("旧规则", reader.GetString(2));
-        Assert.Equal(0, reader.GetInt64(3));
-        Assert.Equal(0, reader.GetInt64(4));
+        Assert.Equal(1, reader.GetInt64(3));
+        Assert.Equal(3, reader.GetInt64(4));
+    }
+
+    [Fact]
+    public async Task Version_11_upgrade_seeds_existing_version_10_database_once()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var factory = new SqliteConnectionFactory(directories);
+        await new SqliteMigrationRunner(factory,
+            SqliteMigrationRunner.AllMigrations.Where(migration => migration.Version <= 10).ToArray())
+            .InitializeAsync(CancellationToken.None);
+
+        await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var count = connection.CreateCommand();
+            count.CommandText = "SELECT COUNT(*) FROM FileNameMetadataRules;";
+            Assert.Equal(0L, await count.ExecuteScalarAsync(CancellationToken.None));
+        }
+
+        var runner = new SqliteMigrationRunner(factory);
+        await runner.InitializeAsync(CancellationToken.None);
+
+        await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var count = connection.CreateCommand();
+            count.CommandText = "SELECT (SELECT COUNT(*) FROM FileNameMetadataRules), (SELECT COUNT(*) FROM TextHeaderMetadataRules);";
+            await using var reader = await count.ExecuteReaderAsync(CancellationToken.None);
+            Assert.True(await reader.ReadAsync(CancellationToken.None));
+            Assert.Equal(1, reader.GetInt64(0));
+            Assert.Equal(3, reader.GetInt64(1));
+        }
+
+        await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
+        {
+            var delete = connection.CreateCommand();
+            delete.CommandText = "DELETE FROM FileNameMetadataRules; DELETE FROM TextHeaderMetadataRules;";
+            await delete.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        await runner.InitializeAsync(CancellationToken.None);
+        await using var verification = await factory.OpenConnectionAsync(CancellationToken.None);
+        var remaining = verification.CreateCommand();
+        remaining.CommandText = "SELECT (SELECT COUNT(*) FROM FileNameMetadataRules) + (SELECT COUNT(*) FROM TextHeaderMetadataRules);";
+        Assert.Equal(0L, await remaining.ExecuteScalarAsync(CancellationToken.None));
     }
 
     [Fact]
@@ -263,7 +308,7 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(10, version);
+        Assert.Equal(11, version);
     }
 
     [Fact]
@@ -336,32 +381,32 @@ public sealed class SqliteMigrationRunnerTests
             () => runner.InitializeAsync(CancellationToken.None));
         Assert.Equal(3, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(10, exception.CurrentVersion);
-        Assert.Equal(10, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 10", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(11, exception.CurrentVersion);
+        Assert.Equal(11, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 11", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task InitializeAsync_rejects_newer_version_11_database_without_changing_it()
+    public async Task InitializeAsync_rejects_newer_version_12_database_without_changing_it()
     {
-        var (factory, _) = await CreateDatabaseAtVersionAsync(11);
+        var (factory, _) = await CreateDatabaseAtVersionAsync(12);
         var runner = new SqliteMigrationRunner(factory);
 
         var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
             () => runner.InitializeAsync(CancellationToken.None));
 
-        Assert.Equal(11, exception.DetectedVersion);
+        Assert.Equal(12, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(10, exception.CurrentVersion);
-        Assert.Equal(10, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 10", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(11, exception.CurrentVersion);
+        Assert.Equal(11, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 11", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
         var command = connection.CreateCommand();
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
-        Assert.Equal(11, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
+        Assert.Equal(12, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
     }
 
     [Fact]

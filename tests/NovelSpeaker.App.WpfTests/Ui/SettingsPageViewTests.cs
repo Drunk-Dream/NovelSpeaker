@@ -41,7 +41,7 @@ public sealed class SettingsPageViewTests
                 AppRoutes.PlaybackSettings,
                 AppRoutes.SpeechServices,
                 AppRoutes.ImportTextSettings,
-                AppRoutes.ChapterRules,
+                AppRoutes.RegexReplacementRules,
                 AppRoutes.CacheAndData,
                 AppRoutes.AppearanceSettings,
                 AppRoutes.ExperimentalFeatures,

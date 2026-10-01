@@ -4,6 +4,7 @@ using NovelSpeaker.App.Features.Appearance;
 using NovelSpeaker.App.Features.Books.Details;
 using NovelSpeaker.App.Features.Cache;
 using NovelSpeaker.App.Features.Rules.Chapter;
+using NovelSpeaker.App.Features.Rules.Metadata;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Features.ImportTextSettings;
 using NovelSpeaker.App.Features.GeneralSettings;
@@ -35,6 +36,8 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             [AppRouteId.ImportTextSettings] = typeof(ImportTextSettingsPage),
             [AppRouteId.RegexReplacementRules] = typeof(RegexReplacementRulesPage),
             [AppRouteId.ChapterRules] = typeof(ChapterRulesPage),
+            [AppRouteId.FileNameMetadataRules] = typeof(FileNameMetadataRulesPage),
+            [AppRouteId.TextHeaderMetadataRules] = typeof(TextHeaderMetadataRulesPage),
             [AppRouteId.CacheAndData] = typeof(CacheAndDataPage),
             [AppRouteId.CacheManagement] = typeof(CacheManagementPage),
             [AppRouteId.GeneralSettings] = typeof(GeneralSettingsPage),
@@ -228,13 +231,13 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
                 AppRouteId.SpeechServices or
                 AppRouteId.PlaybackSettings or
                 AppRouteId.ImportTextSettings or
-                AppRouteId.ChapterRules or
                 AppRouteId.CacheAndData or
                 AppRouteId.GeneralSettings or
                 AppRouteId.AppearanceSettings or
                 AppRouteId.ExperimentalFeatures or
                 AppRouteId.DiagnosticsAbout => AppRoutes.Settings,
-                AppRouteId.RegexReplacementRules => AppRoutes.ImportTextSettings,
+                AppRouteId.RegexReplacementRules => AppRoutes.Settings,
+                AppRouteId.ChapterRules or AppRouteId.FileNameMetadataRules or AppRouteId.TextHeaderMetadataRules => AppRoutes.ImportTextSettings,
                 AppRouteId.CacheManagement => AppRoutes.CacheAndData,
                 AppRouteId.Library or AppRouteId.Settings => null,
                 _ => throw new InvalidOperationException("The current route has no registered parent route.")
@@ -335,6 +338,8 @@ public sealed class ShellNavigationAdapter : IShellNavigationAdapter
             or AppRouteId.ImportTextSettings
             or AppRouteId.RegexReplacementRules
             or AppRouteId.ChapterRules
+            or AppRouteId.FileNameMetadataRules
+            or AppRouteId.TextHeaderMetadataRules
             or AppRouteId.CacheAndData
             or AppRouteId.CacheManagement
             or AppRouteId.GeneralSettings

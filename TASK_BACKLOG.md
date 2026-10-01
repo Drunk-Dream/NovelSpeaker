@@ -82,15 +82,13 @@ T003 预计会涉及 Book Description、元数据规则持久化和新的全局�
 
 # Phase B：TXT 导入与规则工作台
 
-## [ ] T003（P0）：实现元数据识别与空行分章导入链路
+## [x] T003（P0）：实现元数据识别与空行分章导入链路
 
 依赖：T002。
 
 目标：按 `BOOK_IMPORT.md` 实现文件名/正文头部元数据规则、Description、全局“空行分章”、章节原始标题展示与设置 IA 调整；移除旧 `BookFileNameTemplate`，保持无编码问题时选择 TXT 后直接导入。
 
-本任务涉及持久化前必须执行上文逐项授权流程。
-
-详细规格：`tasks/T003_BOOK_IMPORT_METADATA_AND_CHAPTERING.md`
+完成成果：独立文件名/正文头部元数据规则与默认规则接入直接 TXT 导入；Book Description 持久化并展示，空行分章按全局开关补充显式章节，设置入口重排并移除旧文件名模板。SQLite v11 升级保留旧书与旧规则，完整自动门禁通过。
 
 ## [ ] T004（P1）：增加规则与 Provider 批量交换
 

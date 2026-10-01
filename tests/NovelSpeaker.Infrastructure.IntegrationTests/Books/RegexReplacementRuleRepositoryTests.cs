@@ -1,4 +1,3 @@
-using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
 using NovelSpeaker.Domain.Books;
@@ -17,7 +16,7 @@ public sealed class RegexReplacementRuleRepositoryTests
         try
         {
             var directories = new AppDataDirectoryProvider(root);
-            var factory = new SqliteConnectionFactory(directories);
+            var factory = new SqliteConnectionFactory(directories, null, pooling: false);
             await directories.EnsureCreatedAsync(CancellationToken.None);
             await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
             var repository = new RegexReplacementRuleRepository(factory, TimeProvider.System);
@@ -62,12 +61,6 @@ public sealed class RegexReplacementRuleRepositoryTests
         {
             if (Directory.Exists(root))
             {
-                using (var connection = new SqliteConnection($"Data Source={Path.Combine(root, "app.db")}"))
-                {
-                    connection.Open();
-                    SqliteConnection.ClearPool(connection);
-                    connection.Close();
-                }
                 Directory.Delete(root, recursive: true);
             }
         }
