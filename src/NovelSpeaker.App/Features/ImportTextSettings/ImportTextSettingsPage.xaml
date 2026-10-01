@@ -22,7 +22,6 @@
                       HorizontalScrollBarVisibility="Disabled">
             <settingsControls:AppSettingsList x:Name="SettingsList"
                                               AutomationProperties.Name="导入设置">
-                <TextBlock Text="文本处理" Style="{StaticResource App.Typography.ItemTitle}" Margin="12,8,0,8" />
                 <settingsControls:AppSettingsRow x:Name="EnableLongParagraphSplittingRow"
                                                  Title="拆分长段落"
                                                  Description="导入时将超过阈值的段落拆分为较短段落。"
@@ -62,7 +61,6 @@
                     </StackPanel>
                 </settingsControls:AppSettingsRow>
 
-                <TextBlock Text="元数据识别" Style="{StaticResource App.Typography.ItemTitle}" Margin="12,16,0,8" />
                 <settingsControls:AppSettingsNavigationRow
                     x:Name="OpenFileNameMetadataRulesRow"
                     Icon="{x:Static theming:SettingsNavigationIcon.ImportText}"
@@ -76,7 +74,6 @@
                     Command="{Binding OpenTextHeaderMetadataRulesCommand}"
                     ToolTip="正文头部元数据规则" />
 
-                <TextBlock Text="章节识别" Style="{StaticResource App.Typography.ItemTitle}" Margin="12,16,0,8" />
                 <settingsControls:AppSettingsRow x:Name="SplitChaptersOnBlankLinesRow"
                                                  Title="空行分章"
                                                  Description="在章节规则之外，按正文块之间的空行补充分章。"
