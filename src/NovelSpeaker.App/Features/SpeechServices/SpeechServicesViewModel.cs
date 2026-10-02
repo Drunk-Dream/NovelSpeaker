@@ -32,7 +32,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     private readonly OwnedTaskRegistry _eventTasks = new();
     private readonly EditorSession<ProviderId?, HttpEditorDraft> _editor = new(DraftsEqual);
     private readonly ResettableObservableCollection<SpeechProviderListItemViewModel> _providers = [];
-    private readonly DesktopSelectionController<ProviderId> _selection = new();
+    private readonly ManagementSelectionController<ProviderId> _selection = new();
     private IReadOnlyList<SpeechProviderInstance> _completeOrder = [];
     private SpeechProviderInstance? _editingProvider;
     private CancellationTokenSource? _pageCts;
@@ -63,6 +63,13 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         _documents = documents;
         _scheduler = scheduler;
         _voiceCatalog = voiceCatalog;
+        _selection.StateChanged += (_, _) =>
+        {
+            SyncSelection();
+            OnPropertyChanged(nameof(IsManagementMode));
+            OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(CanReorder));
+        };
     }
 
     public ObservableCollection<SpeechProviderListItemViewModel> Providers => _providers;
@@ -101,6 +108,10 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     public bool CanTestDraft => (IsHttpEditor || IsEdgeEditor && DraftVoice is not null) && CanManage && !IsTestBusy;
     public bool IsPostMethod => DraftRequestMethod == "POST";
 
+    public bool IsManagementMode => _selection.IsManagementMode;
+    public int SelectedCount => _selection.SelectedCount;
+    public bool CanReorder => CanManage && !IsManagementMode;
+
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -119,6 +130,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     public void HandleNavigatedFrom()
     {
+        _selection.Reset();
         _isActive = false;
         _settings.Changed -= OnSettingsChanged;
         _preview.PlaybackFailed -= OnPreviewFailed;
@@ -144,6 +156,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     public bool TryHandleEscape()
     {
+        if (_selection.Exit()) return true;
         if (IsVoicePickerOpen) { IsVoicePickerOpen = false; return true; }
         if (!IsHelpDrawerOpen) return false;
         IsHelpDrawerOpen = false;
@@ -163,9 +176,10 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         TransitionAsync(async token =>
         {
             if (item is null) return;
+            if (_selection.HandleClick(item.Id)) return;
             if (SelectedProviderId == item.Id && !IsEditingNewProvider)
             {
-                SelectOnly(item);
+                SyncSelection();
                 return;
             }
             if (!await ConfirmLeaveAsync(token)) return;
@@ -176,29 +190,28 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
             else OpenEditor(provider, false);
         }, cancellationToken);
 
-    public Task SelectProviderWithModifiersAsync(SpeechProviderListItemViewModel? item,
+    public async Task SelectProviderWithModifiersAsync(SpeechProviderListItemViewModel? item,
         DesktopSelectionModifiers modifiers, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (item is null || !CanManage) return Task.CompletedTask;
-        if (modifiers == DesktopSelectionModifiers.None) return SelectProviderAsync(item, cancellationToken);
-        if (item.CanShare) _selection.Click(item.Id, modifiers);
-        SyncSelection();
-        return Task.CompletedTask;
-    }
-
-    private void SelectOnly(SpeechProviderListItemViewModel item)
-    {
-        if (item.CanShare) _selection.Click(item.Id);
-        else _selection.Clear();
-        SyncSelection();
+        if (item is null || !CanManage) return;
+        if (IsManagementMode || modifiers != DesktopSelectionModifiers.None)
+        {
+            await TransitionAsync(async token =>
+            {
+                if (!IsManagementMode && !await ConfirmLeaveAsync(token)) return;
+                token.ThrowIfCancellationRequested();
+                _selection.HandleClick(item.Id, modifiers);
+            }, cancellationToken);
+            return;
+        }
+        await SelectProviderAsync(item, cancellationToken);
     }
 
     private void SyncSelection()
     {
         foreach (var item in Providers)
-            item.IsSelected = _selection.IsSelected(item.Id) ||
-                (!item.CanShare && item.Id == SelectedProviderId && _selection.Count == 0);
+            item.IsSelected = IsManagementMode ? _selection.IsSelected(item.Id) : item.Id == SelectedProviderId;
     }
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -251,15 +264,16 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     private Task ExportAsync(SpeechProviderListItemViewModel? item, bool clipboard, CancellationToken cancellationToken) =>
         RunAsync(async token =>
         {
-            if (item?.CanShare != true || !CanManage) return;
+            if ((!IsManagementMode && item?.CanShare != true) || !CanManage) return;
             IsBusy = true;
             try
             {
-                var ids = _selection.IsSelected(item.Id) ? _selection.SelectedItems.ToArray() : [item.Id];
+                var ids = IsManagementMode ? _selection.SelectedItems.ToArray() : new[] { item!.Id };
+                if (ids.Length == 0) return;
                 var warning = await _workspace.ExportAsync(ids, false, token);
                 if (warning.Status != ProviderExportStatus.ConfirmationRequired)
                 {
-                    _feedback.ShowWarning("无法导出语音服务", warning.Message);
+                    _feedback.ShowWarning("无法导出语音服务", $"成功 0，跳过 {warning.SkippedCount}，失败 0。{warning.Message}");
                     return;
                 }
                 if (await _dialogs.ShowConfirmationAsync("导出凭据提示", warning.Message,
@@ -271,7 +285,8 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
                     return;
                 }
                 if (clipboard) await _documents.CopyAsync(result.Json, token);
-                else await _documents.ExportAsync("speech-provider.json", result.Json, token);
+                else if (!await _documents.ExportAsync("speech-provider.json", result.Json, token)) return;
+                _feedback.ShowSuccess("导出完成", $"成功 {result.ExportedCount}，跳过 {result.SkippedCount}，失败 0。");
             }
             finally { IsBusy = false; }
         }, cancellationToken);
@@ -280,6 +295,11 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     private Task DeleteProviderAsync(SpeechProviderListItemViewModel? item, CancellationToken cancellationToken) =>
         TransitionAsync(async token =>
         {
+            if (IsManagementMode)
+            {
+                await DeleteSelectedProvidersAsync(token);
+                return;
+            }
             if (item?.CanDelete != true || !await ConfirmLeaveAsync(token)) return;
             if (await _feedback.ConfirmDeletionAsync("删除语音服务", $"将删除语音服务“{item.Name}”。此操作不可撤销。",
                     token) != AppConfirmationDecision.Confirm) return;
@@ -442,7 +462,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         var visible = _completeOrder.Where(_workspace.IsVisible);
         _providers.ReplaceWith(visible, provider => new SpeechProviderListItemViewModel(provider.Id, provider.Name,
             provider.Type, _settings.Current.CurrentProviderId == provider.Id, false));
-        _selection.SetItems(Providers.Where(item => item.CanShare).Select(item => item.Id));
+        _selection.SetItems(Providers.Select(item => item.Id));
         SyncSelection();
         for (var index = 0; index < Providers.Count; index++)
         {
@@ -481,8 +501,6 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         {
             OpenEdgeEditor(provider.Id, edge);
         }
-        if (isNew || provider.Type != SpeechProviderType.Http) _selection.Clear();
-        else _selection.Click(provider.Id);
         SyncSelection();
         NotifyState();
     }
@@ -495,7 +513,6 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         _editingProvider = null;
         SelectedProviderId = null;
         IsHelpDrawerOpen = false;
-        _selection.Clear();
         SyncSelection();
         foreach (var entry in HeaderEntries) entry.PropertyChanged -= OnHeaderChanged;
         HeaderEntries.Clear();
@@ -563,10 +580,12 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     private void NotifyState()
     {
+        OnPropertyChanged(nameof(CanReorder));
         foreach (var property in new[] { nameof(HasEditor), nameof(IsHttpEditor), nameof(IsEdgeEditor), nameof(IsEditingNewProvider),
                      nameof(HasUnsavedChanges), nameof(CanManage), nameof(CanSaveDraft), nameof(CanCancelEditing), nameof(CanTestDraft), nameof(CanRefreshVoices) })
             OnPropertyChanged(property);
         NewProviderCommand.NotifyCanExecuteChanged();
+        EnterManagementCommand.NotifyCanExecuteChanged();
         SelectProviderCommand.NotifyCanExecuteChanged();
         ImportProvidersCommand.NotifyCanExecuteChanged();
         ImportProvidersFromClipboardCommand.NotifyCanExecuteChanged();
@@ -774,4 +793,51 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     private sealed record HttpEditorDraft(string Name, string Url, string Method, string Body,
         string MaxRequests, string WindowMilliseconds, IReadOnlyList<KeyValuePair<string, string>> Headers);
+    [RelayCommand(CanExecute = nameof(CanManage))]
+    private Task EnterManagementAsync(CancellationToken cancellationToken) => TransitionAsync(async token =>
+    {
+        if (IsManagementMode || !await ConfirmLeaveAsync(token)) return;
+        token.ThrowIfCancellationRequested();
+        _selection.Enter();
+    }, cancellationToken);
+
+    [RelayCommand]
+    private void CancelManagement() => _selection.Exit();
+
+    [RelayCommand]
+    private void SelectAll() => _selection.SelectAll();
+
+    public void HandleProviderRightClick(SpeechProviderListItemViewModel item) => _selection.HandleRightClick(item.Id);
+
+    private async Task DeleteSelectedProvidersAsync(CancellationToken cancellationToken)
+    {
+        if (_selection.SelectedCount == 0 || !await ConfirmLeaveAsync(cancellationToken)) return;
+        var items = Providers.Where(item => _selection.IsSelected(item.Id)).ToArray();
+        if (await _feedback.ConfirmDeletionAsync("删除语音服务", $"将删除所选的 {items.Length} 项语音服务，此操作不可撤销。", cancellationToken)
+            != AppConfirmationDecision.Confirm) return;
+        await StopTestAsync(cancellationToken);
+        IsBusy = true;
+        try
+        {
+            var succeeded = 0;
+            var skipped = 0;
+            var failed = 0;
+            foreach (var item in items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!item.CanDelete) { skipped++; continue; }
+                try
+                {
+                    await _workspace.DeleteAsync(item.Id, cancellationToken);
+                    succeeded++;
+                    if (_editingProvider?.Id == item.Id) CloseEditor();
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception) { failed++; }
+            }
+            await RefreshAsync(cancellationToken);
+            _feedback.ShowSuccess("删除完成", $"成功 {succeeded}，跳过 {skipped}，失败 {failed}。");
+        }
+        finally { IsBusy = false; }
+    }
 }

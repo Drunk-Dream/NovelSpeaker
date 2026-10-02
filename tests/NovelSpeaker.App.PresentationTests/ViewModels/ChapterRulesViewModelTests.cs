@@ -9,8 +9,11 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class ChapterRulesViewModelTests
 {
-    [Fact]
-    public async Task Bulk_selection_and_import_preserve_dirty_editor_and_export_visible_order()
+    [Theory]
+    [InlineData(UnsavedChangesDecision.Cancel)]
+    [InlineData(UnsavedChangesDecision.Save)]
+    [InlineData(UnsavedChangesDecision.Discard)]
+    public async Task Management_entry_guards_draft_and_selection_does_not_switch_editor(UnsavedChangesDecision decision)
     {
         var ids = new[] { "custom:one", "custom:two", "custom:three" };
         var workspace = new FakeChapterRuleWorkspaceService(ids.Select((id, index) =>
@@ -18,26 +21,89 @@ public sealed class ChapterRulesViewModelTests
         foreach (var id in ids)
             workspace.EditorsById[id] = new ChapterRuleEditorModel(id, id, "^chapter$", false, true);
         var documents = new FakeRuleDocumentInteraction { ClipboardDocument = new RuleImportDocument("{}", "fixture") };
-        var vm = CreateViewModel(workspaceService: workspace, ruleDocuments: documents);
+        var dialogs = new FakeAppDialogService { NextUnsavedDecision = decision };
+        var vm = CreateViewModel(workspaceService: workspace, ruleDocuments: documents, dialogService: dialogs);
         await vm.LoadAsync(CancellationToken.None);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        await vm.SelectRuleCommand.ExecuteAsync(vm.Rules[0]);
         vm.DraftName = "Unsaved";
         await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
-        Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+        Assert.Equal(ids[0], vm.CurrentRuleId);
+        if (decision == UnsavedChangesDecision.Cancel)
+        {
+            Assert.False(vm.IsManagementMode);
+            Assert.Equal("Unsaved", vm.DraftName);
+            Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+            return;
+        }
+        Assert.True(vm.IsManagementMode);
+        Assert.False(vm.HasUnsavedChanges);
+        Assert.Equal(ids[2], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.Equal(0, vm.SelectedCount);
+        Assert.True(vm.IsManagementMode);
         await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
         await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Shift, CancellationToken.None);
         Assert.All(vm.Rules, rule => Assert.True(rule.IsSelected));
         Assert.Equal(ids[0], vm.CurrentRuleId);
-        Assert.Equal("Unsaved", vm.DraftName);
+        vm.DraftName = "Another draft";
         await vm.CopyRuleCommand.ExecuteAsync(vm.Rules[1]);
         Assert.Equal(ids, workspace.LastExportedIds);
         await vm.ImportRulesFromClipboardAsync(CancellationToken.None);
-        Assert.Equal(ids[0], vm.CurrentRuleId);
-        Assert.Equal("Unsaved", vm.DraftName);
+        Assert.Equal("Another draft", vm.DraftName);
         Assert.True(vm.HasUnsavedChanges);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        vm.CancelManagementCommand.Execute(null);
+        Assert.False(vm.IsManagementMode);
         Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+        vm.HandleNavigatedFrom();
+        Assert.False(vm.IsManagementMode);
+        Assert.Equal(0, vm.SelectedCount);
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        Assert.Equal(vm.Rules.Count, vm.SelectedCount);
+    }
+
+    [Fact]
+    public async Task Batch_export_finishes_successfully_when_management_mode_is_closed_while_saving()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService([
+            new("custom:one", "规则", "^chapter$", true, 10, false, true)]);
+        var documents = new FakeRuleDocumentInteraction { ExportGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        var feedback = new FakeFeedbackService();
+        var vm = CreateViewModel(workspaceService: workspace, ruleDocuments: documents, feedbackService: feedback);
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        var export = vm.ExportRuleCommand.ExecuteAsync(null);
+        Assert.NotNull(documents.ExportedJson);
+        Assert.False(export.IsCompleted);
+        vm.CancelManagementCommand.Execute(null);
+        documents.ExportGate.SetResult(true);
+        await export;
+        Assert.Equal("章节规则已导出", feedback.LastTitle);
+        Assert.False(vm.IsManagementMode);
+    }
+
+    [Fact]
+    public async Task Batch_delete_continues_after_failure_skips_builtin_and_closes_deleted_editor()
+    {
+        var workspace = new FakeChapterRuleWorkspaceService([
+            new("failed", "失败", "^fail$", true, 10, false, true),
+            new("deleted", "删除", "^delete$", true, 20, false, true),
+            new("builtin", "内置", "^builtin$", true, 30, true, false)])
+        { FailedDeleteId = "failed" };
+        workspace.EditorsById["deleted"] = new("deleted", "删除", "^delete$", false, true);
+        var feedback = new FakeFeedbackService();
+        var vm = CreateViewModel(workspaceService: workspace, feedbackService: feedback);
+        await LoadAndSelectAsync(vm, "deleted");
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        await vm.DeleteSelectedRulesCommand.ExecuteAsync(null);
+        Assert.Equal(["failed", "builtin"], vm.Rules.Select(rule => rule.Id));
+        Assert.False(vm.HasEditor);
+        Assert.Equal(2, vm.SelectedCount);
+        Assert.Equal(1, feedback.DeletionPromptCount);
+        Assert.Equal("成功 1，跳过 1，失败 1。", feedback.LastMessage);
     }
 
     private async Task NewRuleAsync_saves_after_deduplication_and_selects_saved_rule()
@@ -549,6 +615,7 @@ public sealed class ChapterRulesViewModelTests
         public Exception? SaveOrderException { get; set; }
 
         public bool ThrowOnDelete { get; set; }
+        public string? FailedDeleteId { get; set; }
 
         public int SaveEditorCallCount { get; private set; }
 
@@ -614,7 +681,7 @@ public sealed class ChapterRulesViewModelTests
 
         public Task DeleteRuleAsync(string ruleId, CancellationToken cancellationToken)
         {
-            if (ThrowOnDelete)
+            if (ThrowOnDelete || ruleId == FailedDeleteId)
             {
                 throw new InvalidOperationException("删除失败。");
             }
@@ -700,6 +767,7 @@ public sealed class ChapterRulesViewModelTests
     private sealed class FakeFeedbackService : IAppFeedbackService
     {
         public string? LastTitle { get; private set; }
+        public int DeletionPromptCount { get; private set; }
 
         public string? LastMessage { get; private set; }
 
@@ -730,6 +798,7 @@ public sealed class ChapterRulesViewModelTests
 
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
         {
+            DeletionPromptCount++;
             LastTitle = title;
             LastMessage = message;
             return Task.FromResult(NextConfirmationDecision);

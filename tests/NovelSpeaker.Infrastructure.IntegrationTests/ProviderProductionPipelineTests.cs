@@ -391,7 +391,7 @@ public sealed class ProviderProductionPipelineTests
             var contentPath = Path.Combine(directories.BooksDirectoryPath, "content.txt");
             await File.WriteAllTextAsync(contentPath, text);
             await using var connection = await fixture.Services.GetRequiredService<ISqliteConnectionFactory>().OpenConnectionAsync(CancellationToken.None);
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText = """
                 INSERT INTO Books (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
                 VALUES ('book', 'Book', 'book.txt', 'Books/content.txt', 'provider-pipeline', 'utf-8', '2026-01-01', '2026-01-01');

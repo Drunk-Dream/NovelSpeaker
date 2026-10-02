@@ -11,31 +11,110 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class RegexReplacementRulesViewModelTests
 {
-    [Fact]
-    public async Task Bulk_selection_and_import_preserve_dirty_editor_and_export_visible_order()
+    [Theory]
+    [InlineData(UnsavedChangesDecision.Cancel)]
+    [InlineData(UnsavedChangesDecision.Save)]
+    [InlineData(UnsavedChangesDecision.Discard)]
+    public async Task Management_entry_guards_draft_and_selection_does_not_switch_editor(UnsavedChangesDecision decision)
     {
-        var fixture = CreateFixture(UnsavedChangesDecision.Cancel, ruleCount: 3);
+        var fixture = CreateFixture(decision, ruleCount: 3);
         var vm = fixture.ViewModel;
         await LoadAndSelectFirstAsync(fixture);
         var ids = vm.Rules.Select(rule => rule.Id).ToArray();
         vm.DraftPattern = "Unsaved";
         await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
-        Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+        Assert.Equal(ids[0], vm.SelectedRuleId);
+        if (decision == UnsavedChangesDecision.Cancel)
+        {
+            Assert.False(vm.IsManagementMode);
+            Assert.Equal("Unsaved", vm.DraftPattern);
+            Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+            return;
+        }
+        Assert.True(vm.IsManagementMode);
+        Assert.False(vm.HasUnsavedChanges);
+        Assert.Equal(ids[2], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.Equal(0, vm.SelectedCount);
+        Assert.True(vm.IsManagementMode);
         await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
         await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Shift, CancellationToken.None);
         Assert.All(vm.Rules, rule => Assert.True(rule.IsSelected));
         Assert.Equal(ids[0], vm.SelectedRuleId);
-        Assert.Equal("Unsaved", vm.DraftPattern);
+        vm.DraftPattern = "Another draft";
         await vm.CopyRuleCommand.ExecuteAsync(vm.Rules[1]);
         Assert.Equal(ids, fixture.Workspace.LastExportedIds);
         fixture.Documents.FileDocument = new RuleImportDocument("{}", "fixture");
         await vm.ImportRuleFileAsync(CancellationToken.None);
-        Assert.Equal(ids[0], vm.SelectedRuleId);
-        Assert.Equal("Unsaved", vm.DraftPattern);
+        Assert.Equal("Another draft", vm.DraftPattern);
         Assert.True(vm.HasUnsavedChanges);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        vm.CancelManagementCommand.Execute(null);
+        Assert.False(vm.IsManagementMode);
         Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
+        vm.HandleNavigatedFrom();
+        Assert.False(vm.IsManagementMode);
+        Assert.Equal(0, vm.SelectedCount);
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        Assert.Equal(vm.Rules.Count, vm.SelectedCount);
+    }
+
+    [Fact]
+    public async Task Batch_export_finishes_successfully_when_management_mode_is_closed_while_saving()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard);
+        fixture.Documents.ExportGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        var export = vm.ExportRuleCommand.ExecuteAsync(null);
+        Assert.NotNull(fixture.Documents.ExportedJson);
+        Assert.False(export.IsCompleted);
+        vm.CancelManagementCommand.Execute(null);
+        fixture.Documents.ExportGate.SetResult(true);
+        await export;
+        Assert.Null(fixture.Feedback.LastProjectedTitle);
+        Assert.Equal("正则替换规则已导出", fixture.Feedback.LastSuccessTitle);
+    }
+
+    [Fact]
+    public async Task Leaving_page_stops_remaining_deletes_but_refreshes_runtime_for_committed_deletion()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        var remainingId = vm.Rules[1].Id;
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        fixture.Feedback.DeletionDecision = AppConfirmationDecision.Confirm;
+        fixture.Workspace.AfterDelete = vm.HandleNavigatedFrom;
+        await vm.DeleteSelectedRulesCommand.ExecuteAsync(null);
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+        Assert.False(vm.IsManagementMode);
+        await vm.LoadAsync(CancellationToken.None);
+        Assert.Equal(remainingId, Assert.Single(vm.Rules).Id);
+    }
+
+    [Fact]
+    public async Task Batch_delete_continues_after_failure_and_refreshes_runtime_without_editor_fallback()
+    {
+        var fixture = CreateFixture(UnsavedChangesDecision.Discard, 3);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        var failedId = vm.Rules[0].Id;
+        fixture.Workspace.FailedDeleteId = failedId;
+        await vm.SelectRuleCommand.ExecuteAsync(vm.Rules[1]);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        fixture.Feedback.DeletionDecision = AppConfirmationDecision.Confirm;
+        await vm.DeleteSelectedRulesCommand.ExecuteAsync(null);
+        Assert.Equal(failedId, Assert.Single(vm.Rules).Id);
+        Assert.False(vm.HasEditor);
+        Assert.Equal(1, vm.SelectedCount);
+        Assert.Equal(1, fixture.Feedback.DeletionPromptCount);
+        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
     }
 
     private async Task LoadAsync_leaves_editor_closed_until_a_rule_is_clicked()
@@ -323,6 +402,8 @@ public sealed class RegexReplacementRulesViewModelTests
 
         public int SaveEditorCallCount { get; private set; }
 
+        public Guid? FailedDeleteId { get; set; }
+        public Action? AfterDelete { get; set; }
         public Exception? SaveException { get; set; }
         public Exception? SetEnabledException { get; set; }
 
@@ -429,9 +510,11 @@ public sealed class RegexReplacementRulesViewModelTests
 
         public Task DeleteRuleAsync(Guid ruleId, CancellationToken cancellationToken)
         {
+            if (ruleId == FailedDeleteId) throw new InvalidOperationException("fixture delete failure");
             _editors.Remove(ruleId);
             _enabled.Remove(ruleId);
             _orderedRuleIds.Remove(ruleId);
+            AfterDelete?.Invoke();
             return Task.CompletedTask;
         }
     }
@@ -464,6 +547,8 @@ public sealed class RegexReplacementRulesViewModelTests
     private sealed class FakeFeedbackService : IAppFeedbackService
     {
         public string? LastProjectedTitle { get; private set; }
+        public string? LastSuccessTitle { get; private set; }
+        public int DeletionPromptCount { get; private set; }
         public AppConfirmationDecision DeletionDecision { get; set; } = AppConfirmationDecision.Cancel;
 
         public ProjectedUiError Project(Exception exception) => new("操作失败。", UiMessageSeverity.Error, false);
@@ -475,6 +560,7 @@ public sealed class RegexReplacementRulesViewModelTests
 
         public void ShowSuccess(string title, string message)
         {
+            LastSuccessTitle = title;
         }
 
         public void ShowWarning(string title, string message)
@@ -484,7 +570,11 @@ public sealed class RegexReplacementRulesViewModelTests
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(
             string title,
             string message,
-            CancellationToken cancellationToken) => Task.FromResult(DeletionDecision);
+            CancellationToken cancellationToken)
+        {
+            DeletionPromptCount++;
+            return Task.FromResult(DeletionDecision);
+        }
     }
 
     private sealed class FakeNavigationService : IAppNavigator
@@ -529,6 +619,7 @@ public sealed class RegexReplacementRulesViewModelTests
         public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             RegexRefreshCount++;
             if (RefreshException is not null)
             {

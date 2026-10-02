@@ -23,46 +23,73 @@
         </Grid.RowDefinitions>
 
         <commonControls:AppPageHeader x:Name="PageHeader"
-                                      Title="书库">
+            Title="书库">
             <commonControls:AppPageHeader.Actions>
-                <WrapPanel x:Name="LibraryToolbar"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center"
-                           ItemHeight="40">
-                    <Grid Width="260"
-                          Margin="0,0,12,0">
+                <StackPanel x:Name="LibraryToolbar"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsManagementMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center"
+                            Style="{StaticResource App.Typography.Body}" TextWrapping="NoWrap"
+                            Text="{Binding SelectedBookCount, StringFormat=已选择 {0} 本}" />
+                        <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding SelectAllBooksCommand}"
+                            ToolTip="全选" AutomationProperties.Name="全选" Icon="{ui:SymbolIcon Symbol=SelectAllOn24}" />
+                        <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding ExportBooksCommand}"
+                            ToolTip="导出" AutomationProperties.Name="导出" Icon="{ui:SymbolIcon Symbol=ArrowExport24}" />
+                        <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.DangerIcon}" Command="{Binding DeleteSelectedBooksCommand}"
+                            ToolTip="删除" AutomationProperties.Name="删除" Icon="{ui:SymbolIcon Symbol=Delete24}" />
+                        <ui:Button Margin="0,0,12,0" Style="{StaticResource App.Button.Icon}" Command="{Binding CancelManagementCommand}"
+                            ToolTip="退出批量管理" AutomationProperties.Name="退出批量管理" Icon="{ui:SymbolIcon Symbol=Dismiss24}" />
+                    </StackPanel>
+                    <Grid Width="180"
+                        VerticalAlignment="Center"
+                        Margin="0,0,12,0">
                         <TextBox x:Name="SearchTextBox"
-                                 Padding="12,8,36,8"
-                                 Style="{StaticResource App.Input.TextBox.Standard}"
-                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                 AutomationProperties.Name="搜索书库" />
+                            Padding="12,8,36,8"
+                            Style="{StaticResource App.Input.TextBox.Standard}"
+                            Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                            AutomationProperties.Name="搜索书库" />
                         <ui:Button x:Name="ClearSearchButton"
-                                Margin="0,0,6,0"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Center"
-                                Style="{StaticResource App.Button.Icon}"
-                                AutomationProperties.Name="清空搜索"
-                                Command="{Binding ClearSearchCommand}"
-                                ToolTip="清空搜索"
-                                Visibility="{Binding HasSearchText, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                Icon="{ui:SymbolIcon Symbol=Dismiss24}" />
+                            Margin="0,0,6,0"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Style="{StaticResource App.Button.Icon}"
+                            AutomationProperties.Name="清空搜索"
+                            Command="{Binding ClearSearchCommand}"
+                            ToolTip="清空搜索"
+                            Visibility="{Binding HasSearchText, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Icon="{ui:SymbolIcon Symbol=Dismiss24}" />
                     </Grid>
                     <ComboBox x:Name="SortComboBox"
-                              Width="160"
-                              Margin="0,0,12,0"
-                              Style="{StaticResource App.Input.ComboBox.Standard}"
-                              DisplayMemberPath="DisplayName"
-                              ItemsSource="{Binding AvailableSortOptions}"
-                              SelectedValue="{Binding SelectedSortMode}"
-                              SelectedValuePath="Mode"
-                              AutomationProperties.Name="书库排序" />
+                        Width="110"
+                        VerticalAlignment="Center"
+                        Margin="0,0,12,0"
+                        Style="{StaticResource App.Input.ComboBox.Standard}"
+                        DisplayMemberPath="DisplayName"
+                        ItemsSource="{Binding AvailableSortOptions}"
+                        SelectedValue="{Binding SelectedSortMode}"
+                        SelectedValuePath="Mode"
+                        AutomationProperties.Name="书库排序" />
                     <ui:Button x:Name="ToolbarImportButton"
-                            Style="{StaticResource App.Button.Icon}"
-                            Click="ImportButton_OnClick"
-                            ToolTip="导入小说"
-                            AutomationProperties.Name="导入小说"
-                            Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
-                </WrapPanel>
+                        Style="{StaticResource App.Button.Icon}"
+                        Click="ImportButton_OnClick"
+                        ToolTip="导入小说"
+                        AutomationProperties.Name="导入小说"
+                        Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
+                    <ui:Button Margin="12,0,0,0" Command="{Binding EnterManagementCommand}"
+                        ToolTip="批量管理" AutomationProperties.Name="批量管理" Icon="{ui:SymbolIcon Symbol=MultiselectLtr24}">
+                        <ui:Button.Style>
+                            <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource App.Button.Icon}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
+                </StackPanel>
             </commonControls:AppPageHeader.Actions>
         </commonControls:AppPageHeader>
 
@@ -70,36 +97,6 @@
                     Margin="0,20,0,0">
             <TextBlock Style="{StaticResource App.Typography.Secondary}"
                        Text="{Binding LibrarySummaryText}" />
-            <Border Margin="0,6,0,0">
-                <Border.Style>
-                    <Style TargetType="Border"
-                           BasedOn="{StaticResource App.Feedback.InlineMessage}">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ImportStatusMessage}" Value="">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock Style="{StaticResource App.Typography.Secondary}"
-                           Text="{Binding ImportStatusMessage}" />
-            </Border>
-            <Border Margin="0,6,0,0">
-                <Border.Style>
-                    <Style TargetType="Border"
-                           BasedOn="{StaticResource App.Feedback.InlineMessage}">
-                        <Setter Property="Visibility" Value="Visible" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <TextBlock Style="{StaticResource App.Typography.Secondary}"
-                           Text="{Binding StatusMessage}" />
-            </Border>
         </StackPanel>
 
         <Grid Grid.Row="2"
@@ -163,6 +160,7 @@
                                 <DataTemplate>
                                     <views:BookCardView Width="{Binding DataContext.CardWidth, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                         Item="{Binding Book}"
+                                                        ManagementOwner="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         DeleteBookCommand="{Binding DataContext.DeleteBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         OpenBookCommand="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         OpenBookDetailsCommand="{Binding DataContext.OpenBookDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}" />

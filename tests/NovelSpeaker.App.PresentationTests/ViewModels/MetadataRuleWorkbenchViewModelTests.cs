@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Features.Rules.Metadata;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.Domain.Books;
@@ -26,10 +27,8 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         var vm = CreateWorkbench(repository);
         await vm.LoadAsync(CancellationToken.None);
         await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
         vm.DraftName = "Unsaved";
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
-        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
         await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
         if (count > 1)
             await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Shift, CancellationToken.None);
@@ -60,6 +59,79 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         Assert.Equal(5, repository.Rules.Count);
         Assert.Equal("Unsaved", vm.DraftName);
         Assert.True(vm.HasUnsavedChanges);
+    }
+
+    [Theory]
+    [InlineData(false, UnsavedChangesDecision.Cancel)]
+    [InlineData(false, UnsavedChangesDecision.Save)]
+    [InlineData(false, UnsavedChangesDecision.Discard)]
+    [InlineData(true, UnsavedChangesDecision.Cancel)]
+    [InlineData(true, UnsavedChangesDecision.Save)]
+    [InlineData(true, UnsavedChangesDecision.Discard)]
+    public async Task Metadata_management_guards_draft_and_keeps_editor_separate(bool header, UnsavedChangesDecision decision)
+    {
+        var repository = TwoRules();
+        var dialogs = new Dialogs { UnsavedDecision = decision };
+        MetadataRuleWorkbenchViewModel vm = header
+            ? new TextHeaderMetadataRulesViewModel(repository, new Navigator(), dialogs, new Feedback(), new FakeRuleDocumentInteraction())
+            : Create(repository, dialogs: dialogs);
+        await vm.LoadAsync(CancellationToken.None);
+        var escapeHandler = Assert.IsAssignableFrom<ITransientEscapeHandler>(vm);
+        Assert.False(escapeHandler.TryHandleEscape());
+        await vm.SelectRuleCommand.ExecuteAsync(vm.Rules[0]);
+        vm.DraftName = "Draft";
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[1], DesktopSelectionModifiers.Control, CancellationToken.None);
+        Assert.Equal(decision != UnsavedChangesDecision.Cancel, vm.IsManagementMode);
+        Assert.Equal(decision == UnsavedChangesDecision.Cancel, vm.HasUnsavedChanges);
+        if (!vm.IsManagementMode) return;
+        Assert.Equal("second", Assert.Single(vm.Rules, row => row.IsSelected).Id);
+        await vm.SelectRuleWithModifiersAsync(vm.Rules[1], DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.Equal(0, vm.SelectedCount);
+        Assert.True(vm.IsManagementMode);
+        var draftName = vm.DraftName;
+        var draftPattern = vm.DraftPattern;
+        Assert.True(escapeHandler.TryHandleEscape());
+        Assert.False(vm.IsManagementMode);
+        Assert.Equal(0, vm.SelectedCount);
+        Assert.False(escapeHandler.TryHandleEscape());
+        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
+        Assert.Equal(draftName, vm.DraftName);
+        Assert.Equal(draftPattern, vm.DraftPattern);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        Assert.Equal(2, vm.SelectedCount);
+        Assert.True(escapeHandler.TryHandleEscape());
+        Assert.False(vm.IsManagementMode);
+        Assert.Equal(0, vm.SelectedCount);
+        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
+        Assert.Equal(draftName, vm.DraftName);
+        Assert.Equal(draftPattern, vm.DraftPattern);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.CancelManagementCommand.Execute(null);
+        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Metadata_batch_delete_continues_after_failure_and_closes_deleted_editor(bool header)
+    {
+        var repository = TwoRules();
+        repository.FailedDeleteId = "first";
+        var feedback = new Feedback();
+        MetadataRuleWorkbenchViewModel vm = header
+            ? new TextHeaderMetadataRulesViewModel(repository, new Navigator(), new Dialogs(), feedback, new FakeRuleDocumentInteraction())
+            : Create(repository, feedback: feedback);
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectRuleCommand.ExecuteAsync(vm.Rules[1]);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        await vm.DeleteSelectedRulesCommand.ExecuteAsync(null);
+        Assert.Equal("first", Assert.Single(repository.Rules).Id);
+        Assert.False(vm.HasEditor);
+        Assert.Equal(1, vm.SelectedCount);
+        Assert.Equal(1, feedback.DeletionPromptCount);
+        Assert.Equal("成功 1，跳过 0，失败 1。", feedback.LastMessage);
     }
 
     [Fact]
@@ -150,6 +222,7 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         var documents = new FakeRuleDocumentInteraction();
         var viewModel = Create(repository, documents);
         await viewModel.LoadAsync(CancellationToken.None);
+        await viewModel.EnterManagementCommand.ExecuteAsync(null);
         await viewModel.SelectRuleWithModifiersAsync(viewModel.Rules[1], DesktopSelectionModifiers.None, CancellationToken.None);
         await viewModel.SelectRuleWithModifiersAsync(viewModel.Rules[0], DesktopSelectionModifiers.Control, CancellationToken.None);
 
@@ -199,6 +272,7 @@ public sealed class MetadataRuleWorkbenchViewModelTests
     private sealed class FileRules : NovelSpeaker.Application.Books.IFileNameMetadataRuleRepository,
         NovelSpeaker.Application.Books.ITextHeaderMetadataRuleRepository
     {
+        public string? FailedDeleteId { get; set; }
         public List<FileNameMetadataRule> Rules { get; } = [];
         public Task<IReadOnlyList<FileNameMetadataRule>> GetAllAsync(CancellationToken token) =>
             Task.FromResult<IReadOnlyList<FileNameMetadataRule>>(Rules.ToArray());
@@ -216,6 +290,7 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         }
         public Task DeleteAsync(string id, CancellationToken token)
         {
+            if (id == FailedDeleteId) throw new InvalidOperationException("fixture delete failure");
             Rules.RemoveAll(rule => rule.Id == id);
             return Task.CompletedTask;
         }
@@ -249,11 +324,16 @@ public sealed class MetadataRuleWorkbenchViewModelTests
     private sealed class Feedback : IAppFeedbackService
     {
         public int ErrorCount { get; private set; }
+        public int DeletionPromptCount { get; private set; }
+        public string? LastMessage { get; private set; }
         public ProjectedUiError Project(Exception exception) => new ExceptionProjector().Project(exception);
         public void ShowProjectedNotification(string title, ProjectedUiError projected) => ErrorCount++;
-        public void ShowSuccess(string title, string message) { }
+        public void ShowSuccess(string title, string message) => LastMessage = message;
         public void ShowWarning(string title, string message) { }
-        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken token) =>
-            Task.FromResult(AppConfirmationDecision.Confirm);
+        public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken token)
+        {
+            DeletionPromptCount++;
+            return Task.FromResult(AppConfirmationDecision.Confirm);
+        }
     }
 }

@@ -9,7 +9,7 @@
         they remove provider pointer-over chrome while retaining the content,
         layout and automation contract. Selection surfaces never store business
         facts on container instances; pages bind the item state contracts
-        (IsSelected / IsCurrent / IsSelectedForActiveCache / IsDropTarget) to
+        (IsSelected / IsCurrent / IsSelected / IsDropTarget) to
         their data items so recycled containers keep reflecting the current data.
     -->
     <Style x:Key="App.Selection.ChromeFreeItemContainer"
@@ -153,31 +153,6 @@
     <Style x:Key="App.Selection.MultiSelectItem"
            TargetType="{x:Type selection:SelectionSurface}"
            BasedOn="{StaticResource App.Selection.ListItem}">
-        <Style.Triggers>
-            <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Selected}" />
-                <Setter Property="CurrentRailBrush" Value="{DynamicResource App.Brush.Interaction.CurrentRail.OnSelected}" />
-                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-            </DataTrigger>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
-            </Trigger>
-            <MultiDataTrigger>
-                <MultiDataTrigger.Conditions>
-                    <Condition Binding="{Binding IsSelectedForActiveCache}" Value="True" />
-                    <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
-                </MultiDataTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Selected.Hover}" />
-                <Setter Property="CurrentRailBrush" Value="{DynamicResource App.Brush.Interaction.CurrentRail.OnSelected}" />
-                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-            </MultiDataTrigger>
-            <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
-                <Setter Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
-            </Trigger>
-        </Style.Triggers>
     </Style>
 
     <!--
@@ -191,9 +166,6 @@
            BasedOn="{StaticResource App.Typography.Body}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-            </DataTrigger>
-            <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding IsDropTarget}" Value="True">
@@ -210,9 +182,6 @@
            BasedOn="{StaticResource App.Typography.Secondary}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsSelected}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-            </DataTrigger>
-            <DataTrigger Binding="{Binding IsSelectedForActiveCache}" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
             </DataTrigger>
             <DataTrigger Binding="{Binding IsDropTarget}" Value="True">

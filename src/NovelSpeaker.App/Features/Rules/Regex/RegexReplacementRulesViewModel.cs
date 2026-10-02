@@ -26,9 +26,13 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     private readonly IAppNavigator _navigator;
     private readonly IRuleDocumentInteraction _ruleDocuments;
     private readonly EditorSession<Guid?, RegexReplacementRuleEditorModel> _editorSession = new(EditorsEqual);
-    private readonly DesktopSelectionController<Guid> _selection = new();
+    private readonly ManagementSelectionController<Guid> _selection = new();
     private readonly RuleImportSession _importSession = new();
     private bool _loading;
+
+    private CancellationTokenSource? _managementLifetime;
+    private bool _enteringManagement;
+    private bool _deletingBatch;
 
     public RegexReplacementRulesViewModel(
         IRegexReplacementRuleWorkspaceService workspace,
@@ -44,6 +48,13 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         _dialogs = dialogs;
         _navigator = navigator;
         _ruleDocuments = ruleDocuments;
+        _selection.StateChanged += (_, _) =>
+        {
+            UpdateRuleItemStates();
+            OnPropertyChanged(nameof(IsManagementMode));
+            OnPropertyChanged(nameof(SelectedCount));
+            OnPropertyChanged(nameof(CanReorder));
+        };
     }
 
     public ObservableCollection<RegexReplacementRuleListItemViewModel> Rules { get; } = [];
@@ -72,16 +83,27 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     public bool CanSave => HasEditor && HasUnsavedChanges && !IsBusy && string.IsNullOrEmpty(ValidationMessage);
     public bool CanCancel => HasEditor && !IsBusy;
 
-    public async Task LoadAsync(CancellationToken cancellationToken) => await RefreshAsync(SelectedRuleId, false, cancellationToken);
+    public bool IsManagementMode => _selection.IsManagementMode;
+    public int SelectedCount => _selection.SelectedCount;
+    public bool CanReorder => !IsBusy && !IsManagementMode;
+
+    public async Task LoadAsync(CancellationToken cancellationToken)
+    {
+        ActivateManagement(cancellationToken);
+        await RefreshAsync(SelectedRuleId, false, cancellationToken);
+    }
 
     public void HandleNavigatedFrom()
     {
+        _managementLifetime?.Cancel();
+        _selection.Reset();
         IsHelpDrawerOpen = false;
         ClearDragTarget();
     }
 
     public bool TryHandleEscape()
     {
+        if (_selection.Exit()) return true;
         if (!IsHelpDrawerOpen)
         {
             return false;
@@ -134,10 +156,14 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     [RelayCommand]
     public async Task ExportRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
-        if (rule is null) return;
+        if ((!IsManagementMode && rule is null) || (IsManagementMode && SelectedCount == 0)) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
+        cancellationToken = linked.Token;
         try
         {
-            var json = await _workspace.ExportRulesJsonAsync(RulesForExchange(rule), cancellationToken);
+            var ids = RulesForExchange(rule);
+            var successMessage = IsManagementMode ? $"成功 {ids.Count}，跳过 0，失败 0。" : rule!.Name;
+            var json = await _workspace.ExportRulesJsonAsync(ids, cancellationToken);
             if (json is null)
             {
                 _feedback.ShowWarning("导出失败", "未找到要导出的正则替换规则。");
@@ -146,9 +172,10 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
 
             if (await _ruleDocuments.ExportAsync("regex-replacement-rule.json", json, cancellationToken))
             {
-                _feedback.ShowSuccess("正则替换规则已导出", rule.Name);
+                _feedback.ShowSuccess("正则替换规则已导出", successMessage);
             }
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             _feedback.ShowProjectedNotification("正则替换规则导出失败", _feedback.Project(exception));
@@ -158,10 +185,14 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     [RelayCommand]
     public async Task CopyRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
-        if (rule is null) return;
+        if ((!IsManagementMode && rule is null) || (IsManagementMode && SelectedCount == 0)) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
+        cancellationToken = linked.Token;
         try
         {
-            var json = await _workspace.ExportRulesJsonAsync(RulesForExchange(rule), cancellationToken);
+            var ids = RulesForExchange(rule);
+            var successMessage = IsManagementMode ? $"成功 {ids.Count}，跳过 0，失败 0。" : rule!.Name;
+            var json = await _workspace.ExportRulesJsonAsync(ids, cancellationToken);
             if (json is null)
             {
                 _feedback.ShowWarning("复制失败", "未找到要复制的正则替换规则。");
@@ -169,35 +200,39 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
             }
 
             await _ruleDocuments.CopyAsync(json, cancellationToken);
-            _feedback.ShowSuccess("正则替换规则已复制", rule.Name);
+            _feedback.ShowSuccess("正则替换规则已复制", successMessage);
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             _feedback.ShowProjectedNotification("正则替换规则复制失败", _feedback.Project(exception));
         }
     }
 
-    private IReadOnlyList<Guid> RulesForExchange(RegexReplacementRuleListItemViewModel rule) =>
-        _selection.IsSelected(rule.Id) ? _selection.SelectedItems.ToArray() : [rule.Id];
+    private IReadOnlyList<Guid> RulesForExchange(RegexReplacementRuleListItemViewModel? rule) =>
+        IsManagementMode ? _selection.SelectedItems.ToArray() : rule is null ? [] : [rule.Id];
 
-    public Task SelectRuleWithModifiersAsync(RegexReplacementRuleListItemViewModel? rule,
+    public async Task SelectRuleWithModifiersAsync(RegexReplacementRuleListItemViewModel? rule,
         DesktopSelectionModifiers modifiers, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (rule is null || IsBusy) return Task.CompletedTask;
-        if (modifiers == DesktopSelectionModifiers.None) return SelectRuleAsync(rule, cancellationToken);
-        _selection.Click(rule.Id, modifiers);
-        UpdateRuleItemStates();
-        return Task.CompletedTask;
+        if (rule is null || IsBusy) return;
+        if (IsManagementMode || modifiers != DesktopSelectionModifiers.None)
+        {
+            if (!IsManagementMode && !await TryEnterManagementAsync(cancellationToken)) return;
+            _selection.HandleClick(rule.Id, modifiers);
+            return;
+        }
+        await SelectRuleAsync(rule, cancellationToken);
     }
 
     [RelayCommand]
     private async Task SelectRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
     {
         if (rule is null || IsBusy) return;
+        if (_selection.HandleClick(rule.Id)) return;
         if (!IsEditingNewRule && SelectedRuleId == rule.Id)
         {
-            _selection.Click(rule.Id);
             UpdateRuleItemStates();
             return;
         }
@@ -291,6 +326,11 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(rule);
+        if (IsManagementMode)
+        {
+            await DeleteSelectedRulesAsync(cancellationToken);
+            return;
+        }
         if (!rule.CanDeleteAction) return;
         if (!await ConfirmLeaveAsync(cancellationToken)) return;
         var item = Rules.FirstOrDefault(candidate => candidate.Id == rule.Id);
@@ -540,14 +580,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     {
         _loading = true;
         _editorSession.Open(editor.Id, editor, isNew, fallback);
-        if (isNew)
-        {
-            _selection.Clear();
-        }
-        else if (editor.Id is Guid ruleId)
-        {
-            _selection.Click(ruleId);
-        }
 
         SelectedRuleId = editor.Id;
         DraftName = editor.Name;
@@ -564,7 +596,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     {
         _loading = true;
         _editorSession.Close();
-        _selection.Clear();
+
         SelectedRuleId = null;
         DraftName = string.Empty;
         DraftPattern = string.Empty;
@@ -592,6 +624,11 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
                 item.Scope,
                 _selection.IsSelected(item.Id),
                 item.ErrorMessage));
+        }
+
+        if (!IsEditingNewRule && SelectedRuleId is not null && items.All(item => item.Id != SelectedRuleId))
+        {
+            CloseEditor();
         }
 
         if (selectFirst && !IsEditingNewRule)
@@ -626,6 +663,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
 
     private void NotifyCommandState()
     {
+        OnPropertyChanged(nameof(CanReorder));
         OnPropertyChanged(nameof(HasEditor));
         OnPropertyChanged(nameof(IsEditingNewRule));
         OnPropertyChanged(nameof(HasUnsavedChanges));
@@ -638,7 +676,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         for (var index = 0; index < Rules.Count; index++)
         {
             var rule = Rules[index];
-            rule.IsSelected = _selection.IsSelected(rule.Id);
+            rule.IsSelected = IsManagementMode ? _selection.IsSelected(rule.Id) : rule.Id == SelectedRuleId;
             rule.CanQuickActions = !IsBusy;
             rule.CanMoveUp = !IsBusy && index > 0;
             rule.CanMoveDown = !IsBusy && index < Rules.Count - 1;
@@ -649,5 +687,91 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     {
         IsBusy = value;
         NotifyCommandState();
+    }
+
+    private void ActivateManagement(CancellationToken cancellationToken)
+    {
+        _managementLifetime?.Cancel();
+        _managementLifetime?.Dispose();
+        _managementLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+    }
+
+    [RelayCommand]
+    private async Task EnterManagementAsync(CancellationToken cancellationToken) =>
+        _ = await TryEnterManagementAsync(cancellationToken);
+
+    private async Task<bool> TryEnterManagementAsync(CancellationToken cancellationToken)
+    {
+        if (IsBusy || _enteringManagement) return false;
+        if (IsManagementMode) return true;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
+        _enteringManagement = true;
+        try
+        {
+            if (!await ConfirmLeaveAsync(linked.Token)) return false;
+            linked.Token.ThrowIfCancellationRequested();
+            _selection.Enter();
+            return true;
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { return false; }
+        finally { _enteringManagement = false; }
+    }
+
+    [RelayCommand]
+    private void CancelManagement() => _selection.Exit();
+
+    [RelayCommand]
+    private void SelectAll() => _selection.SelectAll();
+
+    public void HandleRuleRightClick(RegexReplacementRuleListItemViewModel item) => _selection.HandleRightClick(item.Id);
+
+    [RelayCommand]
+    private async Task DeleteSelectedRulesAsync(CancellationToken cancellationToken)
+    {
+        if (IsBusy || _deletingBatch || !IsManagementMode || SelectedCount == 0) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
+        cancellationToken = linked.Token;
+        _deletingBatch = true;
+        var succeeded = 0;
+        try
+        {
+            if (!await ConfirmLeaveAsync(cancellationToken)) return;
+            var items = Rules.Where(item => _selection.IsSelected(item.Id)).ToArray();
+            if (items.Length == 0) return;
+            if (await _feedback.ConfirmDeletionAsync("删除规则", $"将删除所选 {items.Length} 条规则，此操作不可撤销。", cancellationToken)
+                != AppConfirmationDecision.Confirm) return;
+            SetBusy(true);
+            var failed = 0;
+            foreach (var item in items)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    await _workspace.DeleteRuleAsync(item.Id, cancellationToken);
+                    succeeded++;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception) { failed++; }
+            }
+            await RefreshAsync(SelectedRuleId, selectFirst: false, cancellationToken);
+            _feedback.ShowSuccess("删除完成", $"成功 {succeeded}，跳过 0，失败 {failed}。");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception) { _feedback.ShowProjectedNotification("批量删除失败", _feedback.Project(exception)); }
+        finally
+        {
+            try
+            {
+                // Committed deletes affect the continuing playback session. Complete this
+                // consistency update even when page cancellation stops the remaining batch.
+                if (succeeded > 0) await _playback.RefreshRegexReplacementAsync(CancellationToken.None);
+            }
+            catch (Exception exception)
+            {
+                _feedback.ShowProjectedNotification("刷新正则替换规则失败", _feedback.Project(exception));
+            }
+            finally { SetBusy(false); _deletingBatch = false; }
+        }
     }
 }

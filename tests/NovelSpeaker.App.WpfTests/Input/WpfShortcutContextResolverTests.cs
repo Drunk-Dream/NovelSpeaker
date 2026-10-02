@@ -26,21 +26,20 @@ public sealed class WpfShortcutContextResolverTests
     }
 
     [Fact]
-    public void Shortcut_context_resolves_the_page_local_escape_consumer_from_focus_ancestry()
+    public void Shortcut_context_uses_the_active_page_escape_consumer_independently_of_focus()
     {
         WpfTestHost.RunInSta(() =>
         {
             var handler = new TestTransientEscapeHandler();
-            var root = new Grid { DataContext = handler };
-            var focusedElement = new Button();
-            root.Children.Add(focusedElement);
-
-            var context = new WpfShortcutContextResolver().Resolve(
-                false,
-                focusedElement,
-                new Grid());
-
-            Assert.Same(handler, context.TransientEscapeHandler);
+            var oldHandler = new TestTransientEscapeHandler();
+            var resolver = new WpfShortcutContextResolver();
+            foreach (var focusedElement in new DependencyObject?[]
+                     { null, new Window(), new Button { DataContext = oldHandler }, new TextBox { DataContext = oldHandler } })
+            {
+                var context = resolver.Resolve(false, focusedElement, new Grid(), handler);
+                Assert.Same(handler, context.TransientEscapeHandler);
+                Assert.Null(resolver.Resolve(false, focusedElement, new Grid(), null).TransientEscapeHandler);
+            }
         });
     }
 
@@ -51,11 +50,11 @@ public sealed class WpfShortcutContextResolverTests
             var resolver = new WpfShortcutContextResolver();
             var dialogHost = new Grid();
 
-            var textContext = resolver.Resolve(false, new TextBox(), dialogHost);
+            var textContext = resolver.Resolve(false, new TextBox(), dialogHost, null);
             var comboContext = resolver.Resolve(
                 false,
                 new ComboBox { IsEditable = true },
-                dialogHost);
+                dialogHost, null);
 
             Assert.True(textContext.IsTextEditing);
             Assert.True(comboContext.IsTextEditing);
@@ -69,7 +68,7 @@ public sealed class WpfShortcutContextResolverTests
             var context = new WpfShortcutContextResolver().Resolve(
                 false,
                 new System.Windows.Controls.MenuItem(),
-                new Grid());
+                new Grid(), null);
 
             Assert.True(context.IsTransientUiOpen);
         });
@@ -98,7 +97,7 @@ public sealed class WpfShortcutContextResolverTests
                 var context = new WpfShortcutContextResolver().Resolve(
                     false,
                     popupContent,
-                    new Grid());
+                    new Grid(), null);
 
                 Assert.True(context.IsTransientUiOpen);
             }
@@ -126,7 +125,7 @@ public sealed class WpfShortcutContextResolverTests
                 var context = new WpfShortcutContextResolver().Resolve(
                     false,
                     new Button(),
-                    dialogHost);
+                    dialogHost, null);
 
                 Assert.True(context.IsTransientUiOpen);
             }
@@ -152,7 +151,7 @@ public sealed class WpfShortcutContextResolverTests
                 var context = new WpfShortcutContextResolver().Resolve(
                     true,
                     button,
-                    dialogHost);
+                    dialogHost, null);
 
                 Assert.True(context.IsPlayerPageActive);
                 Assert.False(context.IsTextEditing);

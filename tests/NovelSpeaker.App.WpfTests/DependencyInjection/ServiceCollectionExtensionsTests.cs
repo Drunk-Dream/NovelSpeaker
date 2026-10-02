@@ -30,6 +30,7 @@ using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.Diagnostics;
@@ -122,7 +123,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<SettingsViewModel>(provider.GetRequiredService<SettingsViewModel>());
                 Assert.IsType<SpeechServicesViewModel>(provider.GetRequiredService<SpeechServicesViewModel>());
                 Assert.IsType<ExperimentalFeaturesViewModel>(provider.GetRequiredService<ExperimentalFeaturesViewModel>());
-                Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>());
+                Assert.IsAssignableFrom<ITransientEscapeHandler>(Assert.IsType<LibraryPage>(provider.GetRequiredService<LibraryPage>()));
                 Assert.IsType<SettingsPage>(provider.GetRequiredService<SettingsPage>());
                 Assert.IsType<CacheAndDataPage>(provider.GetRequiredService<CacheAndDataPage>());
                 Assert.IsType<PlaybackSettingsPage>(provider.GetRequiredService<PlaybackSettingsPage>());
@@ -130,13 +131,14 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<AppearanceSettingsPage>(provider.GetRequiredService<AppearanceSettingsPage>());
                 Assert.IsType<ExperimentalFeaturesPage>(provider.GetRequiredService<ExperimentalFeaturesPage>());
                 Assert.IsType<DiagnosticsAboutPage>(provider.GetRequiredService<DiagnosticsAboutPage>());
-                Assert.IsType<PlayerPage>(provider.GetRequiredService<PlayerPage>());
-                Assert.IsType<SpeechServicesPage>(provider.GetRequiredService<SpeechServicesPage>());
-                Assert.IsType<ChapterRulesPage>(provider.GetRequiredService<ChapterRulesPage>());
-                Assert.IsType<FileNameMetadataRulesPage>(provider.GetRequiredService<FileNameMetadataRulesPage>());
-                Assert.IsType<TextHeaderMetadataRulesPage>(provider.GetRequiredService<TextHeaderMetadataRulesPage>());
+                Assert.IsAssignableFrom<ITransientEscapeHandler>(Assert.IsType<PlayerPage>(provider.GetRequiredService<PlayerPage>()));
+                Assert.IsAssignableFrom<ITransientEscapeHandler>(Assert.IsType<SpeechServicesPage>(provider.GetRequiredService<SpeechServicesPage>()));
+                Assert.IsAssignableFrom<ITransientEscapeHandler>(Assert.IsType<ChapterRulesPage>(provider.GetRequiredService<ChapterRulesPage>()));
+                Assert.IsAssignableFrom<ITransientEscapeHandler>(Assert.IsType<RegexReplacementRulesPage>(provider.GetRequiredService<RegexReplacementRulesPage>()));
+                Assert.IsAssignableFrom<ITransientEscapeHandler>(Assert.IsType<FileNameMetadataRulesPage>(provider.GetRequiredService<FileNameMetadataRulesPage>()));
+                Assert.IsAssignableFrom<ITransientEscapeHandler>(Assert.IsType<TextHeaderMetadataRulesPage>(provider.GetRequiredService<TextHeaderMetadataRulesPage>()));
                 Assert.IsType<BookDetailsPage>(provider.GetRequiredService<BookDetailsPage>());
-                Assert.IsType<CacheManagementPage>(provider.GetRequiredService<CacheManagementPage>());
+                Assert.IsAssignableFrom<ITransientEscapeHandler>(Assert.IsType<CacheManagementPage>(provider.GetRequiredService<CacheManagementPage>()));
                 Assert.IsAssignableFrom<IAppDataDirectoryProvider>(provider.GetRequiredService<IAppDataDirectoryProvider>());
                 Assert.IsAssignableFrom<IUserDocumentFileOperations>(
                     provider.GetRequiredService<IUserDocumentFileOperations>());

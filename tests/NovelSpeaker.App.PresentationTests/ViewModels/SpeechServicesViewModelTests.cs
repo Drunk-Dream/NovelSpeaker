@@ -16,7 +16,7 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class SpeechServicesViewModelTests
 {
     [Fact]
-    public async Task Bulk_selection_skips_edge_preserves_editor_and_exports_one_document_with_warning()
+    public async Task Management_export_skips_edge_preserves_editor_and_requires_credentials_warning()
     {
         var fixture = new Fixture();
         var edge = await fixture.EnableEdgeAsync(null);
@@ -26,23 +26,27 @@ public sealed class SpeechServicesViewModelTests
         await vm.LoadAsync(CancellationToken.None);
         await vm.SelectProviderWithModifiersAsync(vm.Providers[0], DesktopSelectionModifiers.None, CancellationToken.None);
         vm.DraftName = "Unsaved";
+        fixture.Dialogs.NextUnsavedDecision = UnsavedChangesDecision.Cancel;
         await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == second.Id), DesktopSelectionModifiers.Control, CancellationToken.None);
-        await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == second.Id), DesktopSelectionModifiers.Control, CancellationToken.None);
-        Assert.Equal(fixture.First.Id, Assert.Single(vm.Providers, item => item.IsSelected).Id);
-        await vm.SelectProviderWithModifiersAsync(vm.Providers[0], DesktopSelectionModifiers.None, CancellationToken.None);
-        await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == second.Id), DesktopSelectionModifiers.Shift, CancellationToken.None);
-        await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == edge.Id), DesktopSelectionModifiers.Control, CancellationToken.None);
-        Assert.Equal([fixture.First.Id, second.Id], vm.Providers.Where(item => item.IsSelected).Select(item => item.Id));
-        Assert.Equal(fixture.First.Id, vm.SelectedProviderId);
+        Assert.False(vm.IsManagementMode);
         Assert.Equal("Unsaved", vm.DraftName);
+        fixture.Dialogs.NextUnsavedDecision = UnsavedChangesDecision.Discard;
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        Assert.Equal(3, vm.SelectedCount);
+        Assert.Equal(fixture.First.Id, vm.SelectedProviderId);
+        vm.DraftName = "Unsaved";
         await vm.ExportProviderCommand.ExecuteAsync(vm.Providers[0]);
         Assert.Null(fixture.Documents.ExportedJson);
         fixture.Dialogs.NextConfirmationDecision = AppConfirmationDecision.Confirm;
         await vm.ExportProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == second.Id));
         var exported = ProviderEnvelopeCodec.Read(fixture.Documents.ExportedJson!);
         Assert.Equal(["First", "Second"], exported.Items.Select(item => item.Name));
-        Assert.Equal(2, vm.Providers.Count(item => item.IsSelected));
-        await vm.SelectProviderWithModifiersAsync(vm.Providers[0], DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.Equal("成功 2，跳过 1，失败 0。", fixture.Feedback.LastMessage);
+        Assert.Equal(3, vm.SelectedCount);
+        await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == second.Id), DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.Equal(fixture.First.Id, vm.SelectedProviderId);
+        vm.CancelManagementCommand.Execute(null);
         Assert.Equal(fixture.First.Id, Assert.Single(vm.Providers, item => item.IsSelected).Id);
         fixture.Dialogs.NextUnsavedDecision = UnsavedChangesDecision.Cancel;
         fixture.Documents.ClipboardDocument = new RuleImportDocument(
@@ -53,6 +57,55 @@ public sealed class SpeechServicesViewModelTests
         Assert.True(vm.HasUnsavedChanges);
         Assert.Equal(fixture.First.Id, vm.SelectedProviderId);
         Assert.Equal(fixture.First.Id, fixture.Settings.Current.CurrentProviderId);
+        vm.HandleNavigatedFrom();
+        await vm.FinishDeactivationAsync();
+    }
+
+    [Fact]
+    public async Task Batch_delete_continues_after_failure_and_clears_current_provider_without_fallback()
+    {
+        var fixture = new Fixture();
+        var failed = CreateProvider("Failed", -10);
+        fixture.Store.Items.Add(failed);
+        fixture.Store.FailedDeleteId = failed.Id;
+        await fixture.EnableEdgeAsync(null);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == fixture.First.Id));
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        await vm.DeleteProviderCommand.ExecuteAsync(null);
+        Assert.Null(fixture.Settings.Current.CurrentProviderId);
+        Assert.False(vm.HasEditor);
+        Assert.Equal(2, vm.Providers.Count);
+        Assert.Contains(vm.Providers, item => item.Id == failed.Id);
+        Assert.DoesNotContain(vm.Providers, item => item.Id == fixture.First.Id);
+        Assert.Equal(1, fixture.Feedback.DeletionPromptCount);
+        Assert.Equal("成功 1，跳过 1，失败 1。", fixture.Feedback.LastMessage);
+        vm.HandleNavigatedFrom();
+        await vm.FinishDeactivationAsync();
+    }
+
+    [Fact]
+    public async Task Visibility_change_removes_hidden_provider_from_batch_selection()
+    {
+        var fixture = new Fixture();
+        var edge = await fixture.EnableEdgeAsync(null);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        Assert.Equal(2, vm.SelectedCount);
+        await fixture.Settings.UpdateAsync(new AppSettingsUpdate
+        {
+            ExperimentalFeatureChange = new ExperimentalFeatureChange(ExperimentalFeaturesService.MicrosoftEdgeTts, false)
+        }, CancellationToken.None);
+        Assert.DoesNotContain(vm.Providers, item => item.Id == edge.Id);
+        Assert.Equal(1, vm.SelectedCount);
+        await vm.DeleteProviderCommand.ExecuteAsync(null);
+        Assert.Single(fixture.Store.Items, item => item.Id == edge.Id);
+        Assert.Empty(vm.Providers);
+        Assert.True(vm.IsManagementMode);
         vm.HandleNavigatedFrom();
         await vm.FinishDeactivationAsync();
     }
@@ -372,6 +425,7 @@ public sealed class SpeechServicesViewModelTests
         public Runtime EdgeRuntime { get; } = new(SpeechProviderType.MicrosoftEdge);
         public Transport Transport { get; } = new();
         public Player Player { get; } = new();
+        public FakeFeedbackService Feedback { get; } = new();
         public SpeechServicesViewModel ViewModel { get; }
         public async Task<SpeechProviderInstance> EnableEdgeAsync(EdgeVoice? voice)
         {
@@ -388,7 +442,7 @@ public sealed class SpeechServicesViewModelTests
             Store.Items.Add(First);
             Settings.SetCurrent(First.Id);
             ViewModel = new SpeechServicesViewModel(Store, new SpeechProviderWorkspace(Store, TimeProvider.System, Settings),
-                new ProviderDraftPreviewService([Runtime, EdgeRuntime], Settings, Player), Settings, new FakeFeedbackService(), Dialogs,
+                new ProviderDraftPreviewService([Runtime, EdgeRuntime], Settings, Player), Settings, Feedback, Dialogs,
                 new FakeNavigationService(), Documents, new InlineScheduler(), new EdgeVoiceCatalog(Transport, TimeProvider.System));
         }
     }
@@ -397,6 +451,7 @@ public sealed class SpeechServicesViewModelTests
     {
         public List<SpeechProviderInstance> Items { get; } = [];
         public Exception? SaveFailure { get; set; }
+        public ProviderId? FailedDeleteId { get; set; }
         public Task<IReadOnlyList<SpeechProviderInstance>> GetAllAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<SpeechProviderInstance>>(Items.OrderBy(provider => provider.SortOrder).ToArray());
         public Task<SpeechProviderInstance?> GetByIdAsync(ProviderId id, CancellationToken cancellationToken) =>
@@ -410,6 +465,7 @@ public sealed class SpeechServicesViewModelTests
         }
         public Task DeleteAsync(ProviderId id, CancellationToken cancellationToken)
         {
+            if (id == FailedDeleteId) throw new InvalidOperationException("fixture delete failure");
             Items.RemoveAll(item => item.Id == id);
             return Task.CompletedTask;
         }
@@ -490,6 +546,7 @@ public sealed class SpeechServicesViewModelTests
         public string? LastTitle { get; private set; }
 
         public string? LastMessage { get; private set; }
+        public int DeletionPromptCount { get; private set; }
 
         public ProjectedUiError Project(Exception exception) => new(exception.Message, UiMessageSeverity.Error, false);
 
@@ -513,6 +570,7 @@ public sealed class SpeechServicesViewModelTests
 
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken cancellationToken)
         {
+            DeletionPromptCount++;
             return Task.FromResult(AppConfirmationDecision.Confirm);
         }
     }

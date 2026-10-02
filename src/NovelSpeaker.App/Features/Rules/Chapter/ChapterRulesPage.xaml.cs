@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using System.Windows;
 using NovelSpeaker.App.Shell.Activation;
@@ -8,7 +9,7 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.Rules.Chapter;
 
-public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<ChapterRulesViewModel>
+public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<ChapterRulesViewModel>, ITransientEscapeHandler
 {
     public ICommand SelectionCommand { get; }
 
@@ -38,6 +39,8 @@ public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigatio
     }
 
     public ChapterRulesViewModel ViewModel { get; }
+
+    public bool TryHandleEscape() => ViewModel?.TryHandleEscape() == true;
 
     private Task SelectWithModifiersAsync(ChapterRuleListItemViewModel? item)
     {
@@ -89,6 +92,19 @@ public partial class ChapterRulesPage : System.Windows.Controls.Page, INavigatio
             _activation,
             "从剪贴板导入章节规则失败",
             ViewModel.ImportRulesFromClipboardAsync);
+    }
+
+    private void ManagementItem_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.FrameworkElement { DataContext: ChapterRuleListItemViewModel item })
+            ViewModel.HandleRuleRightClick(item);
+    }
+
+    private void ManagementItem_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Apps || e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            if (sender is System.Windows.FrameworkElement { DataContext: ChapterRuleListItemViewModel item })
+                ViewModel.HandleRuleRightClick(item);
     }
 
 }

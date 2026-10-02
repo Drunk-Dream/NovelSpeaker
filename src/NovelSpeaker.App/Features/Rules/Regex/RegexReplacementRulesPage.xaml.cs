@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using System.Windows;
 using NovelSpeaker.App.Shell.Activation;
@@ -8,7 +9,7 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.Rules.Regex;
 
-public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<RegexReplacementRulesViewModel>
+public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<RegexReplacementRulesViewModel>, ITransientEscapeHandler
 {
     public ICommand SelectionCommand { get; }
 
@@ -38,6 +39,8 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
     }
 
     public RegexReplacementRulesViewModel ViewModel { get; }
+
+    public bool TryHandleEscape() => ViewModel?.TryHandleEscape() == true;
 
     private Task SelectWithModifiersAsync(RegexReplacementRuleListItemViewModel? item)
     {
@@ -88,6 +91,19 @@ public partial class RegexReplacementRulesPage : System.Windows.Controls.Page, I
             _activation,
             "从剪贴板导入正则替换规则失败",
             ViewModel.ImportRulesFromClipboardAsync);
+    }
+
+    private void ManagementItem_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.FrameworkElement { DataContext: RegexReplacementRuleListItemViewModel item })
+            ViewModel.HandleRuleRightClick(item);
+    }
+
+    private void ManagementItem_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Apps || e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            if (sender is System.Windows.FrameworkElement { DataContext: RegexReplacementRuleListItemViewModel item })
+                ViewModel.HandleRuleRightClick(item);
     }
 
 }

@@ -44,7 +44,7 @@ public sealed class SqliteConnectionFactoryTests
 
     private static async Task<long> ExecutePragmaAsync(SqliteConnection connection, string pragma)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = $"PRAGMA {pragma};";
         return Convert.ToInt64(await command.ExecuteScalarAsync(CancellationToken.None));
     }

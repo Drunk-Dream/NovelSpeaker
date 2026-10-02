@@ -21,7 +21,7 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var bookCommand = connection.CreateCommand();
+        using var bookCommand = connection.CreateCommand();
         bookCommand.CommandText =
             """
             SELECT Id, Title, Author
@@ -43,7 +43,7 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
             author = reader.IsDBNull(2) ? null : reader.GetString(2);
         }
 
-        var chapterCommand = connection.CreateCommand();
+        using var chapterCommand = connection.CreateCommand();
         chapterCommand.CommandText =
             """
             SELECT ChapterIndex, Title
@@ -99,7 +99,7 @@ public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT c.Id, c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length

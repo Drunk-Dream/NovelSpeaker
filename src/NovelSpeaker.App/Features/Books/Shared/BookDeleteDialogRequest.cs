@@ -3,4 +3,5 @@ namespace NovelSpeaker.App.Features.Books.Shared;
 public sealed record BookDeleteDialogRequest(
     string BookTitle,
     bool IsCurrentPlaybackBook,
-    bool DeleteAudioCacheByDefault = true);
+    bool DeleteAudioCacheByDefault = true,
+    int BookCount = 1);

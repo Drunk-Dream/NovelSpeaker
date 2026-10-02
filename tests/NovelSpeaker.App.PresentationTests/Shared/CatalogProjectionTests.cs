@@ -291,7 +291,7 @@ public sealed class CatalogProjectionTests
         projection.NotifyChapterReset();
 
         Assert.Equal([NotifyCollectionChangedAction.Reset], changes);
-        Assert.All(projection.Chapters, static chapter => Assert.True(chapter.IsSelectedForActiveCache));
+        Assert.All(projection.Chapters, static chapter => Assert.True(chapter.IsSelected));
     }
 
     [Fact]

@@ -120,7 +120,7 @@ public sealed class SqliteChapterSpeechPlanStoreTests
         await new StartupDatabaseInitializer(directories, runner, seeder).InitializeAsync(CancellationToken.None);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO Books

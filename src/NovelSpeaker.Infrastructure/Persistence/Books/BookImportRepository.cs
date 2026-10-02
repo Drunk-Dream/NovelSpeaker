@@ -25,7 +25,7 @@ public sealed class BookImportRepository : IBookImportRepository
 
         try
         {
-            var bookCommand = connection.CreateCommand();
+            using var bookCommand = connection.CreateCommand();
             bookCommand.Transaction = transaction;
             bookCommand.CommandText =
                 """
@@ -48,7 +48,7 @@ public sealed class BookImportRepository : IBookImportRepository
 
             foreach (var chapter in chapters)
             {
-                var chapterCommand = connection.CreateCommand();
+                using var chapterCommand = connection.CreateCommand();
                 chapterCommand.Transaction = transaction;
                 chapterCommand.CommandText =
                     """

@@ -156,7 +156,7 @@ public sealed partial class PlayerViewTests
             string errorText = "",
             bool showInlineLoadingState = false,
             string inlineLoadingText = "",
-            bool isActiveCacheSelectionMode = false,
+            bool isChapterManagementMode = false,
             bool canStartActiveCache = false,
             string activeCacheStatusText = "",
             ObservableCollection<PlayerProviderItemViewModel>? providers = null)
@@ -174,7 +174,7 @@ public sealed partial class PlayerViewTests
             ErrorText = errorText;
             ShowInlineLoadingState = showInlineLoadingState;
             InlineLoadingText = inlineLoadingText;
-            IsActiveCacheSelectionMode = isActiveCacheSelectionMode;
+            IsChapterManagementMode = isChapterManagementMode;
             CanStartActiveCache = canStartActiveCache;
             ActiveCacheStatusText = activeCacheStatusText;
             ShowEmptyChapterState = segments.Count == 0 && !showInlineLoadingState && !showNoProviderState;
@@ -202,7 +202,7 @@ public sealed partial class PlayerViewTests
 
         public IRelayCommand CancelStopTimerCommand { get; } = new RelayCommand(() => { });
 
-        public IRelayCommand ToggleActiveCacheSelectionCommand { get; } = new RelayCommand(() => { });
+        public IRelayCommand ToggleChapterManagementCommand { get; } = new RelayCommand(() => { });
 
         public IRelayCommand StartActiveCacheCommand { get; } = new RelayCommand(() => { });
 
@@ -264,7 +264,7 @@ public sealed partial class PlayerViewTests
 
         public string InlineLoadingText { get; }
 
-        public string ActiveCacheSelectionSummary { get; } = "已选择 2 章";
+        public string ChapterSelectionSummary { get; } = "已选择 2 章";
 
         public string ActiveCacheStatusText { get; }
 
@@ -294,7 +294,7 @@ public sealed partial class PlayerViewTests
 
         public bool ShowInlineLoadingState { get; }
 
-        public bool IsActiveCacheSelectionMode { get; }
+        public bool IsChapterManagementMode { get; }
 
         public bool CanStartActiveCache { get; }
 

@@ -27,6 +27,7 @@ using NovelSpeaker.Domain.Books;
 using NovelSpeaker.App;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shell.Input;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell;
 using NovelSpeaker.App.Shared.Theming;
@@ -42,6 +43,100 @@ namespace NovelSpeaker.App.WpfTests.Navigation;
 [Collection("WpfDispatcher")]
 public sealed class MainWindowNavigationTests
 {
+    [Fact]
+    public async Task Shell_escape_consumes_only_the_current_navigation_page_before_returning()
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            using var services = new ServiceCollection().BuildServiceProvider();
+            var navigation = new FakeNavigationService();
+            var shortcuts = new CapturingKeyboardShortcutCoordinator(new KeyboardShortcutCoordinator(navigation,
+                new EscapeTestFileDialogs(), new KeyboardShortcutTargetRegistry()));
+            var window = CreateWindow(navigation, new FakeNavigationGuardService(),
+                new FakeAppFeedbackService(), new FakeContentDialogService(),
+                new FakeNavigationViewPageProvider(), new FakeSnackbarService(), services,
+                new FakeMainWindowAppearanceConfigurator(), isExitApproved: () => true,
+                keyboardShortcutCoordinator: shortcuts);
+            using var host = WpfWindowHost.Show(window);
+            window.UpdateLayout();
+            var presenter = Assert.IsType<NavigationViewContentPresenter>(
+                VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(GetNavigationView(window)));
+            var previousPage = new EscapeTestPage();
+            await ShowEscapePageAsync(previousPage);
+            RaiseEscape(window);
+            Assert.NotNull(shortcuts.Context);
+            Assert.Same(previousPage, shortcuts.Context?.TransientEscapeHandler);
+            Assert.False(previousPage.IsInteractionOpen);
+            Assert.False(navigation.BackRequested);
+
+            previousPage.IsInteractionOpen = true;
+            var currentPage = new EscapeTestPage();
+            await ShowEscapePageAsync(currentPage);
+            RaiseEscape(window);
+            Assert.Same(currentPage, shortcuts.Context?.TransientEscapeHandler);
+            Assert.False(currentPage.IsInteractionOpen);
+            Assert.True(previousPage.IsInteractionOpen);
+            Assert.False(navigation.BackRequested);
+
+            RaiseEscape(window);
+            Assert.True(navigation.BackRequested);
+            Assert.True(previousPage.IsInteractionOpen);
+
+            async Task ShowEscapePageAsync(EscapeTestPage page)
+            {
+                var loaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                RoutedEventHandler onLoaded = (_, _) => loaded.TrySetResult();
+                page.Loaded += onLoaded;
+                try
+                {
+                    presenter.Content = page;
+                    window.UpdateLayout();
+                    await loaded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                finally { page.Loaded -= onLoaded; }
+            }
+        });
+    }
+
+    private static void RaiseEscape(Window window)
+    {
+        var key = new KeyEventArgs(Keyboard.PrimaryDevice,
+            PresentationSource.FromVisual(window)!, Environment.TickCount, Key.Escape)
+        {
+            RoutedEvent = Keyboard.PreviewKeyDownEvent
+        };
+        window.RaiseEvent(key);
+        Assert.True(key.Handled);
+    }
+
+    private sealed class EscapeTestPage : System.Windows.Controls.Page, ITransientEscapeHandler
+    {
+        public bool IsInteractionOpen { get; set; } = true;
+        public bool TryHandleEscape()
+        {
+            if (!IsInteractionOpen) return false;
+            IsInteractionOpen = false;
+            return true;
+        }
+    }
+
+    private sealed class EscapeTestFileDialogs : IPresentationFileDialogService
+    {
+        public Task<string?> PickOpenFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+        public Task<string?> PickSaveFileAsync(PresentationFileDialogOptions options, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+        public Task<string?> PickFolderAsync(PresentationFolderDialogOptions options, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+    }
+
+    private sealed class CapturingKeyboardShortcutCoordinator(IKeyboardShortcutCoordinator inner) : IKeyboardShortcutCoordinator
+    {
+        public KeyboardShortcutContext? Context { get; private set; }
+        public Task<bool> TryHandleAsync(Key key, ModifierKeys modifiers, KeyboardShortcutContext context, CancellationToken cancellationToken)
+        {
+            Context = context;
+            return inner.TryHandleAsync(key, modifiers, context, cancellationToken);
+        }
+    }
+
     private async Task Active_cache_footer_entry_opens_progress_flyout_and_survives_primary_navigation()
     {
         await WpfTestHost.RunInStaAsync(async () =>
@@ -650,7 +745,8 @@ public sealed class MainWindowNavigationTests
         IChapterExportCoordinator? chapterExportCoordinator = null,
         Func<CancellationToken, Task>? requestCloseAsync = null,
         Func<bool>? isExitApproved = null,
-        IPlaybackSession? playbackSession = null)
+        IPlaybackSession? playbackSession = null,
+        IKeyboardShortcutCoordinator? keyboardShortcutCoordinator = null)
     {
         var layoutController = new ShellLayoutController();
         var platformAdapter = new WpfShellPlatformAdapter(
@@ -682,7 +778,7 @@ public sealed class MainWindowNavigationTests
             feedbackService,
             activationCoordinator,
             layoutController,
-            new FakeKeyboardShortcutCoordinator(),
+            keyboardShortcutCoordinator ?? new FakeKeyboardShortcutCoordinator(),
             new WpfShortcutContextResolver());
         window.ConfigureDesktopLifecycle(
             requestCloseAsync ?? (_ => Task.CompletedTask),
@@ -751,6 +847,7 @@ public sealed class MainWindowNavigationTests
         public Type? LastNavigationPageType { get; private set; }
 
         public int NavigateCallCount { get; private set; }
+        public bool BackRequested { get; private set; }
 
         public bool IsBypassingGuard => false;
 
@@ -799,6 +896,7 @@ public sealed class MainWindowNavigationTests
 
         public Task<bool> NavigateBackAsync(CancellationToken cancellationToken, bool bypassGuard = false)
         {
+            BackRequested = true;
             return Task.FromResult(false);
         }
 

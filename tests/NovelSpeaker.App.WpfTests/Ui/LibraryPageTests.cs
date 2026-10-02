@@ -213,12 +213,6 @@ public sealed partial class LibraryPageTests
         private string librarySummaryText = string.Empty;
 
         [ObservableProperty]
-        private string importStatusMessage = string.Empty;
-
-        [ObservableProperty]
-        private string statusMessage = string.Empty;
-
-        [ObservableProperty]
         private LibrarySortMode selectedSortMode = LibrarySortMode.RecentReading;
     }
 }

@@ -133,7 +133,7 @@ public sealed class BookLibraryPersistenceTests
 
         await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO ChapterSpeechPlans
@@ -176,7 +176,7 @@ public sealed class BookLibraryPersistenceTests
                      "AudioCacheEntries"
                  })
         {
-            var command = verifyConnection.CreateCommand();
+            using var command = verifyConnection.CreateCommand();
             command.CommandText = $"SELECT COUNT(*) FROM {table} WHERE {(table is "Books" or "Chapters" ? "Id" : table is "ChapterSpeechPlans" or "ChapterSpeechPlanSegments" ? "ChapterId" : "BookId")} LIKE 'book-1%';";
             Assert.Equal(0L, (long)(await command.ExecuteScalarAsync(CancellationToken.None))!);
         }
@@ -190,7 +190,7 @@ public sealed class BookLibraryPersistenceTests
 
         await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var trigger = connection.CreateCommand();
+            using var trigger = connection.CreateCommand();
             trigger.CommandText =
                 """
                 CREATE TRIGGER BlockBookDelete
@@ -280,7 +280,7 @@ public sealed class BookLibraryPersistenceTests
         await File.WriteAllTextAsync(externalPath, "external source", CancellationToken.None);
         await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText = "UPDATE Books SET StoredFilePath = $path WHERE Id = 'book-1';";
             command.Parameters.AddWithValue("$path", externalPath);
             await command.ExecuteNonQueryAsync(CancellationToken.None);
@@ -313,7 +313,7 @@ public sealed class BookLibraryPersistenceTests
 
         await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 "UPDATE AudioCacheEntries SET FilePath = $path WHERE CacheKey = $cacheKey;";
             command.Parameters.AddWithValue("$path", externalPath);

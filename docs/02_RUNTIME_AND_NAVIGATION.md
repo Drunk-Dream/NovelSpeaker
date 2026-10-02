@@ -59,6 +59,8 @@ Player 是唯一使用动态一次性 ReturnRoute 的页面。ReturnRoute 记录
 
 PageHeader、Alt+Left 和未被局部交互消费的 Esc 复用统一返回语义。
 
+Shell 从当前导航内容取得页面级 ESC 消费者，不沿焦点的 DataContext/祖先推断，不缓存页面或处理器。WPF Page 只桥接到既有 ViewModel 状态 owner。无修饰键 ESC 的优先级是已打开的菜单/Popup/Flyout/ContentDialog → 当前页面局部交互（例如退出批量管理）→ 文本编辑保护 → 统一返回；文本框或导航区域持有焦点时，当前页面仍可以消费 ESC。页面没有可退出交互时保留文本编辑保护，其它快捷键沿用原策略。
+
 ## 5. Staged Loading
 
 复杂页面统一：

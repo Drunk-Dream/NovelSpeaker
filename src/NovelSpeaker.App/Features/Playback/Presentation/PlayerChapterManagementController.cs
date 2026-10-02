@@ -7,20 +7,20 @@ namespace NovelSpeaker.App.Features.Playback.Presentation;
 /// Owns the player page's temporary chapter-selection mode while projecting the
 /// process-owned active-cache snapshot without duplicating batch state.
 /// </summary>
-internal sealed class PlayerActiveCacheSelectionController
+internal sealed class PlayerChapterManagementController
 {
     private readonly IActiveCacheCoordinator _activeCacheCoordinator;
-    private readonly DesktopSelectionController<int> _selection = new();
+    private readonly ManagementSelectionController<int> _selection = new();
     private ActiveCacheSnapshot? _activeSnapshot;
     private string? _startStatusText;
 
-    public PlayerActiveCacheSelectionController(IActiveCacheCoordinator activeCacheCoordinator)
+    public PlayerChapterManagementController(IActiveCacheCoordinator activeCacheCoordinator)
     {
         _activeCacheCoordinator = activeCacheCoordinator;
         _activeSnapshot = activeCacheCoordinator.CurrentSnapshot;
-        _selection.SelectionChanged += (_, eventArgs) =>
+        _selection.StateChanged += (_, _) =>
         {
-            ChangedChapterIndices = eventArgs.ChangedItems;
+            ChangedChapterIndices = _selection.ChangedItems;
             StateChanged?.Invoke(this, EventArgs.Empty);
         };
     }
@@ -29,11 +29,11 @@ internal sealed class PlayerActiveCacheSelectionController
 
     public IReadOnlyList<int> ChangedChapterIndices { get; private set; } = [];
 
-    public bool IsSelectionMode { get; private set; }
+    public bool IsSelectionMode => _selection.IsManagementMode;
 
     public IReadOnlyList<int> SelectedChapterIndices => _selection.SelectedItems;
 
-    public int SelectedChapterCount => _selection.Count;
+    public int SelectedChapterCount => _selection.SelectedCount;
 
     public bool HasActiveBatch =>
         _activeSnapshot?.Status is
@@ -51,7 +51,8 @@ internal sealed class PlayerActiveCacheSelectionController
 
     public void SetChapters(IEnumerable<int> chapterIndices, bool resetSelection = false)
     {
-        _selection.SetItems(chapterIndices, resetSelection);
+        if (resetSelection) _selection.Reset();
+        _selection.SetItems(chapterIndices);
     }
 
     public void SetIndexedItems(
@@ -59,7 +60,8 @@ internal sealed class PlayerActiveCacheSelectionController
         IReadOnlyDictionary<int, int> positions,
         bool resetSelection = false)
     {
-        _selection.SetIndexedItems(chapterIndices, positions, resetSelection);
+        if (resetSelection) _selection.Reset();
+        _selection.SetIndexedItems(chapterIndices, positions);
     }
 
     public void EnterSelectionMode()
@@ -69,21 +71,13 @@ internal sealed class PlayerActiveCacheSelectionController
             return;
         }
 
-        IsSelectionMode = true;
         _startStatusText = null;
-        ChangedChapterIndices = [];
-        StateChanged?.Invoke(this, EventArgs.Empty);
+        _selection.Enter();
     }
 
     public bool HandleChapterClick(int chapterIndex, DesktopSelectionModifiers modifiers)
     {
-        if (!IsSelectionMode)
-        {
-            return false;
-        }
-
-        _selection.Click(chapterIndex, modifiers);
-        return true;
+        return _selection.HandleClick(chapterIndex, modifiers);
     }
 
     public void SelectAll()
@@ -101,12 +95,11 @@ internal sealed class PlayerActiveCacheSelectionController
             return false;
         }
 
-        IsSelectionMode = false;
-        _selection.Clear();
         _startStatusText = null;
-        StateChanged?.Invoke(this, EventArgs.Empty);
-        return true;
+        return _selection.Exit();
     }
+
+    public bool HandleRightClick(int chapterIndex) => _selection.HandleRightClick(chapterIndex);
 
     public bool IsSelected(int chapterIndex) => _selection.IsSelected(chapterIndex);
 

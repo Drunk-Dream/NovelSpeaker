@@ -25,7 +25,7 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
         await using var transaction = (Microsoft.Data.Sqlite.SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var updatedAt = SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow());
 
-        var upsertCommand = connection.CreateCommand();
+        using var upsertCommand = connection.CreateCommand();
         upsertCommand.Transaction = transaction;
         upsertCommand.CommandText =
             """
@@ -46,7 +46,7 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
         upsertCommand.Parameters.AddWithValue("$updatedAt", updatedAt);
         await upsertCommand.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        var bookCommand = connection.CreateCommand();
+        using var bookCommand = connection.CreateCommand();
         bookCommand.Transaction = transaction;
         bookCommand.CommandText =
             """
@@ -66,7 +66,7 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT BookId, ChapterIndex, SegmentIndex, CharacterOffset, AudioPositionMilliseconds, UpdatedAt
@@ -83,7 +83,7 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
     public async Task<ReadingProgressEntry?> GetMostRecentAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT rp.BookId, rp.ChapterIndex, rp.SegmentIndex, rp.CharacterOffset, rp.AudioPositionMilliseconds, rp.UpdatedAt

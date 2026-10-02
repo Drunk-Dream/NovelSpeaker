@@ -130,11 +130,11 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public bool CanIncreaseSpeakSpeed => SpeakSpeed < AppSettings.MaxSpeakSpeed;
 
-    public bool IsActiveCacheSelectionMode => _cacheDecorationController.IsSelectionMode;
+    public bool IsChapterManagementMode => _cacheDecorationController.IsSelectionMode;
 
-    public int SelectedActiveCacheChapterCount => _cacheDecorationController.SelectedChapterCount;
+    public int SelectedChapterCount => _cacheDecorationController.SelectedChapterCount;
 
-    public string ActiveCacheSelectionSummary => _cacheDecorationController.SelectionSummary;
+    public string ChapterSelectionSummary => _cacheDecorationController.SelectionSummary;
 
     public string ActiveCacheStatusText => _cacheDecorationController.StatusText;
 
@@ -831,10 +831,12 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     internal void RequestCacheDecorationWindow(int start, int count) =>
         _cacheDecorationController.RequestDecorationWindow(start, count);
 
+    public bool HandleChapterRightClick(int chapterIndex) => _cacheDecorationController.HandleChapterRightClick(chapterIndex);
+
     [RelayCommand]
-    private void ToggleActiveCacheSelection()
+    private void ToggleChapterManagement()
     {
-        if (IsActiveCacheSelectionMode)
+        if (IsChapterManagementMode)
         {
             _cacheDecorationController.ExitSelectionMode();
             return;
@@ -845,7 +847,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     }
 
     [RelayCommand]
-    private void SelectAllActiveCacheChapters()
+    private void SelectAllChapters()
     {
         _cacheDecorationController.SelectAll();
     }
@@ -864,7 +866,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         await _cacheDecorationController.StartAsync(bookId, SpeakSpeed, cancellationToken);
     }
 
-    public bool HandleActiveCacheEscape() => _cacheDecorationController.TryExitSelectionMode();
+    public bool HandleChapterManagementEscape() => _cacheDecorationController.TryExitSelectionMode();
 
     public bool TryHandleEscape()
     {
@@ -874,9 +876,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return true;
         }
 
-        if (IsActiveCacheSelectionMode)
+        if (IsChapterManagementMode)
         {
-            return HandleActiveCacheEscape();
+            return HandleChapterManagementEscape();
         }
 
         if (IsProviderMenuOpen || IsSpeedMenuOpen || IsStopTimerMenuOpen || IsVolumeMenuOpen)
@@ -888,9 +890,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         return false;
     }
 
-    public bool HandleActiveCacheSelectAll()
+    public bool HandleChapterSelectAll()
     {
-        if (!IsActiveCacheSelectionMode)
+        if (!IsChapterManagementMode)
         {
             return false;
         }
@@ -1083,9 +1085,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         CurrentChapterItem = _contentController.CurrentChapterItem;
 
-        OnPropertyChanged(nameof(IsActiveCacheSelectionMode));
-        OnPropertyChanged(nameof(SelectedActiveCacheChapterCount));
-        OnPropertyChanged(nameof(ActiveCacheSelectionSummary));
+        OnPropertyChanged(nameof(IsChapterManagementMode));
+        OnPropertyChanged(nameof(SelectedChapterCount));
+        OnPropertyChanged(nameof(ChapterSelectionSummary));
         OnPropertyChanged(nameof(ActiveCacheStatusText));
         OnPropertyChanged(nameof(HasActiveCacheBatch));
         OnPropertyChanged(nameof(CanStartActiveCache));

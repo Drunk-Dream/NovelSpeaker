@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
@@ -8,7 +9,7 @@ using Wpf.Ui.Abstractions.Controls;
 namespace NovelSpeaker.App.Features.Rules.Metadata;
 
 public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
-    INavigationAware, INavigableView<MetadataRuleWorkbenchViewModel>
+    INavigationAware, INavigableView<MetadataRuleWorkbenchViewModel>, ITransientEscapeHandler
 {
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _guards;
@@ -39,6 +40,8 @@ public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
 
     public MetadataRuleWorkbenchViewModel ViewModel { get; }
 
+    public bool TryHandleEscape() => ViewModel?.TryHandleEscape() == true;
+
     private Task SelectWithModifiersAsync(MetadataRuleRow? item)
     {
         var modifiers = DesktopSelectionInput.ReadModifiers();
@@ -50,6 +53,7 @@ public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
     {
         using var operation = _operations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiRulesLoad);
         var activation = _activation.Activate();
+        activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_guards.Register(ViewModel.ConfirmLeaveAsync));
         try
         {
@@ -72,4 +76,17 @@ public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
         _activation.Deactivate();
         return Task.CompletedTask;
     }
+    private void ManagementItem_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.FrameworkElement { DataContext: MetadataRuleRow item })
+            ViewModel.HandleRuleRightClick(item);
+    }
+
+    private void ManagementItem_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Apps || e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            if (sender is System.Windows.FrameworkElement { DataContext: MetadataRuleRow item })
+                ViewModel.HandleRuleRightClick(item);
+    }
+
 }

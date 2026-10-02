@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
@@ -7,7 +8,7 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.SpeechServices;
 
-public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<SpeechServicesViewModel>
+public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigationAware, INavigableView<SpeechServicesViewModel>, ITransientEscapeHandler
 {
     public ICommand SelectionCommand { get; }
 
@@ -37,6 +38,8 @@ public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigat
     }
 
     public SpeechServicesViewModel ViewModel { get; }
+
+    public bool TryHandleEscape() => ViewModel?.TryHandleEscape() == true;
 
     private Task SelectWithModifiersAsync(SpeechProviderListItemViewModel? item)
     {
@@ -72,6 +75,19 @@ public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigat
     {
         _activation.Deactivate();
         await ViewModel.FinishDeactivationAsync();
+    }
+
+    private void ManagementItem_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.FrameworkElement { DataContext: SpeechProviderListItemViewModel item })
+            ViewModel.HandleProviderRightClick(item);
+    }
+
+    private void ManagementItem_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Apps || e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            if (sender is System.Windows.FrameworkElement { DataContext: SpeechProviderListItemViewModel item })
+                ViewModel.HandleProviderRightClick(item);
     }
 
 }

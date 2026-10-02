@@ -30,7 +30,8 @@ public sealed partial class ChapterRulesPageTests
             AssertToolbarIcon(view, "恢复默认规则", SymbolRegular.ArrowReset24);
             AssertToolbarIcon(view, "章节规则帮助", SymbolRegular.QuestionCircle24);
             Assert.DoesNotContain(
-                VisualTreeTestHelper.FindDescendants<Button>(view),
+                VisualTreeTestHelper.FindDescendants<Button>(
+                    Assert.IsAssignableFrom<FrameworkElement>(view.FindName("PageActions"))),
                 button => AutomationProperties.GetName(button).Contains("导出", StringComparison.Ordinal));
         });
     }
@@ -121,14 +122,15 @@ public sealed partial class ChapterRulesPageTests
             Assert.Equal(["名称", "正则表达式"], fields.Select(field => field.Label));
             Assert.Equal("名称不能为空。", fields[0].Error);
             Assert.Equal("正则表达式无效。", fields[1].Error);
+            var editor = Assert.IsType<ScrollViewer>(view.FindName("RuleEditorScrollViewer"));
             Assert.True(Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
-                view,
+                editor,
                 button => Equals(button.Content, "取消"))).IsEnabled);
             Assert.False(Assert.Single(VisualTreeTestHelper.FindDescendants<Button>(
-                view,
+                editor,
                 button => Equals(button.Content, "保存"))).IsEnabled);
             Assert.Null(VisualTreeTestHelper.FindDescendant<Button>(
-                view,
+                editor,
                 button => Equals(button.Content, "删除")));
         });
     }
@@ -263,6 +265,8 @@ public sealed partial class ChapterRulesPageTests
         public string DraftName { get; init; } = "当前规则";
         public string DraftPattern { get; init; } = @"^\s*第一章$";
         public bool CanSaveDraft { get; init; } = true;
+        public bool IsManagementMode { get; init; }
+        public bool CanReorder => !IsManagementMode;
         public bool CanCancelEditing { get; init; } = true;
         public string NameValidationMessage { get; init; } = string.Empty;
         public string PatternValidationMessage { get; init; } = string.Empty;

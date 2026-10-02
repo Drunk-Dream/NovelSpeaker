@@ -57,6 +57,32 @@ Desktop  → Playback
 
 跨模块变化使用窄的 typed snapshot/change source/role port；源模块只表达“自身发生了什么变化”，派生消费者在自己的边界解释影响。禁止为此引入通用 EventBus/Messenger。
 
+### Book / Source 边界
+
+Books 模块统一使用：
+
+```text
+Book
+└─ Sources[]
+   └─ Source
+      ├─ Metadata Snapshot
+      ├─ Catalog
+      └─ Content
+```
+
+长期原则：
+
+- Book 是跨 Source 的稳定实体，BookId 是永久内部身份。
+- Source 属于 Book，Catalog 属于 Source，Content 属于 Source。
+- Book 不保存第二套 Catalog 真值。
+- ReadingProgress 属于 Book，而不是 Source。
+- `ActiveSourceId` 可以为空。
+- Local Source 是一个 typed Source 实现，不把 StoredFilePath/Encoding/SourceHash 等 Local-only 数据继续放进通用 Book Domain model。
+- Source-specific persistence/HTTP/file details 只存在于 Infrastructure；Application 通过 Source/catalog/content port 工作。
+- Catalog entry 可以保留技术性 ChapterId 供 Speech Plan/音频缓存引用，但不建立跨 Source 的 Chapter Identity 推断。
+- 当前只实现 Local Source。Online Source 的 Legado/站点规则、目录抓取、正文请求、登录和变量体系在真正需要时再建立 typed boundary，不提前做万能 Source plugin framework。
+- 精确模型见 `docs/specs/BOOK_DATA_MODEL.md`。
+
 ### Speech Provider 边界
 
 Speech 以 Provider Type + Provider Instance 建模。
@@ -114,6 +140,7 @@ Shared/
 - `Rules/Shared` 只共享真正属于规则编辑的生命周期，不抽象不同规则业务模型。
 - Speech Provider 编辑器只共享 Draft/Dirty/Save/Cancel/Test 等生命周期语义，不共享一套万能配置字段。
 - 全局 `Shared` 只保存真实跨多个业务域复用的 presentation/lifecycle/platform primitive。
+- 页面级 Management Mode 可以共享 stable-key selection/lifecycle primitive，但 Shared 不拥有 Book/Provider/Rule/Chapter 的 batch business action。
 - `Shared` 不依赖任何 Feature。
 
 ## 4. 状态所有权
@@ -122,19 +149,21 @@ Shared/
 
 | 状态 | Owner | 生命周期 |
 |---|---|---|
+| Book / Source / Catalog 持久事实 | Books persistence/use case | Persistent |
+| 当前 Book ActiveSourceId | Books use case + persistence | Persistent |
 | 当前播放会话与位置 | Playback session owner | Playback session / process |
-| 当前 Provider Id | Settings process service | Persistent |
+| 当前 Speech Provider Id | Settings process service | Persistent |
 | Provider 列表、排序与类型配置 | Speech Provider persistence/use case | Persistent |
 | ReadingProgress checkpoint | Application progress use case + persistence | Persistent |
 | 当前设置 snapshot | Settings process service | Process |
 | 当前路由 | Shell navigation owner | Process |
 | Process fatal 状态与最终退出原因 | Process lifetime owner | Process |
-| 物理缓存/index/file | Cache store | Persistent / rebuildable |
+| 物理音频缓存/index/file | Cache store | Persistent / rebuildable |
 | Cache Coverage/read model | Cache query | Query / page projection |
 | 主动缓存批次 | Active Cache coordinator | Background job |
 | 章节导出批次 | Export coordinator | Background job |
 | Speech Plan 补建 | Repair coordinator | Background job |
-| 页面 filter/selection/draft | 当前 Page/ViewModel | Page activation |
+| 页面 filter/management selection/draft | 当前 Page/ViewModel | Page activation |
 | 诊断会话 | Diagnostics session owner | Explicit diagnostic session |
 
 ViewModel 不复制 process/session/background owner 的 mutable truth。跨页面展示使用 immutable snapshot/read model。
@@ -176,6 +205,8 @@ Feature-local mapper/projector/controller 默认使用 concrete internal type，
 - 不用大型详情 DTO 同时承载 header、catalog、status、statistics；
 - App 不组合多个低层 persistence port 构造页面级 read model；
 - 大 catalog 与动态 decoration 分离。
+- Book query 默认通过 ActiveSource 投影当前 Catalog/Content，不把 Local Source storage path 暴露到 App。
+- ActiveSource=None 是合法 read model 状态，不通过异常或伪造 Catalog 表达。
 
 ## 7. 大列表
 
@@ -192,6 +223,7 @@ Sparse Mutable Decoration
 - 动态 cache/status 只更新 current/viewport/明确受影响范围。
 - WPF virtualization 负责可视 container/layout，不替代 data/projection 规模控制。
 - 不在 Feature 中自行实现 WPF item container generator、scroll extent/offset 或 recycling 状态机。
+- selection 使用 stable item key，不依赖虚拟化 container 保存业务选择事实。
 
 ## 8. Observability 架构
 
@@ -246,6 +278,8 @@ Process-level fatal failure 采用同样的“事实只分类一次”原则：A
 - Service Locator。
 - 万能 Manager/Helper/Utils。
 - 万能 Provider Config 或提前设计的插件框架。
+- 万能 Book Source Config / 提前实现的 Online Source plugin framework。
+- 跨页面全局 SelectionService。
 - 通过 Shared 隐藏 Feature/Application 循环。
 - 为内部重构长期保留 Old/New/V2/Compat/forwarding wrapper。
 - 通过 singleton Page/ViewModel 或 Navigation cache 保存长期业务状态。

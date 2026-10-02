@@ -16,9 +16,50 @@
         <common:AppPageHeader Title="{Binding PageTitle}" BackCommand="{Binding BackCommand}">
             <common:AppPageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
-                    <ui:Button Margin="0,0,8,0" Content="新建" Command="{Binding NewRuleCommand}" />
-                    <ui:Button Margin="0,0,8,0" Content="导入文件" Command="{Binding ImportFileCommand}" />
-                    <ui:Button Content="从剪贴板导入" Command="{Binding ImportClipboardCommand}" />
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsManagementMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center"
+                            Style="{StaticResource App.Typography.Body}" TextWrapping="NoWrap"
+                            Text="{Binding SelectedCount, StringFormat=已选择 {0} 项}" />
+                        <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding SelectAllCommand}"
+                            ToolTip="全选" AutomationProperties.Name="全选" Icon="{ui:SymbolIcon Symbol=SelectAllOn24}" />
+                        <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding ExportRuleCommand}"
+                            ToolTip="导出" AutomationProperties.Name="导出" Icon="{ui:SymbolIcon Symbol=ArrowExport24}" />
+                        <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.DangerIcon}" Command="{Binding DeleteSelectedRulesCommand}"
+                            ToolTip="删除" AutomationProperties.Name="删除" Icon="{ui:SymbolIcon Symbol=Delete24}" />
+                        <ui:Button Margin="0" Style="{StaticResource App.Button.Icon}" Command="{Binding CancelManagementCommand}"
+                            ToolTip="退出批量管理" AutomationProperties.Name="退出批量管理" Icon="{ui:SymbolIcon Symbol=Dismiss24}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding NewRuleCommand}"
+                                ToolTip="新建规则" AutomationProperties.Name="新建规则" Icon="{ui:SymbolIcon Symbol=DocumentAdd24}" />
+                            <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding ImportFileCommand}"
+                                ToolTip="从文件导入" AutomationProperties.Name="从文件导入" Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
+                            <ui:Button Margin="0" Style="{StaticResource App.Button.Icon}" Command="{Binding ImportClipboardCommand}"
+                                ToolTip="从剪贴板导入" AutomationProperties.Name="从剪贴板导入" Icon="{ui:SymbolIcon Symbol=ClipboardPaste24}" />
+                            <ui:Button Margin="12,0,0,0" Command="{Binding EnterManagementCommand}"
+                                ToolTip="批量管理" AutomationProperties.Name="批量管理" Icon="{ui:SymbolIcon Symbol=MultiselectLtr24}">
+                                <ui:Button.Style>
+                                    <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource App.Button.Icon}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                            </ui:Button>
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </common:AppPageHeader.Actions>
         </common:AppPageHeader>
@@ -45,12 +86,13 @@
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <rules:RuleListItemView Title="{Binding Name}"
+                            <rules:RuleListItemView PreviewMouseRightButtonDown="ManagementItem_OnPreviewMouseRightButtonDown"
+                                                    PreviewKeyDown="ManagementItem_OnPreviewKeyDown" Title="{Binding Name}"
                                                     Summary="{Binding PatternSummary}"
                                                     IsRuleEnabled="{Binding IsEnabled}"
                                                     IsSelected="{Binding IsSelected}"
-                                                    IsSortable="True"
-                                                    CanToggle="True"
+                                                    IsSortable="{Binding DataContext.CanReorder, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CanToggle="{Binding DataContext.CanReorder, RelativeSource={RelativeSource AncestorType=Page}}"
                                                     CanExport="True"
                                                     CanCopy="True"
                                                     CanDelete="True"
@@ -73,15 +115,16 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding HasEditor, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel Margin="16">
-                        <TextBlock Text="名称" Margin="0,0,0,6" />
+                        <TextBlock Text="名称" Margin="0,0,0,6" Style="{StaticResource App.Typography.FormLabel}" />
                         <TextBox Style="{StaticResource App.Input.TextBox.Standard}"
                                  Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}"
                                  AutomationProperties.Name="规则名称" />
-                        <TextBlock Text="正则表达式" Margin="0,18,0,6" />
+                        <TextBlock Text="正则表达式" Margin="0,18,0,6" Style="{StaticResource App.Typography.FormLabel}" />
                         <TextBox Style="{StaticResource App.Input.TextBox.Standard}"
                                  Text="{Binding DraftPattern, UpdateSourceTrigger=PropertyChanged}"
                                  AutomationProperties.Name="正则表达式" />
-                        <TextBlock Text="{Binding ValidationMessage}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding ValidationMessage}" TextWrapping="Wrap" Margin="0,8,0,0"
+                            Style="{StaticResource App.Typography.Validation}" />
                         <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
                             <ui:Button Content="保存" Command="{Binding SaveRuleCommand}" Margin="0,0,8,0" />
                             <ui:Button Content="取消" Command="{Binding CancelEditingCommand}" />

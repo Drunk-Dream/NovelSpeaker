@@ -121,7 +121,7 @@ public sealed class BookOperationRecoveryService
     private async Task<bool> BookExistsAsync(string bookId, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT EXISTS(SELECT 1 FROM Books WHERE Id = $bookId);";
         command.Parameters.AddWithValue("$bookId", bookId);
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false)) == 1;
@@ -131,13 +131,13 @@ public sealed class BookOperationRecoveryService
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        var cache = connection.CreateCommand();
+        using var cache = connection.CreateCommand();
         cache.Transaction = transaction;
         cache.CommandText = "DELETE FROM AudioCacheEntries WHERE BookId = $bookId;";
         cache.Parameters.AddWithValue("$bookId", bookId);
         await cache.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        var segments = connection.CreateCommand();
+        using var segments = connection.CreateCommand();
         segments.Transaction = transaction;
         segments.CommandText =
             """
@@ -147,7 +147,7 @@ public sealed class BookOperationRecoveryService
         segments.Parameters.AddWithValue("$bookId", bookId);
         await segments.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        var plans = connection.CreateCommand();
+        using var plans = connection.CreateCommand();
         plans.Transaction = transaction;
         plans.CommandText =
             """
@@ -157,19 +157,19 @@ public sealed class BookOperationRecoveryService
         plans.Parameters.AddWithValue("$bookId", bookId);
         await plans.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        var progress = connection.CreateCommand();
+        using var progress = connection.CreateCommand();
         progress.Transaction = transaction;
         progress.CommandText = "DELETE FROM ReadingProgress WHERE BookId = $bookId;";
         progress.Parameters.AddWithValue("$bookId", bookId);
         await progress.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        var chapters = connection.CreateCommand();
+        using var chapters = connection.CreateCommand();
         chapters.Transaction = transaction;
         chapters.CommandText = "DELETE FROM Chapters WHERE BookId = $bookId;";
         chapters.Parameters.AddWithValue("$bookId", bookId);
         await chapters.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        var book = connection.CreateCommand();
+        using var book = connection.CreateCommand();
         book.Transaction = transaction;
         book.CommandText = "DELETE FROM Books WHERE Id = $bookId;";
         book.Parameters.AddWithValue("$bookId", bookId);

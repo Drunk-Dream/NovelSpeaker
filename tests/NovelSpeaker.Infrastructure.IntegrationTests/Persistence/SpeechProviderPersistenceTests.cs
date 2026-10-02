@@ -26,7 +26,7 @@ public sealed class SpeechProviderPersistenceTests
         // v8 has no Edge config table, so insert a valid HTTP row through the existing v8 schema.
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText = """
                 INSERT INTO SpeechProviders (Id, Type, Name, NameKey, SortOrder, CreatedAt, UpdatedAt)
                 VALUES ('00000000-0000-0000-0000-000000000001', 1, 'HTTP', 'HTTP', 5,
@@ -189,7 +189,7 @@ public sealed class SpeechProviderPersistenceTests
         Assert.Contains("HttpTtsRules", tables);
         Assert.DoesNotContain("SpeechProviders", tables);
         Assert.DoesNotContain("HttpSpeechProviderConfigs", tables);
-        var ruleCount = verification.CreateCommand();
+        using var ruleCount = verification.CreateCommand();
         ruleCount.CommandText = "SELECT COUNT(*) FROM HttpTtsRules WHERE Id = 71;";
         Assert.Equal(1, Convert.ToInt32(await ruleCount.ExecuteScalarAsync(CancellationToken.None)));
     }
@@ -237,7 +237,7 @@ public sealed class SpeechProviderPersistenceTests
         await store.DeleteAsync(second.Id, CancellationToken.None);
         Assert.Null(await store.GetByIdAsync(second.Id, CancellationToken.None));
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var configCount = connection.CreateCommand();
+        using var configCount = connection.CreateCommand();
         configCount.CommandText = "SELECT COUNT(*) FROM HttpSpeechProviderConfigs;";
         Assert.Equal(1, Convert.ToInt32(await configCount.ExecuteScalarAsync(CancellationToken.None)));
     }
@@ -478,7 +478,7 @@ public sealed class SpeechProviderPersistenceTests
         string? requestOptionsJson = null)
     {
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO HttpTtsRules
@@ -499,7 +499,7 @@ public sealed class SpeechProviderPersistenceTests
 
     private static async Task<IReadOnlyList<string>> GetTableNamesAsync(SqliteConnection connection)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
         await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         var names = new List<string>();
@@ -519,7 +519,7 @@ public sealed class SpeechProviderPersistenceTests
 
     private static async Task<int> GetSchemaVersionAsync(SqliteConnection connection)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
         return Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
     }

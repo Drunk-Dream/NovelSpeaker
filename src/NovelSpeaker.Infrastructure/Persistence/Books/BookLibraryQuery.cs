@@ -52,7 +52,7 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
                     .Skip(batchIndex * batchSize)
                     .Take(batchSize)
                     .ToArray();
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             var bookFilter = batchBookIds is null
                 ? string.Empty
                 : $"WHERE b.Id IN ({string.Join(", ", batchBookIds.Select((_, index) => $"$bookId{index}"))})";

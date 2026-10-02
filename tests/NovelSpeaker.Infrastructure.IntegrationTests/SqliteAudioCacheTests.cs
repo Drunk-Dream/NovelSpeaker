@@ -390,7 +390,7 @@ public sealed class SqliteAudioCacheTests
             CancellationToken.None);
 
         await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT e.KeyVersion, e.SpeechTextHash, e.SynthesisProfileFingerprint,
@@ -652,7 +652,7 @@ public sealed class SqliteAudioCacheTests
         await fixture.Cache.ClearAllAsync(CancellationToken.None);
 
         await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT
@@ -697,7 +697,7 @@ public sealed class SqliteAudioCacheTests
 
         await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 CREATE TRIGGER RejectAudioCacheDelete
@@ -777,7 +777,7 @@ public sealed class SqliteAudioCacheTests
         var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
         await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 CREATE TRIGGER RejectAudioCacheInsert
@@ -817,7 +817,7 @@ public sealed class SqliteAudioCacheTests
 
         await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT OR IGNORE INTO SynthesisProfiles
@@ -875,7 +875,7 @@ public sealed class SqliteAudioCacheTests
         string? filePath = null)
     {
         await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT OR IGNORE INTO SynthesisProfiles
@@ -930,7 +930,7 @@ public sealed class SqliteAudioCacheTests
 
         await using (var seedConnection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var seedCommand = seedConnection.CreateCommand();
+            using var seedCommand = seedConnection.CreateCommand();
             seedCommand.CommandText =
                 """
                 INSERT INTO Books
@@ -979,7 +979,7 @@ public sealed class SqliteAudioCacheTests
     private static async Task<string> ReadLastAccessedAtAsync(CacheFixture fixture, AudioCacheKey key)
     {
         await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT LastAccessedAt FROM AudioCacheEntries WHERE CacheKey = $cacheKey;";
         command.Parameters.AddWithValue("$cacheKey", Encoding.UTF8.GetBytes(key.Value));
         return (string)(await command.ExecuteScalarAsync(CancellationToken.None))!;
@@ -991,7 +991,7 @@ public sealed class SqliteAudioCacheTests
         string filePath)
     {
         await using var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
                 INSERT OR IGNORE INTO SynthesisProfiles

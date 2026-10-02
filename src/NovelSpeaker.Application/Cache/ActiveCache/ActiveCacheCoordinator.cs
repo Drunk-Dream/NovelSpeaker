@@ -5,6 +5,7 @@ using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Application.Speech.Execution;
 
 namespace NovelSpeaker.Application.Cache.ActiveCache;
 
@@ -264,28 +265,39 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                 currentChapter: true);
             Publish(snapshot);
 
+            var usedOnlyCache = true;
+            var chapterFailed = false;
             foreach (var segment in chapter.Segments)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 AudioGenerationResult result;
                 do
                 {
-                    result = await _audioProvider.GetAudioAsync(
-                        new AudioGenerationRequest(
-                            batch.BookId,
-                            chapter.ChapterIndex,
-                            segment.SegmentIndex,
-                            segment.SpeechText,
-                            batch.Provider,
-                            batch.SpeakSpeed,
-                            batch.BatchId)
-                        {
-                            ChapterId = chapter.ChapterId,
-                            StableSegmentIdentity = segment.StableIdentity
-                        },
-                        AudioGenerationPriority.ActiveCache,
-                        null,
-                        cancellationToken).ConfigureAwait(false);
+                    try
+                    {
+                        result = await _audioProvider.GetAudioAsync(
+                            new AudioGenerationRequest(
+                                batch.BookId,
+                                chapter.ChapterIndex,
+                                segment.SegmentIndex,
+                                segment.SpeechText,
+                                batch.Provider,
+                                batch.SpeakSpeed,
+                                batch.BatchId)
+                            {
+                                ChapterId = chapter.ChapterId,
+                                StableSegmentIdentity = segment.StableIdentity
+                            },
+                            AudioGenerationPriority.ActiveCache,
+                            null,
+                            cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                    catch (Exception)
+                    {
+                        result = new AudioGenerationResult(null, false,
+                            new TtsExecutionFailure(TtsErrorKind.Unknown, UnexpectedFailureSummary, null, null, null, null));
+                    }
 
                     cancellationToken.ThrowIfCancellationRequested();
                 }
@@ -301,12 +313,13 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                         summary,
                         currentChapter: true) with
                     {
-                        Status = ActiveCacheBatchStatus.Failed,
                         ErrorSummary = summary
                     });
-                    return;
+                    chapterFailed = true;
+                    break;
                 }
 
+                usedOnlyCache &= result.IsUsingCache;
                 snapshot = IncrementSegment(CurrentSnapshot!, chapterPosition);
                 Publish(snapshot);
             }
@@ -314,8 +327,8 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
             snapshot = UpdateChapter(
                 CurrentSnapshot!,
                 chapterPosition,
-                ActiveCacheChapterStatus.Completed,
-                null,
+                chapterFailed ? ActiveCacheChapterStatus.Failed : usedOnlyCache ? ActiveCacheChapterStatus.Skipped : ActiveCacheChapterStatus.Completed,
+                chapterFailed ? CurrentSnapshot!.Chapters[chapterPosition].ErrorSummary : null,
                 currentChapter: true) with
             {
                 CompletedChapterCount = CurrentSnapshot!.CompletedChapterCount + 1
@@ -325,7 +338,8 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
 
         Publish(CurrentSnapshot! with
         {
-            Status = ActiveCacheBatchStatus.Completed,
+            Status = CurrentSnapshot!.Chapters.Any(chapter => chapter.Status == ActiveCacheChapterStatus.Failed)
+                ? ActiveCacheBatchStatus.Failed : ActiveCacheBatchStatus.Completed,
             CurrentChapterIndex = null,
             CurrentChapterTitle = null
         });

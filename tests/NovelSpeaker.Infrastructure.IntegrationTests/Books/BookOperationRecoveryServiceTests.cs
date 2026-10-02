@@ -197,7 +197,7 @@ public sealed class BookOperationRecoveryServiceTests
     private static async Task SeedBookAsync(TestFixture fixture, string bookId, string storedFilePath)
     {
         await using var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO Books
@@ -215,7 +215,7 @@ public sealed class BookOperationRecoveryServiceTests
     private static async Task<bool> BookExistsAsync(TestFixture fixture, string bookId)
     {
         await using var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT EXISTS(SELECT 1 FROM Books WHERE Id = $id);";
         command.Parameters.AddWithValue("$id", bookId);
         return Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)) == 1;

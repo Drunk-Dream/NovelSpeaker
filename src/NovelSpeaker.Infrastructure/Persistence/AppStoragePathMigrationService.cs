@@ -48,7 +48,7 @@ public sealed class AppStoragePathMigrationService
         string pathColumn,
         CancellationToken cancellationToken)
     {
-        var select = connection.CreateCommand();
+        using var select = connection.CreateCommand();
         select.Transaction = transaction;
         select.CommandText = $"SELECT {keyColumn}, {pathColumn} FROM {tableName};";
         var updates = new List<(object Id, string StorageKey)>();
@@ -75,7 +75,7 @@ public sealed class AppStoragePathMigrationService
 
         foreach (var update in updates)
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = $"UPDATE {tableName} SET {pathColumn} = $storageKey WHERE {keyColumn} = $id;";
             command.Parameters.AddWithValue("$storageKey", update.StorageKey);

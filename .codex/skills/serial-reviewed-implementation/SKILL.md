@@ -30,6 +30,7 @@ description: 严格串行完成代码任务切片：主 agent 负责实现、动
   │
   └─ 创建该切片专属 review subagent
         ├─ 读取 references/review-guidelines.md
+        ├─ 加载被审查仓库的可选 .codex/review-checklist.md
         ├─ 静态审查当前切片最新完整 diff
         ├─ PASS
         │    └─ 关闭 subagent → 原子提交
@@ -83,6 +84,7 @@ review subagent 负责：
 
 - 读取 `references/review-guidelines.md`；
 - 读取适用于当前改动的项目规则；
+- 核对被审查仓库的可选项目检查清单；
 - 检查当前切片最新完整 diff；
 - 阅读必要的 surrounding code；
 - 查找相关调用点、引用、接口和数据流；
@@ -105,6 +107,8 @@ review subagent 使用只读方式完成代码审查。动态验证结果由主 
 4. 识别任务开始前已存在的 staged、unstaged 和 untracked 修改。
 5. 保护这些既有修改，使当前任务切片能够独立理解、Review 和提交。
 6. 将任务拆分为边界清晰的任务切片。
+
+项目可以在仓库根目录提供 `.codex/review-checklist.md`。主 agent 记录该文件是否存在，并将被审查仓库根目录和清单状态交给 reviewer；不把项目专属条目复制进本 Skill 或通用审查指引。加载、核对及结果报告规则见 [references/review-guidelines.md](references/review-guidelines.md) 的“可选项目检查清单”。
 
 任务足够小时，可以只使用一个切片。
 
@@ -182,7 +186,8 @@ Review 的目标是：
 - 当前切片范围；
 - 已完成的动态验证及结果；
 - 需要排除的既有修改；
-- 必要的设计约束。
+- 必要的设计约束；
+- 被审查仓库根目录，以及 `.codex/review-checklist.md` 的存在状态；根目录以 Review workspace 的 `git rev-parse --show-toplevel` 为准，不使用 skill 安装目录或另一份 checkout。
 
 ## 9. 创建当前切片的 review subagent
 
@@ -196,6 +201,8 @@ Review 的目标是：
 4. 执行独立静态代码审查。
 5. 返回 Review 结果。
 6. 在当前切片后续复审中持续复用。
+
+每次首审和复审均按通用审查指引重新确认并核对可选项目检查清单，返回逐项结论及依据。没有项目强制要求时，清单缺省不影响审查；项目要求存在却缺失、存在但不可读取时返回 `REVIEW_INVALID`，不能将读取失败当作缺省。
 
 主 agent 将动态验证摘要提供给 subagent，例如：
 
@@ -299,6 +306,8 @@ review subagent 重新检查原 finding 是否仍成立、提供的依据是否�
 6. 检查新增动态验证是否解决对应不确定性。
 7. 只有最新完整 diff 不再存在未解决问题和必要验证时才返回 `PASS`。
 
+每轮同时重新核对项目检查清单的全部条目，并更新逐项结论；上一轮通过不替代本轮对最新完整 diff 的核对。
+
 复审的范围始终是最新完整 diff，而不是上一轮 findings 的局部补丁。
 
 ## 15. Review subagent 生命周期
@@ -323,7 +332,7 @@ PASS
 关闭 subagent
 ```
 
-如果当前 subagent 无法继续工作，则为当前切片创建新的 review subagent。新的 subagent 重新读取 `references/review-guidelines.md`，并从当前最新完整 diff 开始独立 Review。
+如果当前 subagent 无法继续工作，则为当前切片创建新的 review subagent。新的 subagent 重新读取 `references/review-guidelines.md`，按相同规则加载并核对被审查仓库的可选项目检查清单，从当前最新完整 diff 开始独立 Review。
 
 下一任务切片始终创建新的 review subagent。
 

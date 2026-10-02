@@ -39,6 +39,9 @@
 - 必须以与任务风险匹配的自动化测试、构建、静态检查、架构检查以及任务规格中的可自动验证条件作为主要完成标准。
 - 可选人工视觉/交互验收未执行或尚未执行，不得将任务标记为阻塞。
 - 若后续人工发现问题，创建新的修复任务，不重新激活已经完成并删除的旧任务规格。
+- **默认每个任务结束时仓库应保持可构建、可测试。只有当 `TASK_BACKLOG.md` 明确声明进入“staged breaking migration window”，且当前 task spec 明确列出允许暂时失效的调用方/测试时，任务才可以在预期的中间破坏态结束。**
+- staged breaking migration 期间，当前任务仍必须完成自己声明的静态检查、focused tests 或结构验证；不得把“阶段最终会修好”当成跳过当前任务验证的理由。
+- staged breaking migration 的最终 Integration/Closure 任务必须恢复标准完整门禁；如果完整门禁仍失败，不得把该阶段标记完成。
 
 任务完成时必须：
 
@@ -82,7 +85,9 @@
 
 遵守 `docs/05_DATA_AND_COMPATIBILITY.md`：
 
-- 开发中拟实施的每一项数据库结构或持久数据变更（包括新增、删除、重命名表/列/索引/约束，以及数据迁移或清理），必须在修改迁移代码或执行变更前，单独向用户说明变更对象、原因、数据影响和回退/保留方案，并取得该项的明确同意；任务规格、Backlog 或对整体任务的授权不能代替逐项同意。只读检查和方案讨论不需要同意。
+- 开发中拟实施的数据库结构或持久数据变更，必须有明确的产品/架构授权边界。
+- 对**尚未获授权**的新增、删除、重命名表/列/索引/约束、数据迁移或清理，Agent 必须在修改迁移代码前说明变更对象、原因、数据影响和回退/保留方案并取得用户同意。
+- 如果当前 task spec 明确列出一个**已经由用户批准的具体持久化变更集合**，Agent 可以直接实施该集合，不得再次逐字段重复请示；task spec 必须同时写明数据影响与失败/回退策略。任何超出已批准集合的新持久化变化仍需停止并请求授权。
 - 已发布 SQLite migration 只能追加。
 - 不为内部 API/namespace 重构新增无意义数据 migration。
 - 永不修改用户外部 TXT。
@@ -109,15 +114,22 @@
 - WPF code-behind 只处理 WPF 特有生命周期与交互桥接。
 - ViewModel 不引用具体 Page/Window/Dispatcher/Brush/Style/Thickness 等视觉类型。
 - Dialog/Flyout/Popup 遵守 Single Surface。
+- 瞬时操作结果、警告和失败通知必须通过已有 `IAppFeedbackService` / Snackbar 展示；禁止在页面中嵌入通知块作为替代或重复展示。进行中进度、字段校验、空状态等页面状态按其职责展示；Library 小于 5 MiB 的导入不展示进度，仅用 Snackbar 反馈结果，大于等于 5 MiB 保留可取消进度对话框。
 - 图标使用主题语义资源，禁止 Dark Mode 硬编码黑色。
+- 新增普通文本优先使用显式 `App.Typography.*` 样式；独立设置前景色时使用 `DynamicResource App.Brush.Text.*`。共享内容宿主应提供动态主题前景色，不依赖 WPF 默认黑色或未经验证的祖先继承。
+- 产品 XAML 中的 `TextBlock` 必须显式声明具有主题前景色的样式或前景色绑定；前景色 Setter/属性禁止硬编码可见颜色或 `StaticResource` 画刷。控件模板需要继承交互状态颜色时，显式绑定主题 owner 的前景色。C# 创建文本也必须通过 `SetResourceReference` 设置语义样式或动态画刷。通用主题资源架构检查对全部产品 XAML 执行，不以新增白名单绕过。
+- 涉及主题文字/图标的修改，自动验收必须覆盖先应用 Light/Dark 再首次创建页面，以及已有页面切换主题和切换后新建页面；仅验证手动切换后的状态不足以证明冷启动正确。
 - 设置子页面不对设置项做分组；前往规则、管理或其他子页面的导航入口统一放在普通设置项之后，连续排列在设置项列表末尾。
 - 大列表目标至少 10,000 条连续 catalog。
 - WPF virtualization 不替代 data/projection 规模控制。
 - 首个可交互帧不等待完整 enrichment。
+- 支持批量管理的页面必须遵守 `docs/specs/BATCH_MANAGEMENT.md`；CacheManagement 明确作为文件管理器式选择语义的例外。
 
 ## 10. 测试与自动验收
 
 遵守 `docs/08_QUALITY_AND_TESTING.md`。
+
+每次代码审查（包括首审、复审、替换 reviewer，以及不通过 skill 发起的审查）必须读取仓库根目录 `.codex/review-checklist.md`，对最新完整 diff 逐项报告通过、失败或不适用及简短依据。该项目清单必须可读取；缺失或不可读取时不能形成可信审查结论。清单不替代本文件、当前任务规格和长期合同。
 
 ### 永久测试
 
@@ -157,7 +169,7 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
-开发阶段优先运行与当前风险匹配的 focused tests；阶段收口、发布以及任务规格明确要求时执行完整门禁。由于环境限制无法执行的检查必须如实记录，不得通过删除真正的核心测试、弱化安全隔离或跳过关键架构约束制造绿色。
+开发阶段优先运行与当前风险匹配的 focused tests；阶段收口、发布以及任务规格明确要求时执行完整门禁。staged breaking migration 期间按当前 task spec 执行局部门禁，最终 Closure task 必须执行上述完整门禁。由于环境限制无法执行的检查必须如实记录，不得通过删除真正的核心测试、弱化安全隔离或跳过关键架构约束制造绿色。
 
 ## 11. Git 与格式
 

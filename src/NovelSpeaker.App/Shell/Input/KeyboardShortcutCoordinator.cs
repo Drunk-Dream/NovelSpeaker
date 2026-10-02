@@ -28,7 +28,6 @@ public sealed class KeyboardShortcutCoordinator : IKeyboardShortcutCoordinator
     {
         if (key == Key.Escape &&
             modifiers == ModifierKeys.None &&
-            !context.IsTextEditing &&
             !context.IsTransientUiOpen &&
             context.TransientEscapeHandler?.TryHandleEscape() == true)
         {
