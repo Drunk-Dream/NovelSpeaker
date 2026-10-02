@@ -21,6 +21,7 @@ internal sealed class FakeRuleDocumentInteraction : IRuleDocumentInteraction
     public string? CopiedJson { get; private set; }
 
     public bool ExportAccepted { get; set; } = true;
+    public TaskCompletionSource<bool>? ExportGate { get; set; }
 
     public Task<RuleImportDocument?> PickImportAsync(CancellationToken cancellationToken)
     {
@@ -40,7 +41,7 @@ internal sealed class FakeRuleDocumentInteraction : IRuleDocumentInteraction
     {
         ExportedFileName = suggestedFileName;
         ExportedJson = json;
-        return Task.FromResult(ExportAccepted);
+        return ExportGate is null ? Task.FromResult(ExportAccepted) : ExportGate.Task.WaitAsync(cancellationToken);
     }
 
     public Task CopyAsync(string json, CancellationToken cancellationToken)

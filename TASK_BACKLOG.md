@@ -94,13 +94,13 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 
 完成成果：Library 接入页面级 Management Mode、全选、单次确认的逐书删除与单次目录选择的批量 UTF-8 正文导出；文件名复用安全规范，冲突确定性加后缀且不覆盖，缺少完整正文跳过。Playback 删除 Active Cache 专用选择命名，接入通用章节管理与右键/全选，页面拥有选择、coordinator 继续拥有缓存批次；全部命中缓存的章节报告 skipped，缺失音频继续补齐，单章失败继续后续章节并汇总。CacheManagement 保留 Extended Selection。新增 7 项核心行为测试并扩展既有失败场景，保留并适配已有页面、缓存与隔离 WPF 测试，合并重复 selection 样式；没有临时验证产物。locked restore、format、Release build（零警告/错误）和完整 922 项测试通过（零跳过）；先前全量运行出现旧数据库临时文件删除占用，重跑全量通过，原错误已记录。无未执行的强制检查或长期文档冲突；临时实施规格已删除。
 
-## [ ] T003（P1）：迁移 Speech Provider 与 Rules 批量管理
+## [x] T003（P1）：迁移 Speech Provider 与 Rules 批量管理
 
 依赖：T001。
 
 目标：把 Provider 与四类 Rule workspace 从“普通选择直接兼任多选”的现状迁移到 Normal Mode + Management Mode；保留 Dirty Draft 保护、批量导出/删除、部分跳过和 CurrentProvider 删除后变 None 的既有产品语义。
 
-详细规格：`tasks/T003_PROVIDER_AND_RULE_BATCH_MANAGEMENT.md`
+完成成果：Provider、Chapter/Regex/File Name/Text Header Rules 接入各自页面级 Management Mode，显式入口与 Ctrl/Shift 共用原有草稿保存/放弃/取消保护；管理点击只改变选择，Header 与右键共用批量导出/删除，全选仅覆盖可见项，隐藏与删除后主动收敛选择。正式 exchange schema 与 Provider typed config 保持；内置 Provider 可选且执行时跳过并汇总，HTTP 凭据提示保留；逐项删除一次确认、失败继续，CurrentProvider 删除后为 None，删除编辑规则关闭编辑器且不新增 fallback；页面取消后仍完成已提交 Regex 删除的播放运行态同步，异步导出结果使用稳定快照。移除普通选择兼任批量选择的旧接线，没有兼容层或临时产物。新增/扩展 19 项核心行为用例，保留并适配既有编辑、exchange、架构与隔离 WPF 测试；旧 WPF 编辑按钮检查限定到编辑区，布局 fixture 补齐新的正常模式排序能力。locked restore、format、Release build（零警告/错误）与完整 941 项测试通过（零跳过）；此前旧数据库测试清理时报 IOException（app.db 被其他进程占用，TemporaryDirectory.Dispose/Directory.Delete），重跑完整门禁测试通过。无环境受限的强制检查或长期文档冲突；临时实施规格已删除。
 
 ---
 

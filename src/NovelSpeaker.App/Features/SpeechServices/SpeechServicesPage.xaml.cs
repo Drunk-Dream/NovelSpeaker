@@ -74,4 +74,17 @@ public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigat
         await ViewModel.FinishDeactivationAsync();
     }
 
+    private void ManagementItem_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.FrameworkElement { DataContext: SpeechProviderListItemViewModel item })
+            ViewModel.HandleProviderRightClick(item);
+    }
+
+    private void ManagementItem_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Apps || e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            if (sender is System.Windows.FrameworkElement { DataContext: SpeechProviderListItemViewModel item })
+                ViewModel.HandleProviderRightClick(item);
+    }
+
 }

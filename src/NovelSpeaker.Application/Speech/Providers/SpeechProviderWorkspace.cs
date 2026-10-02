@@ -35,7 +35,9 @@ public enum ProviderExportStatus
 public sealed record ProviderExportResult(
     ProviderExportStatus Status,
     string? Json,
-    string Message);
+    string Message,
+    int ExportedCount = 0,
+    int SkippedCount = 0);
 
 /// <summary>Owns Provider management mutations, HTTP drafts, imports, and export confirmation.</summary>
 public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider timeProvider, IAppSettingsService settings)
@@ -241,13 +243,13 @@ public sealed class SpeechProviderWorkspace(IProviderStore store, TimeProvider t
         if (providers.Length == 0)
         {
             return new ProviderExportResult(ProviderExportStatus.ProviderUnavailable, null,
-                "HTTP Provider 不可导出。");
+                "HTTP Provider 不可导出。", SkippedCount: selected.Count);
         }
 
         return credentialsWarningAcknowledged
             ? new ProviderExportResult(ProviderExportStatus.Ready,
-                ProviderEnvelopeCodec.Write(providers), string.Empty)
-            : new ProviderExportResult(ProviderExportStatus.ConfirmationRequired, null, ExportWarning);
+                ProviderEnvelopeCodec.Write(providers), string.Empty, providers.Length, selected.Count - providers.Length)
+            : new ProviderExportResult(ProviderExportStatus.ConfirmationRequired, null, ExportWarning, providers.Length, selected.Count - providers.Length);
     }
 
     public async Task<SpeechProviderInstance> CopyAsync(ProviderId sourceId, CancellationToken cancellationToken)

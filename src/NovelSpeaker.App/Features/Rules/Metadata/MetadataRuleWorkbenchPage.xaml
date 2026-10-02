@@ -16,9 +16,40 @@
         <common:AppPageHeader Title="{Binding PageTitle}" BackCommand="{Binding BackCommand}">
             <common:AppPageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
-                    <ui:Button Margin="0,0,8,0" Content="新建" Command="{Binding NewRuleCommand}" />
-                    <ui:Button Margin="0,0,8,0" Content="导入文件" Command="{Binding ImportFileCommand}" />
-                    <ui:Button Content="从剪贴板导入" Command="{Binding ImportClipboardCommand}" />
+                    <Button Margin="0,0,8,0" Content="批量管理" Command="{Binding EnterManagementCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource App.Button.Secondary}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsManagementMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" Text="{Binding SelectedCount, StringFormat=已选择 {0} 项}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="全选" Command="{Binding SelectAllCommand}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="导出" Command="{Binding ExportRuleCommand}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="删除" Command="{Binding DeleteSelectedRulesCommand}" />
+                        <Button Style="{StaticResource App.Button.Secondary}" Content="取消" Command="{Binding CancelManagementCommand}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:Button Margin="0,0,8,0" Content="新建" Command="{Binding NewRuleCommand}" />
+                            <ui:Button Margin="0,0,8,0" Content="导入文件" Command="{Binding ImportFileCommand}" />
+                            <ui:Button Content="从剪贴板导入" Command="{Binding ImportClipboardCommand}" />
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </common:AppPageHeader.Actions>
         </common:AppPageHeader>
@@ -45,12 +76,13 @@
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <rules:RuleListItemView Title="{Binding Name}"
+                            <rules:RuleListItemView PreviewMouseRightButtonDown="ManagementItem_OnPreviewMouseRightButtonDown"
+                                                    PreviewKeyDown="ManagementItem_OnPreviewKeyDown" Title="{Binding Name}"
                                                     Summary="{Binding PatternSummary}"
                                                     IsRuleEnabled="{Binding IsEnabled}"
                                                     IsSelected="{Binding IsSelected}"
-                                                    IsSortable="True"
-                                                    CanToggle="True"
+                                                    IsSortable="{Binding DataContext.CanReorder, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CanToggle="{Binding DataContext.CanReorder, RelativeSource={RelativeSource AncestorType=Page}}"
                                                     CanExport="True"
                                                     CanCopy="True"
                                                     CanDelete="True"

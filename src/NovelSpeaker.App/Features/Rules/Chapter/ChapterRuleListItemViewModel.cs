@@ -50,6 +50,9 @@ public sealed partial class ChapterRuleListItemViewModel : ObservableObject
     private bool isSelected;
 
     [ObservableProperty]
+    private bool isManagementMode;
+
+    [ObservableProperty]
     private bool isDropTarget;
 
     [ObservableProperty]
@@ -64,7 +67,9 @@ public sealed partial class ChapterRuleListItemViewModel : ObservableObject
     public string AutomationName =>
         $"{Name}，{(IsEnabled ? "已启用" : "已禁用")}{(IsSelected ? "，已选中" : string.Empty)}";
 
-    public bool CanDeleteAction => CanDelete && CanQuickActions;
+    public bool CanDeleteAction => (CanDelete || IsManagementMode) && CanQuickActions;
+
+    partial void OnIsManagementModeChanged(bool value) => OnPropertyChanged(nameof(CanDeleteAction));
 
     partial void OnIsEnabledChanged(bool value) => OnPropertyChanged(nameof(AutomationName));
 

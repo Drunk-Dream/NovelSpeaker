@@ -50,6 +50,7 @@ public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
     {
         using var operation = _operations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiRulesLoad);
         var activation = _activation.Activate();
+        activation.Register(ViewModel.HandleNavigatedFrom);
         activation.Register(_guards.Register(ViewModel.ConfirmLeaveAsync));
         try
         {
@@ -72,4 +73,17 @@ public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
         _activation.Deactivate();
         return Task.CompletedTask;
     }
+    private void ManagementItem_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is System.Windows.FrameworkElement { DataContext: MetadataRuleRow item })
+            ViewModel.HandleRuleRightClick(item);
+    }
+
+    private void ManagementItem_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Apps || e.Key == Key.F10 && Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
+            if (sender is System.Windows.FrameworkElement { DataContext: MetadataRuleRow item })
+                ViewModel.HandleRuleRightClick(item);
+    }
+
 }

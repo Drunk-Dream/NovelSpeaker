@@ -15,6 +15,36 @@
       navigation:NavigationViewportHeightBehavior.IsEnabled="True">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Style x:Key="ProviderExportAction" TargetType="MenuItem" BasedOn="{StaticResource App.Menu.Item}">
+            <Setter Property="Visibility" Value="{Binding PlacementTarget.DataContext.CanShare, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ProviderDuplicateAction" TargetType="MenuItem" BasedOn="{StaticResource ProviderExportAction}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ProviderReorderAction" TargetType="MenuItem" BasedOn="{StaticResource App.Menu.Item}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ProviderDeleteAction" TargetType="MenuItem" BasedOn="{StaticResource App.Menu.DangerItem}">
+            <Setter Property="Visibility" Value="{Binding PlacementTarget.DataContext.CanDelete, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                    <Setter Property="Visibility" Value="Visible" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="ProviderTitle" TargetType="TextBlock" BasedOn="{StaticResource App.Typography.ItemTitle}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
@@ -74,26 +104,57 @@
                                       Title="语音服务"
                                       BackCommand="{Binding BackCommand}">
             <commonControls:AppPageHeader.Actions>
-                <WrapPanel x:Name="PageActions"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Center"
-                           ItemHeight="40">
-                    <ui:Button Margin="0,0,8,0"
-                            Style="{StaticResource App.Button.Icon}"
-                            Command="{Binding NewProviderCommand}"
-                            ToolTip="新建"
-                            AutomationProperties.Name="新建"
-                            Icon="{ui:SymbolIcon Symbol=DocumentAdd24}" />
-                    <ui:Button Style="{StaticResource App.Button.Icon}"
-                               Command="{Binding ImportProvidersCommand}"
-                               ToolTip="从文件导入"
-                               AutomationProperties.Name="从文件导入"
-                               Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
-                    <ui:Button Margin="8,0,0,0" Style="{StaticResource App.Button.Icon}"
-                               Command="{Binding ImportProvidersFromClipboardCommand}"
-                               ToolTip="从剪贴板导入" AutomationProperties.Name="从剪贴板导入"
-                               Icon="{ui:SymbolIcon Symbol=ClipboardPaste24}" />
-                </WrapPanel>
+                <StackPanel Orientation="Horizontal">
+                    <Button Margin="0,0,8,0" Content="批量管理" Command="{Binding EnterManagementCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource App.Button.Secondary}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsManagementMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" Text="{Binding SelectedCount, StringFormat=已选择 {0} 项}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="全选" Command="{Binding SelectAllCommand}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="导出" Command="{Binding ExportProviderCommand}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="删除" Command="{Binding DeleteProviderCommand}" />
+                        <Button Style="{StaticResource App.Button.Secondary}" Content="取消" Command="{Binding CancelManagementCommand}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <WrapPanel x:Name="PageActions"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   ItemHeight="40">
+                            <ui:Button Margin="0,0,8,0"
+                                    Style="{StaticResource App.Button.Icon}"
+                                    Command="{Binding NewProviderCommand}"
+                                    ToolTip="新建"
+                                    AutomationProperties.Name="新建"
+                                    Icon="{ui:SymbolIcon Symbol=DocumentAdd24}" />
+                            <ui:Button Style="{StaticResource App.Button.Icon}"
+                                       Command="{Binding ImportProvidersCommand}"
+                                       ToolTip="从文件导入"
+                                       AutomationProperties.Name="从文件导入"
+                                       Icon="{ui:SymbolIcon Symbol=ArrowImport24}" />
+                            <ui:Button Margin="8,0,0,0" Style="{StaticResource App.Button.Icon}"
+                                       Command="{Binding ImportProvidersFromClipboardCommand}"
+                                       ToolTip="从剪贴板导入" AutomationProperties.Name="从剪贴板导入"
+                                       Icon="{ui:SymbolIcon Symbol=ClipboardPaste24}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </StackPanel>
             </commonControls:AppPageHeader.Actions>
         </commonControls:AppPageHeader>
 
@@ -149,42 +210,40 @@
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <speech:SpeechProviderListItemView
+                                    PreviewMouseRightButtonDown="ManagementItem_OnPreviewMouseRightButtonDown"
+                                    PreviewKeyDown="ManagementItem_OnPreviewKeyDown"
                                     Style="{StaticResource ProviderCard}"
                                     Tag="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Page}}"
                                     CommandParameter="{Binding}"
-                                    IsSortable="{Binding DataContext.CanManage, RelativeSource={RelativeSource AncestorType=Page}}"
+                                    IsSortable="{Binding DataContext.CanReorder, RelativeSource={RelativeSource AncestorType=Page}}"
                                     AutomationProperties.Name="{Binding Name}">
                                     <speech:SpeechProviderListItemView.ContextMenu>
                                         <ContextMenu Style="{StaticResource App.Menu.ContextSurface}"
                                                      DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}">
-                                            <MenuItem Header="复制服务" Style="{StaticResource App.Menu.Item}"
+                                            <MenuItem Header="复制服务" Style="{StaticResource ProviderDuplicateAction}"
                                                       Command="{Binding CopyProviderCommand}"
-                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                      Visibility="{Binding PlacementTarget.DataContext.CanShare, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                            <MenuItem Header="导出到文件" Style="{StaticResource App.Menu.Item}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="导出到文件" Style="{StaticResource ProviderExportAction}"
                                                       Command="{Binding ExportProviderCommand}"
-                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                      Visibility="{Binding PlacementTarget.DataContext.CanShare, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                            <MenuItem Header="导出到剪贴板" Style="{StaticResource App.Menu.Item}"
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                            <MenuItem Header="导出到剪贴板" Style="{StaticResource ProviderExportAction}"
                                                       Command="{Binding ExportProviderToClipboardCommand}"
-                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                      Visibility="{Binding PlacementTarget.DataContext.CanShare, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                             <Separator Style="{StaticResource App.Menu.Separator}"
                                                        Visibility="{Binding PlacementTarget.DataContext.CanShare, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                            <MenuItem Header="上移" Style="{StaticResource App.Menu.Item}"
+                                            <MenuItem Header="上移" Style="{StaticResource ProviderReorderAction}"
                                                       Command="{Binding MoveProviderUpCommand}"
                                                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                       IsEnabled="{Binding PlacementTarget.DataContext.CanMoveUp, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
-                                            <MenuItem Header="下移" Style="{StaticResource App.Menu.Item}"
+                                            <MenuItem Header="下移" Style="{StaticResource ProviderReorderAction}"
                                                       Command="{Binding MoveProviderDownCommand}"
                                                       CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
                                                       IsEnabled="{Binding PlacementTarget.DataContext.CanMoveDown, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                             <Separator Style="{StaticResource App.Menu.Separator}"
                                                        Visibility="{Binding PlacementTarget.DataContext.CanDelete, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                            <MenuItem Header="删除" Style="{StaticResource App.Menu.DangerItem}"
+                                            <MenuItem Header="删除" Style="{StaticResource ProviderDeleteAction}"
                                                       Command="{Binding DeleteProviderCommand}"
-                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"
-                                                      Visibility="{Binding PlacementTarget.DataContext.CanDelete, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                      CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
                                         </ContextMenu>
                                     </speech:SpeechProviderListItemView.ContextMenu>
                                 </speech:SpeechProviderListItemView>
