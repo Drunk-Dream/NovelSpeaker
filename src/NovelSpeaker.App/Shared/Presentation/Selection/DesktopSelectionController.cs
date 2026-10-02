@@ -42,6 +42,8 @@ public sealed class DesktopSelectionController<TKey>
 
     public bool IsSelected(TKey item) => _selected.Contains(item);
 
+    internal bool ContainsItem(TKey item) => _itemPositions.ContainsKey(item);
+
     public void SetItems(IEnumerable<TKey> items, bool resetSelection = false)
     {
         ArgumentNullException.ThrowIfNull(items);

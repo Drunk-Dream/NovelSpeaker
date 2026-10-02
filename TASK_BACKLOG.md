@@ -80,11 +80,11 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 
 # Phase A：统一页面级批量管理
 
-## [ ] T001（P0）：建立统一 Management Mode 选择基础设施
+## [x] T001（P0）：建立统一 Management Mode 选择基础设施
 
 目标：在现有 `DesktopSelectionController` 稳定 key 选择能力之上建立页面级 Management Mode 生命周期、visible-set reconciliation、Select All、右键语义与 Normal/Management 行为隔离的共享 primitive；不把业务动作塞进 Shared。
 
-详细规格：`tasks/T001_MANAGEMENT_SELECTION_FOUNDATION.md`
+完成成果：新增页面级 `ManagementSelectionController<TKey>`，组合现有 stable-key 选择引擎，提供 Enter/Exit/Reset、Normal/Management 点击分流、toggle/range、Select All、visible/manageable set reconciliation 与右键选择语义；支持零选择保持模式和增量选择装饰通知。Shared 仅拥有交互状态，业务动作与 Dirty Draft 保护由 Feature 承担；CacheManagement 保持原行为。新增 10 项长期行为测试，保留既有选择与页面测试；本任务没有需要删除的旧实现或兼容层，临时实施规格已删除。locked restore、format、Release build（零警告/错误）及全量 914 项测试全部通过（零跳过），无环境受限检查或长期文档冲突；业务页面接线由 T002/T003 完成。
 
 ## [ ] T002（P1）：迁移 Library 与 Playback 章节批量管理
 
