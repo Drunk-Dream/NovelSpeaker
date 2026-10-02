@@ -83,15 +83,15 @@ public sealed partial class PlayerViewTests
             inactiveView.Arrange(new Rect(0, 0, 1280, 760));
             inactiveView.UpdateLayout();
 
-            var inactiveToolButton = Assert.IsType<WpfUiButton>(inactiveView.FindName("ActiveCacheToolButton"));
-            Assert.Equal("缓存章节", inactiveToolButton.ToolTip);
-            Assert.Equal("缓存章节", AutomationProperties.GetName(inactiveToolButton));
+            var inactiveToolButton = Assert.IsType<WpfUiButton>(inactiveView.FindName("ChapterManagementToolButton"));
+            Assert.Equal("章节管理", inactiveToolButton.ToolTip);
+            Assert.Equal("章节管理", AutomationProperties.GetName(inactiveToolButton));
             Assert.Equal(SymbolRegular.ArrowDownload24, Assert.IsType<SymbolIcon>(inactiveToolButton.Icon).Symbol);
 
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
-                new(0, "第一章", isSelectedForActiveCache: true),
-                new(1, "第二章", isSelectedForActiveCache: true)
+                new(0, "第一章", isSelected: true),
+                new(1, "第二章", isSelected: true)
             };
             var segments = new ObservableCollection<PlayerSegmentItemViewModel>
             {
@@ -102,7 +102,7 @@ public sealed partial class PlayerViewTests
                 DataContext = new PlayerViewLayoutTestContext(
                     chapters,
                     segments,
-                    isActiveCacheSelectionMode: true,
+                    isChapterManagementMode: true,
                     canStartActiveCache: false,
                     activeCacheStatusText: "已有主动缓存批次正在运行，完成或取消后可开始新批次。")
             };
@@ -111,9 +111,9 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var toolButton = Assert.IsType<WpfUiButton>(view.FindName("ActiveCacheToolButton"));
+            var toolButton = Assert.IsType<WpfUiButton>(view.FindName("ChapterManagementToolButton"));
             var locateButton = Assert.IsType<WpfUiButton>(view.FindName("LocateCurrentChapterButton"));
-            var selectionToolbar = Assert.IsAssignableFrom<FrameworkElement>(view.FindName("ActiveCacheSelectionToolbar"));
+            var selectionToolbar = Assert.IsAssignableFrom<FrameworkElement>(view.FindName("ChapterManagementToolbar"));
             var startButton = Assert.IsType<WpfUiButton>(view.FindName("StartActiveCacheButton"));
 
             Assert.Equal("退出选择", toolButton.ToolTip);

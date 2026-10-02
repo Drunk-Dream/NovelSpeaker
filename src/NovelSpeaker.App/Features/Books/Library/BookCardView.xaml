@@ -8,7 +8,8 @@
              Background="Transparent">
     <selection:SelectionSurface x:Name="CardSurface"
             Padding="0"
-            Style="{StaticResource App.Selection.CardItem}">
+            Style="{StaticResource App.Selection.CardItem}"
+            DataContext="{Binding Item, ElementName=Root}">
         <Grid>
             <Button x:Name="OpenBookButton"
                     Padding="16"
@@ -92,11 +93,24 @@
                 </ui:Button.Style>
                 <ui:Button.ContextMenu>
                     <ContextMenu Style="{StaticResource App.Menu.ContextSurface}">
-                        <MenuItem Style="{StaticResource App.Menu.Item}"
-                                  Command="{Binding OpenBookDetailsCommand}"
+                        <MenuItem Command="{Binding OpenBookDetailsCommand}"
                                   CommandParameter="{Binding Item}"
-                                  Header="书籍详情" />
+                                  Header="书籍详情">
+                            <MenuItem.Style>
+                                <Style TargetType="MenuItem" BasedOn="{StaticResource App.Menu.Item}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding ManagementOwner.IsManagementMode}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </MenuItem.Style>
+                        </MenuItem>
                         <Separator Style="{StaticResource App.Menu.Separator}" />
+                        <MenuItem Style="{StaticResource App.Menu.Item}"
+                                  Command="{Binding ManagementOwner.ExportBooksCommand}"
+                                  CommandParameter="{Binding Item}"
+                                  Header="导出正文" />
                         <MenuItem Style="{StaticResource App.Menu.DangerItem}"
                                   Command="{Binding DeleteBookCommand}"
                                   CommandParameter="{Binding Item}"

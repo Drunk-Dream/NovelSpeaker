@@ -13,7 +13,7 @@ using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
-public sealed class LibraryViewModelTests
+public sealed partial class LibraryViewModelTests
 {
     private async Task LoadAsync_maps_book_summary_to_card_fields()
     {
@@ -773,7 +773,10 @@ public sealed class LibraryViewModelTests
         FakeNavigationService? navigationService = null,
         FakePlaybackCoordinator? playbackCoordinator = null,
         TimeProvider? timeProvider = null,
-        IUiScheduler? uiScheduler = null)
+        IUiScheduler? uiScheduler = null,
+        IBookTextExportService? textExporter = null,
+        IPresentationFileDialogService? fileDialogs = null,
+        IBookCatalogInvalidationState? invalidation = null)
     {
         var viewModel = new LibraryViewModel(
             catalogService ?? new FakeBookCatalogService([]),
@@ -781,13 +784,15 @@ public sealed class LibraryViewModelTests
             new BookCoverGenerator(),
             importCoordinator ?? new FakeLibraryImportCoordinator(),
             deleteDialogService ?? new FakeBookDeleteDialogService(),
-            new BookCatalogInvalidationState(),
+            invalidation ?? new BookCatalogInvalidationState(),
             feedback ?? new FakeFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             playbackCoordinator ?? new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
             new LibraryScrollState(),
             uiScheduler: uiScheduler ?? new ImmediateUiScheduler(),
-            timeProvider: timeProvider);
+            timeProvider: timeProvider,
+            textExportService: textExporter,
+            fileDialogs: fileDialogs);
 
         viewModel.HandleNavigatedTo();
         return viewModel;
@@ -885,11 +890,15 @@ public sealed class LibraryViewModelTests
 
     private sealed class FakeBookManagementService : IBookDeletionService
     {
+        public string? FailingBookId { get; set; }
+        public Action<BookDeleteRequest>? OnDelete { get; set; }
         public List<BookDeleteRequest> Requests { get; } = [];
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
         {
             Requests.Add(request);
+            OnDelete?.Invoke(request);
+            if (request.BookId == FailingBookId) throw new IOException("test failure");
             return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, request.DeleteAudioCache, 12, true));
         }
     }

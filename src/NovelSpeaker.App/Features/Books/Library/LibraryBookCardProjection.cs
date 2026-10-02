@@ -1,5 +1,6 @@
 using NovelSpeaker.App.Features.Books.Shared;
 using NovelSpeaker.Application.Playback;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace NovelSpeaker.App.Features.Books.Library;
 
@@ -7,8 +8,14 @@ namespace NovelSpeaker.App.Features.Books.Library;
 /// Immutable, lightweight data projected for one library card. Playback changes replace
 /// only the affected projection item; the catalog remains the source of stable fields.
 /// </summary>
-public sealed class LibraryBookCardProjection
+public sealed class LibraryBookCardProjection : ObservableObject
 {
+    private bool _isSelected;
+    public bool IsSelected
+    {
+        get => _isSelected;
+        internal set => SetProperty(ref _isSelected, value);
+    }
     private readonly IBookCoverGenerator? _coverGenerator;
     private readonly GeneratedBookCover? _initialCover;
     private GeneratedBookCover? _cover;
@@ -143,7 +150,8 @@ public sealed class LibraryBookCardProjection
             LastPlayedAt,
             _coverGenerator,
             _cover,
-            CanDelete);
+            CanDelete)
+        { IsSelected = IsSelected };
     }
 
     public bool HasSameEffectiveProgress(

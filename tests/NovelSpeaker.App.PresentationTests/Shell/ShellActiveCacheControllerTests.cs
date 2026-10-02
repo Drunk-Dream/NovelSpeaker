@@ -39,7 +39,7 @@ public sealed class ShellActiveCacheControllerTests
         Assert.False(controller.IsVisible);
         Assert.False(controller.IsFlyoutOpen);
         Assert.Single(feedback.SuccessMessages);
-        Assert.Equal(("主动缓存完成", "已缓存 3 章。"), feedback.SuccessMessages[0]);
+        Assert.Equal(("主动缓存完成", "缓存完成：成功 1，跳过 0，失败 0。"), feedback.SuccessMessages[0]);
     }
 
     private void Cancelled_result_uses_a_clear_warning_message()
@@ -72,7 +72,7 @@ public sealed class ShellActiveCacheControllerTests
 
         Assert.False(controller.IsVisible);
         Assert.Equal(
-            [("主动缓存失败", "语音服务暂时不可用，请稍后重试。")],
+            [("主动缓存失败", "缓存完成：成功 1，跳过 0，失败 0。语音服务暂时不可用，请稍后重试。")],
             feedback.WarningMessages);
     }
 
@@ -90,7 +90,7 @@ public sealed class ShellActiveCacheControllerTests
             coordinator.Publish(CreateSnapshot(ActiveCacheBatchStatus.Failed, errorSummary));
 
             Assert.Equal(
-                [("主动缓存失败", "主动缓存失败，请重试。")],
+                [("主动缓存失败", "缓存完成：成功 1，跳过 0，失败 0。主动缓存失败，请重试。")],
                 feedback.WarningMessages);
         }
     }

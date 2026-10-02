@@ -16,6 +16,19 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class ActiveCacheCoordinatorTests
 {
     [Fact]
+    public async Task Cache_batch_skips_fully_cached_chapter_and_fills_missing_segments()
+    {
+        var audio = new ControlledAudioProvider();
+        audio.EnqueueSuccess();
+        audio.EnqueueSuccess();
+        await using var coordinator = new ActiveCacheCoordinator(new FakeContentService(), new MutableRuleProvider(CreateRule(7, "Provider")), audio);
+        await coordinator.StartAsync(new StartActiveCacheRequest("book-1", [3, 8], 10), CancellationToken.None);
+        await coordinator.WaitForCurrentBatchAsync(CancellationToken.None);
+        Assert.Equal([ActiveCacheChapterStatus.Skipped, ActiveCacheChapterStatus.Completed], coordinator.CurrentSnapshot!.Chapters.Select(chapter => chapter.Status));
+        Assert.Equal(3, coordinator.CurrentSnapshot.CompletedSegmentCount);
+    }
+
+    [Fact]
     public async Task StartAsync_freezes_batch_and_processes_chapters_and_segments_in_book_order()
     {
         var content = new FakeContentService();
@@ -94,11 +107,14 @@ public sealed class ActiveCacheCoordinatorTests
         Assert.True(audio.Calls[1].CancellationToken.IsCancellationRequested);
     }
 
-    [Fact]
-    public async Task Failed_audio_stops_batch_and_publishes_only_safe_failure_summary()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Failed_chapter_preserves_safe_summary_and_continues_remaining_chapters(bool unexpectedException)
     {
         var audio = new ControlledAudioProvider();
-        audio.EnqueueFailure(new TtsExecutionFailure(
+        if (unexpectedException) audio.EnqueueException();
+        else audio.EnqueueFailure(new TtsExecutionFailure(
             TtsErrorKind.Network,
             "安全错误摘要",
             null,
@@ -116,10 +132,10 @@ public sealed class ActiveCacheCoordinatorTests
         await coordinator.WaitForCurrentBatchAsync(CancellationToken.None);
 
         Assert.Equal(ActiveCacheBatchStatus.Failed, coordinator.CurrentSnapshot!.Status);
-        Assert.Equal("安全错误摘要", coordinator.CurrentSnapshot.ErrorSummary);
+        Assert.Equal(unexpectedException ? "主动缓存失败，请重试。" : "安全错误摘要", coordinator.CurrentSnapshot.ErrorSummary);
         Assert.Equal(ActiveCacheChapterStatus.Failed, coordinator.CurrentSnapshot.Chapters[0].Status);
-        Assert.Equal(ActiveCacheChapterStatus.Pending, coordinator.CurrentSnapshot.Chapters[1].Status);
-        Assert.Single(audio.Calls);
+        Assert.Equal(ActiveCacheChapterStatus.Completed, coordinator.CurrentSnapshot.Chapters[1].Status);
+        Assert.Equal([3, 8], audio.Calls.Select(call => call.Request.ChapterIndex));
     }
 
     [Fact]
@@ -240,6 +256,8 @@ public sealed class ActiveCacheCoordinatorTests
 
         public void EnqueueSuccess() =>
             _responses.Enqueue(static _ => Task.FromResult(new AudioGenerationResult("cached.mp3", true, null)));
+
+        public void EnqueueException() => _responses.Enqueue(static _ => throw new IOException("sensitive test detail"));
 
         public PendingCall EnqueuePending()
         {

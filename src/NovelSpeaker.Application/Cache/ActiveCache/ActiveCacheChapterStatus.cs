@@ -9,5 +9,6 @@ public enum ActiveCacheChapterStatus
     Running,
     Completed,
     Cancelled,
-    Failed
+    Failed,
+    Skipped
 }

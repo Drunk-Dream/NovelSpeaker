@@ -86,13 +86,13 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 
 完成成果：新增页面级 `ManagementSelectionController<TKey>`，组合现有 stable-key 选择引擎，提供 Enter/Exit/Reset、Normal/Management 点击分流、toggle/range、Select All、visible/manageable set reconciliation 与右键选择语义；支持零选择保持模式和增量选择装饰通知。Shared 仅拥有交互状态，业务动作与 Dirty Draft 保护由 Feature 承担；CacheManagement 保持原行为。新增 10 项长期行为测试，保留既有选择与页面测试；本任务没有需要删除的旧实现或兼容层，临时实施规格已删除。locked restore、format、Release build（零警告/错误）及全量 914 项测试全部通过（零跳过），无环境受限检查或长期文档冲突；业务页面接线由 T002/T003 完成。
 
-## [ ] T002（P1）：迁移 Library 与 Playback 章节批量管理
+## [x] T002（P1）：迁移 Library 与 Playback 章节批量管理
 
 依赖：T001。
 
 目标：Library 增加显式批量管理、Select All、批量导出/删除；Playback 把现有“主动缓存选择模式”改造成通用章节 Management Mode，当前批量动作仍只有 Cache，并保持 Active Cache coordinator 只负责任务执行。
 
-详细规格：`tasks/T002_LIBRARY_AND_CHAPTER_BATCH_MANAGEMENT.md`
+完成成果：Library 接入页面级 Management Mode、全选、单次确认的逐书删除与单次目录选择的批量 UTF-8 正文导出；文件名复用安全规范，冲突确定性加后缀且不覆盖，缺少完整正文跳过。Playback 删除 Active Cache 专用选择命名，接入通用章节管理与右键/全选，页面拥有选择、coordinator 继续拥有缓存批次；全部命中缓存的章节报告 skipped，缺失音频继续补齐，单章失败继续后续章节并汇总。CacheManagement 保留 Extended Selection。新增 7 项核心行为测试并扩展既有失败场景，保留并适配已有页面、缓存与隔离 WPF 测试，合并重复 selection 样式；没有临时验证产物。locked restore、format、Release build（零警告/错误）和完整 922 项测试通过（零跳过）；先前全量运行出现旧数据库临时文件删除占用，重跑全量通过，原错误已记录。无未执行的强制检查或长期文档冲突；临时实施规格已删除。
 
 ## [ ] T003（P1）：迁移 Speech Provider 与 Rules 批量管理
 

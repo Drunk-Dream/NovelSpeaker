@@ -1,11 +1,20 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 
 namespace NovelSpeaker.App.Features.Books.Library;
 
 public partial class BookCardView : UserControl
 {
+    public static readonly DependencyProperty ManagementOwnerProperty = DependencyProperty.Register(
+        nameof(ManagementOwner), typeof(LibraryViewModel), typeof(BookCardView), new PropertyMetadata(null));
+
+    public LibraryViewModel? ManagementOwner
+    {
+        get => (LibraryViewModel?)GetValue(ManagementOwnerProperty);
+        set => SetValue(ManagementOwnerProperty, value);
+    }
     public static readonly DependencyProperty ItemProperty =
         DependencyProperty.Register(
             nameof(Item),
@@ -37,6 +46,17 @@ public partial class BookCardView : UserControl
     public BookCardView()
     {
         InitializeComponent();
+        PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            if (Item is null || ManagementOwner is null || MoreButton.IsMouseOver) return;
+            var modifiers = DesktopSelectionInput.ReadModifiers();
+            if (modifiers != DesktopSelectionModifiers.None && ManagementOwner.HandleBookClick(Item, modifiers)) e.Handled = true;
+        };
+        PreviewMouseRightButtonDown += (_, e) =>
+        {
+            OpenContextMenu();
+            e.Handled = true;
+        };
     }
 
     public LibraryBookCardProjection? Item
@@ -65,13 +85,14 @@ public partial class BookCardView : UserControl
 
     private void MoreButton_OnClick(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button button || button.ContextMenu is null)
-        {
-            return;
-        }
+        OpenContextMenu();
+    }
 
-        button.ContextMenu.DataContext = this;
-        button.ContextMenu.PlacementTarget = button;
-        button.ContextMenu.IsOpen = true;
+    private void OpenContextMenu()
+    {
+        ManagementOwner?.PrepareBookContextCommand.Execute(Item);
+        MoreButton.ContextMenu.DataContext = this;
+        MoreButton.ContextMenu.PlacementTarget = MoreButton;
+        MoreButton.ContextMenu.IsOpen = true;
     }
 }

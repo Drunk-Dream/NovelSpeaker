@@ -159,7 +159,7 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
                 chapter.ChapterTitle,
                 BuildChapterStatus(chapter),
                 chapter.Status == ActiveCacheChapterStatus.Running,
-                chapter.Status == ActiveCacheChapterStatus.Completed,
+                chapter.Status is ActiveCacheChapterStatus.Completed or ActiveCacheChapterStatus.Skipped,
                 chapter.Status == ActiveCacheChapterStatus.Failed));
         }
     }
@@ -189,7 +189,7 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
             case ActiveCacheBatchStatus.Completed:
                 _feedbackService.ShowSuccess(
                     "主动缓存完成",
-                    $"已缓存 {snapshot.CompletedChapterCount} 章。");
+                    BuildBatchSummary(snapshot));
                 break;
             case ActiveCacheBatchStatus.Cancelled:
                 _feedbackService.ShowWarning("主动缓存已取消", "已完成的缓存会保留。");
@@ -197,12 +197,15 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
             case ActiveCacheBatchStatus.Failed:
                 _feedbackService.ShowWarning(
                     "主动缓存失败",
-                    string.IsNullOrWhiteSpace(snapshot.ErrorSummary)
+                    BuildBatchSummary(snapshot) + (string.IsNullOrWhiteSpace(snapshot.ErrorSummary)
                         ? SafeFailureMessage
-                        : snapshot.ErrorSummary.Trim());
+                        : snapshot.ErrorSummary.Trim()));
                 break;
         }
     }
+
+    private static string BuildBatchSummary(ActiveCacheSnapshot snapshot) =>
+        $"缓存完成：成功 {snapshot.Chapters.Count(chapter => chapter.Status == ActiveCacheChapterStatus.Completed)}，跳过 {snapshot.Chapters.Count(chapter => chapter.Status == ActiveCacheChapterStatus.Skipped)}，失败 {snapshot.Chapters.Count(chapter => chapter.Status == ActiveCacheChapterStatus.Failed)}。";
 
     private void ReportProjectionFailure(Exception exception)
     {
@@ -230,6 +233,7 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
         chapter.Status switch
         {
             ActiveCacheChapterStatus.Completed => "已完成",
+            ActiveCacheChapterStatus.Skipped => "已缓存，跳过",
             ActiveCacheChapterStatus.Running =>
                 $"{chapter.CompletedSegmentCount} / {chapter.TotalSegmentCount}",
             ActiveCacheChapterStatus.Cancelled => "已取消",

@@ -9,7 +9,7 @@ using NovelSpeaker.App.Shared.Presentation.Selection;
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
 /// <summary>
-/// Owns page-scoped chapter cache decoration and active-cache selection state.
+/// Owns page-scoped chapter cache decoration and chapter management state.
 /// Process-owned cache batches remain owned by <see cref="IActiveCacheCoordinator"/>.
 /// </summary>
 internal sealed class PlayerCacheDecorationController
@@ -23,7 +23,7 @@ internal sealed class PlayerCacheDecorationController
     private readonly PlayerContentController _contentController;
     private readonly IUiScheduler _uiScheduler;
     private readonly Action<string, Exception> _reportFailure;
-    private readonly PlayerActiveCacheSelectionController _selectionController;
+    private readonly PlayerChapterManagementController _selectionController;
     private readonly ChapterCacheStatusRefreshController _statusRefreshController;
     private readonly OwnedTaskRegistry _pageTasks = new();
     private readonly HashSet<int> _explicitStatusRequests = [];
@@ -50,7 +50,7 @@ internal sealed class PlayerCacheDecorationController
         _contentController = contentController ?? throw new ArgumentNullException(nameof(contentController));
         _uiScheduler = uiScheduler ?? throw new ArgumentNullException(nameof(uiScheduler));
         _reportFailure = reportFailure ?? throw new ArgumentNullException(nameof(reportFailure));
-        _selectionController = new PlayerActiveCacheSelectionController(activeCacheCoordinator);
+        _selectionController = new PlayerChapterManagementController(activeCacheCoordinator);
         _selectionController.StateChanged += OnSelectionStateChanged;
         _statusRefreshController = new ChapterCacheStatusRefreshController(
             cacheCoverageQuery,
@@ -140,6 +140,8 @@ internal sealed class PlayerCacheDecorationController
 
     public bool HandleChapterClick(int chapterIndex, DesktopSelectionModifiers modifiers) =>
         _selectionController.HandleChapterClick(chapterIndex, modifiers);
+
+    public bool HandleChapterRightClick(int chapterIndex) => _selectionController.HandleRightClick(chapterIndex);
 
     public void EnterSelectionMode()
     {

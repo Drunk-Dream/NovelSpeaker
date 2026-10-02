@@ -8,13 +8,13 @@ public sealed class PlayerChapterItemViewModel
         int chapterIndex,
         string title,
         bool isCurrent = false,
-        bool isSelectedForActiveCache = false,
+        bool isSelected = false,
         string cachePercentageText = "")
     {
         ChapterIndex = chapterIndex;
         Title = title;
         IsCurrent = isCurrent;
-        IsSelectedForActiveCache = isSelectedForActiveCache;
+        IsSelected = isSelected;
         CachePercentageText = cachePercentageText;
     }
 
@@ -24,7 +24,7 @@ public sealed class PlayerChapterItemViewModel
 
     public bool IsCurrent { get; }
 
-    public bool IsSelectedForActiveCache { get; }
+    public bool IsSelected { get; }
 
     public string CachePercentageText { get; }
 
@@ -40,9 +40,9 @@ public sealed class PlayerChapterItemViewModel
                 states.Add("当前章节");
             }
 
-            if (IsSelectedForActiveCache)
+            if (IsSelected)
             {
-                states.Add("已选择缓存");
+                states.Add("已选择");
             }
 
             if (IsCachePercentageVisible)
@@ -57,9 +57,9 @@ public sealed class PlayerChapterItemViewModel
     }
 
     public PlayerChapterItemViewModel WithCurrentState(bool isCurrent) =>
-        new(ChapterIndex, Title, isCurrent, IsSelectedForActiveCache, CachePercentageText);
+        new(ChapterIndex, Title, isCurrent, IsSelected, CachePercentageText);
 
-    public PlayerChapterItemViewModel WithActiveCacheSelection(bool isSelected) =>
+    public PlayerChapterItemViewModel WithSelection(bool isSelected) =>
         new(ChapterIndex, Title, IsCurrent, isSelected, CachePercentageText);
 
     public PlayerChapterItemViewModel WithCacheStatus(int cachedSegmentCount, int? totalSegmentCount) =>
@@ -67,6 +67,6 @@ public sealed class PlayerChapterItemViewModel
             ChapterIndex,
             Title,
             IsCurrent,
-            IsSelectedForActiveCache,
+            IsSelected,
             ChapterCachePercentageFormatter.Format(cachedSegmentCount, totalSegmentCount));
 }

@@ -114,6 +114,18 @@ public partial class PlayerView : UserControl
         _scrollController.LocateCurrentChapter();
     }
 
+    private void ChapterButton_OnPreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Button { DataContext: PlayerChapterItemViewModel chapter } button &&
+            _viewModel?.HandleChapterRightClick(chapter.ChapterIndex) == true)
+        {
+            button.ContextMenu.DataContext = _viewModel;
+            button.ContextMenu.PlacementTarget = button;
+            button.ContextMenu.IsOpen = true;
+        }
+        e.Handled = true;
+    }
+
     private void PlayerView_OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
         if (_viewModel is null)
@@ -129,7 +141,7 @@ public partial class PlayerView : UserControl
 
         if (e.Key == Key.A &&
             Keyboard.Modifiers.HasFlag(ModifierKeys.Control) &&
-            _viewModel.HandleActiveCacheSelectAll())
+            _viewModel.HandleChapterSelectAll())
         {
             e.Handled = true;
         }

@@ -8,6 +8,7 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shared.Presentation.Selection;
 
 namespace NovelSpeaker.App.Features.Books.Library;
 
@@ -37,6 +38,10 @@ public sealed partial class LibraryViewModel : ObservableObject
     private readonly IUiScheduler _uiScheduler;
     private readonly TimeProvider _timeProvider;
     private readonly IBookCoverGenerator _bookCoverGenerator;
+    private readonly ManagementSelectionController<string> _selection = new(StringComparer.Ordinal);
+    private readonly IBookTextExportService? _textExportService;
+    private readonly IPresentationFileDialogService? _fileDialogs;
+    private CancellationTokenSource _managementLifetime = new();
     private readonly OwnedTaskRegistry _pageTasks = new();
     private readonly ResettableObservableCollection<LibraryBookCardProjection> _books = [];
     private readonly ResettableObservableCollection<LibraryBookRowProjection> _rows = [];
@@ -78,7 +83,9 @@ public sealed partial class LibraryViewModel : ObservableObject
         IPlaybackBookCommands playbackCoordinator,
         LibraryScrollState scrollState,
         IUiScheduler? uiScheduler = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IBookTextExportService? textExportService = null,
+        IPresentationFileDialogService? fileDialogs = null)
     {
         _bookLibraryQuery = bookLibraryQuery;
         _bookDeletionService = bookDeletionService;
@@ -94,6 +101,40 @@ public sealed partial class LibraryViewModel : ObservableObject
         ScrollState = scrollState;
         _catalog = new LibraryBookCatalog([]);
         _lastPlaybackSnapshot = playbackCoordinator.CurrentSnapshot;
+        _textExportService = textExportService;
+        _fileDialogs = fileDialogs;
+        _selection.StateChanged += (_, _) =>
+        {
+            foreach (var key in _selection.ChangedItems)
+            {
+                if (_visibleBookPositions.TryGetValue(key, out var position))
+                    _visibleBookProjection[position].IsSelected = _selection.IsSelected(key);
+            }
+            OnPropertyChanged(nameof(IsManagementMode));
+            OnPropertyChanged(nameof(SelectedBookCount));
+        };
+    }
+
+    public bool IsManagementMode => _selection.IsManagementMode;
+
+    public int SelectedBookCount => _selection.SelectedCount;
+
+    [RelayCommand]
+    private void EnterManagement() => _selection.Enter();
+
+    [RelayCommand]
+    private void CancelManagement() => _selection.Exit();
+
+    [RelayCommand]
+    private void SelectAllBooks() => _selection.SelectAll();
+
+    public bool HandleBookClick(LibraryBookCardProjection book, DesktopSelectionModifiers modifiers) =>
+        _selection.HandleClick(book.BookId, modifiers);
+
+    [RelayCommand]
+    private void PrepareBookContext(LibraryBookCardProjection? book)
+    {
+        if (book is not null) _selection.HandleRightClick(book.BookId);
     }
 
     public ObservableCollection<LibraryBookCardProjection> Books => _books;
@@ -266,8 +307,14 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     public void HandleNavigatedTo()
     {
+        if (_managementLifetime.IsCancellationRequested)
+        {
+            _managementLifetime.Dispose();
+            _managementLifetime = new CancellationTokenSource();
+        }
         RegisterPageEvents();
         RebuildVisibleBookIndex();
+        ReconcileSelection();
         var refreshVisibleProjection = _refreshVisibleProjectionOnNextActivation;
         _refreshVisibleProjectionOnNextActivation = false;
         if (refreshVisibleProjection)
@@ -286,6 +333,8 @@ public sealed partial class LibraryViewModel : ObservableObject
 
     public void HandleNavigatedFrom()
     {
+        _managementLifetime.Cancel();
+        _selection.Reset();
         var projectionWasActive = _activeProjectionCancellationTokenSource is not null;
         var projectionWasPending = _searchDebounceCancellationTokenSource is not null;
         var rowLayoutWasActive = _activeRowLayoutCancellationTokenSource is not null;
@@ -339,6 +388,8 @@ public sealed partial class LibraryViewModel : ObservableObject
             return Task.CompletedTask;
         }
 
+        if (HandleBookClick(book, DesktopSelectionModifiers.None)) return Task.CompletedTask;
+
         return _navigator.NavigateAsync(
             new PlayerRoute(book.BookId, AppRoutes.Library, PlayerNavigationMode.OpenPaused),
             cancellationToken);
@@ -358,6 +409,11 @@ public sealed partial class LibraryViewModel : ObservableObject
     [RelayCommand]
     private async Task DeleteBookAsync(LibraryBookCardProjection? book, CancellationToken cancellationToken)
     {
+        if (IsManagementMode)
+        {
+            await DeleteSelectedBooksAsync(cancellationToken);
+            return;
+        }
         if (book is null || _isDeletingBook)
         {
             return;
@@ -414,6 +470,87 @@ public sealed partial class LibraryViewModel : ObservableObject
         {
             _isDeletingBook = false;
         }
+    }
+
+    [RelayCommand]
+    private async Task DeleteSelectedBooksAsync(CancellationToken cancellationToken)
+    {
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime.Token);
+        cancellationToken = linkedCancellation.Token;
+        var books = GetSelectedBooks();
+        if (books.Length == 0 || _isDeletingBook) return;
+        _isDeletingBook = true;
+        try
+        {
+            var decision = await _deleteDialogService.ShowAsync(
+                new BookDeleteDialogRequest($"{books.Length} 本书籍", books.Any(book => IsCurrentPlaybackBook(book.BookId)), BookCount: books.Length),
+                cancellationToken);
+            if (!decision.IsConfirmed) return;
+            _catalogInvalidationState.Invalidate();
+            var succeeded = 0;
+            var skipped = 0;
+            var failed = 0;
+            foreach (var book in books)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    if (IsCurrentPlaybackBook(book.BookId))
+                        await _playbackCoordinator.HandleBookDeletedAsync(book.BookId, cancellationToken);
+                    var result = await _bookDeletionService.DeleteAsync(new BookDeleteRequest(book.BookId, decision.DeleteAudioCache), cancellationToken);
+                    if (result is null) skipped++;
+                    else succeeded++;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception) { failed++; }
+            }
+            _catalogInvalidationState.Invalidate();
+            await LoadAsync(cancellationToken);
+            StatusMessage = $"删除完成：成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception) { _feedbackService.ShowProjectedNotification("删除失败", _feedbackService.Project(exception)); }
+        finally { _isDeletingBook = false; }
+    }
+
+    [RelayCommand]
+    private async Task ExportBooksAsync(LibraryBookCardProjection? book, CancellationToken cancellationToken)
+    {
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime.Token);
+        cancellationToken = linkedCancellation.Token;
+        var books = IsManagementMode ? GetSelectedBooks() : book is null ? [] : new[] { book };
+        if (books.Length == 0 || _textExportService is null || _fileDialogs is null) return;
+        try
+        {
+            var directory = await _fileDialogs.PickFolderAsync(new PresentationFolderDialogOptions("导出书籍正文"), cancellationToken);
+            if (directory is null) return;
+            var succeeded = 0;
+            var skipped = 0;
+            var failed = 0;
+            foreach (var item in books)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                try
+                {
+                    if (await _textExportService.ExportAsync(item.BookId, directory, cancellationToken)) succeeded++;
+                    else skipped++;
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception) { failed++; }
+            }
+            StatusMessage = $"导出完成：成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception) { _feedbackService.ShowProjectedNotification("导出失败", _feedbackService.Project(exception)); }
+    }
+
+    private LibraryBookCardProjection[] GetSelectedBooks() =>
+        _visibleBookProjection.Where(book => _selection.IsSelected(book.BookId)).ToArray();
+
+    private void ReconcileSelection()
+    {
+        _selection.SetItems(_visibleBookProjection.Select(book => book.BookId));
+        foreach (var book in _visibleBookProjection) book.IsSelected = _selection.IsSelected(book.BookId);
     }
 
     [RelayCommand]
@@ -594,6 +731,7 @@ public sealed partial class LibraryViewModel : ObservableObject
 
             _visibleBookPositions = projectedVisibleBookPositions;
             _visibleBookProjection = projectedVisibleBookList.ToArray();
+            ReconcileSelection();
             OnPropertyChanged(nameof(VisibleBookPositions));
             await RebuildRowsForCurrentProjectionAsync(projectionCancellation.Token).ConfigureAwait(true);
 

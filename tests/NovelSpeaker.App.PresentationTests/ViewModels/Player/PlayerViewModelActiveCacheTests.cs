@@ -17,13 +17,31 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 public sealed partial class PlayerViewModelTests
 {
     [Fact]
+    public async Task Modifier_click_enters_management_and_zero_selection_does_not_restore_jump()
+    {
+        var playback = CreatePlaybackCoordinator();
+        var viewModel = CreateViewModel(playback, CreateContentService());
+        await OpenBookAsync(viewModel);
+        await viewModel.HandleChapterClickAsync(viewModel.Chapters[1], DesktopSelectionModifiers.Control, CancellationToken.None);
+        await viewModel.HandleChapterClickAsync(viewModel.Chapters[1], DesktopSelectionModifiers.None, CancellationToken.None);
+        Assert.True(viewModel.IsChapterManagementMode);
+        Assert.Equal(0, viewModel.SelectedChapterCount);
+        Assert.Null(playback.LastJumpedChapterIndex);
+        viewModel.SelectAllChaptersCommand.Execute(null);
+        Assert.True(viewModel.HandleChapterRightClick(1));
+        Assert.Equal(3, viewModel.SelectedChapterCount);
+        viewModel.OnPageNavigatedFrom();
+        Assert.False(viewModel.IsChapterManagementMode);
+    }
+
+    [Fact]
     public async Task Active_cache_selection_consumes_chapter_clicks_then_exit_restores_playback_jump()
     {
         var playback = CreatePlaybackCoordinator();
         var viewModel = CreateViewModel(playback, CreateContentService());
         await OpenBookAsync(viewModel);
 
-        viewModel.ToggleActiveCacheSelectionCommand.Execute(null);
+        viewModel.ToggleChapterManagementCommand.Execute(null);
         await viewModel.HandleChapterClickAsync(
             viewModel.Chapters[1],
             DesktopSelectionModifiers.None,
@@ -34,21 +52,21 @@ public sealed partial class PlayerViewModelTests
             CancellationToken.None);
 
         Assert.Null(playback.LastJumpedChapterIndex);
-        Assert.Equal(2, viewModel.SelectedActiveCacheChapterCount);
-        Assert.True(viewModel.Chapters[1].IsSelectedForActiveCache);
-        Assert.True(viewModel.Chapters[2].IsSelectedForActiveCache);
+        Assert.Equal(2, viewModel.SelectedChapterCount);
+        Assert.True(viewModel.Chapters[1].IsSelected);
+        Assert.True(viewModel.Chapters[2].IsSelected);
 
-        viewModel.ToggleActiveCacheSelectionCommand.Execute(null);
-        Assert.False(viewModel.IsActiveCacheSelectionMode);
-        Assert.Equal(0, viewModel.SelectedActiveCacheChapterCount);
-        Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.IsSelectedForActiveCache);
+        viewModel.ToggleChapterManagementCommand.Execute(null);
+        Assert.False(viewModel.IsChapterManagementMode);
+        Assert.Equal(0, viewModel.SelectedChapterCount);
+        Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.IsSelected);
         await viewModel.HandleChapterClickAsync(
             viewModel.Chapters[1],
             DesktopSelectionModifiers.None,
             CancellationToken.None);
 
         Assert.Equal(1, playback.LastJumpedChapterIndex);
-        Assert.False(viewModel.IsActiveCacheSelectionMode);
+        Assert.False(viewModel.IsChapterManagementMode);
     }
 
     [Fact]
@@ -59,7 +77,7 @@ public sealed partial class PlayerViewModelTests
             CreateContentService());
         await OpenBookAsync(viewModel);
 
-        viewModel.ToggleActiveCacheSelectionCommand.Execute(null);
+        viewModel.ToggleChapterManagementCommand.Execute(null);
         await viewModel.HandleChapterClickAsync(
             viewModel.Chapters[1],
             DesktopSelectionModifiers.None,
@@ -69,16 +87,16 @@ public sealed partial class PlayerViewModelTests
             DesktopSelectionModifiers.Shift,
             CancellationToken.None);
 
-        Assert.Equal(2, viewModel.SelectedActiveCacheChapterCount);
-        Assert.True(viewModel.Chapters[1].IsSelectedForActiveCache);
-        Assert.True(viewModel.Chapters[2].IsSelectedForActiveCache);
+        Assert.Equal(2, viewModel.SelectedChapterCount);
+        Assert.True(viewModel.Chapters[1].IsSelected);
+        Assert.True(viewModel.Chapters[2].IsSelected);
 
-        Assert.True(viewModel.HandleActiveCacheSelectAll());
-        Assert.Equal(3, viewModel.SelectedActiveCacheChapterCount);
-        Assert.All(viewModel.Chapters, chapter => Assert.True(chapter.IsSelectedForActiveCache));
+        Assert.True(viewModel.HandleChapterSelectAll());
+        Assert.Equal(3, viewModel.SelectedChapterCount);
+        Assert.All(viewModel.Chapters, chapter => Assert.True(chapter.IsSelected));
 
         Assert.True(viewModel.TryHandleEscape());
-        Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.IsSelectedForActiveCache);
+        Assert.DoesNotContain(viewModel.Chapters, chapter => chapter.IsSelected);
     }
 
     [Fact]
@@ -121,7 +139,7 @@ public sealed partial class PlayerViewModelTests
             activeCacheCoordinator: activeCache);
         await OpenBookAsync(viewModel);
 
-        viewModel.ToggleActiveCacheSelectionCommand.Execute(null);
+        viewModel.ToggleChapterManagementCommand.Execute(null);
         await viewModel.HandleChapterClickAsync(
             viewModel.Chapters[0],
             DesktopSelectionModifiers.None,
@@ -136,9 +154,9 @@ public sealed partial class PlayerViewModelTests
 
         Assert.Equal([0, 2], activeCache.LastRequest!.ChapterIndices);
         Assert.Equal(viewModel.SpeakSpeed, activeCache.LastRequest.SpeakSpeed);
-        Assert.False(viewModel.IsActiveCacheSelectionMode);
+        Assert.False(viewModel.IsChapterManagementMode);
 
-        viewModel.ToggleActiveCacheSelectionCommand.Execute(null);
+        viewModel.ToggleChapterManagementCommand.Execute(null);
         await viewModel.HandleChapterClickAsync(
             viewModel.Chapters[1],
             DesktopSelectionModifiers.None,
@@ -157,7 +175,7 @@ public sealed partial class PlayerViewModelTests
             CreateContentService(),
             activeCacheCoordinator: activeCache);
         await OpenBookAsync(viewModel);
-        viewModel.ToggleActiveCacheSelectionCommand.Execute(null);
+        viewModel.ToggleChapterManagementCommand.Execute(null);
         Assert.Equal(1, activeCache.SubscriberCount);
 
         var snapshot = CreateActiveSnapshot();
@@ -165,7 +183,7 @@ public sealed partial class PlayerViewModelTests
         viewModel.OnPageNavigatedFrom();
 
         Assert.Equal(0, activeCache.SubscriberCount);
-        Assert.False(viewModel.IsActiveCacheSelectionMode);
+        Assert.False(viewModel.IsChapterManagementMode);
         Assert.Same(snapshot, activeCache.CurrentSnapshot);
         Assert.Equal(0, activeCache.CancelCallCount);
 

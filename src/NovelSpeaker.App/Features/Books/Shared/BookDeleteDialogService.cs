@@ -42,7 +42,7 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
         {
             Children =
             {
-                AppDialogVisuals.CreateTitle($"将删除《{request.BookTitle}》"),
+                AppDialogVisuals.CreateTitle(request.BookCount > 1 ? $"将删除 {request.BookCount} 本书籍" : $"将删除《{request.BookTitle}》"),
                 AppDialogVisuals.CreateMessage("书籍记录、章节、阅读进度和应用内部 TXT 副本将被删除。"),
                 AppDialogVisuals.CreateMessage("不会删除用户最初选择的外部 TXT 文件。"),
                 AppDialogVisuals.CreateMessage(
@@ -71,6 +71,7 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
         var playbackLine = request.IsCurrentPlaybackBook
             ? "删除后会先停止当前播放。"
             : "此操作不可撤销。";
-        return $"将删除《{request.BookTitle}》的书籍记录、章节、阅读进度和应用内部 TXT 副本。\n不会删除用户最初选择的外部 TXT 文件。\n{playbackLine}";
+        var subject = request.BookCount > 1 ? $"{request.BookCount} 本书籍" : $"《{request.BookTitle}》";
+        return $"将删除{subject}的书籍记录、章节、阅读进度和应用内部 TXT 副本。\n不会删除用户最初选择的外部 TXT 文件。\n{playbackLine}";
     }
 }

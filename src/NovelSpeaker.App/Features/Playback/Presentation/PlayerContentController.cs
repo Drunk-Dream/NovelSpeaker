@@ -23,7 +23,7 @@ internal sealed class PlayerContentController
     private readonly ResettableObservableCollection<PlayerChapterItemViewModel> _chapters = [];
     private readonly ResettableObservableCollection<PlayerSegmentItemViewModel> _segments = [];
     private readonly SparseCatalogDecoration<bool> _currentChapterDecoration = new();
-    private readonly SparseCatalogDecoration<bool> _activeCacheSelectionDecoration = new();
+    private readonly SparseCatalogDecoration<bool> _chapterSelectionDecoration = new();
     private readonly SparseCatalogDecoration<string> _cacheDecorations = new();
     private readonly HashSet<int> _cacheDecorationWindow = [];
 
@@ -189,11 +189,11 @@ internal sealed class PlayerContentController
 
         if (isSelected)
         {
-            _activeCacheSelectionDecoration.Set(chapterIndex, true);
+            _chapterSelectionDecoration.Set(chapterIndex, true);
         }
         else
         {
-            _activeCacheSelectionDecoration.Remove(chapterIndex);
+            _chapterSelectionDecoration.Remove(chapterIndex);
         }
 
         ReplaceChapterItem(chapterIndex, CreateChapterItem(_chapterCatalog[position]));
@@ -213,11 +213,11 @@ internal sealed class PlayerContentController
 
             if (isSelected)
             {
-                _activeCacheSelectionDecoration.Set(chapterIndex, true);
+                _chapterSelectionDecoration.Set(chapterIndex, true);
             }
             else
             {
-                _activeCacheSelectionDecoration.Remove(chapterIndex);
+                _chapterSelectionDecoration.Remove(chapterIndex);
             }
 
             replacements.Add((position, CreateChapterItem(_chapterCatalog[position])));
@@ -493,14 +493,14 @@ internal sealed class PlayerContentController
                 _latestPositionSegmentIndex = projectedSegmentIndex;
                 _latestPositionSegmentCount = projectedSegmentCount;
 
-                _activeCacheSelectionDecoration.Clear();
+                _chapterSelectionDecoration.Clear();
                 _cacheDecorations.Clear();
                 _cacheDecorationWindow.Clear();
                 ChapterCatalogVersion++;
             }
 
             var currentDecoration = _currentChapterDecoration.Snapshot();
-            var selectionDecoration = _activeCacheSelectionDecoration.Snapshot();
+            var selectionDecoration = _chapterSelectionDecoration.Snapshot();
             var cacheDecoration = _cacheDecorations.Snapshot();
             await _chapters.ReplaceWithInBatchesAsync(
                 _chapterCatalog.Items,
@@ -650,7 +650,7 @@ internal sealed class PlayerContentController
 
         var item = CreateChapterItem(_chapterCatalog[position]);
         if (existing.IsCurrent != item.IsCurrent ||
-            existing.IsSelectedForActiveCache != item.IsSelectedForActiveCache ||
+            existing.IsSelected != item.IsSelected ||
             !string.Equals(existing.CachePercentageText, item.CachePercentageText, StringComparison.Ordinal))
         {
             ReplaceChapterItem(chapterIndex, item, notify);
@@ -682,7 +682,7 @@ internal sealed class PlayerContentController
 
         var existing = _chapters[position];
         if (existing.IsCurrent == item.IsCurrent &&
-            existing.IsSelectedForActiveCache == item.IsSelectedForActiveCache &&
+            existing.IsSelected == item.IsSelected &&
             string.Equals(existing.CachePercentageText, item.CachePercentageText, StringComparison.Ordinal))
         {
             return;
@@ -706,7 +706,7 @@ internal sealed class PlayerContentController
             : _currentChapterDecoration.TryGet(chapter.ChapterIndex, out current) && current;
         var isSelected = selectionSnapshot is not null
             ? selectionSnapshot.TryGetValue(chapter.ChapterIndex, out var selected) && selected
-            : _activeCacheSelectionDecoration.TryGet(chapter.ChapterIndex, out selected) && selected;
+            : _chapterSelectionDecoration.TryGet(chapter.ChapterIndex, out selected) && selected;
         var cachePercentage = cacheSnapshot is not null
             ? cacheSnapshot.TryGetValue(chapter.ChapterIndex, out var cache) ? cache : string.Empty
             : _cacheDecorations.TryGet(chapter.ChapterIndex, out cache) ? cache : string.Empty;

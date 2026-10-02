@@ -29,6 +29,24 @@
                            HorizontalAlignment="Right"
                            VerticalAlignment="Center"
                            ItemHeight="40">
+                    <Button Content="批量管理" Command="{Binding EnterManagementCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource App.Button.Secondary}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsManagementMode}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <StackPanel Orientation="Horizontal" Visibility="{Binding IsManagementMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Margin="12,0" VerticalAlignment="Center" Text="{Binding SelectedBookCount, StringFormat=已选择 {0} 本}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="全选" Command="{Binding SelectAllBooksCommand}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="导出" Command="{Binding ExportBooksCommand}" />
+                        <Button Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" Content="删除" Command="{Binding DeleteSelectedBooksCommand}" />
+                        <Button Margin="0,0,12,0" Style="{StaticResource App.Button.Secondary}" Content="取消" Command="{Binding CancelManagementCommand}" />
+                    </StackPanel>
                     <Grid Width="260"
                           Margin="0,0,12,0">
                         <TextBox x:Name="SearchTextBox"
@@ -163,6 +181,7 @@
                                 <DataTemplate>
                                     <views:BookCardView Width="{Binding DataContext.CardWidth, RelativeSource={RelativeSource AncestorType={x:Type ItemsControl}}}"
                                                         Item="{Binding Book}"
+                                                        ManagementOwner="{Binding DataContext, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         DeleteBookCommand="{Binding DataContext.DeleteBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         OpenBookCommand="{Binding DataContext.OpenBookCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                         OpenBookDetailsCommand="{Binding DataContext.OpenBookDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}" />
