@@ -41,7 +41,7 @@
 - `[x]` 已完成，追加简短“完成成果”
 - `[!]` 阻塞，只记录真正需要用户决定的新产品/架构/隐私冲突；普通实现细节由 Codex 自行决定
 
-默认按 T001 → T002 → T003 → T009 → T011 → T004 → T005 → T006 → T007 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
+默认按 T001 → T002 → T003 → T009 → T010 → T011 → T004 → T005 → T006 → T007 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
 
 人工视觉/交互验收始终是可选补充，不阻塞任务完成或下一任务。
 
@@ -111,6 +111,16 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 目标：统一 Library、Playback、Speech Provider 和四类 Rule workspace 的 Header 图标、操作顺序与单行布局，保留既有批量行为。
 
 完成成果：Library、Playback、Speech Provider 与四类 Rule workspace 的 Header 批量管理、全选、导出、删除、退出统一为主题图标按钮，补齐 Tooltip/Automation Name，并按普通/管理模式调整操作顺序、8/12 DIP 间距与单行对齐；Library 搜索/排序固定 180/110 DIP，管理入口位于导入右侧。Playback 工具栏接入 AppPageHeader.Actions，缓存状态移到 Header 下方独立提示行，空提示折叠，保留语速与定时停止原有内容；元数据规则普通操作也改为图标。移除旧文本批量按钮、Header WrapPanel 与播放管理双行按钮布局，没有新增公共 API、兼容层或持久化变化，既有命令/事件接线与业务 owner 保持。保留全部核心测试，仅适配播放页图标/提示位置及章节规则普通工具栏检查；无新增永久布局测试。临时隔离 WPF 验证覆盖 128 个 Light/Dark、最小/常用内容宽度、普通/管理模式、零/非零选择与长缓存提示组合，检查操作顺序、同排、无重叠裁切、尺寸、禁用条件、无障碍名称和命令绑定，验证代码及失败诊断产物已清理。locked restore、format verify、Release build（零警告/错误）与完整 941 项测试（零跳过）通过；完整测试最终使用 `dotnet test -c Release --no-build -m:1` 串行执行测试项目。此前默认并行全量出现既有数据库测试清理 IOException：`app.db` 被其他进程占用，位于 TemporaryDirectory.Dispose/Directory.Delete，涉及 Version_7_rules_migrate_to_providers_and_reconcile_current_selection、Failed_settings_reconciliation_retries_after_database_migration_commits、Foreground_playback_retries_when_the_prefetch_owner_of_shared_audio_is_cancelled；首项 focused 复测通过，最终完整串行套件全部通过。既有数据库清理偶发占用仍为已知风险，本任务未修改持久化代码、删除核心测试或放宽隔离。无环境受限的未执行检查或长期文档冲突；临时实施规格已删除。
+
+---
+
+## [x] T010（P1）：SQLite 资源生命周期与测试清理占用修复
+
+依赖：T009；在 T004 前完成。
+
+目标：定位并修复临时数据库删除占用的资源释放原因，恢复默认并行完整测试的稳定通过，不改变 schema、SQL 或用户数据。
+
+完成成果：定位到未显式释放的 SqliteCommand 经连接弱引用与延迟终结造成底层 SQLite statement 保留文件句柄，复现迁移完成后独占访问 app.db 的 IOException；为生产持久化代码 76 处及测试夹具 75 处命令补齐 using，并释放连接打开取消路径中的连接，消除依赖命令终结器的旧释放方式。SQL、已发布 migration、schema、用户数据与连接池策略保持不变，没有兼容层、新迁移、清理重试、固定等待、生产 GC 或测试串行化。新增成功/失败迁移后立即独占访问数据库的两项核心回归；成功场景修复前稳定失败，修复后两项通过，保留全部既有核心测试，未删除或弱化测试。Infrastructure 343 项通过；独立工作树 locked restore、format verify、Release build（零警告/错误）及默认并行完整 943 项连续三轮通过（零跳过、无数据库清理占用），工作树已清理。包含 T011 的主工作区完整门禁最终通过，默认并行完整 945 项全部通过；首次主工作区全量曾出现 PlayerView_virtualized_target_moves_toward_center_without_direction_reversal 居中断言失败（PlayerViewAnimationTests.cs:367，偏差 176.333，预期 0–1），并伴随 WpfDispatcher collection cleanup failure，针对性及全量复测通过，本任务未修改该用例，仍记录为独立的 WPF 动画偶发风险。临时实施规格已删除，无环境受限的未执行检查或长期文档冲突。
 
 ---
 

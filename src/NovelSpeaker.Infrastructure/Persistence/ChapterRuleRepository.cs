@@ -92,7 +92,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
     public async Task SaveAsync(ChapterRule rule, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO ChapterRules (Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt)
@@ -118,7 +118,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
     public async Task DeleteAsync(string ruleId, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM ChapterRules WHERE Id = $id;";
         command.Parameters.AddWithValue("$id", ruleId);
         await command.ExecuteNonQueryAsync(cancellationToken);
@@ -127,7 +127,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
     public async Task MoveAsync(string ruleId, int newSortOrder, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             UPDATE ChapterRules
@@ -151,7 +151,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
 
         foreach (var item in order)
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.Transaction = (SqliteTransaction)transaction;
             command.CommandText =
                 """
@@ -179,7 +179,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
 
         foreach (var definition in DefaultChapterRules.All)
         {
-            var selectCommand = connection.CreateCommand();
+            using var selectCommand = connection.CreateCommand();
             selectCommand.CommandText =
                 """
                 SELECT Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt
@@ -201,7 +201,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
                     continue;
                 }
 
-                var updateCommand = connection.CreateCommand();
+                using var updateCommand = connection.CreateCommand();
                 updateCommand.CommandText =
                     """
                     UPDATE ChapterRules
@@ -220,7 +220,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
             }
 
             var utcNow = SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow());
-            var insertCommand = connection.CreateCommand();
+            using var insertCommand = connection.CreateCommand();
             insertCommand.CommandText =
                 """
                 INSERT INTO ChapterRules (Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt)
@@ -245,7 +245,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
     {
         foreach (var definition in DefaultChapterRules.All)
         {
-            var builtInExistsCommand = connection.CreateCommand();
+            using var builtInExistsCommand = connection.CreateCommand();
             builtInExistsCommand.CommandText =
                 """
                 SELECT COUNT(*)
@@ -259,7 +259,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
                 continue;
             }
 
-            var findMatchCommand = connection.CreateCommand();
+            using var findMatchCommand = connection.CreateCommand();
             findMatchCommand.CommandText =
                 """
                 SELECT Id
@@ -278,7 +278,7 @@ public sealed class ChapterRuleRepository : IChapterRuleRepository
                 continue;
             }
 
-            var updateCommand = connection.CreateCommand();
+            using var updateCommand = connection.CreateCommand();
             updateCommand.CommandText =
                 """
                 UPDATE ChapterRules

@@ -33,7 +33,7 @@ public sealed class BookImportRepositoryTests
         await Assert.ThrowsAsync<SqliteException>(() => repository.SaveAsync(book, chapters, CancellationToken.None));
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM Books;";
         var count = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
 
@@ -63,14 +63,14 @@ public sealed class BookImportRepositoryTests
         await repository.SaveAsync(book, chapters, CancellationToken.None);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var bookCommand = connection.CreateCommand();
+        using var bookCommand = connection.CreateCommand();
         bookCommand.CommandText = "SELECT LastImportedAt, LastPlayedAt FROM Books WHERE Id = 'book-2';";
         await using var reader = await bookCommand.ExecuteReaderAsync(CancellationToken.None);
         Assert.True(await reader.ReadAsync(CancellationToken.None));
         Assert.Equal(now.ToString("O"), reader.GetString(0));
         Assert.True(reader.IsDBNull(1));
 
-        var chapterCommand = connection.CreateCommand();
+        using var chapterCommand = connection.CreateCommand();
         chapterCommand.CommandText = "SELECT SortOrder FROM Chapters WHERE BookId = 'book-2';";
         var sortOrder = Convert.ToInt32(await chapterCommand.ExecuteScalarAsync(CancellationToken.None));
         Assert.Equal(25, sortOrder);

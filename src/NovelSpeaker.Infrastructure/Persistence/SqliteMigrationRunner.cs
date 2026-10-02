@@ -353,7 +353,7 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
         {
             await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
 
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.Transaction = transaction;
             command.CommandText = migration.Sql;
             await command.ExecuteNonQueryAsync(cancellationToken);
@@ -363,7 +363,7 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 await migration.ApplyDataAsync(connection, transaction, cancellationToken);
             }
 
-            var versionCommand = connection.CreateCommand();
+            using var versionCommand = connection.CreateCommand();
             versionCommand.Transaction = transaction;
             versionCommand.CommandText = "INSERT INTO SchemaVersion (Version) VALUES ($version);";
             versionCommand.Parameters.AddWithValue("$version", migration.Version);
@@ -375,7 +375,7 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
     private static async Task EnsureMigrationTableAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             CREATE TABLE IF NOT EXISTS SchemaVersion (
@@ -388,7 +388,7 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
     private static async Task<int> GetCurrentVersionAsync(SqliteConnection connection, CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
     }

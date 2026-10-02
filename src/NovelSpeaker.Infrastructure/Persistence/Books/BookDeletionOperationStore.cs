@@ -125,7 +125,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         string bookId,
         CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT b.StoredFilePath,
@@ -191,7 +191,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
                 request.BookId,
                 cancellationToken).ConfigureAwait(false);
 
-            var bookCommand = connection.CreateCommand();
+            using var bookCommand = connection.CreateCommand();
             bookCommand.Transaction = transaction;
             bookCommand.CommandText = "DELETE FROM Books WHERE Id = $bookId;";
             bookCommand.Parameters.AddWithValue("$bookId", request.BookId);
@@ -212,7 +212,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         string bookId,
         CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = commandText;
         command.Parameters.AddWithValue("$bookId", bookId);
@@ -246,7 +246,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
             return paths;
         }
 
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT FilePath FROM AudioCacheEntries WHERE BookId = $bookId ORDER BY CacheKey;";
         command.Parameters.AddWithValue("$bookId", request.BookId);
 
@@ -343,7 +343,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
     private async Task<bool> BookExistsAsync(string bookId, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT EXISTS(SELECT 1 FROM Books WHERE Id = $bookId);";
         command.Parameters.AddWithValue("$bookId", bookId);
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false)) == 1;

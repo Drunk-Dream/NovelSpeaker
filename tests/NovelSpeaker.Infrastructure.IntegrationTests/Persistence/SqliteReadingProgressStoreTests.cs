@@ -27,7 +27,7 @@ public sealed class SqliteReadingProgressStoreTests
         Assert.Equal(450, progress.AudioPositionMilliseconds);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT COUNT(*) FROM ReadingProgress WHERE BookId = 'book-1';";
         var count = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
         Assert.Equal(1, count);
@@ -48,7 +48,7 @@ public sealed class SqliteReadingProgressStoreTests
         Assert.Equal("book-2", mostRecent!.BookId);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT LastPlayedAt FROM Books WHERE Id = 'book-2';";
         var lastPlayedAt = await command.ExecuteScalarAsync(CancellationToken.None);
         Assert.Equal("2026-06-26T00:00:01.0000000+00:00", lastPlayedAt);
@@ -60,7 +60,7 @@ public sealed class SqliteReadingProgressStoreTests
         var (factory, store) = await CreateStoreWithBookAsync(null, "book-1", "book-2");
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO ReadingProgress

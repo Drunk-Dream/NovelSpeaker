@@ -1,19 +1,93 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.TestKit.Common;
+using SQLitePCL;
 using Xunit;
 
 namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 
 public sealed class SqliteMigrationRunnerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Migration_completion_releases_unpooled_database_without_waiting_for_finalizers(bool failMigration)
+    {
+        using var directory = new TemporaryDirectory();
+        var directories = new AppDataDirectoryProvider(directory.Path);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        SqliteRuntimeInitializer.EnsureInitialized();
+        var factory = new StatementTrackingFactory(directories.DatabasePath);
+        var retainedStatements = new List<sqlite3_stmt>();
+        var migrations = SqliteMigrationRunner.AllMigrations.Select(migration => migration with
+        {
+            ApplyDataAsync = async (connection, transaction, cancellationToken) =>
+            {
+                if (migration.ApplyDataAsync is not null)
+                    await migration.ApplyDataAsync(connection, transaction, cancellationToken);
+
+                // Native statement tracking keeps cleanup independent of when SafeHandle finalizers run.
+                await Task.Run(() => GC.Collect(), cancellationToken);
+                for (var statement = raw.sqlite3_next_stmt(connection.Handle!, null); statement is not null;
+                     statement = raw.sqlite3_next_stmt(connection.Handle!, statement))
+                    retainedStatements.Add(statement);
+
+                if (failMigration)
+                    throw new InvalidOperationException("Simulated migration failure.");
+            }
+        }).ToArray();
+
+        try
+        {
+            var runner = new SqliteMigrationRunner(factory, migrations);
+            if (failMigration)
+                await Assert.ThrowsAsync<InvalidOperationException>(() => runner.InitializeAsync(CancellationToken.None));
+            else
+                await runner.InitializeAsync(CancellationToken.None);
+            using var exclusiveAccess = File.Open(directories.DatabasePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            Assert.True(exclusiveAccess.Length > 0);
+        }
+        finally
+        {
+            foreach (var statement in retainedStatements) statement.Dispose();
+        }
+    }
+
+    private sealed class StatementTrackingFactory(string databasePath) : ISqliteConnectionFactory
+    {
+        public async Task<SqliteConnection> OpenConnectionAsync(CancellationToken cancellationToken)
+        {
+            var connection = new ExplicitLifetimeConnection(new SqliteConnectionStringBuilder
+            {
+                DataSource = databasePath,
+                Pooling = false,
+                ForeignKeys = true
+            }.ToString());
+            await connection.OpenAsync(cancellationToken);
+            connection.Handle!.enable_sqlite3_next_stmt(true);
+            return connection;
+        }
+    }
+
+    private sealed class ExplicitLifetimeConnection(string connectionString) : SqliteConnection(connectionString)
+    {
+        public override SqliteCommand CreateCommand()
+        {
+            var command = base.CreateCommand();
+            // Model delayed command finalization without blocking the process-wide finalizer thread.
+            GC.SuppressFinalize(command);
+            return command;
+        }
+    }
+
     [Fact]
     public async Task InitializeAsync_creates_current_schema_as_version_11()
     {
         var factory = await CreateInitializedFactoryAsync();
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var tableCommand = connection.CreateCommand();
+        using var tableCommand = connection.CreateCommand();
         tableCommand.CommandText =
             """
             SELECT COUNT(*)
@@ -24,7 +98,7 @@ public sealed class SqliteMigrationRunnerTests
 
         var tableCount = Convert.ToInt32(await tableCommand.ExecuteScalarAsync(CancellationToken.None));
 
-        var versionCommand = connection.CreateCommand();
+        using var versionCommand = connection.CreateCommand();
         versionCommand.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
@@ -46,7 +120,7 @@ public sealed class SqliteMigrationRunnerTests
 
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO Books (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
@@ -60,7 +134,7 @@ public sealed class SqliteMigrationRunnerTests
         await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
 
         await using var verification = await factory.OpenConnectionAsync(CancellationToken.None);
-        var commandAfter = verification.CreateCommand();
+        using var commandAfter = verification.CreateCommand();
         commandAfter.CommandText =
             """
             SELECT (SELECT Title FROM Books WHERE Id = 'book'),
@@ -91,7 +165,7 @@ public sealed class SqliteMigrationRunnerTests
 
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var count = connection.CreateCommand();
+            using var count = connection.CreateCommand();
             count.CommandText = "SELECT COUNT(*) FROM FileNameMetadataRules;";
             Assert.Equal(0L, await count.ExecuteScalarAsync(CancellationToken.None));
         }
@@ -101,7 +175,7 @@ public sealed class SqliteMigrationRunnerTests
 
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var count = connection.CreateCommand();
+            using var count = connection.CreateCommand();
             count.CommandText = "SELECT (SELECT COUNT(*) FROM FileNameMetadataRules), (SELECT COUNT(*) FROM TextHeaderMetadataRules);";
             await using var reader = await count.ExecuteReaderAsync(CancellationToken.None);
             Assert.True(await reader.ReadAsync(CancellationToken.None));
@@ -111,14 +185,14 @@ public sealed class SqliteMigrationRunnerTests
 
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var delete = connection.CreateCommand();
+            using var delete = connection.CreateCommand();
             delete.CommandText = "DELETE FROM FileNameMetadataRules; DELETE FROM TextHeaderMetadataRules;";
             await delete.ExecuteNonQueryAsync(CancellationToken.None);
         }
 
         await runner.InitializeAsync(CancellationToken.None);
         await using var verification = await factory.OpenConnectionAsync(CancellationToken.None);
-        var remaining = verification.CreateCommand();
+        using var remaining = verification.CreateCommand();
         remaining.CommandText = "SELECT (SELECT COUNT(*) FROM FileNameMetadataRules) + (SELECT COUNT(*) FROM TextHeaderMetadataRules);";
         Assert.Equal(0L, await remaining.ExecuteScalarAsync(CancellationToken.None));
     }
@@ -129,7 +203,7 @@ public sealed class SqliteMigrationRunnerTests
         var factory = await CreateInitializedFactoryAsync();
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var bookPragma = connection.CreateCommand();
+        using var bookPragma = connection.CreateCommand();
         bookPragma.CommandText = "PRAGMA table_info(Books);";
 
         await using var reader = await bookPragma.ExecuteReaderAsync(CancellationToken.None);
@@ -143,7 +217,7 @@ public sealed class SqliteMigrationRunnerTests
         Assert.Contains("LastPlayedAt", columns);
         Assert.Contains("Description", columns);
 
-        var chapterPragma = connection.CreateCommand();
+        using var chapterPragma = connection.CreateCommand();
         chapterPragma.CommandText = "PRAGMA table_info(Chapters);";
         await using var chapterReader = await chapterPragma.ExecuteReaderAsync(CancellationToken.None);
         var chapterColumns = new List<string>();
@@ -154,7 +228,7 @@ public sealed class SqliteMigrationRunnerTests
 
         Assert.DoesNotContain("Content", chapterColumns);
 
-        var providerPragma = connection.CreateCommand();
+        using var providerPragma = connection.CreateCommand();
         providerPragma.CommandText = "PRAGMA table_info(SpeechProviders);";
         await using var providerReader = await providerPragma.ExecuteReaderAsync(CancellationToken.None);
         var providerColumns = new List<string>();
@@ -167,7 +241,7 @@ public sealed class SqliteMigrationRunnerTests
         Assert.Contains("NameKey", providerColumns);
         Assert.Contains("SortOrder", providerColumns);
 
-        var configPragma = connection.CreateCommand();
+        using var configPragma = connection.CreateCommand();
         configPragma.CommandText = "PRAGMA table_info(HttpSpeechProviderConfigs);";
         await using var configReader = await configPragma.ExecuteReaderAsync(CancellationToken.None);
         var configColumns = new List<string>();
@@ -183,7 +257,7 @@ public sealed class SqliteMigrationRunnerTests
         Assert.DoesNotContain("ProviderMigrationReports", await GetTableNamesAsync(connection));
         Assert.DoesNotContain("ProviderMigrationSkippedItems", await GetTableNamesAsync(connection));
 
-        var indexCommand = connection.CreateCommand();
+        using var indexCommand = connection.CreateCommand();
         indexCommand.CommandText =
             """
             SELECT COUNT(*)
@@ -195,7 +269,7 @@ public sealed class SqliteMigrationRunnerTests
         var indexCount = Convert.ToInt32(await indexCommand.ExecuteScalarAsync(CancellationToken.None));
         Assert.Equal(3, indexCount);
 
-        var regexIndexCommand = connection.CreateCommand();
+        using var regexIndexCommand = connection.CreateCommand();
         regexIndexCommand.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'IX_RegexReplacementRules_SortOrder';";
         Assert.Equal(1, Convert.ToInt32(await regexIndexCommand.ExecuteScalarAsync(CancellationToken.None)));
     }
@@ -206,13 +280,13 @@ public sealed class SqliteMigrationRunnerTests
         var factory = await CreateInitializedFactoryAsync();
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var tableCommand = connection.CreateCommand();
+        using var tableCommand = connection.CreateCommand();
         tableCommand.CommandText =
             "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'ChapterSpeechPlanSegments';";
         var segmentTableSql = Convert.ToString(await tableCommand.ExecuteScalarAsync(CancellationToken.None));
         Assert.Contains("WITHOUT ROWID", segmentTableSql, StringComparison.OrdinalIgnoreCase);
 
-        var cacheCommand = connection.CreateCommand();
+        using var cacheCommand = connection.CreateCommand();
         cacheCommand.CommandText = "PRAGMA table_info(AudioCacheEntries);";
         await using var cacheReader = await cacheCommand.ExecuteReaderAsync(CancellationToken.None);
         var cacheColumns = new Dictionary<string, (string Type, bool NotNull)>(StringComparer.Ordinal);
@@ -252,7 +326,7 @@ public sealed class SqliteMigrationRunnerTests
         await File.WriteAllTextAsync(legacyCachePath, "old", CancellationToken.None);
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO Books
@@ -275,7 +349,7 @@ public sealed class SqliteMigrationRunnerTests
 
         await using (var verification = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var count = verification.CreateCommand();
+            using var count = verification.CreateCommand();
             count.CommandText =
                 "SELECT (SELECT COUNT(*) FROM Books) + (SELECT COUNT(*) FROM Chapters) + (SELECT COUNT(*) FROM ReadingProgress) + (SELECT COUNT(*) FROM AudioCacheEntries);";
             Assert.Equal(3, Convert.ToInt32(await count.ExecuteScalarAsync(CancellationToken.None)));
@@ -304,7 +378,7 @@ public sealed class SqliteMigrationRunnerTests
         await initializer.InitializeAsync(CancellationToken.None);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
@@ -323,7 +397,7 @@ public sealed class SqliteMigrationRunnerTests
         var unsafePath = Path.Combine(Path.GetTempPath(), "outside-content.txt");
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO Books
@@ -342,7 +416,7 @@ public sealed class SqliteMigrationRunnerTests
             .MigrateAsync(CancellationToken.None);
 
         await using var verification = await factory.OpenConnectionAsync(CancellationToken.None);
-        var select = verification.CreateCommand();
+        using var select = verification.CreateCommand();
         select.CommandText = "SELECT Id, StoredFilePath FROM Books ORDER BY Id;";
         await using var reader = await select.ExecuteReaderAsync(CancellationToken.None);
         Assert.True(await reader.ReadAsync(CancellationToken.None));
@@ -362,7 +436,7 @@ public sealed class SqliteMigrationRunnerTests
         {
             await connection.OpenAsync(CancellationToken.None);
 
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 CREATE TABLE SchemaVersion (
@@ -404,7 +478,7 @@ public sealed class SqliteMigrationRunnerTests
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
         Assert.Equal(12, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
     }
@@ -415,7 +489,7 @@ public sealed class SqliteMigrationRunnerTests
         var (factory, _) = await CreateDatabaseAtVersionAsync(4);
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 CREATE TABLE MigrationMarker (Value TEXT NOT NULL);
@@ -439,15 +513,15 @@ public sealed class SqliteMigrationRunnerTests
         await Assert.ThrowsAsync<SqliteException>(() => runner.InitializeAsync(CancellationToken.None));
 
         await using var verification = await factory.OpenConnectionAsync(CancellationToken.None);
-        var tableCommand = verification.CreateCommand();
+        using var tableCommand = verification.CreateCommand();
         tableCommand.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'PartialMigration';";
         Assert.Equal(0, Convert.ToInt32(await tableCommand.ExecuteScalarAsync(CancellationToken.None)));
 
-        var dataCommand = verification.CreateCommand();
+        using var dataCommand = verification.CreateCommand();
         dataCommand.CommandText = "SELECT Value FROM MigrationMarker;";
         Assert.Equal("before", Convert.ToString(await dataCommand.ExecuteScalarAsync(CancellationToken.None)));
 
-        var versionCommand = verification.CreateCommand();
+        using var versionCommand = verification.CreateCommand();
         versionCommand.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
         Assert.Equal(4, Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None)));
     }
@@ -458,7 +532,7 @@ public sealed class SqliteMigrationRunnerTests
         var factory = await CreateInitializedFactoryAsync();
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var orphan = connection.CreateCommand();
+        using var orphan = connection.CreateCommand();
         orphan.CommandText =
             """
             INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
@@ -466,7 +540,7 @@ public sealed class SqliteMigrationRunnerTests
             """;
         await Assert.ThrowsAsync<SqliteException>(() => orphan.ExecuteNonQueryAsync(CancellationToken.None));
 
-        var seed = connection.CreateCommand();
+        using var seed = connection.CreateCommand();
         seed.CommandText =
             """
             INSERT INTO Books
@@ -502,7 +576,7 @@ public sealed class SqliteMigrationRunnerTests
             """;
         await seed.ExecuteNonQueryAsync(CancellationToken.None);
 
-        var count = connection.CreateCommand();
+        using var count = connection.CreateCommand();
         count.CommandText =
             """
             SELECT
@@ -522,7 +596,7 @@ public sealed class SqliteMigrationRunnerTests
         await using var lockConnection = await factory.OpenConnectionAsync(CancellationToken.None);
         await using var waitingConnection = await factory.OpenConnectionAsync(CancellationToken.None);
 
-        var journalMode = lockConnection.CreateCommand();
+        using var journalMode = lockConnection.CreateCommand();
         journalMode.CommandText = "PRAGMA journal_mode;";
         Assert.False(
             string.Equals(
@@ -531,7 +605,7 @@ public sealed class SqliteMigrationRunnerTests
                 StringComparison.OrdinalIgnoreCase));
 
         await using var transaction = await lockConnection.BeginTransactionAsync(CancellationToken.None);
-        var lockCommand = lockConnection.CreateCommand();
+        using var lockCommand = lockConnection.CreateCommand();
         lockCommand.Transaction = (SqliteTransaction)transaction;
         lockCommand.CommandText = "INSERT INTO AppMetadata (Key, Value) VALUES ('lock', 'held');";
         await lockCommand.ExecuteNonQueryAsync(CancellationToken.None);
@@ -540,7 +614,7 @@ public sealed class SqliteMigrationRunnerTests
         var waitingWrite = Task.Run(
             async () =>
             {
-                var command = waitingConnection.CreateCommand();
+                using var command = waitingConnection.CreateCommand();
                 command.CommandText = "INSERT INTO AppMetadata (Key, Value) VALUES ('waiting', 'released');";
                 commandStarted.SetResult();
                 return await command.ExecuteNonQueryAsync(CancellationToken.None);
@@ -584,7 +658,7 @@ public sealed class SqliteMigrationRunnerTests
 
     private static async Task<IReadOnlyList<string>> GetTableNamesAsync(SqliteConnection connection)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT name FROM sqlite_master WHERE type = 'table';";
         await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
         var names = new List<string>();
@@ -604,7 +678,7 @@ public sealed class SqliteMigrationRunnerTests
         var factory = new SqliteConnectionFactory(directories);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             CREATE TABLE SchemaVersion (

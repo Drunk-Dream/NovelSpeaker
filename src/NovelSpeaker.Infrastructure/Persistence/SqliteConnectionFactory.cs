@@ -56,6 +56,7 @@ public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             operation.Complete(OperationResult.Cancelled());
+            await connection.DisposeAsync();
             throw;
         }
         catch

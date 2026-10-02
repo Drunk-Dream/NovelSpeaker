@@ -53,7 +53,7 @@ public sealed class RegexReplacementRuleRepository : IRegexReplacementRuleReposi
     public async Task SaveAsync(RegexReplacementRule rule, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO RegexReplacementRules
@@ -77,7 +77,7 @@ public sealed class RegexReplacementRuleRepository : IRegexReplacementRuleReposi
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             UPDATE RegexReplacementRules
@@ -103,7 +103,7 @@ public sealed class RegexReplacementRuleRepository : IRegexReplacementRuleReposi
         foreach (var (ruleId, sortOrder) in order)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.Transaction = (SqliteTransaction)transaction;
             command.CommandText =
                 """
@@ -124,7 +124,7 @@ public sealed class RegexReplacementRuleRepository : IRegexReplacementRuleReposi
     public async Task DeleteAsync(Guid ruleId, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "DELETE FROM RegexReplacementRules WHERE Id = $id;";
         command.Parameters.AddWithValue("$id", ruleId.ToString("D"));
         await command.ExecuteNonQueryAsync(cancellationToken);

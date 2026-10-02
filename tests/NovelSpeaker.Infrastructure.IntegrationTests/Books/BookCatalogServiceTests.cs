@@ -133,7 +133,7 @@ public sealed class BookLibraryQueryTests
     private static async Task SeedReadingProgressAsync(SqliteConnectionFactory factory, string bookId, int chapterIndex, int segmentIndex, string updatedAt)
     {
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO ReadingProgress (BookId, ChapterIndex, SegmentIndex, CharacterOffset, AudioPositionMilliseconds, UpdatedAt)
@@ -155,7 +155,7 @@ public sealed class BookLibraryQueryTests
     private static async Task SetImportedAtAsync(SqliteConnectionFactory factory, string bookId, string importedAt)
     {
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "UPDATE Books SET ImportedAt = $importedAt WHERE Id = $bookId;";
         command.Parameters.AddWithValue("$bookId", bookId);
         command.Parameters.AddWithValue("$importedAt", importedAt);

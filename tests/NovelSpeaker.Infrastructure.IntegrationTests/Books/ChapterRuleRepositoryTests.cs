@@ -105,7 +105,7 @@ public sealed class ChapterRuleRepositoryTests
 
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO ChapterRules (Id, Name, Pattern, SortOrder, IsEnabled, CreatedAt, UpdatedAt)

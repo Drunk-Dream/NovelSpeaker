@@ -26,7 +26,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        var planCommand = connection.CreateCommand();
+        using var planCommand = connection.CreateCommand();
         planCommand.CommandText =
             """
             SELECT ChapterRevisionHash, TextProfileFingerprint, PlanOutputHash,
@@ -86,7 +86,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
             .ConfigureAwait(false);
         try
         {
-            var existingCommand = connection.CreateCommand();
+            using var existingCommand = connection.CreateCommand();
             existingCommand.Transaction = transaction;
             existingCommand.CommandText =
                 "SELECT PlanOutputHash FROM ChapterSpeechPlans WHERE ChapterId = $chapterId LIMIT 1;";
@@ -122,7 +122,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
         await using var connection = await _connectionFactory
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             DELETE FROM ChapterSpeechPlans
@@ -140,7 +140,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
         ChapterSpeechPlan plan,
         CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
             """
@@ -162,7 +162,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
         ChapterSpeechPlan plan,
         CancellationToken cancellationToken)
     {
-        var header = connection.CreateCommand();
+        using var header = connection.CreateCommand();
         header.Transaction = transaction;
         header.CommandText =
             """
@@ -184,7 +184,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
         header.Parameters.AddWithValue("$planOutputHash", plan.PlanOutputHash.ToArray());
         await header.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        var delete = connection.CreateCommand();
+        using var delete = connection.CreateCommand();
         delete.Transaction = transaction;
         delete.CommandText = "DELETE FROM ChapterSpeechPlanSegments WHERE ChapterId = $chapterId;";
         delete.Parameters.AddWithValue("$chapterId", plan.ChapterId);
@@ -193,7 +193,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
         foreach (var segment in plan.Segments)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var insert = connection.CreateCommand();
+            using var insert = connection.CreateCommand();
             insert.Transaction = transaction;
             insert.CommandText =
                 """
@@ -229,7 +229,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
         string chapterId,
         CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT OrderIndex, SegmentKind, SourceStartOffset, SourceLength, SpeechTextHash

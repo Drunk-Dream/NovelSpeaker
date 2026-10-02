@@ -354,7 +354,7 @@ public sealed class ChapterMp3ExportWriterTests
 
         await using (var connection = await connectionFactory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO Books

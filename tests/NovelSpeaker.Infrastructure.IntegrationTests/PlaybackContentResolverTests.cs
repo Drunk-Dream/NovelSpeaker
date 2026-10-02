@@ -113,7 +113,7 @@ public sealed class PlaybackContentResolverTests
         await using (var connection = new SqliteConnection(database.ConnectionString))
         {
             await connection.OpenAsync(CancellationToken.None);
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
@@ -144,7 +144,7 @@ public sealed class PlaybackContentResolverTests
         await using (var connection = new SqliteConnection(database.ConnectionString))
         {
             await connection.OpenAsync(CancellationToken.None);
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)

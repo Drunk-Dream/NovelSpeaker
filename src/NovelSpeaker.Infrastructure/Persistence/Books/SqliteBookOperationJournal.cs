@@ -23,7 +23,7 @@ public sealed class SqliteBookOperationJournal : IBookOperationJournal
     {
         ArgumentNullException.ThrowIfNull(operation);
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO BookOperations (OperationId, Kind, Phase, BookId, PathsJson, CreatedAt, UpdatedAt)
@@ -43,7 +43,7 @@ public sealed class SqliteBookOperationJournal : IBookOperationJournal
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationId);
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             UPDATE BookOperations
@@ -62,7 +62,7 @@ public sealed class SqliteBookOperationJournal : IBookOperationJournal
     public async Task<IReadOnlyList<BookOperationRecord>> GetIncompleteAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT OperationId, Kind, Phase, BookId, PathsJson, CreatedAt

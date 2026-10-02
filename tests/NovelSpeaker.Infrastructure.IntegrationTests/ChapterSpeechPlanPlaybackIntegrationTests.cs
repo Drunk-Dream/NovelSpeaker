@@ -34,7 +34,7 @@ public sealed class ChapterSpeechPlanPlaybackIntegrationTests
         await File.WriteAllTextAsync(contentPath, "第一段。\n第二段。", CancellationToken.None);
         await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 INSERT INTO Books

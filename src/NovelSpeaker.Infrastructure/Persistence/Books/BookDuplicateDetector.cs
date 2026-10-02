@@ -19,7 +19,7 @@ public sealed class BookDuplicateDetector : IBookDuplicateDetector
     public async Task<string?> FindExistingBookIdAsync(string sourceHash, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT Id FROM Books WHERE SourceHash = $sourceHash LIMIT 1;";
         command.Parameters.AddWithValue("$sourceHash", sourceHash);
         return await command.ExecuteScalarAsync(cancellationToken) as string;

@@ -34,7 +34,7 @@ public sealed class RegexReplacementRuleRepositoryTests
 
             await using (var connection = await factory.OpenConnectionAsync(CancellationToken.None))
             {
-                var command = connection.CreateCommand();
+                using var command = connection.CreateCommand();
                 command.CommandText =
                     """
                     INSERT INTO RegexReplacementRules

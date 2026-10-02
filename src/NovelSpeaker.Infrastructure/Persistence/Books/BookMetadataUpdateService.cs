@@ -33,7 +33,7 @@ public sealed class BookMetadataUpdateService : IBookMetadataUpdateService
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.Transaction = (Microsoft.Data.Sqlite.SqliteTransaction)transaction;
             command.CommandText =
                 """
@@ -50,7 +50,7 @@ public sealed class BookMetadataUpdateService : IBookMetadataUpdateService
                 throw new InvalidOperationException("未找到要更新的书籍。");
             }
 
-            var descriptionCommand = connection.CreateCommand();
+            using var descriptionCommand = connection.CreateCommand();
             descriptionCommand.Transaction = (Microsoft.Data.Sqlite.SqliteTransaction)transaction;
             descriptionCommand.CommandText = "SELECT Description FROM Books WHERE Id = $bookId;";
             descriptionCommand.Parameters.AddWithValue("$bookId", request.BookId);

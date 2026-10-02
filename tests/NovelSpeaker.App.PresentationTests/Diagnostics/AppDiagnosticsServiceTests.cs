@@ -23,7 +23,7 @@ public sealed class AppDiagnosticsServiceTests
         await using (var connection = new SqliteConnection($"Data Source={directories.DatabasePath}"))
         {
             await connection.OpenAsync(CancellationToken.None);
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             command.CommandText =
                 """
                 CREATE TABLE SchemaVersion (

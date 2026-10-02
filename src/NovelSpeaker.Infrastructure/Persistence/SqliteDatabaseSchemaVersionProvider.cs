@@ -20,7 +20,7 @@ public sealed class SqliteDatabaseSchemaVersionProvider : IDatabaseSchemaVersion
         await using var connection = await _connectionFactory
             .OpenConnectionAsync(cancellationToken)
             .ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
     }

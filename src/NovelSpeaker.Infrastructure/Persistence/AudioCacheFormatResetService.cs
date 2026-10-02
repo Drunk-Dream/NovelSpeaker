@@ -50,7 +50,7 @@ public sealed class AudioCacheFormatResetService
             Directory.Delete(legacyTtsRoot, recursive: true);
         }
 
-        var marker = connection.CreateCommand();
+        using var marker = connection.CreateCommand();
         marker.CommandText =
             "UPDATE AppMetadata SET Value = '0' WHERE Key = $key AND Value = '1';";
         marker.Parameters.AddWithValue("$key", ResetMarkerKey);
@@ -61,7 +61,7 @@ public sealed class AudioCacheFormatResetService
         SqliteConnection connection,
         CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText = "SELECT Value FROM AppMetadata WHERE Key = $key LIMIT 1;";
         command.Parameters.AddWithValue("$key", ResetMarkerKey);
         return string.Equals(

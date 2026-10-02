@@ -31,7 +31,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT e.CacheKey, e.FilePath, e.FileSize, e.BookId, c.ChapterIndex
@@ -72,7 +72,7 @@ internal sealed class SqliteAudioCacheIndex
         {
             cancellationToken.ThrowIfCancellationRequested();
             var batchCount = Math.Min(batchSize, cacheKeys.Length - offset);
-            var command = connection.CreateCommand();
+            using var command = connection.CreateCommand();
             var parameterNames = new string[batchCount];
             for (var index = 0; index < batchCount; index++)
             {
@@ -108,7 +108,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             UPDATE AudioCacheEntries
@@ -141,7 +141,7 @@ internal sealed class SqliteAudioCacheIndex
             now,
             cancellationToken).ConfigureAwait(false);
 
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT INTO AudioCacheEntries (
@@ -228,7 +228,7 @@ internal sealed class SqliteAudioCacheIndex
             .ConfigureAwait(false);
         try
         {
-            var chapterCommand = connection.CreateCommand();
+            using var chapterCommand = connection.CreateCommand();
             chapterCommand.Transaction = transaction;
             chapterCommand.CommandText =
                 """
@@ -241,7 +241,7 @@ internal sealed class SqliteAudioCacheIndex
             var chapterId = Convert.ToString(
                 await chapterCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
 
-            var deleteEntry = connection.CreateCommand();
+            using var deleteEntry = connection.CreateCommand();
             deleteEntry.Transaction = transaction;
             deleteEntry.CommandText =
                 """
@@ -255,7 +255,7 @@ internal sealed class SqliteAudioCacheIndex
 
             if (deletedEntryCount > 0 && !string.IsNullOrWhiteSpace(chapterId))
             {
-                var deletePlan = connection.CreateCommand();
+                using var deletePlan = connection.CreateCommand();
                 deletePlan.Transaction = transaction;
                 deletePlan.CommandText =
                     """
@@ -283,7 +283,7 @@ internal sealed class SqliteAudioCacheIndex
     public async Task<AudioCacheIndexSummary> GetSummaryAsync(CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT COALESCE(SUM(FileSize), 0), COUNT(*)
@@ -301,7 +301,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT BookId, COUNT(DISTINCT ChapterId), COUNT(*), COALESCE(SUM(FileSize), 0)
@@ -394,7 +394,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT e.BookId,
@@ -489,7 +489,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT BookId, COUNT(DISTINCT ChapterId), COUNT(*), COALESCE(SUM(FileSize), 0)
@@ -516,7 +516,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT e.BookId,
@@ -729,7 +729,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             SELECT e.CacheKey,
@@ -770,7 +770,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             UPDATE AudioCacheEntries
@@ -800,7 +800,7 @@ internal sealed class SqliteAudioCacheIndex
         CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         var predicates = new List<string>();
         predicates.Add("e.KeyVersion = 2");
         if (includeStatusFilter)
@@ -905,7 +905,7 @@ internal sealed class SqliteAudioCacheIndex
         AudioCacheWriteRequest request,
         CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             "SELECT Id FROM Chapters WHERE BookId = $bookId AND ChapterIndex = $chapterIndex LIMIT 1;";
         command.Parameters.AddWithValue("$bookId", request.BookId);
@@ -926,7 +926,7 @@ internal sealed class SqliteAudioCacheIndex
         string now,
         CancellationToken cancellationToken)
     {
-        var command = connection.CreateCommand();
+        using var command = connection.CreateCommand();
         command.CommandText =
             """
             INSERT OR IGNORE INTO SynthesisProfiles
