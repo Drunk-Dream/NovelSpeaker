@@ -4,6 +4,7 @@
                     xmlns:controls="clr-namespace:NovelSpeaker.App.Shared.Presentation.Controls.Common">
     <Style TargetType="{x:Type controls:AppPageHeader}">
         <Setter Property="Focusable" Value="False" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Stretch" />
         <Setter Property="Template">

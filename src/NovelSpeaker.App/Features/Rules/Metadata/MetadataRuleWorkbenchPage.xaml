@@ -17,7 +17,9 @@
             <common:AppPageHeader.Actions>
                 <StackPanel Orientation="Horizontal">
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsManagementMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" Text="{Binding SelectedCount, StringFormat=已选择 {0} 项}" />
+                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center"
+                            Style="{StaticResource App.Typography.Body}" TextWrapping="NoWrap"
+                            Text="{Binding SelectedCount, StringFormat=已选择 {0} 项}" />
                         <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding SelectAllCommand}"
                             ToolTip="全选" AutomationProperties.Name="全选" Icon="{ui:SymbolIcon Symbol=SelectAllOn24}" />
                         <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding ExportRuleCommand}"
@@ -113,15 +115,16 @@
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               Visibility="{Binding HasEditor, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel Margin="16">
-                        <TextBlock Text="名称" Margin="0,0,0,6" />
+                        <TextBlock Text="名称" Margin="0,0,0,6" Style="{StaticResource App.Typography.FormLabel}" />
                         <TextBox Style="{StaticResource App.Input.TextBox.Standard}"
                                  Text="{Binding DraftName, UpdateSourceTrigger=PropertyChanged}"
                                  AutomationProperties.Name="规则名称" />
-                        <TextBlock Text="正则表达式" Margin="0,18,0,6" />
+                        <TextBlock Text="正则表达式" Margin="0,18,0,6" Style="{StaticResource App.Typography.FormLabel}" />
                         <TextBox Style="{StaticResource App.Input.TextBox.Standard}"
                                  Text="{Binding DraftPattern, UpdateSourceTrigger=PropertyChanged}"
                                  AutomationProperties.Name="正则表达式" />
-                        <TextBlock Text="{Binding ValidationMessage}" TextWrapping="Wrap" Margin="0,8,0,0" />
+                        <TextBlock Text="{Binding ValidationMessage}" TextWrapping="Wrap" Margin="0,8,0,0"
+                            Style="{StaticResource App.Typography.Validation}" />
                         <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
                             <ui:Button Content="保存" Command="{Binding SaveRuleCommand}" Margin="0,0,8,0" />
                             <ui:Button Content="取消" Command="{Binding CancelEditingCommand}" />

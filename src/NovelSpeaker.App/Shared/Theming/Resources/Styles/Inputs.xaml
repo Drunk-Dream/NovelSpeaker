@@ -220,6 +220,7 @@
             <DataTemplate DataType="{x:Type sys:String}">
                 <TextBlock HorizontalAlignment="Stretch"
                            VerticalAlignment="Center"
+                           Foreground="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
                            Text="{Binding}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
@@ -466,6 +467,7 @@
             <DataTemplate DataType="{x:Type sys:String}">
                 <TextBlock HorizontalAlignment="Stretch"
                            VerticalAlignment="Center"
+                           Foreground="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
                            Text="{Binding}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">

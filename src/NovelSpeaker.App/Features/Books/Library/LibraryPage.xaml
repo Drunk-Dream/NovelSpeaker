@@ -30,7 +30,9 @@
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center">
                     <StackPanel Orientation="Horizontal" Visibility="{Binding IsManagementMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" Text="{Binding SelectedBookCount, StringFormat=已选择 {0} 本}" />
+                        <TextBlock Margin="0,0,12,0" VerticalAlignment="Center"
+                            Style="{StaticResource App.Typography.Body}" TextWrapping="NoWrap"
+                            Text="{Binding SelectedBookCount, StringFormat=已选择 {0} 本}" />
                         <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding SelectAllBooksCommand}"
                             ToolTip="全选" AutomationProperties.Name="全选" Icon="{ui:SymbolIcon Symbol=SelectAllOn24}" />
                         <ui:Button Margin="0,0,8,0" Style="{StaticResource App.Button.Icon}" Command="{Binding ExportBooksCommand}"
