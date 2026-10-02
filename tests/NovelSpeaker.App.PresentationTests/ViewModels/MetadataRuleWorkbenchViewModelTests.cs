@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Features.Rules.Metadata;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.Domain.Books;
@@ -75,6 +76,8 @@ public sealed class MetadataRuleWorkbenchViewModelTests
             ? new TextHeaderMetadataRulesViewModel(repository, new Navigator(), dialogs, new Feedback(), new FakeRuleDocumentInteraction())
             : Create(repository, dialogs: dialogs);
         await vm.LoadAsync(CancellationToken.None);
+        var escapeHandler = Assert.IsAssignableFrom<ITransientEscapeHandler>(vm);
+        Assert.False(escapeHandler.TryHandleEscape());
         await vm.SelectRuleCommand.ExecuteAsync(vm.Rules[0]);
         vm.DraftName = "Draft";
         await vm.SelectRuleWithModifiersAsync(vm.Rules[1], DesktopSelectionModifiers.Control, CancellationToken.None);
@@ -85,6 +88,25 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         await vm.SelectRuleWithModifiersAsync(vm.Rules[1], DesktopSelectionModifiers.None, CancellationToken.None);
         Assert.Equal(0, vm.SelectedCount);
         Assert.True(vm.IsManagementMode);
+        var draftName = vm.DraftName;
+        var draftPattern = vm.DraftPattern;
+        Assert.True(escapeHandler.TryHandleEscape());
+        Assert.False(vm.IsManagementMode);
+        Assert.Equal(0, vm.SelectedCount);
+        Assert.False(escapeHandler.TryHandleEscape());
+        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
+        Assert.Equal(draftName, vm.DraftName);
+        Assert.Equal(draftPattern, vm.DraftPattern);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
+        vm.SelectAllCommand.Execute(null);
+        Assert.Equal(2, vm.SelectedCount);
+        Assert.True(escapeHandler.TryHandleEscape());
+        Assert.False(vm.IsManagementMode);
+        Assert.Equal(0, vm.SelectedCount);
+        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
+        Assert.Equal(draftName, vm.DraftName);
+        Assert.Equal(draftPattern, vm.DraftPattern);
+        await vm.EnterManagementCommand.ExecuteAsync(null);
         vm.CancelManagementCommand.Execute(null);
         Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
     }

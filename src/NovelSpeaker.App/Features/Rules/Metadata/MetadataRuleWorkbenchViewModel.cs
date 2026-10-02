@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books.Import;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Features.Rules.Shared;
@@ -13,7 +14,7 @@ using NovelSpeaker.App.Shell.Navigation;
 namespace NovelSpeaker.App.Features.Rules.Metadata;
 
 /// <summary>Shared visual editing behavior for the two independent metadata rule stores.</summary>
-public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
+public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject, ITransientEscapeHandler
 {
     private readonly IAppNavigator _navigator;
     private readonly IAppDialogService _dialogs;
@@ -69,6 +70,8 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject
     public bool IsManagementMode => _selection.IsManagementMode;
     public int SelectedCount => _selection.SelectedCount;
     public bool CanReorder => !IsBusy && !IsManagementMode;
+
+    public bool TryHandleEscape() => _selection.Exit();
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {

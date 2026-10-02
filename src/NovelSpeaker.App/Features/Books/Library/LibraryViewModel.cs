@@ -16,7 +16,7 @@ namespace NovelSpeaker.App.Features.Books.Library;
 /// Owns page state and commands while the library catalog and card projection remain
 /// separate lifetimes.
 /// </summary>
-public sealed partial class LibraryViewModel : ObservableObject
+public sealed partial class LibraryViewModel : ObservableObject, ITransientEscapeHandler
 {
     private const int BackgroundRowLayoutThreshold = 512;
 
@@ -118,6 +118,8 @@ public sealed partial class LibraryViewModel : ObservableObject
     public bool IsManagementMode => _selection.IsManagementMode;
 
     public int SelectedBookCount => _selection.SelectedCount;
+
+    public bool TryHandleEscape() => _selection.Exit();
 
     [RelayCommand]
     private void EnterManagement() => _selection.Enter();

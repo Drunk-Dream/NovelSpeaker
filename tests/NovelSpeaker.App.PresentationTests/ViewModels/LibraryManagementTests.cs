@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.App.Features.Books.Shared;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using Xunit;
@@ -22,6 +23,8 @@ public sealed partial class LibraryViewModelTests
         var navigation = new FakeNavigationService();
         var viewModel = CreateViewModel(catalogService: new FakeBookCatalogService(ManagementBooks), navigationService: navigation);
         await viewModel.LoadAsync(CancellationToken.None);
+        var escapeHandler = Assert.IsAssignableFrom<ITransientEscapeHandler>(viewModel);
+        Assert.False(escapeHandler.TryHandleEscape());
         Assert.True(viewModel.HandleBookClick(viewModel.Books[0], DesktopSelectionModifiers.Control));
         await viewModel.OpenBookCommand.ExecuteAsync(viewModel.Books[1]);
         Assert.True(viewModel.IsManagementMode);
@@ -31,8 +34,19 @@ public sealed partial class LibraryViewModelTests
         Assert.Equal(0, viewModel.SelectedBookCount);
         Assert.True(viewModel.IsManagementMode);
         Assert.Null(navigation.LastNavigationRoute);
+        Assert.True(escapeHandler.TryHandleEscape());
+        Assert.False(viewModel.IsManagementMode);
+        Assert.Equal(0, viewModel.SelectedBookCount);
+        Assert.False(escapeHandler.TryHandleEscape());
+        viewModel.EnterManagementCommand.Execute(null);
         viewModel.SelectAllBooksCommand.Execute(null);
         Assert.True(Assert.Single(viewModel.Books).IsSelected);
+        Assert.True(escapeHandler.TryHandleEscape());
+        Assert.False(viewModel.IsManagementMode);
+        Assert.Equal(0, viewModel.SelectedBookCount);
+        Assert.False(Assert.Single(viewModel.Books).IsSelected);
+        viewModel.EnterManagementCommand.Execute(null);
+        viewModel.SelectAllBooksCommand.Execute(null);
         viewModel.HandleNavigatedFrom();
         Assert.False(viewModel.IsManagementMode);
         Assert.Equal(0, viewModel.SelectedBookCount);
