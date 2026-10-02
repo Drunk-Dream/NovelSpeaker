@@ -114,6 +114,7 @@
 - WPF code-behind 只处理 WPF 特有生命周期与交互桥接。
 - ViewModel 不引用具体 Page/Window/Dispatcher/Brush/Style/Thickness 等视觉类型。
 - Dialog/Flyout/Popup 遵守 Single Surface。
+- 瞬时操作结果、警告和失败通知必须通过已有 `IAppFeedbackService` / Snackbar 展示；禁止在页面中嵌入通知块作为替代或重复展示。进行中进度、字段校验、空状态等页面状态按其职责展示；Library 小于 5 MiB 的导入不展示进度，仅用 Snackbar 反馈结果，大于等于 5 MiB 保留可取消进度对话框。
 - 图标使用主题语义资源，禁止 Dark Mode 硬编码黑色。
 - 新增普通文本优先使用显式 `App.Typography.*` 样式；独立设置前景色时使用 `DynamicResource App.Brush.Text.*`。共享内容宿主应提供动态主题前景色，不依赖 WPF 默认黑色或未经验证的祖先继承。
 - 产品 XAML 中的 `TextBlock` 必须显式声明具有主题前景色的样式或前景色绑定；前景色 Setter/属性禁止硬编码可见颜色或 `StaticResource` 画刷。控件模板需要继承交互状态颜色时，显式绑定主题 owner 的前景色。C# 创建文本也必须通过 `SetResourceReference` 设置语义样式或动态画刷。通用主题资源架构检查对全部产品 XAML 执行，不以新增白名单绕过。
@@ -127,6 +128,8 @@
 ## 10. 测试与自动验收
 
 遵守 `docs/08_QUALITY_AND_TESTING.md`。
+
+每次代码审查（包括首审、复审、替换 reviewer，以及不通过 skill 发起的审查）必须读取仓库根目录 `.codex/review-checklist.md`，对最新完整 diff 逐项报告通过、失败或不适用及简短依据。该项目清单必须可读取；缺失或不可读取时不能形成可信审查结论。清单不替代本文件、当前任务规格和长期合同。
 
 ### 永久测试
 

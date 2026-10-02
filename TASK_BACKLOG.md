@@ -41,7 +41,7 @@
 - `[x]` 已完成，追加简短“完成成果”
 - `[!]` 阻塞，只记录真正需要用户决定的新产品/架构/隐私冲突；普通实现细节由 Codex 自行决定
 
-默认按 T001 → T002 → T003 → T009 → T010 → T011 → T004 → T005 → T006 → T007 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
+默认按 T001 → T002 → T003 → T009 → T010 → T011 → T012 → T013 → T004 → T005 → T006 → T007 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
 
 人工视觉/交互验收始终是可选补充，不阻塞任务完成或下一任务。
 
@@ -129,6 +129,22 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 用户追加修复；在 T004 前执行。修复书库、Provider、Rules 暗色冷启动选择提示前景色，并建立防复发约束与主题回归验证。
 
 完成成果：共享 AppPageHeader 提供动态主题前景色，Library、Speech Provider、Chapter/Regex/File Name/Text Header Rules 的选择提示使用既有显式文字样式；补齐元数据规则编辑区三处同类遗漏，下拉框字符串模板显式绑定 ContentPresenter 的主题前景色，保留禁用/交互颜色。移除对 WPF 默认黑色和隐式祖先颜色的依赖，没有新增主题 owner、兼容层或持久化变化。AGENTS.md 与 UI 合同补充全局文字资源规则和冷启动/切换/切换后新建页面验收；新增两项通用架构测试，扫描全部产品 XAML 的 TextBlock、样式继承与前景色定义，拒绝遗漏主题前景、StaticResource 画刷和硬编码可见颜色，无页面白名单。既有核心测试全部保留；按用户要求，页面专用验证只作临时测试，验证后连同诊断产物清理。隔离 Desktop 临时验证先在旧实现复现书库暗色文字对比度 1.18，修复后覆盖六个业务页面与共享页头的暗色启动、Light/Dark 切换及切换后新建页面，并验证 Standard/Compact 下拉框正常/禁用颜色跟随宿主，全部通过。locked restore、format verify、Release build（零警告/错误）、完整 WPF 97 项与 Presentation 272 项测试通过（零跳过），git diff --check 通过；未执行与本次 UI/架构变更无关的完整 solution 测试，无环境受限检查或长期文档冲突。静态门禁不替代任意运行时绑定和 C# 动态创建文字的主题验收；后者已纳入开发约束。临时实施规格已删除。
+
+---
+
+## [x] T012（P1）：书库 Snackbar 通知与项目 Review 检查清单
+
+用户追加修复；在 T004 前执行。书库导出、删除结果复用已有 Snackbar，删除页内结果通知块；保留导入进度分流，增加独立可选项目检查清单与每轮 Review 核对约束。
+
+完成成果：书库单书/批量导出及批量删除结果通过现有 IAppFeedbackService 接入 Snackbar，全部成功使用 Success、存在跳过/失败使用 Warning；删除对象已不存在时刷新后通知，异常仅投影通知，取消不发送完成汇总。删除 LibraryViewModel.StatusMessage、页内结果通知块及 WPF 夹具字段；保留 ImportStatusMessage、5 MiB 导入分流和导入生命周期，没有新增通知宿主、兼容层、公共接口或持久化变化。AGENTS.md 与 UI 合同明确瞬时通知与进度/校验/空状态职责；新增独立 .codex/review-checklist.md 的主题前景色与 Snackbar 两项，通用 skill/指引接入被审查仓库可选清单，覆盖首审、复审、替换 reviewer、缺省及不可读取场景，并要求逐项结论与依据。扩展既有核心导出/删除/取消测试，新增单书导出、取消目录选择及删除对象不存在/失败行为覆盖，合计增加 13 个测试用例；保留全部导入、反馈和主题架构测试，没有永久布局测试。locked restore、format verify、Release build（零警告/错误）、完整 Presentation 285 项、相关 Library/Feedback WPF 6 项通过（零跳过），skill 校验和 git diff --check 通过；清单接入规则已静态核对，两项清单核对均通过。隔离 Desktop 临时主题验证覆盖 Light/Dark 首次创建、已有页面切换及切换后新建页面，两项通过，验证代码已删除；首次脱离窗口的验证发生颜色资源不一致，改为隔离 Desktop 真实窗口宿主后通过，生产主题代码未修改。临时规格已删除，无遗留临时诊断产物、环境受限检查或长期合同冲突；按用户要求未提交及未执行远端操作，未推进 T004。未运行与本次 App 修改无关的其余 solution 测试项目。
+
+---
+
+## [x] T013（P1）：移除小文件导入页内进度
+
+用户追加调整；在 T004 前执行。小于 5 MiB 的导入不展示进度，仅通过已有 Snackbar 反馈结果；大于等于 5 MiB 保留可取消进度弹窗。
+
+完成成果：小于 5 MiB 的导入直接执行，不展示进度或发送进行中通知，仅用已有 Snackbar 反馈成功/失败；大于等于 5 MiB 保留可取消进度弹窗。删除页内导入块、ImportStatusMessage、ApplyImportProgress、测试夹具字段及 ILibraryImportCoordinator 的 inlineProgress 参数，所有调用方直接适配，没有兼容接口或持久化变化；保留编码选择、替换/离页取消、迟到结果抑制、刷新及 IsBusy 生命周期。同步 AGENTS.md、UI 合同与项目 Review 清单，T012 成果保留为历史记录。保留全部核心测试，扩展既有导入分流测试覆盖阈值两侧及精确边界（增加 2 个用例），现有导入测试核对唯一结果通知与取消，无新增永久布局测试。format verify、Release build（零警告/错误）、完整 Presentation 287 项、相关 Library/Feedback WPF 6 项与 git diff --check 全部通过（零跳过）；隔离 Desktop 临时主题验证覆盖 Light/Dark 首次创建、切换及切换后新建页面，两项通过，临时代码已清理。首次 Presentation 运行因临时文件的零参数 Show 调用触发共享窗口宿主静态检查，清理临时文件后完整复测通过，未弱化门禁；主题前景色与 Snackbar 两项清单核对通过。临时规格已删除，无环境受限检查、遗留临时产物或长期合同冲突；依赖未变未重复 restore，未运行其余无关 solution 测试项目，保留此前全部未提交修改，未提交或执行远端操作，未推进 T004。
 
 ---
 
