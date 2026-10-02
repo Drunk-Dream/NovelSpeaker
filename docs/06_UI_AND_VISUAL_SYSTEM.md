@@ -66,7 +66,7 @@ NovelSpeaker 是桌面听书工具，UI 优先信息效率、清晰操作和稳�
 `Current` 表示系统当前正在使用、播放或定位的对象，例如当前章节、当前段落、CurrentProvider。
 
 - 使用左侧窄 Accent 指示条作为主要视觉标记；默认宽度约 3 DIP。
-- Current 本身不再占用 Selected 背景或 Accent 边框。
+- Current 本身不占用 Selected 背景或 Accent 边框。
 - Current 不等同于编辑选择，也不等同于批量选择。
 
 ### Hover
@@ -81,13 +81,12 @@ NovelSpeaker 是桌面听书工具，UI 优先信息效率、清晰操作和稳�
 `Selected` 表示用户当前选中、准备编辑或批量操作的对象。
 
 - 使用比 Hover 明显更强、但弱于 Primary Button 的中性选择背景。
-- 新增语义资源：
-  - Light `App.Brush.Interaction.Surface.Selected = #E0E4EE`
-  - Light `App.Brush.Interaction.Surface.Selected.Hover = #D7DCE8`
-  - Dark `App.Brush.Interaction.Surface.Selected = #363D48`
-  - Dark `App.Brush.Interaction.Surface.Selected.Hover = #404855`
+- Light `App.Brush.Interaction.Surface.Selected = #E0E4EE`
+- Light `App.Brush.Interaction.Surface.Selected.Hover = #D7DCE8`
+- Dark `App.Brush.Interaction.Surface.Selected = #363D48`
+- Dark `App.Brush.Interaction.Surface.Selected.Hover = #404855`
 - Selected 默认保持正常可读前景，不使用 Accent 边框作为主要选择信号。
-- 普通单选和 Ctrl/Shift 多选复用同一 Selected surface；MultiSelect 是行为差异，不另造一套颜色体系。
+- 普通单选和批量选择复用同一 Selected surface；行为模式不同，但不另造一套颜色体系。
 
 ### Focus
 
@@ -95,8 +94,6 @@ NovelSpeaker 是桌面听书工具，UI 优先信息效率、清晰操作和稳�
 - Focus 可以叠加在 Current、Selected 或 Current+Selected 上，不用背景颜色替代。
 
 ### 组合规则
-
-稳定组合关系：
 
 ```text
 Rest
@@ -111,21 +108,39 @@ Current + Selected + Focus    = Current rail + Selected surface + Focus border
 
 Pressed 仍是瞬时交互态，但不得抹掉 Current rail 或 Selection 事实。
 
-共享 Selection style 应以这些稳定语义为 primitive，避免 `CurrentItem`、`MultiSelectItem`、普通 `IsSelected` 分别复制同一套 Accent Background/Border Setter。一个可点击区域仍只有一个 Surface owner。
+共享 Selection style 应以这些稳定语义为 primitive，避免 `CurrentItem`、`MultiSelectItem`、普通 `IsSelected` 分别复制同一套 Setter。一个可点击区域仍只有一个 Surface owner。
 
-## 4. 多选交互
+## 4. 页面级批量管理模式
 
-支持批量操作的规则/Provider/缓存类列表复用桌面文件管理器语义：
+普通业务页面的批量选择不再统一套用“始终像文件管理器一样多选”的行为。对于 Library、Playback 章节、Speech Provider、Rules 等页面，选择应服务于明确的“管理对象”模式。
 
-- 普通点击选择单项，并按页面职责更新右侧 Editor/主选择；
-- `Ctrl + 点击` 切换该项是否属于选择集；
-- `Shift + 点击` 从稳定 anchor 进行连续范围选择；
-- 按住 Ctrl/Shift 点击卡片时，只改变选择集，不切换右侧编辑对象；
-- 多选状态直接使用全局 Selected surface，不要求进入额外“选择模式”才可表达；
-- 右键已选中项时，批量导出等动作作用于当前选择集；
-- 单项与多项导出复用同一版本化文档格式，多项写入一个文件/剪贴板文档。
+精确合同见 `specs/BATCH_MANAGEMENT.md`。长期摘要：
 
-主动缓存可以继续拥有自身“进入/退出主动缓存选择”的业务流程，但章节项的 Selected/Current/Hover/Focus 视觉仍使用同一全局语义。缓存完整度继续显示在卡片右侧，不增加右侧 Check 与百分比争夺空间；当前章节同时被选中时表现为“左侧 Current rail + Selected background”。
+- Selection scope 是页面级，不跨页面；离开页面退出管理模式并清空。
+- 正常模式下，普通点击继续执行页面原本的“使用对象”动作，例如打开 Book、跳转章节、切换编辑对象。
+- Ctrl/Shift 点击可以进入管理模式；页面还必须提供一个显式、可发现的“选择/批量管理”入口。
+- 一旦进入管理模式，普通点击只切换该项是否选中，不再执行打开、跳转、激活、编辑切换等动作。
+- SelectedCount 降到 0 不自动退出管理模式；只有显式 Cancel/退出或离开页面才退出。
+- Select All 只作用于当前可见、当前可管理的同类对象。
+- 过滤/搜索/数据刷新导致条目不再可见时，该条目必须从选择集中移除；稳定排序和同一对象的普通刷新可以保留选择。
+- 管理模式中的右键：右键已选项作用于整个选择集；右键未选项先把选择集切成该项单选，再打开单项菜单。
+- Page Header 与 Context Menu 可以提供同一业务动作，但不要求按钮布局完全一致；Context Menu 不提供“取消管理模式”。
+- 不同对象类型不得混在一个 selection scope。
+- Dirty Draft/未保存编辑不能因为进入管理模式而被隐式丢弃；复用页面已有保存/放弃/取消保护。
+- 批量动作逐项执行，单项失败不终止剩余项；最终汇总成功/失败/跳过。
+- 破坏性批量动作只做一次批次级确认；非破坏性动作不重复确认。
+- 选择集中存在不支持某动作的项时，允许保留选择；执行时处理支持项、跳过不支持项并汇报。
+- 一次批量导出产生一个批次级结果，不弹出多个独立保存对话框。
+- 删除不提供 Undo/回收站。
+
+### 页面能力
+
+- Library：Select All、Delete、Export。
+- Playback 章节：通用章节管理模式；当前第一项业务动作是 Cache，后续可增加其它章节批量动作。
+- Speech Provider：Select All、Export、Delete；不同 Provider Type 可以按能力跳过不支持动作。
+- Rules：每个规则工作台独立 selection scope，提供 Select All、Export、Delete。
+- Provider 与 Rule 永远不共享一个 selection scope。
+- CacheManagement 是明确例外，继续保持当前文件管理器式 Extended Selection 语义，不强制套入页面级管理模式。
 
 ## 5. 语音服务管理页
 
@@ -139,17 +154,19 @@ Provider 列表 | Provider Editor Host
 
 - Provider 不按 HTTP / Edge / Local 分组。
 - Provider 列表读取一份统一 SortOrder。
-- 普通点击左侧项表示“正在编辑”，使用全局 Selected 视觉。
+- 正常模式下普通点击左侧项表示“正在编辑”，使用全局 Selected 视觉。
 - CurrentProvider 是独立业务状态，使用全局 Current 左侧 Accent rail，不显示“当前”文字，也不允许通过该标识切换 Provider。
 - 正在编辑 CurrentProvider 时，自然组合为 Current rail + Selected surface。
 - Provider 没有 Enabled Toggle。
 - HTTP Provider 支持复制、单项/批量导出、删除等类型适用动作。
-- Microsoft Edge 不显示创建、复制、导入、导出、删除等不适用动作；批量导出选择只包含可分享 Provider。
+- Microsoft Edge 不显示创建、复制、导入、导出、删除等不适用动作；批量动作通过能力判断跳过不支持项。
 - 页首提供“新建”和“导入”；当只有 HTTP 可由用户创建时，不显示无意义 Provider Type 选择器。
 - HTTP 模板帮助只属于 HTTP 编辑器语境。
 - Provider 编辑器之间共享 Draft/Dirty/Save/Cancel/Test 生命周期，不强行共享字段布局。
 - 新建 HTTP Provider 先进入右侧 Draft，保存成功后才进入左侧列表。
-- 切换左侧 Provider 或离开页面时，Dirty Draft 使用保存 / 放弃 / 取消保护。
+- 切换左侧 Provider、进入管理模式或离开页面时，Dirty Draft 使用已有保存 / 放弃 / 取消保护。
+- 管理模式中的点击不改变右侧 Editor 当前对象；退出管理模式后恢复正常编辑选择行为。
+- 删除 CurrentProvider 被允许；删除后 CurrentProvider 清空为 None，不自动切到其它 Provider。
 
 ## 6. 播放页 Provider 选择器
 
@@ -160,11 +177,11 @@ Provider 选择器是高频操作入口：
 - 不提供“None / 不使用语音服务”选项。
 - Provider 顺序与管理页完全一致。
 - 每个可选择项等宽并横向 Stretch，整行都是点击区域。
-- Provider 行使用约 50 DIP 的稳定最小高度和约 16 DIP 水平内边距；文字使用 ItemTitle 或同等级正文样式，垂直居中，并对过长名称使用 CharacterEllipsis。
-- Provider 项之间保持紧凑间距；列表过长时在浮窗内部滚动，不让 Popup 无界增长。
+- Provider 行使用约 50 DIP 的稳定最小高度和约 16 DIP 水平内边距；文字垂直居中并对过长名称使用 CharacterEllipsis。
+- Provider 项之间保持紧凑间距；列表过长时在浮窗内部滚动。
 - 当前 Provider 只使用全局 Current 左侧 Accent rail，不显示“当前”文字，也不把 Current 伪装成 Selected。
 - CurrentProvider=None 时没有任何项显示 Current rail。
-- 底部管理入口与 Provider 选择列表通过轻量 Divider 分隔，使用“设置/语音”图标 + `语音服务管理` + Chevron 的导航行，不再使用居中的“前往语音服务管理”大按钮。
+- 底部管理入口与 Provider 选择列表通过轻量 Divider 分隔，使用“设置/语音”图标 + `语音服务管理` + Chevron 的导航行。
 - Popup 继续遵守 Single Surface，不再嵌套额外完整 Card。
 
 ## 7. 章节标题显示
@@ -194,7 +211,7 @@ Item B
 
 - N 个当前可见 item 只有 N+1 个可见插入槽。
 - 插入指示横线位于两张卡片的 gap 中，不压在卡片上/下边界。
-- 相邻卡片之间只有一个候选位置，A.After 与 B.Before 不得重复表示同一点。
+- 相邻卡片之间只有一个候选位置。
 - 列表顶部和底部也各有一个唯一槽位。
 - 保留已有边缘自动滚动等成熟拖拽体验。
 - Provider、章节规则、正则替换规则、元数据规则等排序列表统一采用这一交互原则。
@@ -203,7 +220,7 @@ Provider 存在隐藏项时，可见列表只是完整排序的投影：
 
 - 隐藏 Provider 不因为隐藏而主动改序。
 - 拖到两个可见 Provider 之间时，按可见插入槽映射回完整排序。
-- 用户显式拖动其它 Provider 可以跨过隐藏 Provider，因此隐藏 Provider 与其它项的相对关系可能随真实重排改变。
+- 用户显式拖动其它 Provider 可以跨过隐藏 Provider。
 - 隐藏 item 不产生用户看不见的额外命中边界。
 
 ## 9. 响应式 Library
@@ -216,7 +233,7 @@ Library 使用响应式多列卡片：
 - 外层列表使用 WPF 标准 recycling virtualization。
 - resize 后保持稳定书籍顺序，并尽量保持逻辑 anchor 可见。
 - 搜索继续覆盖书名与作者。
-- 排序至少提供最近阅读、标题和最近导入；本阶段不增加“阅读中/未读”等状态筛选。
+- 排序至少提供最近阅读、标题和最近导入。
 
 跨页面滚动恢复保存逻辑 anchor（例如 BookId），不保存自定义虚拟画布状态。
 
@@ -282,13 +299,13 @@ Wpf.Ui provider
 
 ### Button 样式语义
 
-应用级 Button Style 按**稳定交互职责**命名，不按“透明”“某页面按钮”或某次视觉实现命名。
+应用级 Button Style 按稳定交互职责命名，不按“透明”“某页面按钮”或某次视觉实现命名。
 
-- Primary / Secondary / Subtle / Icon / Danger 等共享样式表达稳定动作语义，而不是具体页面用途。
+- Primary / Secondary / Subtle / Icon / Danger 等共享样式表达稳定动作语义。
 - 当 Button 只负责命令、键盘焦点与命中区域，Hover / Selected / Current 等视觉由内部 Selection/Surface 统一表达时，应使用明确的 interaction-host 语义；宿主本身不得再绘制第二层 Hover/Pressed Surface。
 - 相同交互语义跨 Feature 复用同一共享样式，不为 Provider、Book、Cache 等页面分别创建等价 Button Style。
-- 只有控件族确实拥有独立、长期的交互模型时，才使用 `App.Media.*`、`App.Navigation.*` 等领域命名空间；仅在单一页面使用且无共享价值的变体保持 page-local。
-- 同一个可点击区域只允许一个视觉状态 owner，避免 Button 与内部 Border/Card 同时绘制 Hover、Pressed、Selected 或 Current，造成双层浮层。
+- 只有控件族确实拥有独立、长期的交互模型时，才使用 `App.Media.*`、`App.Navigation.*` 等领域命名空间。
+- 同一个可点击区域只允许一个视觉状态 owner。
 - 样式整理或重命名时直接迁移调用方并删除旧 Key，不为内部资源名长期保留兼容 alias。
 
 ## 13. Shared Controls
@@ -299,7 +316,9 @@ Wpf.Ui provider
 - Settings row/navigation row；
 - form field；
 - status view；
-- section surface。
+- section surface；
+- selection surface；
+- 通用页面级 batch selection/controller primitive（仅表达稳定选择行为，不包含业务动作）。
 
 Book card、Provider card/editor、rule card、player content、cache chapter item 仍由 Feature 拥有。
 
@@ -323,7 +342,7 @@ Dialog、Flyout、Popup、独立状态窗口遵守 **Single Surface**：
 - Hover/Pressed/Focus 不得让 Dark Mode 图标失去可读性。
 - 主题切换不通过运行时代码重写标准控件完整模板。
 - Light/Dark 快捷切换保持高频可达。
-- High Contrast 下 Current/Selected/Focus 仍必须可区分；必要时优先使用系统 Highlight/Focus 资源，而不是强行复刻 Light/Dark 色值。
+- High Contrast 下 Current/Selected/Focus 仍必须可区分；必要时优先使用系统 Highlight/Focus 资源。
 
 ## 16. 控件交互
 

@@ -2,36 +2,35 @@
 
 ## 1. 阶段定位
 
-当前进入 **v0.7.0 后的核心体验增强阶段**。
+当前进入 **v0.8.0 后的统一批量管理 + 通用 Book/Source 数据模型阶段**。
 
-规划代码基线：`ea07878493a09f080b055cfee62a7e7e5e0e25ec`（`dev`）。上一轮 Speech Provider、v0.7.0 发布与诊断 hardening 已完成，本 Backlog 已清空旧任务，只保留下一阶段尚未实施的工作。
+规划代码基线：`7b17e4c51d566b0640b49a33c426a61c4a6eaafa`（`main`，v0.8.0）。
 
-本阶段只做已经确认的高价值增强：
+上一轮 Backlog 已全部完成，本文件清空旧任务后重新开始编号。当前阶段只实现已经确认的两组长期方向：
 
-- 统一全项目 Current / Selected / Hover / Focus 视觉语义，并顺带优化播放页 Provider 浮窗与章节标题显示；
-- 收拢播放连续失败恢复，有限重试后自动跳段，连续 3 段失败后暂停；
-- 重做 TXT 导入元数据识别与“空行分章”，保持直接导入流程；
-- 给章节规则、正则规则、元数据规则和 HTTP Provider 增加与批量导出配套的批量导入/多选交换体验；
-- 增加第一版本地配置备份/恢复；
-- 仅做轻量书库增强，增加“最近导入”排序，不增加阅读状态筛选。
+1. 把 Library、Playback 章节、Speech Provider、Rules 的批量操作收敛为统一的页面级 Management Mode；CacheManagement 保持文件管理器式选择例外。
+2. 把当前“Book 直接拥有 Local TXT/Chapters”的模型迁移为 `Book → Sources → Source-owned Catalog/Content`，当前只实现 Local Source，不实现 Online Source 具体能力。
 
 本阶段明确不做：
 
-- 在线书源；
+- Legado/在线书源规则、目录抓取、正文请求、登录、变量系统；
+- 自动 Source fallback；
+- 跨 Source Chapter Identity 或模糊章节匹配；
+- 高级在线正文缓存管理；
 - WebDAV/云同步；
-- Local Provider 或通用插件系统；
-- 新一轮诊断系统扩张；
-- 仅因类文件较大而进行架构重构。
+- 新一轮 Diagnostics 扩张；
+- 与本阶段无关的大规模 UI/架构重写。
 
-长期规则见：
+长期合同：
 
 - `docs/00_PRODUCT_AND_SCOPE.md`
 - `docs/03_BOOKS_PLAYBACK_AND_PROGRESS.md`
+- `docs/04_CACHE_AND_BACKGROUND_WORK.md`
 - `docs/05_DATA_AND_COMPATIBILITY.md`
 - `docs/06_UI_AND_VISUAL_SYSTEM.md`
+- `docs/specs/BOOK_DATA_MODEL.md`
 - `docs/specs/BOOK_IMPORT.md`
-- `docs/specs/HTTP_TTS.md`
-- `docs/specs/REGEX_REPLACEMENT.md`
+- `docs/specs/BATCH_MANAGEMENT.md`
 - `docs/08_QUALITY_AND_TESTING.md`
 - `AGENTS.md`
 
@@ -40,80 +39,113 @@
 - `[ ]` 未开始
 - `[-]` 进行中
 - `[x]` 已完成，追加简短“完成成果”
-- `[!]` 阻塞，记录会影响产品/架构/隐私/路线或必须人工授权的真实冲突
+- `[!]` 阻塞，只记录真正需要用户决定的新产品/架构/隐私冲突；普通实现细节由 Codex 自行决定
 
-默认按 T001 → T006 串行执行。如果调用明确要求连续执行整个 Backlog，可以在每个任务自动验收完成后继续，不等待人工视觉验收。
+默认按 T001 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
 
-人工视觉验收永远是可选补充，不阻塞任务完成或下一任务。
+人工视觉/交互验收始终是可选补充，不阻塞任务完成或下一任务。
 
 每个未完成任务的详细实施合同位于 `tasks/`。完成任务后：
 
-1. 满足 task spec 中的自动验收；
+1. 满足 task spec 中的强制自动验收；
 2. 删除所有当前任务临时测试、fixture、脚本、截图和诊断产物；
-3. 更新本文件状态与“完成成果”；
+3. 更新本文件状态并追加简短“完成成果”；
 4. 删除对应 `tasks/Txxx_*.md`；
-5. 不等待人工验收。
+5. 按调用要求停止或继续下一任务，不等待人工验收。
 
-### 持久化变更特别约束
+## 3. Staged breaking migration window
 
-T003 预计会涉及 Book Description、元数据规则持久化和新的全局导入设置。`AGENTS.md` 要求数据库结构或持久数据变更必须在实施前逐项取得用户明确授权。
+T004 → T007 属于一次明确授权的 **staged breaking migration window**。
 
-因此 Codex 在 T003 中必须先完成只读审计，列出每一项真实需要的持久化变更、原因、数据影响和回退/保留方案；对尚未获得明确授权的项目停止在迁移实现之前并标记 `[!]`。不得把本 Backlog、长期文档或“执行整个阶段”的授权解释成数据库迁移授权。
+在这个窗口中：
+
+- 不要求每个任务结束时整个应用都可运行；
+- 不要求每个任务都通过完整 solution build/test；
+- task spec 必须明确当前切片允许暂时失效的调用方或测试；
+- 当前任务仍必须完成自己的 focused verification；
+- 不为维持中间态可运行而建立旧/新 Book 模型双读、双写或 compatibility wrapper；
+- T008 必须恢复完整标准门禁，阶段才算完成。
+
+T001 → T003 不属于 breaking migration，原则上应保持仓库正常可构建。
+
+## 4. 已批准的 Book schema 变更边界
+
+本轮用户已经明确批准为通用 Book/Source 模型调整数据库表、删除/调整旧表字段，并要求不长期兼容旧模型。T004 可以直接实施 `docs/05_DATA_AND_COMPATIBILITY.md` 列出的 v0.8.0 → Book/Source 持久化变更集合，不需要逐字段重复请示。
+
+如果实现需要超出该文档已列集合的新持久化概念，才按 `AGENTS.md` 停止并请求授权。
+
+自动迁移应保持简单。当前 v0.8.0 的应用内规范化 `Books/{BookId}/content.txt` 可以继续作为 Local Source 持久正文，不为目录美观搬迁。若真实实现证明自动迁移仍必须引入模糊章节匹配、寻找外部 TXT、长期双模型兼容或新的重型一次性恢复系统，则使用已批准 fallback：要求用户重新导入本地书籍，不实现复杂迁移。
 
 ---
 
-# Phase A：全局交互语义与播放可靠性
+# Phase A：统一页面级批量管理
 
-## [x] T001（P0）：统一 Selection/Current 视觉语义并收口相关 UI
+## [ ] T001（P0）：建立统一 Management Mode 选择基础设施
 
-目标：把全项目列表状态统一为“Current=左侧 Accent rail、Hover=浅背景、Selected=更深的中性背景、Focus=Focus 边框”，允许 Current+Selected+Focus 自然叠加；同时完成章节标题去自动编号和播放页 Provider Popup 的排版优化。
+目标：在现有 `DesktopSelectionController` 稳定 key 选择能力之上建立页面级 Management Mode 生命周期、visible-set reconciliation、Select All、右键语义与 Normal/Management 行为隔离的共享 primitive；不把业务动作塞进 Shared。
 
-完成成果：共享 Selection surface 将 Current rail、Selected 中性背景、Hover 与 Focus 分层；统一相关列表和 StyleGallery，章节列表仅显示 Title，播放页 Provider Popup 完成滚动与管理导航行。
+详细规格：`tasks/T001_MANAGEMENT_SELECTION_FOUNDATION.md`
 
-## [x] T002（P0）：收拢播放连续失败恢复
+## [ ] T002（P1）：迁移 Library 与 Playback 章节批量管理
 
 依赖：T001。
 
-目标：对可恢复合成失败保持有限重试；最终失败后跳过当前段，任一成功段重置连续失败计数，连续自动跳过 3 段后暂停等待用户处理。不得建立与 Provider Runtime 竞争的第二套无界重试。
+目标：Library 增加显式批量管理、Select All、批量导出/删除；Playback 把现有“主动缓存选择模式”改造成通用章节 Management Mode，当前批量动作仍只有 Cache，并保持 Active Cache coordinator 只负责任务执行。
 
-完成成果：共享合成边界对非 HTTP 瞬时失败与限流执行有限重试；最终失败逐段跳过，连续跳过 3 段后暂停在下一段，成功播放或显式恢复重置计数；缓存音频解码失败仍优先作废重建。
+详细规格：`tasks/T002_LIBRARY_AND_CHAPTER_BATCH_MANAGEMENT.md`
+
+## [ ] T003（P1）：迁移 Speech Provider 与 Rules 批量管理
+
+依赖：T001。
+
+目标：把 Provider 与四类 Rule workspace 从“普通选择直接兼任多选”的现状迁移到 Normal Mode + Management Mode；保留 Dirty Draft 保护、批量导出/删除、部分跳过和 CurrentProvider 删除后变 None 的既有产品语义。
+
+详细规格：`tasks/T003_PROVIDER_AND_RULE_BATCH_MANAGEMENT.md`
 
 ---
 
-# Phase B：TXT 导入与规则工作台
+# Phase B：通用 Book/Source 模型
 
-## [x] T003（P0）：实现元数据识别与空行分章导入链路
-
-依赖：T002。
-
-目标：按 `BOOK_IMPORT.md` 实现文件名/正文头部元数据规则、Description、全局“空行分章”、章节原始标题展示与设置 IA 调整；移除旧 `BookFileNameTemplate`，保持无编码问题时选择 TXT 后直接导入。
-
-完成成果：独立文件名/正文头部元数据规则与默认规则接入直接 TXT 导入；Book Description 持久化并展示，空行分章按全局开关补充显式章节，设置入口重排并移除旧文件名模板。SQLite v11 升级保留旧书与旧规则，完整自动门禁通过。
-
-## [x] T004（P1）：增加规则与 Provider 批量交换
+## [ ] T004（P0）：建立 Book/Source 持久化模型并完成 v0.8.0 schema migration
 
 依赖：T003。
 
-目标：为章节规则、正则替换规则、文件名元数据规则、正文头部元数据规则和可分享 HTTP Provider 建立一致的 Ctrl/Shift 多选、单文档批量导出和同格式批量导入；修饰键点击不切换右侧 Editor，Microsoft Edge 不参与导出选择。
+目标：建立 Book、Source、Local Source typed persistence、Source-owned Catalog 的最终数据结构；追加新的 SQLite migration，把现有每本本地书转换为一个 Local Source，并保留 BookId、Chapter 技术 ID、ReadingProgress、Speech Plan 与可安全保留的音频缓存关系。删除旧 Book 上已经失去语义的 Local TXT 字段/约束。
 
-完成成果：四类规则与 HTTP Provider 复用桌面 Ctrl/Shift 多选，选择集按稳定可见顺序导出为单个版本化文档；导入逐项校验、跳过重复并追加合法项，保留 Editor 草稿和 CurrentProvider。Edge 不参与分享选择，Provider 凭据完整保留且导出前仍需确认；移除旧单选控制器与导入草稿离开流程，完整自动门禁通过。
+详细规格：`tasks/T004_BOOK_SOURCE_SCHEMA_MIGRATION.md`
 
----
-
-# Phase C：配置迁移与书库轻量增强
-
-## [x] T005（P1）：实现第一版配置备份与恢复
+## [ ] T005（P0）：重构 Local TXT 导入与重新导入更新
 
 依赖：T004。
 
-目标：在“缓存与数据”中增加本地私人配置备份/恢复，完整保存设置、Provider（含凭据）和四类规则；恢复采用替换配置快照语义，不包含书籍、阅读进度、缓存或诊断数据，不加入 WebDAV。
+目标：直接导入改为创建 `Book + LocalSource + Catalog`；使用严格 Title+Author 自动匹配，唯一候选时更新该 Book 的唯一 Local Source，多候选时要求用户选择目标 Book 或新建；更新采用完整 snapshot 原子替换，失败保留旧 Source。
 
-完成成果：“缓存与数据”提供本地明文、版本化私人配置备份与完整快照替换恢复，完整保留设置、CurrentProvider、HTTP/隐藏 Edge Provider 身份、凭据、排序和四类规则。备份文件使用同目录临时文件原子替换；恢复先校验再确认，以现有配置表事务和设置文件补偿保证失败一致性，成功后由配置 owner 发布 typed change 并刷新实际播放音量，取消过期页面设置与音量保存；不新增持久 schema，不读写书籍、进度、缓存或诊断内容。新增核心往返、数据隔离、无效文件零写入、失败补偿、运行态通知、覆盖失败保留原文件及用户确认测试；完整自动门禁通过。
+详细规格：`tasks/T005_LOCAL_SOURCE_IMPORT_UPDATE.md`
 
-## [x] T006（P2）：增加书库“最近导入”排序
+## [ ] T006（P0）：把 Query、正文读取、Playback 与 ReadingProgress 接到 ActiveSource Catalog
 
-依赖：T003。
+依赖：T004、T005。
 
-目标：在现有标题/作者搜索与“最近阅读 / 标题”排序基础上增加“最近导入”，继续保持书库轻量，不增加阅读状态筛选、标签、文件夹或收藏系统。
+目标：移除运行时“Book 直接拥有 StoredFilePath/Chapters”的假设；Library/BookDetails/Player/Cache/Speech Plan 通过 ActiveSource Catalog 和 Source content port 工作；ReadingProgress 保持 Book 级并在 Catalog 更新时只做边界截断。
 
-完成成果：书库新增“最近导入”，按现有 ImportedAt 降序、规范化书名和 BookId 稳定排序；直接导入赋值、重复导入拒绝及元数据编辑语义已审计，无持久化变更。默认最近阅读、标题/作者搜索及响应式投影/virtualization/滚动 anchor 流程保留；扩展现有 Library 核心测试覆盖时间并列、时区偏移、排序切换、搜索和重新加载，完整自动门禁通过。
+详细规格：`tasks/T006_ACTIVE_SOURCE_RUNTIME_INTEGRATION.md`
+
+## [ ] T007（P1）：收口 Source/Book 生命周期并删除旧模型残留
+
+依赖：T006。
+
+目标：完成 Local Source 更新/删除、Book 删除、ActiveSource=None 安全处理、文件/SQLite/音频缓存/ReadingProgress/Speech Plan 协调；删除旧 SourceHash-based duplicate path、Book-owned content contract 和仅为旧 schema 存在的代码/测试。
+
+详细规格：`tasks/T007_SOURCE_LIFECYCLE_AND_LEGACY_CLEANUP.md`
+
+---
+
+# Phase C：最终集成收口
+
+## [ ] T008（P0）：恢复完整可运行状态并执行阶段级验收
+
+依赖：T001–T007。
+
+目标：完成跨模块接线、测试收敛、架构审计和文档一致性检查；确保没有旧/新 Book 模型双路径、没有遗漏的 active-cache selection 专名、没有隐藏 selected item 参与批量操作，最终执行完整标准门禁。
+
+详细规格：`tasks/T008_INTEGRATION_CLOSURE.md`

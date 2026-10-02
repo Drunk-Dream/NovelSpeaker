@@ -11,10 +11,10 @@
 | `00_PRODUCT_AND_SCOPE.md` | 产品定位、核心能力、用户可观察行为、非目标 |
 | `01_SYSTEM_ARCHITECTURE.md` | 四层架构、Application 模块、App Feature、依赖方向、状态 owner 与长期架构原则 |
 | `02_RUNTIME_AND_NAVIGATION.md` | Process/Page/Playback/Background 生命周期、启动关闭、导航和桌面生命周期 |
-| `03_BOOKS_PLAYBACK_AND_PROGRESS.md` | Books → Text → Speech → Playback → ReadingProgress 的核心听书链路 |
-| `04_CACHE_AND_BACKGROUND_WORK.md` | 物理缓存、Coverage、Speech Plan、Prefetch、Active Cache、Export 与后台 owner |
+| `03_BOOKS_PLAYBACK_AND_PROGRESS.md` | Book/Source/Catalog → Text → Speech → Playback → ReadingProgress 的核心听书链路 |
+| `04_CACHE_AND_BACKGROUND_WORK.md` | 音频物理缓存、Coverage、Speech Plan、Prefetch、Active Cache、Export 与后台 owner |
 | `05_DATA_AND_COMPATIBILITY.md` | 持久化数据、数据根、SQLite migration、用户数据保护与兼容边界 |
-| `06_UI_AND_VISUAL_SYSTEM.md` | 页面/列表/UI 性能、导航呈现、主题、资源、Surface、视觉与交互合同 |
+| `06_UI_AND_VISUAL_SYSTEM.md` | 页面/列表/UI 性能、批量管理呈现、主题、资源、Surface、视觉与交互合同 |
 | `07_OBSERVABILITY_AND_DIAGNOSTICS.md` | 生产日志、普通性能遥测、诊断会话、隐私与诊断导出 |
 | `08_QUALITY_AND_TESTING.md` | 测试分层、Architecture Fitness Tests、WPF 隔离、性能回归与质量门禁 |
 
@@ -22,7 +22,9 @@
 
 `docs/specs/` 只保存必须精确定义、不能用简要架构文档替代的协议/流水线合同：
 
-- `specs/BOOK_IMPORT.md`
+- `specs/BOOK_DATA_MODEL.md`：Book / Source / Catalog / Content / ReadingState 的统一模型与生命周期。
+- `specs/BOOK_IMPORT.md`：Local TXT 导入、元数据、章节识别、Book 自动匹配与 Local Source 更新。
+- `specs/BATCH_MANAGEMENT.md`：普通业务页面的页面级 Management Mode、选择、Select All 与批量动作合同。
 - `specs/HTTP_TTS.md`
 - `specs/REGEX_REPLACEMENT.md`
 
