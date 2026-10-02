@@ -133,12 +133,6 @@ public partial class PlayerView : UserControl
             return;
         }
 
-        if (e.Key == Key.Escape && _viewModel.TryHandleEscape())
-        {
-            e.Handled = true;
-            return;
-        }
-
         if (e.Key == Key.A &&
             Keyboard.Modifiers.HasFlag(ModifierKeys.Control) &&
             _viewModel.HandleChapterSelectAll())

@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Shell.Activation;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Presentation;
@@ -6,7 +7,7 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.Playback;
 
-public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware, INavigableView<PlayerViewModel>, IKeyboardShortcutTarget
+public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware, INavigableView<PlayerViewModel>, IKeyboardShortcutTarget, ITransientEscapeHandler
 {
     private readonly PageActivationController _activation = new();
     private readonly IKeyboardShortcutTargetRegistry? _shortcutTargets;
@@ -25,6 +26,8 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
     }
 
     public PlayerViewModel ViewModel { get; }
+
+    public bool TryHandleEscape() => ViewModel.TryHandleEscape();
 
     public async Task OnNavigatedToAsync()
     {

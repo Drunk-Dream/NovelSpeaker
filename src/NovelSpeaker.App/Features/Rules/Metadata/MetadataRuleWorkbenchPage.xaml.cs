@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
@@ -8,7 +9,7 @@ using Wpf.Ui.Abstractions.Controls;
 namespace NovelSpeaker.App.Features.Rules.Metadata;
 
 public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
-    INavigationAware, INavigableView<MetadataRuleWorkbenchViewModel>
+    INavigationAware, INavigableView<MetadataRuleWorkbenchViewModel>, ITransientEscapeHandler
 {
     private readonly PageActivationController _activation = new();
     private readonly INavigationGuardService _guards;
@@ -38,6 +39,8 @@ public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
     }
 
     public MetadataRuleWorkbenchViewModel ViewModel { get; }
+
+    public bool TryHandleEscape() => ViewModel?.TryHandleEscape() == true;
 
     private Task SelectWithModifiersAsync(MetadataRuleRow? item)
     {

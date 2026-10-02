@@ -13,7 +13,8 @@ public sealed class WpfShortcutContextResolver : IShortcutContextResolver
     public KeyboardShortcutContext Resolve(
         bool isPlayerPageActive,
         DependencyObject? focusedElement,
-        DependencyObject dialogHost)
+        DependencyObject dialogHost,
+        ITransientEscapeHandler? activePageEscapeHandler)
     {
         ArgumentNullException.ThrowIfNull(dialogHost);
 
@@ -23,7 +24,7 @@ public sealed class WpfShortcutContextResolver : IShortcutContextResolver
             HasTransientUiAncestor(focusedElement) ||
             IsHostedInPopupSurface(focusedElement) ||
             FindVisibleContentDialog(dialogHost) is not null,
-            FindTransientEscapeHandler(focusedElement));
+            activePageEscapeHandler);
     }
 
     private static bool HasEditingAncestor(DependencyObject? element)
@@ -63,24 +64,6 @@ public sealed class WpfShortcutContextResolver : IShortcutContextResolver
             : null;
 
         return presentationSource?.RootVisual is not null and not Window;
-    }
-
-    private static ITransientEscapeHandler? FindTransientEscapeHandler(DependencyObject? element)
-    {
-        for (var current = element; current is not null; current = GetParent(current))
-        {
-            if (current is FrameworkElement { DataContext: ITransientEscapeHandler handler })
-            {
-                return handler;
-            }
-
-            if (current is FrameworkContentElement { DataContext: ITransientEscapeHandler contentHandler })
-            {
-                return contentHandler;
-            }
-        }
-
-        return null;
     }
 
     private static DependencyObject? GetParent(DependencyObject current)

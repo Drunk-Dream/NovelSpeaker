@@ -75,6 +75,7 @@ Selection scope 必须是页面级、同类对象级。
 退出方式：
 
 - Page Header 的明确 Cancel/退出；
+- 无修饰键 ESC：由当前导航页面退出管理模式并清空 selection，不依赖当前焦点所在控件；菜单、Popup、Flyout、ContentDialog 打开时先由该 surface 处理，关闭后下一次 ESC 再退出页面管理模式；
 - 页面导航离开；
 - 页面本身被销毁。
 

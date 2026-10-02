@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shared.Presentation.Scrolling;
 using NovelSpeaker.App.Shell.Activation;
@@ -9,7 +10,7 @@ using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.Cache;
 
-public partial class CacheManagementPage : System.Windows.Controls.Page, INavigationAware, INavigableView<CacheManagementViewModel>
+public partial class CacheManagementPage : System.Windows.Controls.Page, INavigationAware, INavigableView<CacheManagementViewModel>, ITransientEscapeHandler
 {
     private readonly PageActivationController _activation = new();
     private readonly PageEventOperationRunner _eventOperations;
@@ -28,6 +29,8 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
     }
 
     public CacheManagementViewModel ViewModel { get; }
+
+    public bool TryHandleEscape() => ViewModel.TryHandleEscape();
 
     public async Task OnNavigatedToAsync()
     {
@@ -102,11 +105,6 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
         {
             e.Handled = true;
             return;
-        }
-
-        if (e.Key == Key.Escape && ViewModel.TryHandleEscape())
-        {
-            e.Handled = true;
         }
     }
 

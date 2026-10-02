@@ -4,12 +4,13 @@ using System.Windows.Media;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Features.Books.Shared;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using Wpf.Ui.Abstractions.Controls;
 
 namespace NovelSpeaker.App.Features.Books.Library;
 
-public partial class LibraryPage : System.Windows.Controls.Page, INavigationAware, INavigableView<LibraryViewModel>, IKeyboardShortcutTarget
+public partial class LibraryPage : System.Windows.Controls.Page, INavigationAware, INavigableView<LibraryViewModel>, IKeyboardShortcutTarget, ITransientEscapeHandler
 {
     private readonly PageActivationController _activation = new();
     private readonly IBookCatalogInvalidationState _catalogInvalidationState;
@@ -46,6 +47,8 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     }
 
     public LibraryViewModel ViewModel { get; }
+
+    public bool TryHandleEscape() => ViewModel?.TryHandleEscape() == true;
 
     public async Task OnNavigatedToAsync()
     {

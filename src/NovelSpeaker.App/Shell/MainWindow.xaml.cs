@@ -1,5 +1,6 @@
 ﻿using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell.Activation;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shell.Input;
 using System.ComponentModel;
 using System.Windows;
@@ -145,7 +146,8 @@ public partial class MainWindow : FluentWindow
                 _shortcutContextResolver.Resolve(
                     _activationCoordinator.IsPlayerPageActive,
                     Keyboard.FocusedElement as DependencyObject,
-                    RootContentDialogHost),
+                    RootContentDialogHost,
+                    GetActivePageEscapeHandler()),
                 _activationCoordinator.LifetimeToken);
             e.Handled = handled;
         }
@@ -159,6 +161,10 @@ public partial class MainWindow : FluentWindow
             _feedbackService.ShowProjectedNotification("快捷键操作失败", _feedbackService.Project(exception));
         }
     }
+
+    private ITransientEscapeHandler? GetActivePageEscapeHandler() =>
+        (RootNavigationView.Template?.FindName("PART_NavigationViewContentPresenter", RootNavigationView)
+            as NavigationViewContentPresenter)?.Content as ITransientEscapeHandler;
 
     private void OnPaneOpened(object sender, System.Windows.RoutedEventArgs e)
     {
