@@ -86,7 +86,7 @@ public sealed partial class PlayerViewTests
             var inactiveToolButton = Assert.IsType<WpfUiButton>(inactiveView.FindName("ChapterManagementToolButton"));
             Assert.Equal("章节管理", inactiveToolButton.ToolTip);
             Assert.Equal("章节管理", AutomationProperties.GetName(inactiveToolButton));
-            Assert.Equal(SymbolRegular.ArrowDownload24, Assert.IsType<SymbolIcon>(inactiveToolButton.Icon).Symbol);
+            Assert.Equal(SymbolRegular.MultiselectLtr24, Assert.IsType<SymbolIcon>(inactiveToolButton.Icon).Symbol);
 
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
@@ -121,7 +121,7 @@ public sealed partial class PlayerViewTests
             Assert.Equal(SymbolRegular.Dismiss24, Assert.IsType<SymbolIcon>(toolButton.Icon).Symbol);
             Assert.Equal(Visibility.Visible, selectionToolbar.Visibility);
             Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已选择 2 章"));
-            Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已有主动缓存批次正在运行，完成或取消后可开始新批次。"));
+            Assert.NotNull(FindVisibleDescendantByText(view, "已有主动缓存批次正在运行，完成或取消后可开始新批次。"));
             Assert.Equal("开始缓存", AutomationProperties.GetName(startButton));
             Assert.Null(startButton.Content);
             Assert.Equal(SymbolRegular.ArrowDownload24, Assert.IsType<SymbolIcon>(startButton.Icon).Symbol);

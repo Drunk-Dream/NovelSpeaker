@@ -30,7 +30,8 @@ public sealed partial class ChapterRulesPageTests
             AssertToolbarIcon(view, "恢复默认规则", SymbolRegular.ArrowReset24);
             AssertToolbarIcon(view, "章节规则帮助", SymbolRegular.QuestionCircle24);
             Assert.DoesNotContain(
-                VisualTreeTestHelper.FindDescendants<Button>(view),
+                VisualTreeTestHelper.FindDescendants<Button>(
+                    Assert.IsAssignableFrom<FrameworkElement>(view.FindName("PageActions"))),
                 button => AutomationProperties.GetName(button).Contains("导出", StringComparison.Ordinal));
         });
     }

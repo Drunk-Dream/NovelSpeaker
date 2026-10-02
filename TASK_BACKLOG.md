@@ -41,7 +41,7 @@
 - `[x]` 已完成，追加简短“完成成果”
 - `[!]` 阻塞，只记录真正需要用户决定的新产品/架构/隐私冲突；普通实现细节由 Codex 自行决定
 
-默认按 T001 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
+默认按 T001 → T002 → T003 → T009 → T004 → T005 → T006 → T007 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
 
 人工视觉/交互验收始终是可选补充，不阻塞任务完成或下一任务。
 
@@ -101,6 +101,16 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 目标：把 Provider 与四类 Rule workspace 从“普通选择直接兼任多选”的现状迁移到 Normal Mode + Management Mode；保留 Dirty Draft 保护、批量导出/删除、部分跳过和 CurrentProvider 删除后变 None 的既有产品语义。
 
 完成成果：Provider、Chapter/Regex/File Name/Text Header Rules 接入各自页面级 Management Mode，显式入口与 Ctrl/Shift 共用原有草稿保存/放弃/取消保护；管理点击只改变选择，Header 与右键共用批量导出/删除，全选仅覆盖可见项，隐藏与删除后主动收敛选择。正式 exchange schema 与 Provider typed config 保持；内置 Provider 可选且执行时跳过并汇总，HTTP 凭据提示保留；逐项删除一次确认、失败继续，CurrentProvider 删除后为 None，删除编辑规则关闭编辑器且不新增 fallback；页面取消后仍完成已提交 Regex 删除的播放运行态同步，异步导出结果使用稳定快照。移除普通选择兼任批量选择的旧接线，没有兼容层或临时产物。新增/扩展 19 项核心行为用例，保留并适配既有编辑、exchange、架构与隔离 WPF 测试；旧 WPF 编辑按钮检查限定到编辑区，布局 fixture 补齐新的正常模式排序能力。locked restore、format、Release build（零警告/错误）与完整 941 项测试通过（零跳过）；此前旧数据库测试清理时报 IOException（app.db 被其他进程占用，TemporaryDirectory.Dispose/Directory.Delete），重跑完整门禁测试通过。无环境受限的强制检查或长期文档冲突；临时实施规格已删除。
+
+---
+
+## [x] T009（P1）：批量管理 Header 图标与布局修复
+
+依赖：T003；在 T004 前完成。
+
+目标：统一 Library、Playback、Speech Provider 和四类 Rule workspace 的 Header 图标、操作顺序与单行布局，保留既有批量行为。
+
+完成成果：Library、Playback、Speech Provider 与四类 Rule workspace 的 Header 批量管理、全选、导出、删除、退出统一为主题图标按钮，补齐 Tooltip/Automation Name，并按普通/管理模式调整操作顺序、8/12 DIP 间距与单行对齐；Library 搜索/排序固定 180/110 DIP，管理入口位于导入右侧。Playback 工具栏接入 AppPageHeader.Actions，缓存状态移到 Header 下方独立提示行，空提示折叠，保留语速与定时停止原有内容；元数据规则普通操作也改为图标。移除旧文本批量按钮、Header WrapPanel 与播放管理双行按钮布局，没有新增公共 API、兼容层或持久化变化，既有命令/事件接线与业务 owner 保持。保留全部核心测试，仅适配播放页图标/提示位置及章节规则普通工具栏检查；无新增永久布局测试。临时隔离 WPF 验证覆盖 128 个 Light/Dark、最小/常用内容宽度、普通/管理模式、零/非零选择与长缓存提示组合，检查操作顺序、同排、无重叠裁切、尺寸、禁用条件、无障碍名称和命令绑定，验证代码及失败诊断产物已清理。locked restore、format verify、Release build（零警告/错误）与完整 941 项测试（零跳过）通过；完整测试最终使用 `dotnet test -c Release --no-build -m:1` 串行执行测试项目。此前默认并行全量出现既有数据库测试清理 IOException：`app.db` 被其他进程占用，位于 TemporaryDirectory.Dispose/Directory.Delete，涉及 Version_7_rules_migrate_to_providers_and_reconcile_current_selection、Failed_settings_reconciliation_retries_after_database_migration_commits、Foreground_playback_retries_when_the_prefetch_owner_of_shared_audio_is_cancelled；首项 focused 复测通过，最终完整串行套件全部通过。既有数据库清理偶发占用仍为已知风险，本任务未修改持久化代码、删除核心测试或放宽隔离。无环境受限的未执行检查或长期文档冲突；临时实施规格已删除。
 
 ---
 

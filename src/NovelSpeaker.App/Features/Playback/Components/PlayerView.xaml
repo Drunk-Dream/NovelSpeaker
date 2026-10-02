@@ -77,159 +77,147 @@
         </Grid.RowDefinitions>
 
         <Grid>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="Auto" />
-            </Grid.ColumnDefinitions>
-
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <commonControls:AppPageHeader x:Name="PageHeader"
-                                          Title="{Binding CurrentTitle}"
-                                          BackCommand="{Binding BackCommand}" />
-
-            <StackPanel Grid.Column="1"
-                        Orientation="Horizontal"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center">
-                <Grid x:Name="ChapterManagementToolbar">
-                    <Grid.Style>
-                        <Style TargetType="Grid">
-                            <Setter Property="Visibility" Value="Collapsed" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsChapterManagementMode}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Grid.Style>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Orientation="Horizontal">
-                    <TextBlock VerticalAlignment="Center"
-                               Style="{StaticResource App.Typography.FormLabel}"
-                               Text="{Binding ChapterSelectionSummary}" />
-                    <Button Margin="8,0,0,0" Content="全选" Style="{StaticResource App.Button.Secondary}" Command="{Binding SelectAllChaptersCommand}" />
-                    </StackPanel>
-                    <ui:Button x:Name="StartActiveCacheButton"
-                               Grid.Column="1"
-                               Width="40"
-                               Height="40"
-                               Padding="0"
-                               Style="{StaticResource App.Button.Primary}"
-                               Command="{Binding StartActiveCacheCommand}"
-                               IsEnabled="{Binding CanStartActiveCache}"
-                               ToolTip="开始缓存"
-                               ToolTipService.ShowOnDisabled="True"
-                               AutomationProperties.Name="开始缓存"
-                               Icon="{ui:SymbolIcon Symbol=ArrowDownload24}" />
-                    <TextBlock Grid.Row="1"
-                               Grid.ColumnSpan="2"
-                               Margin="0,4,0,0"
-                               Style="{StaticResource App.Typography.Secondary}"
-                               Text="{Binding ActiveCacheStatusText}"
-                               TextWrapping="Wrap" />
-                </Grid>
-                <ui:Button x:Name="ChapterManagementToolButton"
-                        Width="44"
-                        Height="44"
-                        Command="{Binding ToggleChapterManagementCommand}">
-                    <ui:Button.Style>
-                        <Style TargetType="{x:Type ui:Button}"
-                               BasedOn="{StaticResource App.Button.Icon}">
-                            <Setter Property="ToolTip" Value="章节管理" />
-                            <Setter Property="AutomationProperties.Name" Value="章节管理" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsChapterManagementMode}" Value="True">
-                                    <Setter Property="ToolTip" Value="退出选择" />
-                                    <Setter Property="AutomationProperties.Name" Value="退出选择" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ui:Button.Style>
-                    <ui:Button.Icon>
-                        <ui:SymbolIcon>
-                            <ui:SymbolIcon.Style>
-                                <Style TargetType="{x:Type ui:SymbolIcon}">
-                                    <Setter Property="Symbol" Value="ArrowDownload24" />
+                Title="{Binding CurrentTitle}"
+                BackCommand="{Binding BackCommand}">
+                <commonControls:AppPageHeader.Actions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <StackPanel x:Name="ChapterManagementToolbar" Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding IsChapterManagementMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Margin="0,0,12,0" VerticalAlignment="Center"
+                                Style="{StaticResource App.Typography.FormLabel}"
+                                Text="{Binding ChapterSelectionSummary}" />
+                            <ui:Button Width="44" Height="44" Margin="0,0,8,0"
+                                Style="{StaticResource App.Button.Icon}" Command="{Binding SelectAllChaptersCommand}"
+                                ToolTip="全选" AutomationProperties.Name="全选" Icon="{ui:SymbolIcon Symbol=SelectAllOn24}" />
+                            <ui:Button x:Name="StartActiveCacheButton" Width="44" Height="44"
+                                Style="{StaticResource App.Button.Icon}" Command="{Binding StartActiveCacheCommand}"
+                                IsEnabled="{Binding CanStartActiveCache}" ToolTip="开始缓存"
+                                AutomationProperties.Name="开始缓存" Icon="{ui:SymbolIcon Symbol=ArrowDownload24}" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsChapterManagementMode}" Value="True">
-                                            <Setter Property="Symbol" Value="Dismiss24" />
+                                            <Setter Property="Visibility" Value="Collapsed" />
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </ui:SymbolIcon.Style>
-                        </ui:SymbolIcon>
-                    </ui:Button.Icon>
-                </ui:Button>
-                <StackPanel Orientation="Horizontal">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsChapterManagementMode}" Value="True">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </StackPanel.Style>
-                <ui:Button x:Name="MiniPlayerToolButton"
-                        Margin="12,0,0,0"
-                        Width="44"
-                        Height="44"
-                        Style="{StaticResource App.Button.Icon}"
-                        Command="{Binding OpenMiniPlayerCommand}"
-                        ToolTip="迷你播放器"
-                        AutomationProperties.Name="迷你播放器"
-                        Icon="{ui:SymbolIcon Symbol=WindowNew24}" />
-                <ui:Button x:Name="ProviderMenuButton"
-                        Margin="12,0,0,0"
-                        Width="44"
-                        Height="44"
-                        Style="{StaticResource App.Button.Icon}"
-                        Command="{Binding ToggleProviderMenuCommand}"
-                        ToolTip="切换语音服务"
-                        AutomationProperties.Name="切换语音服务"
-                        Icon="{ui:SymbolIcon Symbol=TextBulletListSquare24}" />
-                <ui:Button x:Name="StopTimerToolButton"
-                        Margin="12,0,0,0"
-                        Width="80"
-                        Height="44"
-                        Command="{Binding ToggleStopTimerMenuCommand}"
-                        IsEnabled="{Binding CanScheduleStopTimer}"
-                        ToolTip="定时停止"
-                        AutomationProperties.Name="{Binding StopTimerButtonAutomationName, FallbackValue=定时停止}"
-                        Icon="{ui:SymbolIcon Symbol=Clock24}"
-                        Content="{Binding StopTimerRemainingText}">
-                    <ui:Button.Style>
-                        <Style TargetType="{x:Type ui:Button}"
-                               BasedOn="{StaticResource App.Media.ToolbarControl}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasActiveStopTimer}" Value="True">
-                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
-                                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
-                                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ui:Button.Style>
-                </ui:Button>
-                <ui:Button x:Name="SpeedMenuButton"
-                        Margin="12,0,0,0"
-                        Width="80"
-                        Height="44"
-                        Style="{StaticResource App.Media.ToolbarControl}"
-                        Command="{Binding ToggleSpeedMenuCommand}"
-                        ToolTip="调整语速"
-                        AutomationProperties.Name="{Binding SpeakSpeedButtonText}"
-                        Icon="{ui:SymbolIcon Symbol=Speaker124}"
-                        Content="{Binding SpeakSpeed}" />
-                </StackPanel>
-            </StackPanel>
+                            </StackPanel.Style>
+                            <ui:Button x:Name="ProviderMenuButton"
+                                Margin="0"
+                                Width="44"
+                                Height="44"
+                                Style="{StaticResource App.Button.Icon}"
+                                Command="{Binding ToggleProviderMenuCommand}"
+                                ToolTip="切换语音服务"
+                                AutomationProperties.Name="切换语音服务"
+                                Icon="{ui:SymbolIcon Symbol=TextBulletListSquare24}" />
+                            <ui:Button x:Name="SpeedMenuButton"
+                                Margin="8,0,0,0"
+                                Width="80"
+                                Height="44"
+                                Style="{StaticResource App.Media.ToolbarControl}"
+                                Command="{Binding ToggleSpeedMenuCommand}"
+                                ToolTip="调整语速"
+                                AutomationProperties.Name="{Binding SpeakSpeedButtonText}"
+                                Icon="{ui:SymbolIcon Symbol=Speaker124}"
+                                Content="{Binding SpeakSpeed}" />
+                            <ui:Button x:Name="StopTimerToolButton"
+                                Margin="8,0,0,0"
+                                Width="80"
+                                Height="44"
+                                Command="{Binding ToggleStopTimerMenuCommand}"
+                                IsEnabled="{Binding CanScheduleStopTimer}"
+                                ToolTip="定时停止"
+                                AutomationProperties.Name="{Binding StopTimerButtonAutomationName, FallbackValue=定时停止}"
+                                Icon="{ui:SymbolIcon Symbol=Clock24}"
+                                Content="{Binding StopTimerRemainingText}">
+                                <ui:Button.Style>
+                                    <Style TargetType="{x:Type ui:Button}"
+                                        BasedOn="{StaticResource App.Media.ToolbarControl}">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasActiveStopTimer}" Value="True">
+                                                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
+                                                <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                                                <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ui:Button.Style>
+                            </ui:Button>
+                            <ui:Button x:Name="MiniPlayerToolButton"
+                                Margin="8,0,0,0"
+                                Width="44"
+                                Height="44"
+                                Style="{StaticResource App.Button.Icon}"
+                                Command="{Binding OpenMiniPlayerCommand}"
+                                ToolTip="迷你播放器"
+                                AutomationProperties.Name="迷你播放器"
+                                Icon="{ui:SymbolIcon Symbol=WindowNew24}" />
+                        </StackPanel>
+                        <ui:Button x:Name="ChapterManagementToolButton"
+                            Margin="12,0,0,0"
+                            Width="44"
+                            Height="44"
+                            Command="{Binding ToggleChapterManagementCommand}">
+                            <ui:Button.Style>
+                                <Style TargetType="{x:Type ui:Button}"
+                                    BasedOn="{StaticResource App.Button.Icon}">
+                                    <Setter Property="ToolTip" Value="章节管理" />
+                                    <Setter Property="AutomationProperties.Name" Value="章节管理" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsChapterManagementMode}" Value="True">
+                                            <Setter Property="ToolTip" Value="退出选择" />
+                                            <Setter Property="AutomationProperties.Name" Value="退出选择" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                            <ui:Button.Icon>
+                                <ui:SymbolIcon>
+                                    <ui:SymbolIcon.Style>
+                                        <Style TargetType="{x:Type ui:SymbolIcon}">
+                                            <Setter Property="Symbol" Value="MultiselectLtr24" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsChapterManagementMode}" Value="True">
+                                                    <Setter Property="Symbol" Value="Dismiss24" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:SymbolIcon.Style>
+                                </ui:SymbolIcon>
+                            </ui:Button.Icon>
+                        </ui:Button>
+                    </StackPanel>
+                </commonControls:AppPageHeader.Actions>
+            </commonControls:AppPageHeader>
+            <TextBlock x:Name="ChapterManagementStatusText" Grid.Row="1" Margin="0,4,0,0"
+                Text="{Binding ActiveCacheStatusText}" TextWrapping="Wrap">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource App.Typography.Secondary}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsChapterManagementMode}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveCacheStatusText}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding ActiveCacheStatusText}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
 
             <ui:Flyout x:Name="StopTimerFlyout"
                        Style="{StaticResource App.Feedback.FlyoutHost}"
