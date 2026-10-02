@@ -41,7 +41,7 @@
 - `[x]` 已完成，追加简短“完成成果”
 - `[!]` 阻塞，只记录真正需要用户决定的新产品/架构/隐私冲突；普通实现细节由 Codex 自行决定
 
-默认按 T001 → T002 → T003 → T009 → T004 → T005 → T006 → T007 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
+默认按 T001 → T002 → T003 → T009 → T011 → T004 → T005 → T006 → T007 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
 
 人工视觉/交互验收始终是可选补充，不阻塞任务完成或下一任务。
 
@@ -111,6 +111,14 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 目标：统一 Library、Playback、Speech Provider 和四类 Rule workspace 的 Header 图标、操作顺序与单行布局，保留既有批量行为。
 
 完成成果：Library、Playback、Speech Provider 与四类 Rule workspace 的 Header 批量管理、全选、导出、删除、退出统一为主题图标按钮，补齐 Tooltip/Automation Name，并按普通/管理模式调整操作顺序、8/12 DIP 间距与单行对齐；Library 搜索/排序固定 180/110 DIP，管理入口位于导入右侧。Playback 工具栏接入 AppPageHeader.Actions，缓存状态移到 Header 下方独立提示行，空提示折叠，保留语速与定时停止原有内容；元数据规则普通操作也改为图标。移除旧文本批量按钮、Header WrapPanel 与播放管理双行按钮布局，没有新增公共 API、兼容层或持久化变化，既有命令/事件接线与业务 owner 保持。保留全部核心测试，仅适配播放页图标/提示位置及章节规则普通工具栏检查；无新增永久布局测试。临时隔离 WPF 验证覆盖 128 个 Light/Dark、最小/常用内容宽度、普通/管理模式、零/非零选择与长缓存提示组合，检查操作顺序、同排、无重叠裁切、尺寸、禁用条件、无障碍名称和命令绑定，验证代码及失败诊断产物已清理。locked restore、format verify、Release build（零警告/错误）与完整 941 项测试（零跳过）通过；完整测试最终使用 `dotnet test -c Release --no-build -m:1` 串行执行测试项目。此前默认并行全量出现既有数据库测试清理 IOException：`app.db` 被其他进程占用，位于 TemporaryDirectory.Dispose/Directory.Delete，涉及 Version_7_rules_migrate_to_providers_and_reconcile_current_selection、Failed_settings_reconciliation_retries_after_database_migration_commits、Foreground_playback_retries_when_the_prefetch_owner_of_shared_audio_is_cancelled；首项 focused 复测通过，最终完整串行套件全部通过。既有数据库清理偶发占用仍为已知风险，本任务未修改持久化代码、删除核心测试或放宽隔离。无环境受限的未执行检查或长期文档冲突；临时实施规格已删除。
+
+---
+
+## [x] T011（P1）：批量选择提示主题修复与通用防复发门禁
+
+用户追加修复；在 T004 前执行。修复书库、Provider、Rules 暗色冷启动选择提示前景色，并建立防复发约束与主题回归验证。
+
+完成成果：共享 AppPageHeader 提供动态主题前景色，Library、Speech Provider、Chapter/Regex/File Name/Text Header Rules 的选择提示使用既有显式文字样式；补齐元数据规则编辑区三处同类遗漏，下拉框字符串模板显式绑定 ContentPresenter 的主题前景色，保留禁用/交互颜色。移除对 WPF 默认黑色和隐式祖先颜色的依赖，没有新增主题 owner、兼容层或持久化变化。AGENTS.md 与 UI 合同补充全局文字资源规则和冷启动/切换/切换后新建页面验收；新增两项通用架构测试，扫描全部产品 XAML 的 TextBlock、样式继承与前景色定义，拒绝遗漏主题前景、StaticResource 画刷和硬编码可见颜色，无页面白名单。既有核心测试全部保留；按用户要求，页面专用验证只作临时测试，验证后连同诊断产物清理。隔离 Desktop 临时验证先在旧实现复现书库暗色文字对比度 1.18，修复后覆盖六个业务页面与共享页头的暗色启动、Light/Dark 切换及切换后新建页面，并验证 Standard/Compact 下拉框正常/禁用颜色跟随宿主，全部通过。locked restore、format verify、Release build（零警告/错误）、完整 WPF 97 项与 Presentation 272 项测试通过（零跳过），git diff --check 通过；未执行与本次 UI/架构变更无关的完整 solution 测试，无环境受限检查或长期文档冲突。静态门禁不替代任意运行时绑定和 C# 动态创建文字的主题验收；后者已纳入开发约束。临时实施规格已删除。
 
 ---
 

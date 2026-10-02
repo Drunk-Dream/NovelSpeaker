@@ -115,6 +115,9 @@
 - ViewModel 不引用具体 Page/Window/Dispatcher/Brush/Style/Thickness 等视觉类型。
 - Dialog/Flyout/Popup 遵守 Single Surface。
 - 图标使用主题语义资源，禁止 Dark Mode 硬编码黑色。
+- 新增普通文本优先使用显式 `App.Typography.*` 样式；独立设置前景色时使用 `DynamicResource App.Brush.Text.*`。共享内容宿主应提供动态主题前景色，不依赖 WPF 默认黑色或未经验证的祖先继承。
+- 产品 XAML 中的 `TextBlock` 必须显式声明具有主题前景色的样式或前景色绑定；前景色 Setter/属性禁止硬编码可见颜色或 `StaticResource` 画刷。控件模板需要继承交互状态颜色时，显式绑定主题 owner 的前景色。C# 创建文本也必须通过 `SetResourceReference` 设置语义样式或动态画刷。通用主题资源架构检查对全部产品 XAML 执行，不以新增白名单绕过。
+- 涉及主题文字/图标的修改，自动验收必须覆盖先应用 Light/Dark 再首次创建页面，以及已有页面切换主题和切换后新建页面；仅验证手动切换后的状态不足以证明冷启动正确。
 - 设置子页面不对设置项做分组；前往规则、管理或其他子页面的导航入口统一放在普通设置项之后，连续排列在设置项列表末尾。
 - 大列表目标至少 10,000 条连续 catalog。
 - WPF virtualization 不替代 data/projection 规模控制。
