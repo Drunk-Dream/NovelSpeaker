@@ -26,7 +26,6 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
 
     public async Task<LibraryImportCoordinatorResult> ImportAsync(
         string filePath,
-        IProgress<BookImportProgress>? inlineProgress,
         CancellationToken cancellationToken)
     {
         var metadata = await _fileOperations.GetMetadataAsync(filePath, cancellationToken);
@@ -48,7 +47,7 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
             : await ImportWithEncodingLoopAsync(
                 metadata.FilePath,
                 metadata.FileName,
-                inlineProgress,
+                progress: null,
                 cancellationToken);
     }
 

@@ -9,6 +9,8 @@ NovelSpeaker 是桌面听书工具，UI 优先信息效率、清晰操作和稳�
 - 标准 WPF/Wpf.Ui 控件优先使用 Provider 正式能力。
 - 页面状态与业务命令来自 ViewModel/Application owner；code-behind 只处理 WPF 特有生命周期与交互桥接。
 - 大页面先可交互，再做次级 enrichment。
+- 瞬时操作结果、警告和失败通知统一复用已有 Snackbar，通过 `IAppFeedbackService` 展示；禁止用页面内嵌通知块替代或重复展示。进行中进度、字段校验、空状态按其页面职责展示。
+- Library 导入保持轻量分流：小于 5 MiB 直接导入，不展示进度、不发送进行中通知；大于等于 5 MiB 使用可取消进度对话框。导入结果统一使用已有 Snackbar 反馈，不在页面内嵌导入通知块。
 
 ## 2. 页面信息架构
 

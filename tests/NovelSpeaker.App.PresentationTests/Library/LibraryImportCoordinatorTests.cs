@@ -33,7 +33,7 @@ public sealed class LibraryImportCoordinatorTests
             new FakeImportProgressDialogService(),
             FakeUserDocumentFileOperations.ForFile("demo.txt", 256));
 
-        var result = await coordinator.ImportAsync("demo.txt", inlineProgress: null, CancellationToken.None);
+        var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
         Assert.Equal(LibraryImportCoordinatorStatus.Imported, result.Status);
         Assert.Equal([null, "utf-8"], directImportService.Requests.Select(static request => request.EncodingOverride));
@@ -58,14 +58,17 @@ public sealed class LibraryImportCoordinatorTests
             new FakeImportProgressDialogService(),
             FakeUserDocumentFileOperations.ForFile("demo.txt", 256));
 
-        var result = await coordinator.ImportAsync("demo.txt", inlineProgress: null, CancellationToken.None);
+        var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
         Assert.Equal(LibraryImportCoordinatorStatus.Cancelled, result.Status);
         Assert.Single(directImportService.Requests);
     }
 
-    [Fact]
-    public async Task ImportAsync_uses_progress_dialog_for_large_files()
+    [Theory]
+    [InlineData(5 * 1024 * 1024 - 1, false)]
+    [InlineData(5 * 1024 * 1024, true)]
+    [InlineData(6 * 1024 * 1024, true)]
+    public async Task ImportAsync_uses_progress_dialog_only_for_files_at_or_above_five_mib(long fileSize, bool showsProgressDialog)
     {
         var directImportService = new FakeDirectBookImportService();
         directImportService.Results.Enqueue(new DirectBookImportResult(
@@ -76,13 +79,13 @@ public sealed class LibraryImportCoordinatorTests
             directImportService,
             new FakeEncodingSelectionDialogService(),
             progressDialog,
-            FakeUserDocumentFileOperations.ForFile("large-demo.txt", 6 * 1024 * 1024));
+            FakeUserDocumentFileOperations.ForFile("demo.txt", fileSize));
 
-        var result = await coordinator.ImportAsync("large-demo.txt", inlineProgress: null, CancellationToken.None);
+        var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
         Assert.Equal(LibraryImportCoordinatorStatus.Imported, result.Status);
-        Assert.True(progressDialog.WasInvoked);
-        Assert.Equal("large-demo.txt", progressDialog.FileName);
+        Assert.Equal(showsProgressDialog, progressDialog.WasInvoked);
+        Assert.Equal(showsProgressDialog ? "demo.txt" : null, progressDialog.FileName);
     }
 
     [Fact]
@@ -104,7 +107,7 @@ public sealed class LibraryImportCoordinatorTests
                 new FakeImportProgressDialogService(),
                 fileOperations);
 
-            var result = await coordinator.ImportAsync(filePath, inlineProgress: null, CancellationToken.None);
+            var result = await coordinator.ImportAsync(filePath, CancellationToken.None);
 
             Assert.Equal(LibraryImportCoordinatorStatus.InvalidSource, result.Status);
             Assert.Empty(directImportService.Requests);
@@ -123,7 +126,7 @@ public sealed class LibraryImportCoordinatorTests
             FakeUserDocumentFileOperations.ForFile("demo.txt", 256));
 
         await Assert.ThrowsAsync<OperationCanceledException>(
-            () => coordinator.ImportAsync("demo.txt", inlineProgress: null, cancellation.Token));
+            () => coordinator.ImportAsync("demo.txt", cancellation.Token));
     }
 
     private sealed class FakeDirectBookImportService : IDirectBookImportService

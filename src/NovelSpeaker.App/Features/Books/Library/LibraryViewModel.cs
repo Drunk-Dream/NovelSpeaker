@@ -166,12 +166,6 @@ public sealed partial class LibraryViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    private string statusMessage = string.Empty;
-
-    [ObservableProperty]
-    private string importStatusMessage = string.Empty;
-
-    [ObservableProperty]
     private bool isBusy;
 
     [ObservableProperty]
@@ -246,13 +240,10 @@ public sealed partial class LibraryViewModel : ObservableObject
         var version = Interlocked.Increment(ref _importVersion);
         ReplaceActiveImport(cancellationToken);
         var activeCancellationTokenSource = _activeImportCancellationTokenSource!;
-        var progress = new Progress<BookImportProgress>(update => ApplyImportProgress(version, activeCancellationTokenSource, update));
         IsBusy = true;
-        ImportStatusMessage = "正在准备导入。";
-        StatusMessage = string.Empty;
         try
         {
-            var outcome = await _libraryImportCoordinator.ImportAsync(selectedPath, progress, activeCancellationTokenSource.Token);
+            var outcome = await _libraryImportCoordinator.ImportAsync(selectedPath, activeCancellationTokenSource.Token);
             if (!IsCurrentImport(version, activeCancellationTokenSource))
             {
                 return;
@@ -291,7 +282,6 @@ public sealed partial class LibraryViewModel : ObservableObject
             if (version == Volatile.Read(ref _importVersion))
             {
                 IsBusy = false;
-                ImportStatusMessage = string.Empty;
             }
         }
     }
@@ -301,7 +291,6 @@ public sealed partial class LibraryViewModel : ObservableObject
         _activeImportCancellationTokenSource?.Cancel();
         _activeImportCancellationTokenSource?.Dispose();
         _activeImportCancellationTokenSource = null;
-        ImportStatusMessage = string.Empty;
         IsBusy = false;
     }
 
@@ -443,12 +432,12 @@ public sealed partial class LibraryViewModel : ObservableObject
 
             if (result is null)
             {
-                StatusMessage = "这本书已不存在，书库已刷新。";
                 _catalogInvalidationState.Invalidate();
                 if (!await LoadAsync(cancellationToken))
                 {
                     return;
                 }
+                _feedbackService.ShowWarning("书籍已不存在", "这本书已不存在，书库已刷新。");
                 return;
             }
 
@@ -457,13 +446,11 @@ public sealed partial class LibraryViewModel : ObservableObject
             {
                 return;
             }
-            StatusMessage = string.Empty;
             _feedbackService.ShowSuccess("删除成功", $"已删除《{book.Title}》。");
         }
         catch (Exception exception)
         {
             var projected = _feedbackService.Project(exception);
-            StatusMessage = projected.UserMessage;
             _feedbackService.ShowProjectedNotification("删除失败", projected);
         }
         finally
@@ -506,7 +493,8 @@ public sealed partial class LibraryViewModel : ObservableObject
             }
             _catalogInvalidationState.Invalidate();
             await LoadAsync(cancellationToken);
-            StatusMessage = $"删除完成：成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
+            cancellationToken.ThrowIfCancellationRequested();
+            ShowBatchCompletion("删除完成", succeeded, skipped, failed);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) { _feedbackService.ShowProjectedNotification("删除失败", _feedbackService.Project(exception)); }
@@ -538,10 +526,20 @@ public sealed partial class LibraryViewModel : ObservableObject
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch (Exception) { failed++; }
             }
-            StatusMessage = $"导出完成：成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
+            cancellationToken.ThrowIfCancellationRequested();
+            ShowBatchCompletion("导出完成", succeeded, skipped, failed);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) { _feedbackService.ShowProjectedNotification("导出失败", _feedbackService.Project(exception)); }
+    }
+
+    private void ShowBatchCompletion(string title, int succeeded, int skipped, int failed)
+    {
+        var message = $"成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
+        if (skipped > 0 || failed > 0)
+            _feedbackService.ShowWarning(title, message);
+        else
+            _feedbackService.ShowSuccess(title, message);
     }
 
     private LibraryBookCardProjection[] GetSelectedBooks() =>
@@ -1221,26 +1219,6 @@ public sealed partial class LibraryViewModel : ObservableObject
     {
         cancellationToken.ThrowIfCancellationRequested();
         return version == Volatile.Read(ref _loadVersion);
-    }
-
-    private void ApplyImportProgress(
-        int version,
-        CancellationTokenSource activeCancellationTokenSource,
-        BookImportProgress progress)
-    {
-        if (!IsCurrentImport(version, activeCancellationTokenSource))
-        {
-            return;
-        }
-
-        if (progress.IsIndeterminate || progress.TotalBytes <= 0)
-        {
-            ImportStatusMessage = progress.Message;
-            return;
-        }
-
-        var percent = Math.Clamp(progress.BytesProcessed * 100d / progress.TotalBytes, 0, 100);
-        ImportStatusMessage = $"{progress.Message} {percent:0.#}%";
     }
 
     private void ShowImportFailure(BookImportFailureReason? failureReason)

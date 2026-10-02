@@ -627,6 +627,7 @@ public sealed partial class LibraryViewModelTests
         await viewModel.ImportFilesAsync([CreateTempTxtFile()], CancellationToken.None);
 
         Assert.Equal("导入成功", feedback.LastTitle);
+        Assert.Equal(UiMessageSeverity.Information, Assert.Single(feedback.Notifications).Severity);
         Assert.Single(viewModel.Books);
         Assert.Single(importCoordinator.Requests);
     }
@@ -650,11 +651,13 @@ public sealed partial class LibraryViewModelTests
 
         Assert.Equal("无法导入", feedback.LastTitle);
         Assert.Equal("该小说已经导入", feedback.LastMessage);
+        Assert.Equal(UiMessageSeverity.Warning, Assert.Single(feedback.Notifications).Severity);
         Assert.Empty(viewModel.Books);
     }
 
     private async Task ImportFilesAsync_cancels_previous_inflight_import_when_new_request_starts()
     {
+        var feedback = new FakeFeedbackService();
         var firstResult = new TaskCompletionSource<LibraryImportCoordinatorResult>();
         var importCoordinator = new FakeLibraryImportCoordinator();
         importCoordinator.PendingResults.Enqueue(firstResult.Task);
@@ -663,12 +666,15 @@ public sealed partial class LibraryViewModelTests
         var catalogService = new FakeBookCatalogService([]);
         var viewModel = CreateViewModel(
             catalogService: catalogService,
+            feedback: feedback,
             importCoordinator: importCoordinator);
 
         var firstFile = CreateTempTxtFile();
         var secondFile = CreateTempTxtFile();
         var firstImportTask = viewModel.ImportFilesAsync([firstFile], CancellationToken.None);
         await importCoordinator.WaitForRequestCountAsync(1);
+        Assert.Empty(feedback.Notifications);
+        Assert.True(viewModel.IsBusy);
 
         catalogService.Books = [new BookSummary("book-1", "Alpha", null, "章一", DateTimeOffset.UtcNow)];
         var secondImportTask = viewModel.ImportFilesAsync([secondFile], CancellationToken.None);
@@ -681,6 +687,8 @@ public sealed partial class LibraryViewModelTests
         await secondImportTask;
 
         Assert.Single(viewModel.Books);
+        Assert.Equal("导入成功", Assert.Single(feedback.Notifications).Title);
+        Assert.False(viewModel.IsBusy);
     }
 
     private async Task ImportFilesAsync_rejects_invalid_inputs()
@@ -835,7 +843,6 @@ public sealed partial class LibraryViewModelTests
 
         public Task<LibraryImportCoordinatorResult> ImportAsync(
             string filePath,
-            IProgress<BookImportProgress>? inlineProgress,
             CancellationToken cancellationToken)
         {
             lock (_requestSignalSync)
@@ -891,6 +898,7 @@ public sealed partial class LibraryViewModelTests
     private sealed class FakeBookManagementService : IBookDeletionService
     {
         public string? FailingBookId { get; set; }
+        public string? MissingBookId { get; set; }
         public Action<BookDeleteRequest>? OnDelete { get; set; }
         public List<BookDeleteRequest> Requests { get; } = [];
 
@@ -899,12 +907,15 @@ public sealed partial class LibraryViewModelTests
             Requests.Add(request);
             OnDelete?.Invoke(request);
             if (request.BookId == FailingBookId) throw new IOException("test failure");
+            if (request.BookId == MissingBookId) return Task.FromResult<BookDeleteResult?>(null);
             return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, request.DeleteAudioCache, 12, true));
         }
     }
 
     private sealed class FakeFeedbackService : IAppFeedbackService
     {
+        public List<(string Title, string Message, UiMessageSeverity Severity)> Notifications { get; } = [];
+
         public AppConfirmationDecision NextDecision { get; set; } = AppConfirmationDecision.Cancel;
 
         public string? LastTitle { get; private set; }
@@ -918,18 +929,22 @@ public sealed partial class LibraryViewModelTests
 
         public void ShowProjectedNotification(string title, ProjectedUiError projected)
         {
+            if (projected.IsSilent) return;
+            Notifications.Add((title, projected.UserMessage, projected.Severity));
             LastTitle = title;
             LastMessage = projected.UserMessage;
         }
 
         public void ShowSuccess(string title, string message)
         {
+            Notifications.Add((title, message, UiMessageSeverity.Information));
             LastTitle = title;
             LastMessage = message;
         }
 
         public void ShowWarning(string title, string message)
         {
+            Notifications.Add((title, message, UiMessageSeverity.Warning));
             LastTitle = title;
             LastMessage = message;
         }
