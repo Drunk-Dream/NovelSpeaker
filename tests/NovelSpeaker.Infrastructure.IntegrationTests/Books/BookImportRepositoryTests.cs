@@ -221,7 +221,7 @@ public sealed class BookImportRepositoryTests
             Service = new DirectBookImportService(new TextFileAnalyzer(), new TextNormalizer(), new Sha256ContentHasher(),
                 new ChapterRuleRepository(Factory), new ChapterSplitter(), new BookFileStore(Directories, Resolver), Repository,
                 new SqliteBookOperationJournal(Factory, TimeProvider.System), new FileNameMetadataRuleRepository(Factory),
-                new TextHeaderMetadataRuleRepository(Factory), new Settings(), new ImportMetadataExtractor(), TimeProvider.System, new Ids());
+                new TextHeaderMetadataRuleRepository(Factory), new Settings(), new ImportMetadataExtractor(), TimeProvider.System, new Ids(), new BookMutationGate(), new BookSourceChanges());
         }
 
         public static async Task<Fixture> CreateAsync()

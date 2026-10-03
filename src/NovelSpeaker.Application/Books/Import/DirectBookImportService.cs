@@ -7,7 +7,7 @@ namespace NovelSpeaker.Application.Books.Import;
 /// <summary>
 /// Coordinates one direct TXT import through file, persistence, and chapter-rule ports.
 /// </summary>
-public sealed class DirectBookImportService : IDirectBookImportService, IBookSourceChangeSource
+public sealed class DirectBookImportService : IDirectBookImportService
 {
     private static readonly IReadOnlyList<string> SupportedEncodings = ["utf-8", "utf-16le", "utf-16be", "gb18030"];
 
@@ -25,8 +25,8 @@ public sealed class DirectBookImportService : IDirectBookImportService, IBookSou
     private readonly ImportMetadataExtractor _metadataExtractor;
     private readonly TimeProvider _timeProvider;
     private readonly IBookImportIdGenerator _idGenerator;
-    private readonly SemaphoreSlim _imports = new(1, 1);
-    public event EventHandler<BookSourceCatalogChanged>? CatalogChanged;
+    private readonly BookMutationGate _mutations;
+    private readonly BookSourceChanges _sourceChanges;
 
     public DirectBookImportService(
         ITextFileAnalyzer textFileAnalyzer,
@@ -42,7 +42,9 @@ public sealed class DirectBookImportService : IDirectBookImportService, IBookSou
         IAppSettingsService settings,
         ImportMetadataExtractor metadataExtractor,
         TimeProvider timeProvider,
-        IBookImportIdGenerator idGenerator)
+        IBookImportIdGenerator idGenerator,
+        BookMutationGate mutations,
+        BookSourceChanges sourceChanges)
     {
         _textFileAnalyzer = textFileAnalyzer;
         _textNormalizer = textNormalizer;
@@ -58,6 +60,8 @@ public sealed class DirectBookImportService : IDirectBookImportService, IBookSou
         _metadataExtractor = metadataExtractor;
         _timeProvider = timeProvider;
         _idGenerator = idGenerator;
+        _mutations = mutations;
+        _sourceChanges = sourceChanges;
     }
 
     public async Task<DirectBookImportResult> ImportAsync(
@@ -65,16 +69,10 @@ public sealed class DirectBookImportService : IDirectBookImportService, IBookSou
         IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken)
     {
-        await _imports.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try
-        {
-            // Parsing and catalog projection must not run unbounded on the WPF Dispatcher.
-            return await Task.Run(() => ImportCoreAsync(request, progress, cancellationToken), cancellationToken).ConfigureAwait(false);
-        }
-        finally
-        {
-            _imports.Release();
-        }
+        // Parsing and catalog projection must not run unbounded on the WPF Dispatcher.
+        return await _mutations.RunAsync(
+            () => Task.Run(() => ImportCoreAsync(request, progress, cancellationToken), cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<DirectBookImportResult> ImportCoreAsync(
@@ -246,12 +244,7 @@ public sealed class DirectBookImportService : IDirectBookImportService, IBookSou
         {
             if (target?.Book.ActiveSourceId == sourceId)
             {
-                // Observers cannot turn a durable import into a business failure.
-                foreach (EventHandler<BookSourceCatalogChanged> handler in CatalogChanged?.GetInvocationList() ?? [])
-                {
-                    try { handler(this, new BookSourceCatalogChanged(bookId, sourceId, chapterEntities[0].Id)); }
-                    catch { }
-                }
+                _sourceChanges.Publish(new BookSourceCatalogChanged(bookId, sourceId, chapterEntities[0].Id));
             }
 
             if (target?.LocalSource is { } oldSource)

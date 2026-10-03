@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Speech.Http;
 
@@ -7,7 +8,7 @@ namespace NovelSpeaker.Infrastructure.Persistence.Cache;
 /// <summary>
 /// Serializes cache operations and composes the index, file store and maintenance collaborators.
 /// </summary>
-internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
+internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore, IBookRemovalStorageLeaseProvider
 {
     private readonly SqliteAudioCacheIndex _index;
     private readonly AudioCacheFileStore _fileStore;
@@ -43,6 +44,18 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore
         }
 
         return result.Entry;
+    }
+
+    public async Task<IDisposable> AcquireAsync(CancellationToken cancellationToken)
+    {
+        await _mutex.WaitAsync(cancellationToken).ConfigureAwait(false);
+        return new RemovalStorageLease(_mutex);
+    }
+
+    private sealed class RemovalStorageLease(SemaphoreSlim mutex) : IDisposable
+    {
+        private SemaphoreSlim? _mutex = mutex;
+        public void Dispose() => Interlocked.Exchange(ref _mutex, null)?.Release();
     }
 
     public async Task<AudioCacheEntry> StoreAsync(AudioCacheWriteRequest request, CancellationToken cancellationToken)

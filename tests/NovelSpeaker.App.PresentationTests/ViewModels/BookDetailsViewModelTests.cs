@@ -19,6 +19,25 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class BookDetailsViewModelTests
 {
     [Fact]
+    public async Task Details_without_active_source_keep_metadata_and_show_stable_empty_catalog()
+    {
+        var service = new FakeBookManagementService
+        {
+            Details = new FakeDetailsState(new BookDetailsHeader("book-1", "保留书名", "作者", "保留简介"),
+                [], null, new BookDetailsStatistics(0))
+        };
+        var viewModel = CreateViewModel(managementService: service);
+        await LoadViewModelAsync(viewModel, 0);
+        Assert.True(viewModel.HasBook);
+        Assert.Equal("保留书名", viewModel.Title);
+        Assert.Equal("保留简介", viewModel.DisplayDescription);
+        Assert.Equal("无当前来源", viewModel.ChapterCatalogSummaryText);
+        Assert.Empty(viewModel.Chapters);
+        Assert.Null(viewModel.CurrentChapterItem);
+        Assert.Equal(0, viewModel.ProgressRatio);
+    }
+
+    [Fact]
     public async Task Details_display_persisted_description_when_present()
     {
         var service = new FakeBookManagementService
@@ -489,12 +508,12 @@ public sealed class BookDetailsViewModelTests
         }
     }
 
-    private static async Task LoadViewModelAsync(BookDetailsViewModel viewModel)
+    private static async Task LoadViewModelAsync(BookDetailsViewModel viewModel, int expectedChapterCount = 3)
     {
         viewModel.HandleNavigatedTo();
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.StartStagedLoading();
-        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 3);
+        await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == expectedChapterCount);
     }
 
     private sealed record FakeDetailsState(

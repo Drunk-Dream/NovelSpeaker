@@ -192,13 +192,15 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 
 核心测试新增/改写迁移后来源读取与运行、active/empty/None 查询、重启进度、章节及章内 clamp、旧 content/audio/checkpoint 拒绝、同 Book 页面投影更新、技术 ID 派生数据与清理；原正文/导出/计划/生产 pipeline fixture 迁移到 Source 模型，删除只保护旧 path/range 形状的正文读取测试及连接次数断言，保留核心播放、缓存、迁移、编码、导入与架构契约。locked restore、产品 Release 构建、变更 C# format verify、LF 与 git diff --check 通过；Application 全部 223 项、Infrastructure focused 163 项、Books/Details/Player/架构 Presentation 97 项、WPF 组合根 6 项通过，零跳过。10,000 条目录临时验证覆盖 Details/Playback catalog、跨批次排序和 Library，四类查询总计约 180 ms，专用验证代码不保留。标准 Infrastructure 测试工程只剩 T007 的 BookManagementServiceTests 旧 Book/Chapter 构造器 3 个 CS1729；按 staged window 通过仓库外临时工程引用真实生产工程与全部可编译测试完成 focused 验证，完整 solution build/test 留给 T008。隔离 Desktop 的两个既有 BookDetailsPage 交互测试分别触发 blame-hang 超时；异步等待实验仍在页面加载完成后的 Dispatcher ApplicationIdle 等待处挂起，未弱化隔离/断言、未启用可见窗口，实验代码已删除，两项未通过作为剩余 WPF 验证限制记录。无长期文档冲突，T007 的删除/恢复旧 SQL 尚未迁移；临时实施规格已删除，未推进 T007。 独立首审发现并修复 Idle snapshot 的 Player 调用链早退/目录版本清理遗漏，以及定时暂停失败全局 epoch 丢弃合法完成事件；补充实际 ViewModel 事件入口和暂停 checkpoint 失败并发完成测试通过。复审补齐首次目录读取/索引尚未提交时的 Idle 加载失效保护，受控迟到目录测试通过。
 
-## [ ] T007（P1）：收口 Source/Book 生命周期并删除旧模型残留
+## [x] T007（P1）：收口 Source/Book 生命周期并删除旧模型残留
 
 依赖：T006。
 
 目标：完成 Local Source 更新/删除、Book 删除、ActiveSource=None 安全处理、文件/SQLite/音频缓存/ReadingProgress/Speech Plan 协调；删除旧 SourceHash-based duplicate path、Book-owned content contract 和仅为旧 schema 存在的代码/测试。
 
-详细规格：`tasks/T007_SOURCE_LIFECYCLE_AND_LEGACY_CLEANUP.md`
+完成成果：Book deletion 与启动恢复改为 Source-owned Catalog / Local typed content；Source removal 复用文件暂存、SQLite 事务与 operation recovery，最后来源删除 Book，活动来源删除后 ActiveSourceId=null、保留最后展示元数据且不 fallback，非活动来源删除保留其它来源与 Book 级 ReadingProgress。关联 Catalog、typed content、Speech Plan/segments、音频索引通过正式外键清理，真实正文与所选音频文件先暂存再删除；原有保留物理音频选项仍交给 orphan maintenance。删除与 journal DatabaseCommitted 同事务，恢复以提交状态和目标 Source/Book ownership 判定回滚或清理，只删除属于该操作的 staged 文件。导入与删除共用 Books 专属串行边界，Playback 在删除前取消旧 content/synthesis/prefetch、停止音频并释放保护；Active Cache 启动共用该串行边界，移除前取消并等待匹配冻结来源的批次；删除全程持有既有 Audio Cache mutex 的 storage lease，排除路径快照到提交/回滚间的并发文件/索引 mutation；统一 Books committed catalog 发布者，observer failure 不影响持久操作。复用数据根 trust resolver，目录递归操作检查内部 reparse point，继续支持数据根及祖先链接；未改变 schema/migration、用户外部 TXT 或新增 Online 实现/UI。
+
+删除运行时旧 Books.StoredFilePath / Chapters.BookId SQL 与重复的旧恢复清理代码；旧 duplicate detector、Book-owned content reader 已在 T005/T006 删除，本次确认无残留。运行 fixture 共用新 SourceBookFixture，配置备份验证新增 Source/typed content 数据不受影响；历史 migration 与升级测试中的旧 schema 合同保留。新增最后/活动/非活动 Source 移除、其它来源派生数据保留、Source 恢复/失败回滚、内部链接安全、迟到音频拒绝及无当前来源详情核心测试，保留删除、导入严格匹配/忽略 hash、播放、进度、升级及架构核心合同；将缺失已提交正文的旧恢复测试改为保留 Source 与未完成 journal 并报告失败。详情使用已有目录摘要展示“无当前来源”，复用原主题文字宿主。locked restore、完整 format verify、solution Release build（零警告/错误）、Application 全部 224 项、Infrastructure focused（含音频缓存）186 项、相关 Presentation/架构 70 项、隔离 WPF 组合根 6 项均通过，零跳过；临时隔离 Desktop Light/Dark 先应用后创建、已有页面切换、切换后新建的实际详情文字绑定两项通过，验证代码已删除。首轮编译与 focused 失败来自旧事件订阅、缓存 fixture 技术 ID、seed journal 未收尾，以及新测试的文案/固定三章等待假设，适配新合同后重跑通过。LF、旧运行模型静态审计与 git diff --check 通过；无本任务环境受限检查或长期文档冲突。按 staged window，完整阶段 build/test 组合及 T006 已记录的两个 WPF 目录交互用例由 T008 验收，本次未推进 T008；临时实施规格已删除。独立首审指出 Active Cache 可在路径枚举后、SQLite 删除前写入新音频，造成 index 级联删除但物理文件漏清理；补齐目标批次取消/等待与既有 Cache mutex 的移除 lease，新增 Book/Source 两种受控迟到写入核心用例及匹配来源批次终止用例，复跑上述门禁全部通过。复审发现启动入口提前释放占位可让排队请求覆盖运行批次，改为仅在入口 finally 释放，重新构建和执行 Application 全部 224 项通过。
 
 ---
 

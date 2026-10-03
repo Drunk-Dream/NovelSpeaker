@@ -46,7 +46,7 @@ public sealed class BookOperationRecoveryServiceTests
     }
 
     [Fact]
-    public async Task RecoverAsync_rolls_back_database_when_committed_import_has_no_content_file()
+    public async Task RecoverAsync_preserves_committed_source_and_journal_when_content_is_missing()
     {
         var fixture = await CreateFixtureAsync();
         await SeedBookAsync(fixture, "book-1", "Books/book-1/content.txt");
@@ -54,10 +54,10 @@ public sealed class BookOperationRecoveryServiceTests
             CreateImport("operation-1", "book-1", BookOperationPhase.DatabaseCommitted),
             CancellationToken.None);
 
-        await fixture.Recovery.RecoverAsync(CancellationToken.None);
+        await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Recovery.RecoverAsync(CancellationToken.None));
 
-        Assert.False(await BookExistsAsync(fixture, "book-1"));
-        Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
+        Assert.True(await BookExistsAsync(fixture, "book-1"));
+        Assert.NotEmpty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
     }
 
     [Fact]
@@ -194,23 +194,8 @@ public sealed class BookOperationRecoveryServiceTests
         return new TestFixture(directories, factory, journal, recovery);
     }
 
-    private static async Task SeedBookAsync(TestFixture fixture, string bookId, string storedFilePath)
-    {
-        await using var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
-        using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            INSERT INTO Books
-                (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
-            VALUES
-                ($id, 'book', 'external.txt', $storedFilePath, $hash, 'utf-8', $now, $now);
-            """;
-        command.Parameters.AddWithValue("$id", bookId);
-        command.Parameters.AddWithValue("$storedFilePath", storedFilePath);
-        command.Parameters.AddWithValue("$hash", $"hash-{bookId}");
-        command.Parameters.AddWithValue("$now", DateTimeOffset.UtcNow.ToString("O"));
-        await command.ExecuteNonQueryAsync(CancellationToken.None);
-    }
+    private static Task SeedBookAsync(TestFixture fixture, string bookId, string storedFilePath) =>
+        SourceBookFixture.SaveAsync(fixture.Factory, bookId, ["章"], storedFilePath);
 
     private static async Task<bool> BookExistsAsync(TestFixture fixture, string bookId)
     {

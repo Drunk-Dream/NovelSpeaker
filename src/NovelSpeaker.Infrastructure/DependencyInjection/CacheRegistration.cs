@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.Infrastructure.Cache;
@@ -28,6 +29,7 @@ public static class CacheRegistration
         services.TryAddSingleton<AudioCacheFacade>();
         services.TryAddSingleton<IAudioCache>(provider => provider.GetRequiredService<AudioCacheFacade>());
         services.TryAddSingleton<IAudioCacheStore>(provider => provider.GetRequiredService<AudioCacheFacade>());
+        services.TryAddSingleton<IBookRemovalStorageLeaseProvider>(provider => provider.GetRequiredService<AudioCacheFacade>());
         services.TryAddSingleton<IChapterMp3Encoder, MediaFoundationChapterMp3Encoder>();
         services.TryAddSingleton<IChapterMp3ExportWriter, ChapterMp3ExportWriter>();
 

@@ -21,6 +21,7 @@ public sealed class PlaybackCoordinator :
     IPlaybackStopTimer,
     IPlaybackBookCommands,
     IPlaybackRegexReplacementRefresher,
+    IBookRemovalWorkStopper,
     IAsyncDisposable
 {
     internal static readonly TimeSpan VolumePersistenceDelay = TimeSpan.FromMilliseconds(300);
@@ -278,6 +279,20 @@ public sealed class PlaybackCoordinator :
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         return RunSerializedAsync(ct => HandleBookDeletedCoreAsync(bookId, ct), cancellationToken);
+    }
+
+    public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken)
+    {
+        // Cancel content/synthesis immediately so a removal can enter the serialized queue.
+        var session = _currentSession;
+        if (session?.BookId == bookId && (sourceId is null || session.Book.SourceContext?.SourceId == sourceId))
+            session.Cancel();
+        return RunSerializedAsync(async ct =>
+        {
+            if (_currentSnapshot.BookId == bookId &&
+                (sourceId is null || _currentBook?.SourceContext?.SourceId == sourceId))
+                await DiscardSourceContextAsync(ct).ConfigureAwait(false);
+        }, cancellationToken);
     }
 
     private void OnSourceCatalogChanged(object? sender, BookSourceCatalogChanged change)

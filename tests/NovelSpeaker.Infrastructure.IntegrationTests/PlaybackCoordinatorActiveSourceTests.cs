@@ -7,6 +7,34 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed partial class PlaybackCoordinatorTests
 {
     [Fact]
+    public async Task Removal_quiesces_active_source_and_rejects_late_audio_without_stopping_other_source()
+    {
+        var audio = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakeAudioGenerationProvider();
+        var pending = audioProvider.EnqueuePendingSuccess("old.mp3");
+        var progress = new FakeReadingProgressStore();
+        var book = CreateBook() with { SourceContext = new("local:book-1", "chapter") };
+        await using var coordinator = CreateCoordinator(audio, book: book, audioProvider: audioProvider, readingProgressStore: progress);
+        var start = coordinator.StartAsync(new("book-1", null, null, null, 10), CancellationToken.None);
+        Assert.Single(audioProvider.Requests);
+        var removal = coordinator.StopForRemovalAsync("book-1", "local:book-1", CancellationToken.None);
+        pending.CompleteSuccess();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start);
+        await removal.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
+        Assert.Null(coordinator.CurrentSnapshot.BookId);
+        Assert.Null(coordinator.CurrentSnapshot.SourceContext);
+        Assert.Equal(0, audio.StartCallCount);
+        Assert.Empty(progress.SavedProgress);
+        await coordinator.OpenPausedAsync(new("book-1", null, null, null), CancellationToken.None);
+        await coordinator.StopForRemovalAsync("book-1", "different-source", CancellationToken.None);
+        Assert.Equal(book.SourceContext, coordinator.CurrentSnapshot.SourceContext);
+        await coordinator.StopForRemovalAsync("book-1", null, CancellationToken.None);
+        Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
+        Assert.Null(coordinator.CurrentSnapshot.BookId);
+    }
+
+    [Fact]
     public async Task Restart_clamps_shrunken_catalog_and_chapter_before_checkpoint()
     {
         var audio = new FakeLocalAudioPlaybackCoordinator();

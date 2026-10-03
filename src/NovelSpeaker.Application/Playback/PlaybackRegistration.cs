@@ -41,6 +41,7 @@ public static class PlaybackRegistration
                 serviceProvider.GetService<IBookSourceChangeSource>()));
         services.TryAddSingleton<IPlaybackSnapshotSource>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IBookRemovalWorkStopper, PlaybackRemovalWorkStopper>());
         services.TryAddSingleton<IPlaybackSession>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackStopTimer>(serviceProvider =>
@@ -51,4 +52,10 @@ public static class PlaybackRegistration
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         return services;
     }
+}
+
+internal sealed class PlaybackRemovalWorkStopper(PlaybackCoordinator coordinator) : IBookRemovalWorkStopper
+{
+    public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken) =>
+        coordinator.StopForRemovalAsync(bookId, sourceId, cancellationToken);
 }

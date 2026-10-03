@@ -147,6 +147,10 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());
                 Assert.IsAssignableFrom<ICurrentSpeechProvider>(provider.GetRequiredService<ICurrentSpeechProvider>());
                 Assert.IsAssignableFrom<IDirectBookImportService>(provider.GetRequiredService<IDirectBookImportService>());
+                Assert.Same(provider.GetRequiredService<IBookDeletionService>(), provider.GetRequiredService<IBookSourceRemovalService>());
+                Assert.IsType<BookSourceChanges>(provider.GetRequiredService<IBookSourceChangeSource>());
+                Assert.Equal(2, provider.GetServices<IBookRemovalWorkStopper>().Count());
+                Assert.Single(provider.GetServices<IBookRemovalStorageLeaseProvider>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                 Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());
                 Assert.IsAssignableFrom<IAudioCacheLimitProvider>(provider.GetRequiredService<IAudioCacheLimitProvider>());
@@ -367,6 +371,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IChapterRuleManagementService),
             typeof(IDirectBookImportService),
             typeof(IBookDeletionService),
+            typeof(IBookSourceRemovalService),
             typeof(IChapterRuleWorkspaceService),
             typeof(IRegexReplacementRuleWorkspaceService),
             typeof(IRegexReplacementPipeline),

@@ -19,10 +19,11 @@ public sealed class BookImportServiceTests
         var target = ExistingTarget("existing");
         if (!active) target = target with { Book = target.Book with { ActiveSourceId = null } };
         var repository = new CapturingBookImportRepository { Target = target };
-        var service = CreateService(repository: repository);
+        var changes = new BookSourceChanges();
+        var service = CreateService(repository: repository, sourceChanges: changes);
         BookSourceCatalogChanged? change = null;
-        service.CatalogChanged += (_, _) => throw new InvalidOperationException("observer failure");
-        service.CatalogChanged += (_, value) => change = value;
+        changes.CatalogChanged += (_, _) => throw new InvalidOperationException("observer failure");
+        changes.CatalogChanged += (_, value) => change = value;
         var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt", TargetBookId: "existing"),
             null, CancellationToken.None);
         Assert.Equal(DirectBookImportStatus.Imported, result.Status);
@@ -360,7 +361,8 @@ public sealed class BookImportServiceTests
         IReadOnlyList<TextHeaderMetadataRule>? headerRules = null,
         bool splitOnBlankLines = false,
         TimeProvider? timeProvider = null,
-        IBookImportIdGenerator? idGenerator = null)
+        IBookImportIdGenerator? idGenerator = null,
+        BookSourceChanges? sourceChanges = null)
     {
         return new DirectBookImportService(
             analyzer ?? new FakeTextFileAnalyzer(CreateAnalysis("utf-8")),
@@ -380,7 +382,7 @@ public sealed class BookImportServiceTests
             new FakeAppSettingsService(AppSettings.Default with { SplitChaptersOnBlankLines = splitOnBlankLines }),
             new ImportMetadataExtractor(),
             timeProvider ?? TimeProvider.System,
-            idGenerator ?? new SequenceBookImportIdGenerator("book-id", "chapter-id"));
+            idGenerator ?? new SequenceBookImportIdGenerator("book-id", "chapter-id"), new BookMutationGate(), sourceChanges ?? new BookSourceChanges());
     }
 
     private static TextFileAnalysis CreateAnalysis(

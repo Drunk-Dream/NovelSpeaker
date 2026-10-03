@@ -43,7 +43,9 @@ public static class CacheRegistration
         services.TryAddSingleton<ExportFileNameSanitizer>();
         services.TryAddSingleton<IExportChaptersService, ExportChaptersService>();
         services.TryAddSingleton<IChapterExportCoordinator, ChapterExportCoordinator>();
-        services.TryAddSingleton<IActiveCacheCoordinator, ActiveCacheCoordinator>();
+        services.TryAddSingleton<ActiveCacheCoordinator>();
+        services.TryAddSingleton<IActiveCacheCoordinator>(provider => provider.GetRequiredService<ActiveCacheCoordinator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IBookRemovalWorkStopper, ActiveCacheRemovalWorkStopper>());
 
         return services;
     }
@@ -52,4 +54,10 @@ public static class CacheRegistration
     {
         public long GetCurrentLimitBytes() => settingsService.Current.CacheLimitBytes;
     }
+}
+
+internal sealed class ActiveCacheRemovalWorkStopper(ActiveCacheCoordinator coordinator) : IBookRemovalWorkStopper
+{
+    public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken) =>
+        coordinator.StopForRemovalAsync(bookId, sourceId, cancellationToken);
 }

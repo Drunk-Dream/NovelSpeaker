@@ -125,7 +125,7 @@ public sealed class BookOperationRecoveryService
     private async Task RecoverDeleteAsync(BookOperationRecord operation, CancellationToken cancellationToken)
     {
         var operationDirectory = ValidateDeletePaths(operation);
-        if (await BookExistsAsync(operation.BookId, cancellationToken).ConfigureAwait(false))
+        if (operation.Phase == BookOperationPhase.Staged && await TargetExistsAsync(operation, cancellationToken).ConfigureAwait(false))
         {
             foreach (var path in operation.Paths.Reverse())
             {
@@ -134,16 +134,17 @@ public sealed class BookOperationRecoveryService
         }
         else
         {
-            await DeleteBookRowsAsync(operation.BookId, cancellationToken).ConfigureAwait(false);
             foreach (var path in operation.Paths)
             {
-                DeleteOriginal(path);
+                // Once SQLite committed, a later import may own the original location again.
+                // Only the immutable staged files belong to this deletion operation.
                 DeleteStaged(path);
             }
         }
 
         if (Directory.Exists(operationDirectory))
         {
+            BookOperationFileTrust.VerifyTree(operationDirectory, _pathResolver, cancellationToken);
             Directory.Delete(operationDirectory, recursive: true);
         }
 
@@ -155,63 +156,16 @@ public sealed class BookOperationRecoveryService
         await _journal.SetPhaseAsync(operationId, BookOperationPhase.Completed, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task<bool> BookExistsAsync(string bookId, CancellationToken cancellationToken)
+    private async Task<bool> TargetExistsAsync(BookOperationRecord operation, CancellationToken cancellationToken)
     {
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT EXISTS(SELECT 1 FROM Books WHERE Id = $bookId);";
-        command.Parameters.AddWithValue("$bookId", bookId);
+        command.CommandText = operation.Kind == BookOperationKind.RemoveSource
+            ? "SELECT EXISTS(SELECT 1 FROM BookSources WHERE Id = $sourceId AND BookId = $bookId);"
+            : "SELECT EXISTS(SELECT 1 FROM Books WHERE Id = $bookId);";
+        command.Parameters.AddWithValue("$bookId", operation.BookId);
+        command.Parameters.AddWithValue("$sourceId", (object?)operation.SourceId ?? DBNull.Value);
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false)) == 1;
-    }
-
-    private async Task DeleteBookRowsAsync(string bookId, CancellationToken cancellationToken)
-    {
-        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
-        using var cache = connection.CreateCommand();
-        cache.Transaction = transaction;
-        cache.CommandText = "DELETE FROM AudioCacheEntries WHERE BookId = $bookId;";
-        cache.Parameters.AddWithValue("$bookId", bookId);
-        await cache.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-        using var segments = connection.CreateCommand();
-        segments.Transaction = transaction;
-        segments.CommandText =
-            """
-            DELETE FROM ChapterSpeechPlanSegments
-            WHERE ChapterId IN (SELECT Id FROM Chapters WHERE BookId = $bookId);
-            """;
-        segments.Parameters.AddWithValue("$bookId", bookId);
-        await segments.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-        using var plans = connection.CreateCommand();
-        plans.Transaction = transaction;
-        plans.CommandText =
-            """
-            DELETE FROM ChapterSpeechPlans
-            WHERE ChapterId IN (SELECT Id FROM Chapters WHERE BookId = $bookId);
-            """;
-        plans.Parameters.AddWithValue("$bookId", bookId);
-        await plans.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-        using var progress = connection.CreateCommand();
-        progress.Transaction = transaction;
-        progress.CommandText = "DELETE FROM ReadingProgress WHERE BookId = $bookId;";
-        progress.Parameters.AddWithValue("$bookId", bookId);
-        await progress.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-        using var chapters = connection.CreateCommand();
-        chapters.Transaction = transaction;
-        chapters.CommandText = "DELETE FROM Chapters WHERE BookId = $bookId;";
-        chapters.Parameters.AddWithValue("$bookId", bookId);
-        await chapters.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-
-        using var book = connection.CreateCommand();
-        book.Transaction = transaction;
-        book.CommandText = "DELETE FROM Books WHERE Id = $bookId;";
-        book.Parameters.AddWithValue("$bookId", bookId);
-        await book.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void Restore(BookOperationPath path)
@@ -230,24 +184,12 @@ public sealed class BookOperationRecoveryService
         }
     }
 
-    private void DeleteOriginal(BookOperationPath path)
-    {
-        var originalPath = _pathResolver.ResolvePath(path.OriginalStorageKey);
-        if (path.IsDirectory && Directory.Exists(originalPath))
-        {
-            Directory.Delete(originalPath, recursive: true);
-        }
-        else if (!path.IsDirectory)
-        {
-            DeleteFile(originalPath);
-        }
-    }
-
     private void DeleteStaged(BookOperationPath path)
     {
         var stagedPath = _pathResolver.ResolvePath(path.StagedStorageKey);
         if (path.IsDirectory && Directory.Exists(stagedPath))
         {
+            BookOperationFileTrust.VerifyTree(stagedPath, _pathResolver, CancellationToken.None);
             Directory.Delete(stagedPath, recursive: true);
         }
         else if (!path.IsDirectory)
@@ -277,10 +219,12 @@ public sealed class BookOperationRecoveryService
 
     private string ValidateDeletePaths(BookOperationRecord operation)
     {
-        var expectedBookDirectory = Path.Combine(_directories.BooksDirectoryPath, operation.BookId);
+        var expectedBookDirectory = _pathResolver.ResolvePath(Path.Combine(_directories.BooksDirectoryPath, operation.BookId));
+        if (!PathEquals(Path.GetDirectoryName(expectedBookDirectory)!, _directories.BooksDirectoryPath))
+            throw new InvalidDataException("删除恢复记录的书籍目录不属于书籍根目录。");
         var operationStageRoot = Path.Combine(_directories.OperationsDirectoryPath, operation.OperationId);
         var resolvedOperationDirectory = _pathResolver.ResolvePath(operationStageRoot);
-        if (!IsDescendant(resolvedOperationDirectory, _directories.OperationsDirectoryPath))
+        if (!PathEquals(Path.GetDirectoryName(resolvedOperationDirectory)!, _directories.OperationsDirectoryPath))
         {
             throw new InvalidDataException("删除恢复记录的操作目录不属于应用操作目录。");
         }
@@ -295,8 +239,9 @@ public sealed class BookOperationRecoveryService
             }
 
             var validOriginal = path.IsDirectory
-                ? PathEquals(originalPath, expectedBookDirectory)
-                : IsDescendant(originalPath, _directories.CacheDirectoryPath);
+                ? operation.Kind == BookOperationKind.Delete && PathEquals(originalPath, expectedBookDirectory)
+                : IsDescendant(originalPath, _directories.CacheDirectoryPath) ||
+                    (operation.Kind == BookOperationKind.RemoveSource && PathEquals(Path.GetDirectoryName(originalPath)!, expectedBookDirectory));
             if (!validOriginal)
             {
                 throw new InvalidDataException("删除恢复记录包含不属于目标书籍或缓存目录的路径。");

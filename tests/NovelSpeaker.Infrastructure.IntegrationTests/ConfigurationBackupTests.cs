@@ -70,10 +70,9 @@ public sealed class ConfigurationBackupTests
     public async Task Backup_and_restore_leave_all_non_configuration_rows_and_files_unchanged()
     {
         using var fixture = await Fixture.CreateAsync();
+        await Books.SourceBookFixture.SaveAsync(fixture.Connections, "book", ["private-chapter-title"], "Books/book.txt",
+            title: "private-book-title", author: "author", chapterIds: ["chapter"]);
         await fixture.ExecuteAsync("""
-            INSERT INTO Books (Id, Title, Author, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
-            VALUES ('book', 'private-book-title', 'author', 'novel.txt', 'Books/book.txt', 'hash', 'utf-8', 'time', 'time');
-            INSERT INTO Chapters (Id, BookId, ChapterIndex, Title, StartOffset, Length) VALUES ('chapter', 'book', 0, 'private-chapter-title', 0, 100);
             INSERT INTO ReadingProgress VALUES ('book', 0, 3, 12, 1000, 'time');
             INSERT INTO ChapterSpeechPlans VALUES ('chapter', x'01', x'02', x'03', 1, 1, 'time');
             INSERT INTO ChapterSpeechPlanSegments VALUES ('chapter', 0, 1, 0, 10, x'04');
@@ -288,7 +287,7 @@ public sealed class ConfigurationBackupTests
 
         public async Task<string> ReadOtherRowsAsync()
         {
-            string[] tables = ["Books", "Chapters", "ReadingProgress", "ChapterSpeechPlans", "ChapterSpeechPlanSegments", "SynthesisProfiles", "AudioCacheEntries", "AppMetadata", "SchemaVersion"];
+            string[] tables = ["Books", "BookSources", "LocalBookSources", "Chapters", "LocalChapterContents", "ReadingProgress", "ChapterSpeechPlans", "ChapterSpeechPlanSegments", "SynthesisProfiles", "AudioCacheEntries", "AppMetadata", "SchemaVersion"];
             var results = new Dictionary<string, List<object[]>>();
             await using var connection = await Connections.OpenConnectionAsync(CancellationToken.None);
             foreach (var table in tables)

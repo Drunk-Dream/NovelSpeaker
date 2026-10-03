@@ -33,7 +33,9 @@ public sealed class SqliteBookOperationJournal : IBookOperationJournal
         command.Parameters.AddWithValue("$kind", operation.Kind.ToString());
         command.Parameters.AddWithValue("$phase", operation.Phase.ToString());
         command.Parameters.AddWithValue("$bookId", operation.BookId);
-        command.Parameters.AddWithValue("$pathsJson", JsonSerializer.Serialize(operation.Paths));
+        command.Parameters.AddWithValue("$pathsJson", operation.Kind == BookOperationKind.RemoveSource
+            ? JsonSerializer.Serialize(new SourceRemovalPaths(operation.SourceId ?? throw new InvalidDataException("Source removal has no target."), operation.Paths))
+            : JsonSerializer.Serialize(operation.Paths));
         command.Parameters.AddWithValue("$createdAt", SqliteDateTimeMapper.Format(operation.CreatedAt));
         command.Parameters.AddWithValue("$updatedAt", SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow()));
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
@@ -76,17 +78,25 @@ public sealed class SqliteBookOperationJournal : IBookOperationJournal
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var paths = JsonSerializer.Deserialize<BookOperationPath[]>(reader.GetString(4))
+            var kind = Enum.Parse<BookOperationKind>(reader.GetString(1), ignoreCase: false);
+            var removal = kind == BookOperationKind.RemoveSource
+                ? JsonSerializer.Deserialize<SourceRemovalPaths>(reader.GetString(4))
+                    ?? throw new InvalidDataException("Source removal has no paths.") : null;
+            var paths = removal?.Paths ?? JsonSerializer.Deserialize<BookOperationPath[]>(reader.GetString(4))
                 ?? throw new InvalidDataException("书籍操作记录缺少路径数据。");
+            if (kind == BookOperationKind.RemoveSource && string.IsNullOrWhiteSpace(removal?.SourceId))
+                throw new InvalidDataException("Source removal has no target.");
             operations.Add(new BookOperationRecord(
                 reader.GetString(0),
-                Enum.Parse<BookOperationKind>(reader.GetString(1), ignoreCase: false),
+                kind,
                 Enum.Parse<BookOperationPhase>(reader.GetString(2), ignoreCase: false),
                 reader.GetString(3),
                 paths,
-                SqliteDateTimeMapper.Parse(reader.GetString(5))));
+                SqliteDateTimeMapper.Parse(reader.GetString(5)), removal?.SourceId));
         }
 
         return operations;
     }
+
+    private sealed record SourceRemovalPaths(string SourceId, IReadOnlyList<BookOperationPath> Paths);
 }
