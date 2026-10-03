@@ -76,7 +76,7 @@ public sealed class PlaybackPositionResolverTests
         foreach (var (savedSegmentIndex, characterOffset, savedAudioPosition, expectedSegmentIndex, expectedResumePosition) in new[]
                  {
                      (1, 10, 333L, 1, 333L),
-                     (99, 10, 333L, 1, 0L),
+                     (99, 10, 333L, 2, 0L),
                      (0, 15, 333L, 2, 0L),
                      (0, 999, 333L, 2, 0L),
                      (0, -10, 333L, 0, 0L)

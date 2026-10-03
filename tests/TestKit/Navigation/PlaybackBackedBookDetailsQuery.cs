@@ -29,7 +29,7 @@ public sealed class PlaybackBackedBookDetailsQuery : IBookDetailsQuery
     {
         var book = await _contentService.GetBookAsync(bookId, cancellationToken);
         return book?.Chapters
-            .Select(static chapter => new BookChapterSummary(chapter.ChapterIndex, chapter.Title, 0, 0))
+            .Select(chapter => new BookChapterSummary(chapter.ChapterIndex, chapter.Title, chapter.ChapterId, book.SourceContext))
             .ToArray() ?? [];
     }
 

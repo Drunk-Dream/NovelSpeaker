@@ -393,10 +393,15 @@ public sealed class ProviderProductionPipelineTests
             await using var connection = await fixture.Services.GetRequiredService<ISqliteConnectionFactory>().OpenConnectionAsync(CancellationToken.None);
             using var command = connection.CreateCommand();
             command.CommandText = """
-                INSERT INTO Books (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
-                VALUES ('book', 'Book', 'book.txt', 'Books/content.txt', 'provider-pipeline', 'utf-8', '2026-01-01', '2026-01-01');
-                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
-                VALUES ('chapter', 'book', 0, 0, 'Chapter', 0, 14);
+                INSERT INTO Books (Id, Title, Author, Description, ImportedAt, UpdatedAt) VALUES
+                ('book', 'Book', NULL, NULL, '2026-01-01', '2026-01-01');
+                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book', 'book', 1, 'Book', NULL, NULL, '2026-01-01', '2026-01-01');
+                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book', 'book.txt', 'Books/content.txt', 'provider-pipeline', 'utf-8', '2026-01-01', '2026-01-01');
+                UPDATE Books SET ActiveSourceId = 'local:' || 'book' WHERE Id = 'book';
+                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter', 'local:' || 'book', 0, 0, 'Chapter');
+                INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
+                ('chapter', 0, 14);
                 """;
             await command.ExecuteNonQueryAsync();
             return fixture;

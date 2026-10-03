@@ -434,9 +434,9 @@ public sealed class BookDetailsViewModelTests
         return new FakeDetailsState(
             new BookDetailsHeader("book-1", title, author),
             [
-                new BookChapterSummary(0, "第一章 开始", 0, 120),
-                new BookChapterSummary(1, "第二章 继续", 120, 180),
-                new BookChapterSummary(2, "第三章 结尾", 300, 90)
+                new BookChapterSummary(0, "第一章 开始"),
+                new BookChapterSummary(1, "第二章 继续"),
+                new BookChapterSummary(2, "第三章 结尾")
             ],
             new BookReadingPosition("book-1", 1, 0, 0, 0, DateTimeOffset.UtcNow),
             new BookDetailsStatistics(cachedAudioBytes));
@@ -449,9 +449,7 @@ public sealed class BookDetailsViewModelTests
             Enumerable.Range(0, chapterCount)
                 .Select(index => new BookChapterSummary(
                     index,
-                    $"第 {index + 1} 章 标题",
-                    index * 100,
-                    100))
+                    $"第 {index + 1} 章 标题"))
                 .ToArray(),
             new BookReadingPosition("book-1", currentChapterIndex, 0, 0, 0, DateTimeOffset.UtcNow),
             new BookDetailsStatistics(2048));

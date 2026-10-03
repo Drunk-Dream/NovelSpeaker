@@ -196,7 +196,8 @@ internal enum PlaybackEventCommandKind
 {
     Completed,
     Failed,
-    SnapshotChanged
+    SnapshotChanged,
+    SourceCatalogChanged
 }
 
 internal sealed record PlaybackEventCommand(

@@ -14,4 +14,5 @@ public sealed record BookSummary(
     int? CurrentChapterIndex = null,
     int RemainingChapterCount = 0,
     double OverallProgress = 0,
-    bool HasReadingProgress = false);
+    bool HasReadingProgress = false,
+    ActiveSourceContext? SourceContext = null);

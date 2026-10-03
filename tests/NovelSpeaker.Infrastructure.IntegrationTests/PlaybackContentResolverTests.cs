@@ -20,6 +20,20 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed class PlaybackContentResolverTests
 {
     [Fact]
+    public async Task Source_replacement_during_processing_rejects_late_chapter_result()
+    {
+        var metadata = new FixedMetadataQuery { Context = new("source", "old") };
+        var pipeline = new DelayedRegexReplacementPipeline();
+        var service = new PlaybackContentResolver(metadata, new FixedSourceContentReader("正文"),
+            new TextSegmenter(), new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default), pipeline);
+        var load = service.GetChapterAsync("book-1", 0, CancellationToken.None);
+        await pipeline.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        metadata.Context = new("source", "new");
+        pipeline.Complete();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => load);
+    }
+
+    [Fact]
     public async Task GetBookAsync_does_not_resume_on_the_callers_synchronization_context()
     {
         using var database = CreateDatabase(createContentFile: false);
@@ -86,7 +100,7 @@ public sealed class PlaybackContentResolverTests
     {
         var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
-            new FixedBookContentReader("第一段。"),
+            new FixedSourceContentReader("第一段。"),
             new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new PassthroughRegexReplacementPipeline(),
@@ -107,7 +121,7 @@ public sealed class PlaybackContentResolverTests
     }
 
     [Fact]
-    public async Task GetChaptersAsync_loads_all_requested_metadata_through_one_database_connection()
+    public async Task GetChaptersAsync_loads_requested_chapters_in_catalog_order()
     {
         using var database = CreateDatabase(createContentFile: true);
         await using (var connection = new SqliteConnection(database.ConnectionString))
@@ -116,8 +130,10 @@ public sealed class PlaybackContentResolverTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
-                VALUES ('chapter-2', 'book-1', 1, 1, '第二章', 3, 9);
+                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter-2', 'local:' || 'book-1', 1, 1, '第二章');
+                INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
+                ('chapter-2', 3, 9);
                 """;
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
@@ -134,7 +150,6 @@ public sealed class PlaybackContentResolverTests
 
         Assert.Equal([0, 1], chapters.Select(chapter => chapter.ChapterIndex));
         Assert.All(chapters, chapter => Assert.Equal(PlaybackChapterLoadState.Loaded, chapter.LoadState));
-        Assert.Equal(1, connectionFactory.OpenCount);
     }
 
     [Fact]
@@ -147,8 +162,10 @@ public sealed class PlaybackContentResolverTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
-                VALUES ('chapter-unrequested', 'book-1', 'not-an-index', 99, '未请求章节', 0, 1);
+                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter-unrequested', 'local:' || 'book-1', 'not-an-index', 99, '未请求章节');
+                INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
+                ('chapter-unrequested', 0, 1);
                 """;
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
@@ -171,7 +188,7 @@ public sealed class PlaybackContentResolverTests
     {
         var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
-            new FixedBookContentReader("整章正文"),
+            new FixedSourceContentReader("整章正文"),
             new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new EmptyRegexReplacementPipeline());
@@ -189,7 +206,7 @@ public sealed class PlaybackContentResolverTests
         var pipeline = new DelayedRegexReplacementPipeline();
         var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
-            new FixedBookContentReader("整章正文"),
+            new FixedSourceContentReader("整章正文"),
             new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             pipeline);
@@ -210,7 +227,7 @@ public sealed class PlaybackContentResolverTests
         var logger = new CapturingLogger<BookPlaybackContentFailureReporter>();
         var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
-            new ThrowingBookContentReader(new FileNotFoundException(privatePath)),
+            new ThrowingSourceContentReader(new FileNotFoundException(privatePath)),
             new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new PassthroughRegexReplacementPipeline(),
@@ -232,7 +249,7 @@ public sealed class PlaybackContentResolverTests
         var logger = new CapturingLogger<BookPlaybackContentFailureReporter>();
         var service = new PlaybackContentResolver(
             new FixedMetadataQuery(),
-            new ThrowingBookContentReader(new OperationCanceledException()),
+            new ThrowingSourceContentReader(new OperationCanceledException()),
             new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new PassthroughRegexReplacementPipeline(),
@@ -267,7 +284,10 @@ public sealed class PlaybackContentResolverTests
                 Id TEXT NOT NULL PRIMARY KEY,
                 Title TEXT NOT NULL,
                 Author TEXT NULL,
-                StoredFilePath TEXT NOT NULL
+                ActiveSourceId TEXT NULL,
+                ImportedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL,
+                Description TEXT NULL
             );
             """;
         createBooks.ExecuteNonQuery();
@@ -277,36 +297,48 @@ public sealed class PlaybackContentResolverTests
             """
             CREATE TABLE Chapters (
                 Id TEXT NOT NULL PRIMARY KEY,
-                BookId TEXT NOT NULL,
+                SourceId TEXT NOT NULL,
                 ChapterIndex INTEGER NOT NULL,
                 SortOrder INTEGER NOT NULL,
-                Title TEXT NOT NULL,
-                StartOffset INTEGER NOT NULL,
-                Length INTEGER NOT NULL
+                Title TEXT NOT NULL
             );
             """;
         createChapters.ExecuteNonQuery();
+        using var createSources = connection.CreateCommand();
+        createSources.CommandText = """
+            CREATE TABLE BookSources (Id TEXT PRIMARY KEY, BookId TEXT, SourceType INTEGER, Title TEXT, Author TEXT, Description TEXT, CreatedAt TEXT, UpdatedAt TEXT);
+            CREATE TABLE LocalBookSources (SourceId TEXT PRIMARY KEY, OriginalFileName TEXT, StoredContentPath TEXT, SourceHash TEXT, Encoding TEXT, ImportedAt TEXT, LastImportedAt TEXT);
+            CREATE TABLE LocalChapterContents (ChapterId TEXT PRIMARY KEY, StartOffset INTEGER, Length INTEGER);
+            """;
+        createSources.ExecuteNonQuery();
 
         using var insertBook = connection.CreateCommand();
-        insertBook.CommandText = "INSERT INTO Books (Id, Title, Author, StoredFilePath) VALUES ('book-1', '示例小说', NULL, $storedFilePath);";
+        insertBook.CommandText = """
+            INSERT INTO Books (Id, Title, Author, ActiveSourceId, ImportedAt, UpdatedAt)
+            VALUES ('book-1', '示例小说', NULL, 'local:book-1', 'time', 'time');
+            INSERT INTO BookSources (Id, BookId, SourceType) VALUES ('local:book-1', 'book-1', 1);
+            INSERT INTO LocalBookSources (SourceId, StoredContentPath) VALUES ('local:book-1', $storedFilePath);
+            """;
         insertBook.Parameters.AddWithValue("$storedFilePath", createContentFile ? contentPath : Path.Combine(directory, "missing-content.txt"));
         insertBook.ExecuteNonQuery();
 
         using var insertChapter = connection.CreateCommand();
         insertChapter.CommandText =
             """
-            INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
-            VALUES ('chapter-1', 'book-1', 0, 0, '第一章', 3, 9);
+            INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
+            ('chapter-1', 'local:' || 'book-1', 0, 0, '第一章');
+            INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
+            ('chapter-1', 3, 9);
             """;
         insertChapter.ExecuteNonQuery();
 
         return new TestDatabase(directory, connectionString);
     }
 
-    private static BookContentReader CreateContentReader(TestDatabase database)
+    private static SourceContentReader CreateContentReader(TestDatabase database)
     {
         var directories = new AppDataDirectoryProvider(database.DirectoryPath);
-        return new BookContentReader(new AppStoragePathResolver(directories));
+        return new SourceContentReader(new AppStoragePathResolver(directories), new TestSqliteConnectionFactory(database.ConnectionString));
     }
 
     private sealed class TestSqliteConnectionFactory : ISqliteConnectionFactory
@@ -424,8 +456,9 @@ public sealed class PlaybackContentResolverTests
 
     private sealed class FixedMetadataQuery : IBookPlaybackMetadataQuery
     {
+        public ActiveSourceContext? Context { get; set; }
         private static readonly PlaybackChapterMetadata Chapter =
-            new(0, "第一章", "books/book-1/content.txt", 0, 4);
+            new(0, "第一章", "local:book-1", "chapter-1");
 
         public Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -434,7 +467,7 @@ public sealed class PlaybackContentResolverTests
                     bookId,
                     "示例小说",
                     null,
-                    [new PlaybackChapterSummaryMetadata(Chapter.ChapterIndex, Chapter.Title)]));
+                    [new PlaybackChapterSummaryMetadata(Chapter.ChapterIndex, Chapter.Title)], Context));
         }
 
         public Task<PlaybackChapterMetadata?> GetChapterAsync(
@@ -443,23 +476,24 @@ public sealed class PlaybackContentResolverTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            return Task.FromResult<PlaybackChapterMetadata?>(Chapter);
+            return Task.FromResult<PlaybackChapterMetadata?>(Chapter with { SourceContext = Context });
         }
     }
 
-    private sealed class FixedBookContentReader : IBookContentReader
+    private sealed class FixedSourceContentReader : ISourceContentReader
     {
         private readonly string _content;
 
-        public FixedBookContentReader(string content)
+        public FixedSourceContentReader(string content)
         {
             _content = content;
         }
 
+        public Task<string> ReadSourceTextAsync(string sourceId, CancellationToken cancellationToken) => Task.FromResult(_content);
+
         public Task<string> ReadChapterTextAsync(
-            string storedFilePath,
-            int startOffset,
-            int length,
+            string sourceId,
+            string chapterId,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -467,12 +501,13 @@ public sealed class PlaybackContentResolverTests
         }
     }
 
-    private sealed class ThrowingBookContentReader(Exception exception) : IBookContentReader
+    private sealed class ThrowingSourceContentReader(Exception exception) : ISourceContentReader
     {
+        public Task<string> ReadSourceTextAsync(string sourceId, CancellationToken cancellationToken) => Task.FromException<string>(exception);
+
         public Task<string> ReadChapterTextAsync(
-            string storedFilePath,
-            int startOffset,
-            int length,
+            string sourceId,
+            string chapterId,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

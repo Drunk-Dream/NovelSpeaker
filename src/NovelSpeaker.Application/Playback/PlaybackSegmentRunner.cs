@@ -9,7 +9,8 @@ internal sealed record PlaybackSegmentRunRequest(
     AudioGenerationRequest AudioRequest,
     string DisplayTitle,
     long ResumePositionMilliseconds,
-    bool ForceInvalidate);
+    bool ForceInvalidate,
+    Func<CancellationToken, Task>? ValidateContextAsync = null);
 
 /// <summary>
 /// Captures the result of one segment execution without owning playback state or publishing events.
@@ -58,6 +59,10 @@ internal sealed class PlaybackSegmentRunner
         {
             return new PlaybackSegmentRunResult(audio, _audioController.CurrentSnapshot);
         }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request.ValidateContextAsync is not null)
+            await request.ValidateContextAsync(cancellationToken).ConfigureAwait(false);
 
         await _audioController.StartAsync(
             new LocalAudioPlaybackRequest(

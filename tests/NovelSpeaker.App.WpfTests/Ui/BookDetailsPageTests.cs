@@ -191,9 +191,7 @@ public sealed partial class BookDetailsPageTests
             Enumerable.Range(0, chapterCount)
                 .Select(index => new BookChapterSummary(
                     index,
-                    $"第 {index + 1} 章 标题",
-                    index * 100,
-                    100))
+                    $"第 {index + 1} 章 标题"))
                 .ToArray(),
             new BookReadingPosition(bookId, currentChapterIndex, 0, 0, 0, DateTimeOffset.UtcNow),
             new BookDetailsStatistics(0));

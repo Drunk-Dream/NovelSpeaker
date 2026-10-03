@@ -54,6 +54,7 @@ internal static class PlaybackSnapshotProjector
             input.Book.BookAuthor,
             input.SelectedProvider is not null,
             input.ContentRevision,
-            PlaybackVolume.Normalize(input.Volume));
+            PlaybackVolume.Normalize(input.Volume),
+            SourceContext: input.Book.SourceContext);
     }
 }

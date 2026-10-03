@@ -99,11 +99,14 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
             var frozenChapters = new List<FrozenChapter>(selectedChapters.Length);
             var loadedChapters = await _contentService.GetChaptersAsync(book.BookId,
                 selectedChapters.Select(chapter => chapter.ChapterIndex).ToArray(), cancellationToken).ConfigureAwait(false);
+            if (!await _contentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false))
+                return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "活动来源目录已更新，请重新选择章节。");
             var loadedByIndex = loadedChapters.ToDictionary(chapter => chapter.ChapterIndex);
             foreach (var chapter in selectedChapters)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!loadedByIndex.TryGetValue(chapter.ChapterIndex, out var loaded))
+                if (!loadedByIndex.TryGetValue(chapter.ChapterIndex, out var loaded) ||
+                    (chapter.ChapterId is not null && chapter.ChapterId != loaded.ChapterId))
                 {
                     return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "所选章节无法读取。");
                 }

@@ -9,7 +9,8 @@ public sealed record PlaybackBookContent(
     string BookId,
     string BookTitle,
     IReadOnlyList<PlaybackChapterContent> Chapters,
-    string? BookAuthor = null);
+    string? BookAuthor = null,
+    ActiveSourceContext? SourceContext = null);
 
 /// <summary>
 /// Describes whether runtime content has been assembled for a chapter.

@@ -153,7 +153,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
                     provider.GetRequiredService<ITextSegmentationOptionsProvider>());
                 Assert.IsAssignableFrom<ITextSegmenter>(provider.GetRequiredService<ITextSegmenter>());
-                Assert.IsAssignableFrom<IBookContentReader>(provider.GetRequiredService<IBookContentReader>());
+                Assert.IsAssignableFrom<ISourceContentReader>(provider.GetRequiredService<ISourceContentReader>());
                 Assert.IsAssignableFrom<IAudioPlayer>(provider.GetRequiredService<IAudioPlayer>());
                 Assert.IsType<LocalAudioPlaybackCoordinator>(provider.GetRequiredService<ILocalAudioPlaybackCoordinator>());
                 Assert.IsType<PlaybackAudioController>(provider.GetRequiredService<PlaybackAudioController>());

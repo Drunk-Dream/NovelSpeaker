@@ -9,6 +9,57 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 public sealed class BookLibraryQueryTests
 {
     [Fact]
+    public async Task Catalog_replacement_clamps_read_projections_without_rewriting_book_progress()
+    {
+        var (factory, library, details) = await CreateCatalogAsync();
+        await SourceBookFixture.SaveAsync(factory, "book-1", ["一", "二", "三"]);
+        await SeedReadingProgressAsync(factory, "book-1", 2, 99, "2026-06-25T09:00:00.0000000Z");
+        var oldCatalog = await details.GetCatalogAsync("book-1", CancellationToken.None);
+        await SourceBookFixture.SaveAsync(factory, "book-1", ["新一", "新二"]);
+        var summary = Assert.Single(await library.GetBooksAsync(CancellationToken.None));
+        var position = await details.GetReadingPositionAsync("book-1", CancellationToken.None);
+        var catalog = await details.GetCatalogAsync("book-1", CancellationToken.None);
+        Assert.Equal(1, summary.CurrentChapterIndex);
+        Assert.Equal("新二", summary.CurrentChapterTitle);
+        Assert.Equal(1, position!.ChapterIndex);
+        Assert.Equal(99, position.SegmentIndex);
+        Assert.NotEqual(oldCatalog[0].ChapterId, catalog[0].ChapterId);
+        Assert.Equal(summary.SourceContext, catalog[0].SourceContext);
+        var persisted = await new SqliteReadingProgressStore(factory).GetAsync("book-1", CancellationToken.None);
+        Assert.Equal(2, persisted!.ChapterIndex);
+        Assert.Equal(99, persisted.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task No_active_source_and_empty_catalog_are_unlocated_without_automatic_fallback()
+    {
+        var (factory, library, details) = await CreateCatalogAsync();
+        await SeedBookAsync(factory, "book-1", "一", "二");
+        await SeedReadingProgressAsync(factory, "book-1", 1, 0, "2026-06-25T09:00:00.0000000Z");
+        await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
+        using var command = connection.CreateCommand();
+        command.CommandText = "UPDATE Books SET ActiveSourceId = NULL WHERE Id = 'book-1';";
+        await command.ExecuteNonQueryAsync();
+        var summary = Assert.Single(await library.GetBooksAsync(CancellationToken.None));
+        Assert.Null(summary.SourceContext);
+        Assert.Null(summary.CurrentChapterIndex);
+        Assert.False(summary.HasReadingProgress);
+        Assert.Equal("无活动来源", summary.CurrentChapterTitle);
+        Assert.Empty(await details.GetCatalogAsync("book-1", CancellationToken.None));
+        Assert.Null(await details.GetReadingPositionAsync("book-1", CancellationToken.None));
+        Assert.NotNull(await details.GetHeaderAsync("book-1", CancellationToken.None));
+        var metadata = await new SqliteBookPlaybackMetadataQuery(factory).GetBookAsync("book-1", CancellationToken.None);
+        Assert.Null(metadata!.SourceContext);
+        Assert.Empty(metadata.Chapters);
+
+        command.CommandText = "UPDATE Books SET ActiveSourceId = 'local:book-1'; DELETE FROM Chapters WHERE SourceId = 'local:book-1';";
+        await command.ExecuteNonQueryAsync();
+        Assert.Null(await details.GetReadingPositionAsync("book-1", CancellationToken.None));
+        Assert.Empty(await details.GetCatalogAsync("book-1", CancellationToken.None));
+        Assert.NotNull(await new SqliteReadingProgressStore(factory).GetAsync("book-1", CancellationToken.None));
+    }
+
+    [Fact]
     public async Task GetBooksAsync_prefers_recent_progress_chapter_title_and_exposes_last_played_at()
     {
         var (factory, service, _) = await CreateCatalogAsync();
@@ -45,16 +96,7 @@ public sealed class BookLibraryQueryTests
     public async Task GetCatalogAsync_orders_chapters_by_sort_order_then_chapter_index()
     {
         var (factory, service, detailsQuery) = await CreateCatalogAsync();
-        var repository = new BookImportRepository(factory);
-        var now = DateTimeOffset.UtcNow;
-        await repository.SaveAsync(
-            new Book("book-1", "书籍", null, "book.txt", "book.txt", "hash", "utf-8", now, now, null, now),
-            [
-                new Chapter("chapter-2", "book-1", 2, 20, "末章", 20, 3),
-                new Chapter("chapter-1", "book-1", 1, 10, "中章", 10, 3),
-                new Chapter("chapter-0", "book-1", 0, 10, "首章", 0, 3)
-            ],
-            CancellationToken.None);
+        await SourceBookFixture.SaveAsync(factory, "book-1", ["首章", "中章", "末章"], sortOrders: [10, 10, 20]);
 
         var details = await detailsQuery.GetCatalogAsync("book-1", CancellationToken.None);
 
@@ -65,12 +107,7 @@ public sealed class BookLibraryQueryTests
     public async Task Detail_queries_return_empty_catalog_and_no_position_for_a_book_without_chapters()
     {
         var (factory, _, detailsQuery) = await CreateCatalogAsync();
-        var repository = new BookImportRepository(factory);
-        var now = DateTimeOffset.UtcNow;
-        await repository.SaveAsync(
-            new Book("empty-book", "空书", null, "empty.txt", "empty.txt", "empty-hash", "utf-8", now, now, null, now),
-            [],
-            CancellationToken.None);
+        await SourceBookFixture.SaveAsync(factory, "empty-book", []);
 
         var header = await detailsQuery.GetHeaderAsync("empty-book", CancellationToken.None);
         var catalog = await detailsQuery.GetCatalogAsync("empty-book", CancellationToken.None);
@@ -119,15 +156,7 @@ public sealed class BookLibraryQueryTests
 
     private static async Task SeedBookAsync(SqliteConnectionFactory factory, string bookId, string firstChapterTitle, string secondChapterTitle)
     {
-        var repository = new BookImportRepository(factory);
-        var now = DateTimeOffset.UtcNow;
-        await repository.SaveAsync(
-            new Book(bookId, $"书籍 {bookId}", null, $"{bookId}.txt", $"{bookId}.txt", $"{bookId}-hash", "utf-8", now, now, null, now),
-            [
-                new Chapter($"{bookId}-chapter-1", bookId, 0, 0, firstChapterTitle, 0, 3),
-                new Chapter($"{bookId}-chapter-2", bookId, 1, 1, secondChapterTitle, 4, 3)
-            ],
-            CancellationToken.None);
+        await SourceBookFixture.SaveAsync(factory, bookId, [firstChapterTitle, secondChapterTitle]);
     }
 
     private static async Task SeedReadingProgressAsync(SqliteConnectionFactory factory, string bookId, int chapterIndex, int segmentIndex, string updatedAt)

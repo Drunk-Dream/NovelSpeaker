@@ -25,6 +25,23 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
         await using var transaction = (Microsoft.Data.Sqlite.SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
         var updatedAt = SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow());
 
+        if (progress.SourceContext is { } context)
+        {
+            using var contextCommand = connection.CreateCommand();
+            contextCommand.Transaction = transaction;
+            contextCommand.CommandText = """
+                SELECT 1 FROM Books b JOIN Chapters c ON c.SourceId = b.ActiveSourceId
+                WHERE b.Id = $book AND b.ActiveSourceId = $source AND c.ChapterIndex = $chapter
+                  AND (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1) = $version
+                LIMIT 1;
+                """;
+            contextCommand.Parameters.AddWithValue("$book", progress.BookId);
+            contextCommand.Parameters.AddWithValue("$source", context.SourceId);
+            contextCommand.Parameters.AddWithValue("$chapter", progress.ChapterIndex);
+            contextCommand.Parameters.AddWithValue("$version", context.CatalogVersion ?? (object)DBNull.Value);
+            if (await contextCommand.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null) return;
+        }
+
         using var upsertCommand = connection.CreateCommand();
         upsertCommand.Transaction = transaction;
         upsertCommand.CommandText =

@@ -12,6 +12,30 @@ namespace NovelSpeaker.Application.UnitTests.Books;
 public sealed class BookImportServiceTests
 {
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ImportAsync_notifies_committed_active_catalog_changes_and_isolates_observer_failures(bool active)
+    {
+        var target = ExistingTarget("existing");
+        if (!active) target = target with { Book = target.Book with { ActiveSourceId = null } };
+        var repository = new CapturingBookImportRepository { Target = target };
+        var service = CreateService(repository: repository);
+        BookSourceCatalogChanged? change = null;
+        service.CatalogChanged += (_, _) => throw new InvalidOperationException("observer failure");
+        service.CatalogChanged += (_, value) => change = value;
+        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt", TargetBookId: "existing"),
+            null, CancellationToken.None);
+        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
+        if (active)
+        {
+            Assert.Equal("existing", change!.BookId);
+            Assert.Equal("existing-source", change.SourceId);
+            Assert.Equal(repository.SavedSnapshot!.Catalog[0].Id, change.CatalogVersion);
+        }
+        else Assert.Null(change);
+    }
+
+    [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public async Task ImportAsync_requires_explicit_choice_for_multiple_candidates(bool createNew)

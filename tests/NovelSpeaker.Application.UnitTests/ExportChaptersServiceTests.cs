@@ -437,9 +437,7 @@ public sealed class ExportChaptersServiceTests
         query.Chapters[0] = new PlaybackChapterMetadata(
             0,
             "第一章",
-            "content.txt",
-            0,
-            20,
+            "source-1",
             "chapter-0");
         return query;
     }

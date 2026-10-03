@@ -20,8 +20,8 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_preserves_segment_order_and_produces_one_decodable_mp3()
     {
         var fixture = await CreateFixtureAsync();
-        var firstKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
-        var secondKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "第二段");
+        var firstKey = CreateKey("book-1", 0, 0, 7, 12, "第一段");
+        var secondKey = CreateKey("book-1", 0, 1, 7, 12, "第二段");
         await StoreAsync(fixture, firstKey, 0, CreateWaveFile(silence: true));
         await StoreAsync(fixture, secondKey, 1, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
@@ -50,8 +50,8 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_normalizes_mixed_mp3_and_wav_segments_into_one_mp3()
     {
         var fixture = await CreateFixtureAsync();
-        var firstKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
-        var secondKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "第二段");
+        var firstKey = CreateKey("book-1", 0, 0, 7, 12, "第一段");
+        var secondKey = CreateKey("book-1", 0, 1, 7, 12, "第二段");
         await StoreAsync(fixture, firstKey, 0, CopyToTemporaryFile(PlaybackTestAudio.DemoMp3Path));
         await StoreAsync(fixture, secondKey, 1, CreateWaveFile(silence: false));
 
@@ -70,8 +70,8 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_exports_different_chapters_as_separate_mp3_files()
     {
         var fixture = await CreateFixtureAsync();
-        var firstKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一章");
-        var secondKey = TestAudioCacheKey.Create("book-1", 1, 0, 7, 12, "第二章");
+        var firstKey = CreateKey("book-1", 0, 0, 7, 12, "第一章");
+        var secondKey = CreateKey("book-1", 1, 0, 7, 12, "第二章");
         await StoreAsync(fixture, firstKey, 0, CreateWaveFile(silence: false));
         await StoreAsync(fixture, secondKey, 0, CreateWaveFile(silence: false), chapterIndex: 1);
         var exportRoot = CreateExportRoot();
@@ -103,8 +103,8 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_rejects_incomplete_cache_before_creating_outputs()
     {
         var fixture = await CreateFixtureAsync();
-        var validKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "有效段");
-        var missingKey = TestAudioCacheKey.Create("book-1", 1, 0, 7, 12, "缺失段");
+        var validKey = CreateKey("book-1", 0, 0, 7, 12, "有效段");
+        var missingKey = CreateKey("book-1", 1, 0, 7, 12, "缺失段");
         await StoreAsync(fixture, validKey, 0, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
 
@@ -127,7 +127,7 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_rejects_corrupt_cached_audio_as_incomplete()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "损坏段");
+        var key = CreateKey("book-1", 0, 0, 7, 12, "损坏段");
         var stored = await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         File.Copy(PlaybackTestAudio.CorruptMp3Path, stored.FilePath, overwrite: true);
         var exportRoot = CreateExportRoot();
@@ -147,7 +147,7 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_uses_numbered_suffix_without_overwriting_existing_file()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
+        var key = CreateKey("book-1", 0, 0, 7, 12, "第一段");
         await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
         var bookDirectory = Path.Combine(exportRoot, "示例书");
@@ -182,7 +182,7 @@ public sealed class ChapterMp3ExportWriterTests
         bool cancel)
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
+        var key = CreateKey("book-1", 0, 0, 7, 12, "第一段");
         await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
         using var cancellation = new CancellationTokenSource();
@@ -217,7 +217,7 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_protects_source_cache_for_the_entire_background_batch()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
+        var key = CreateKey("book-1", 0, 0, 7, 12, "第一段");
         await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         var encoder = new BlockingChapterMp3Encoder();
         var writer = CreateWriter(fixture, encoder);
@@ -247,7 +247,7 @@ public sealed class ChapterMp3ExportWriterTests
     public async Task WriteAsync_keeps_sanitized_output_inside_the_selected_root()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "第一段");
+        var key = CreateKey("book-1", 0, 0, 7, 12, "第一段");
         await StoreAsync(fixture, key, 0, CreateWaveFile(silence: false));
         var exportRoot = CreateExportRoot();
 
@@ -267,6 +267,12 @@ public sealed class ChapterMp3ExportWriterTests
             $"{Path.DirectorySeparatorChar}..{Path.DirectorySeparatorChar}",
             output,
             StringComparison.Ordinal);
+    }
+
+    private static AudioCacheKey CreateKey(string bookId, int chapterIndex, int start, long ruleId, int speed, string text)
+    {
+        var key = TestAudioCacheKey.Create(bookId, chapterIndex, start, ruleId, speed, text);
+        return AudioCacheKey.FromIdentity(key.Identity with { ChapterId = $"chapter-{chapterIndex + 1}" });
     }
 
     private static ChapterMp3ExportWriter CreateWriter(
@@ -357,15 +363,17 @@ public sealed class ChapterMp3ExportWriterTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                INSERT INTO Books
-                    (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
-                VALUES
-                    ('book-1', '示例书', 'book.txt', 'Books/book-1/content.txt', 'export-fixture', 'utf-8',
-                     '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
-                VALUES
-                    ('chapter-1', 'book-1', 0, 0, '第一章', 0, 1),
-                    ('chapter-2', 'book-1', 1, 1, '第二章', 0, 1);
+                INSERT INTO Books (Id, Title, Author, Description, ImportedAt, UpdatedAt) VALUES
+                ('book-1', '示例书', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-1', 'book-1', 1, '示例书', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-1', 'book.txt', 'Books/book-1/content.txt', 'export-fixture', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                UPDATE Books SET ActiveSourceId = 'local:' || 'book-1' WHERE Id = 'book-1';
+                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter-1', 'local:' || 'book-1', 0, 0, '第一章'),
+                ('chapter-2', 'local:' || 'book-1', 1, 1, '第二章');
+                INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
+                ('chapter-1', 0, 1),
+                ('chapter-2', 0, 1);
                 """;
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }

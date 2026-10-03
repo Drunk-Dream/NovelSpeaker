@@ -1,5 +1,5 @@
 using NovelSpeaker.Application.Playback;
-using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Infrastructure.IntegrationTests.Books;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
@@ -10,6 +10,22 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 
 public sealed class SqliteReadingProgressStoreTests
 {
+    [Fact]
+    public async Task Restart_keeps_book_coordinates_and_obsolete_source_cannot_checkpoint()
+    {
+        var (factory, store) = await CreateStoreWithBookAsync(null, "book-1");
+        var old = await new SqliteBookPlaybackMetadataQuery(factory).GetBookAsync("book-1", CancellationToken.None);
+        await store.SaveAsync(new PlaybackProgressUpdate("book-1", 3, 4, 50, 600), CancellationToken.None);
+        await SourceBookFixture.SaveAsync(factory, "book-1", ["更新章"]);
+        var restarted = new SqliteReadingProgressStore(factory);
+        await restarted.SaveAsync(new PlaybackProgressUpdate("book-1", 0, 0, 0, 0, old!.SourceContext), CancellationToken.None);
+        var progress = await restarted.GetAsync("book-1", CancellationToken.None);
+        Assert.Equal(3, progress!.ChapterIndex);
+        Assert.Equal(4, progress.SegmentIndex);
+        Assert.Equal(50, progress.CharacterOffset);
+        Assert.Equal(600, progress.AudioPositionMilliseconds);
+    }
+
     [Fact]
     public async Task SaveAsync_persists_and_overwrites_progress()
     {
@@ -95,14 +111,9 @@ public sealed class SqliteReadingProgressStoreTests
         var initializer = new StartupDatabaseInitializer(directories, runner, seeder);
         await initializer.InitializeAsync(CancellationToken.None);
 
-        var bookRepository = new BookImportRepository(factory);
         foreach (var bookId in bookIds)
         {
-            var now = DateTimeOffset.UtcNow;
-            await bookRepository.SaveAsync(
-                new Book(bookId, $"书籍 {bookId}", null, $"{bookId}.txt", $"{bookId}.txt", $"{bookId}-hash", "utf-8", now, now, null, now),
-                [new Chapter($"{bookId}-chapter-1", bookId, 0, 0, "第一章", 0, 7)],
-                CancellationToken.None);
+            await SourceBookFixture.SaveAsync(factory, bookId, ["第一章"]);
         }
 
         return (factory, new SqliteReadingProgressStore(factory, timeProvider));

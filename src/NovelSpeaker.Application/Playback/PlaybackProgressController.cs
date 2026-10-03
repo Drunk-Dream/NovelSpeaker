@@ -54,6 +54,8 @@ internal sealed class PlaybackProgressController
         session.SetPositionForSave(positionMilliseconds);
         var chapter = session.Book.Chapters.FirstOrDefault(
             candidate => candidate.ChapterIndex == session.ChapterIndex);
+        if (chapter is null || session.SegmentIndex < 0 || session.SegmentIndex >= chapter.Segments.Count)
+            return Task.CompletedTask;
         var characterOffset = chapter is not null &&
                               session.SegmentIndex >= 0 &&
                               session.SegmentIndex < chapter.Segments.Count
@@ -66,7 +68,8 @@ internal sealed class PlaybackProgressController
                 session.ChapterIndex,
                 session.SegmentIndex,
                 characterOffset,
-                session.PositionForSave),
+                session.PositionForSave,
+                session.Book.SourceContext),
             cancellationToken);
     }
 }

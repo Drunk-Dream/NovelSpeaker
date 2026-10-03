@@ -37,7 +37,8 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
                 serviceProvider.GetRequiredService<IAppSettingsService>(),
                 serviceProvider.GetRequiredService<TimeProvider>(),
-                serviceProvider.GetRequiredService<IObservability>()));
+                serviceProvider.GetRequiredService<IObservability>(),
+                serviceProvider.GetService<IBookSourceChangeSource>()));
         services.TryAddSingleton<IPlaybackSnapshotSource>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackSession>(serviceProvider =>

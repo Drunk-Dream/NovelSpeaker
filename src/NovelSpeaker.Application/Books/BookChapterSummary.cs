@@ -6,5 +6,5 @@ namespace NovelSpeaker.Application.Books;
 public sealed record BookChapterSummary(
     int ChapterIndex,
     string Title,
-    int StartOffset,
-    int Length);
+    string? ChapterId = null,
+    ActiveSourceContext? SourceContext = null);

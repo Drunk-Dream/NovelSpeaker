@@ -24,9 +24,16 @@ public interface IBookPlaybackContentService
                 book.BookId,
                 book.BookTitle,
                 catalog
-                    .Select(static chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title))
+                    .Select(static chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title, chapter.ChapterId))
                     .ToArray(),
-                book.BookAuthor);
+                book.BookAuthor,
+                book.SourceContext);
+    }
+
+    async Task<bool> IsCurrentAsync(PlaybackBookContent book, CancellationToken cancellationToken)
+    {
+        var current = await GetBookAsync(book.BookId, cancellationToken).ConfigureAwait(false);
+        return current is not null && current.SourceContext == book.SourceContext;
     }
 
     Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken);

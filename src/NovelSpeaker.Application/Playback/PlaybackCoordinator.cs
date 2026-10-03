@@ -43,6 +43,7 @@ public sealed class PlaybackCoordinator :
 
     private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
     private PlaybackSessionState? _currentSession;
+    private readonly IBookSourceChangeSource? _sourceChanges;
     private TtsErrorKind? _lastFailureKind;
     private string? _lastRecoveredCorruptSegmentKey;
     private long _contentRevision;
@@ -84,7 +85,8 @@ public sealed class PlaybackCoordinator :
         IPlaybackPrefetchController prefetchController,
         IAppSettingsService appSettingsService,
         TimeProvider timeProvider,
-        IObservability? observability = null)
+        IObservability? observability = null,
+        IBookSourceChangeSource? sourceChanges = null)
     {
         _bookContentService = bookContentService;
         _selectedProvider = selectedProvider;
@@ -96,6 +98,7 @@ public sealed class PlaybackCoordinator :
         _prefetchController = prefetchController;
         _appSettingsService = appSettingsService;
         _timeProvider = timeProvider;
+        _sourceChanges = sourceChanges;
         _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
         _commandProcessor = new PlaybackCommandProcessor(
             ProcessEventCommandAsync,
@@ -112,6 +115,7 @@ public sealed class PlaybackCoordinator :
         _audioController.PlaybackCompleted += OnLocalPlaybackCompleted;
         _audioController.PlaybackFailed += OnLocalPlaybackFailed;
         _appSettingsService.Changed += OnSettingsChanged;
+        if (_sourceChanges is not null) _sourceChanges.CatalogChanged += OnSourceCatalogChanged;
     }
 
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -139,7 +143,7 @@ public sealed class PlaybackCoordinator :
             await RunSerializedAsync(ct => StartCoreAsync(request, ct), cancellationToken).ConfigureAwait(false);
             operation.Complete(OperationResult.Succeeded());
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             operation.Complete(OperationResult.Cancelled());
             throw;
@@ -276,6 +280,33 @@ public sealed class PlaybackCoordinator :
         return RunSerializedAsync(ct => HandleBookDeletedCoreAsync(bookId, ct), cancellationToken);
     }
 
+    private void OnSourceCatalogChanged(object? sender, BookSourceCatalogChanged change)
+    {
+        var session = _currentSession;
+        if (_disposed || session?.BookId != change.BookId || session.Book.SourceContext?.SourceId != change.SourceId ||
+            session.Book.SourceContext.CatalogVersion == change.CatalogVersion) return;
+        // Invalidate foreground work immediately; the owned queue handles stop/disposal.
+        session.Cancel();
+        _commandProcessor.Enqueue(new PlaybackEventCommand(PlaybackEventCommandKind.SourceCatalogChanged,
+            session.SessionId, null, null, _commandProcessor.CurrentEventEpoch));
+    }
+
+    private async Task DiscardSourceContextAsync(CancellationToken cancellationToken)
+    {
+        var session = _currentSession;
+        session?.Cancel();
+        _stopTimer.Cancel();
+        if (session is not null)
+        {
+            await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
+            await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
+            ClearProtectedPlaybackFile();
+            await DisposeSessionAsync().ConfigureAwait(false);
+        }
+        ClearCurrentBookContext();
+        PublishSnapshot(PlaybackSnapshot.Idle with { Volume = _audioController.Volume, Message = "活动来源目录已更新，请重新打开书籍。" });
+    }
+
     public ValueTask DisposeAsync()
     {
         lock (_disposeGate)
@@ -289,6 +320,7 @@ public sealed class PlaybackCoordinator :
     {
         _disposed = true;
         _appSettingsService.Changed -= OnSettingsChanged;
+        if (_sourceChanges is not null) _sourceChanges.CatalogChanged -= OnSourceCatalogChanged;
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _commandProcessor.BeginShutdown();
         _currentSession?.Cancel();
@@ -409,7 +441,7 @@ public sealed class PlaybackCoordinator :
 
         var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
         var speakSpeed = NormalizeSpeakSpeed(request.SpeakSpeedOverride ?? _appSettingsService.Current.DefaultSpeakSpeed);
-        var checkpointNewPosition = request.ChapterIndex is not null || request.SegmentIndex is not null;
+        var checkpointNewPosition = request.ChapterIndex is not null || request.SegmentIndex is not null || resolved.Value.RequiresCheckpoint;
 
         if (selectedProvider is null)
         {
@@ -465,7 +497,7 @@ public sealed class PlaybackCoordinator :
 
         var speakSpeed = NormalizeSpeakSpeed(request.SpeakSpeedOverride ?? _appSettingsService.Current.DefaultSpeakSpeed);
         var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
-        var checkpointNewPosition = request.ChapterIndex is not null || request.SegmentIndex is not null;
+        var checkpointNewPosition = request.ChapterIndex is not null || request.SegmentIndex is not null || resolved.Value.RequiresCheckpoint;
         await OpenResolvedPositionAsync(
             resolved.Value.Book,
             resolved.Value.ChapterIndex,
@@ -670,6 +702,12 @@ public sealed class PlaybackCoordinator :
         var refreshedBook = await _bookContentService.GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
         if (refreshedBook is null)
         {
+            return;
+        }
+
+        if (refreshedBook.SourceContext != _currentBook.SourceContext)
+        {
+            await DiscardSourceContextAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
@@ -1046,6 +1084,8 @@ public sealed class PlaybackCoordinator :
         bool checkpointNewPosition = false,
         bool pausedCanRetry = false)
     {
+        if (!await _bookContentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false))
+            throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
         _stopTimer.Cancel();
         _commandProcessor.AdvanceEventEpoch();
         var previousSession = _currentSession;
@@ -1105,6 +1145,8 @@ public sealed class PlaybackCoordinator :
                     _audioController.CurrentSnapshot,
                     cancellationToken).ConfigureAwait(false);
             }
+            if (!await _bookContentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false))
+                throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
         }
         catch
         {
@@ -1311,7 +1353,12 @@ public sealed class PlaybackCoordinator :
                 audioRequest,
                 $"{_currentBook.BookTitle} · {chapter.Title}",
                 resumePositionMilliseconds,
-                forceInvalidate),
+                forceInvalidate,
+                async ct =>
+                {
+                    if (!IsSessionCurrent(session.SessionId) || !await _bookContentService.IsCurrentAsync(session.Book, ct).ConfigureAwait(false))
+                        throw new OperationCanceledException("活动来源目录已更新。", ct);
+                }),
             progress =>
             {
                 if (!IsSessionCurrent(session.SessionId) || _currentBook is null || _currentProvider is null)
@@ -1486,6 +1533,8 @@ public sealed class PlaybackCoordinator :
         int? maxCountOverride,
         CancellationToken cancellationToken)
     {
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.CancellationToken);
+        cancellationToken = linkedCancellation.Token;
         if (_currentBook is null || _currentProvider is null)
         {
             return;
@@ -1525,6 +1574,9 @@ public sealed class PlaybackCoordinator :
 
         if (IsSessionCurrent(session.SessionId))
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!await _bookContentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false))
+                throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
             _currentBook = book;
         }
 
@@ -1607,6 +1659,12 @@ public sealed class PlaybackCoordinator :
         PlaybackEventCommand command,
         CancellationToken cancellationToken)
     {
+        if (!_disposed && command.Kind == PlaybackEventCommandKind.SourceCatalogChanged &&
+            command.SessionId is Guid changedSession && IsSessionCurrent(changedSession))
+        {
+            await DiscardSourceContextAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
         if (_disposed ||
             command.SessionId is not Guid sessionId ||
             command.EventEpoch != _commandProcessor.CurrentEventEpoch)
@@ -1619,6 +1677,7 @@ public sealed class PlaybackCoordinator :
             _currentSession?.CancellationToken ?? CancellationToken.None);
         if (_disposed ||
             !IsSessionCurrent(sessionId) ||
+            _currentSession?.CancellationToken.IsCancellationRequested == true ||
             command.EventEpoch != _commandProcessor.CurrentEventEpoch ||
             command.Snapshot is null)
         {
@@ -1626,6 +1685,13 @@ public sealed class PlaybackCoordinator :
         }
 
         var session = _currentSession!;
+        if (command.Kind != PlaybackEventCommandKind.SnapshotChanged &&
+            !await _bookContentService.IsCurrentAsync(session.Book, cancellationToken).ConfigureAwait(false))
+        {
+            await DiscardSourceContextAsync(cancellationToken).ConfigureAwait(false);
+            return;
+        }
+        if (command.EventEpoch != _commandProcessor.CurrentEventEpoch) return;
         if (!IsCurrentLocalAudioEvent(command.Snapshot))
         {
             return;
@@ -1775,7 +1841,8 @@ public sealed class PlaybackCoordinator :
             session.SpeakSpeed,
             snapshot.PositionMilliseconds,
             snapshot.DurationMilliseconds,
-            snapshot.Message,
+            snapshot.Message ?? (snapshot.State == PlaybackState.Paused && _currentSnapshot.State == PlaybackState.Paused
+                ? _currentSnapshot.Message : null),
             snapshot.IsUsingCache,
             false));
     }
@@ -2020,6 +2087,13 @@ public sealed class PlaybackCoordinator :
         ReadingProgressEntry progress,
         CancellationToken cancellationToken)
     {
+        if (book.Chapters.Count == 0) return null;
+        var chapterIndex = Math.Clamp(progress.ChapterIndex, book.Chapters.Min(c => c.ChapterIndex), book.Chapters.Max(c => c.ChapterIndex));
+        progress = progress with
+        {
+            ChapterIndex = chapterIndex,
+            AudioPositionMilliseconds = chapterIndex == progress.ChapterIndex ? progress.AudioPositionMilliseconds : 0
+        };
         book = await EnsureChapterLoadedAsync(book, progress.ChapterIndex, cancellationToken).ConfigureAwait(false);
         var chapter = GetChapter(book, progress.ChapterIndex);
         var restored = PlaybackPositionResolver.ResolveRestoredPosition(book, progress);
@@ -2114,6 +2188,9 @@ public sealed class PlaybackCoordinator :
         }
 
         var loadedChapter = await _bookContentService.GetChapterAsync(book.BookId, chapterIndex, cancellationToken);
+        if (!await _bookContentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false) ||
+            (existing.ChapterId is not null && loadedChapter?.ChapterId != existing.ChapterId))
+            throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
         return ReplaceChapter(
             book,
             loadedChapter ?? PlaybackChapterContent.Failed(existing.ChapterIndex, existing.Title));
@@ -2162,7 +2239,8 @@ public sealed class PlaybackCoordinator :
             refreshedBook.BookId,
             refreshedBook.BookTitle,
             mergedChapters,
-            refreshedBook.BookAuthor);
+            refreshedBook.BookAuthor,
+            refreshedBook.SourceContext);
     }
 
     private void ReplaceProtectedPlaybackFile(string? filePath)
@@ -2179,7 +2257,7 @@ public sealed class PlaybackCoordinator :
         _currentSession?.ReplaceAudioProtection(null);
     }
 
-    private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex, long ResumePositionMilliseconds)?> ResolveBookStartContextAsync(
+    private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex, long ResumePositionMilliseconds, bool RequiresCheckpoint)?> ResolveBookStartContextAsync(
         string bookId,
         int? requestedChapterIndex,
         int? requestedSegmentIndex,
@@ -2193,6 +2271,7 @@ public sealed class PlaybackCoordinator :
             return null;
         }
 
+        var requiresCheckpoint = false;
         var hasExplicitPosition = requestedChapterIndex is not null || requestedSegmentIndex is not null;
         var resumePositionMilliseconds = resumePositionMillisecondsOverride ?? 0;
         (PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex)? startPosition = null;
@@ -2206,6 +2285,10 @@ public sealed class PlaybackCoordinator :
                 if (restoredPosition is not null)
                 {
                     book = restoredPosition.Value.Book;
+                    requiresCheckpoint = savedProgress.ChapterIndex != restoredPosition.Value.ChapterIndex ||
+                        savedProgress.SegmentIndex != restoredPosition.Value.SegmentIndex ||
+                        savedProgress.CharacterOffset != restoredPosition.Value.Chapter.Segments[restoredPosition.Value.SegmentIndex].StartOffset ||
+                        savedProgress.AudioPositionMilliseconds != restoredPosition.Value.ResumePositionMilliseconds;
                     startPosition = (
                         restoredPosition.Value.Book,
                         restoredPosition.Value.Chapter,
@@ -2233,7 +2316,8 @@ public sealed class PlaybackCoordinator :
             startPosition.Value.Chapter,
             startPosition.Value.ChapterIndex,
             startPosition.Value.SegmentIndex,
-            resumePositionMilliseconds);
+            resumePositionMilliseconds,
+            requiresCheckpoint);
     }
 
     private async Task OpenResolvedPositionAsync(
@@ -2357,7 +2441,12 @@ public sealed class PlaybackCoordinator :
     private Task RunSerializedAsync(
         Func<CancellationToken, Task> action,
         CancellationToken cancellationToken) =>
-        _commandProcessor.RunSerializedAsync(action, cancellationToken);
+        _commandProcessor.RunSerializedAsync(async ct =>
+        {
+            if (_currentBook is { } book && !await _bookContentService.IsCurrentAsync(book, ct).ConfigureAwait(false))
+                await DiscardSourceContextAsync(ct).ConfigureAwait(false);
+            await action(ct).ConfigureAwait(false);
+        }, cancellationToken);
 
     private void ScheduleVolumePersistence(double volume)
     {

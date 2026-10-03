@@ -18,7 +18,7 @@ public static class FileStorageRegistration
         services.TryAddSingleton<IUserDocumentFileOperations, LocalUserDocumentFileOperations>();
         services.TryAddSingleton<ITextFileAnalyzer, TextFileAnalyzer>();
         services.TryAddSingleton<IContentHasher, Sha256ContentHasher>();
-        services.TryAddSingleton<IBookContentReader, BookContentReader>();
+        services.TryAddSingleton<ISourceContentReader, SourceContentReader>();
         services.TryAddSingleton<IBookFileStore, BookFileStore>();
         return services;
     }

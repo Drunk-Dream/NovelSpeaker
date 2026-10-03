@@ -241,7 +241,8 @@ internal sealed class PlayerContentController
         string bookId,
         int currentChapterIndex,
         int currentSegmentIndex,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ActiveSourceContext? expectedSourceContext = null)
     {
         if (_loadedBook is not null &&
             string.Equals(_loadedBook.BookId, bookId, StringComparison.Ordinal) &&
@@ -265,6 +266,20 @@ internal sealed class PlayerContentController
             }
 
             return null;
+        }
+
+        if (expectedSourceContext is not null && book.SourceContext != expectedSourceContext)
+        {
+            _bookLoadTarget = null;
+            return null;
+        }
+
+        if (catalog.Count != book.Chapters.Count || (catalog.Count > 0 && catalog[0].SourceContext != book.SourceContext))
+        {
+            // A source commit between the two queries must not mix an old page
+            // catalog with new playback content.
+            catalog = await Task.Run(() => book.Chapters.Select(chapter => new BookChapterSummary(
+                chapter.ChapterIndex, chapter.Title, chapter.ChapterId, book.SourceContext)).ToArray(), cancellationToken);
         }
 
         if (!await ApplyLoadedBookAsync(
@@ -292,6 +307,28 @@ internal sealed class PlayerContentController
 
     public async Task EnsureContentLoadedAsync(PlaybackSnapshot snapshot, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(snapshot.BookId) ||
+            (_loadedBook is { } previous && previous.SourceContext != snapshot.SourceContext && snapshot.BookId == previous.BookId))
+        {
+            InvalidatePendingLoads();
+            _loadedBook = null;
+            _chapterCache.Clear();
+            _loadedChapterIndex = -1;
+            _chapterCatalog = new([], static chapter => chapter.ChapterIndex);
+            _currentChapterDecoration.Clear();
+            _chapterSelectionDecoration.Clear();
+            _cacheDecorations.Clear();
+            _cacheDecorationWindow.Clear();
+            ChapterCatalogVersion++;
+            _lastContentRevision = 0;
+            _chapters.Clear();
+            _segments.Clear();
+            CurrentChapterItem = null;
+            CurrentSegmentItem = null;
+            CurrentChapterSegmentCount = 0;
+            CurrentChapterTitle = "尚未定位章节";
+            UpdateNavigationAvailability(-1, -1);
+        }
         if (string.IsNullOrWhiteSpace(snapshot.BookId) || snapshot.ChapterIndex < 0)
         {
             return;
@@ -301,11 +338,14 @@ internal sealed class PlayerContentController
             snapshot.BookId,
             snapshot.ChapterIndex,
             snapshot.SegmentIndex,
-            cancellationToken);
+            cancellationToken,
+            snapshot.SourceContext);
         if (book is null)
         {
             return;
         }
+
+        if (book.SourceContext != snapshot.SourceContext) return;
 
         var bookLoadVersion = _bookLoadVersion;
         if (!ReferenceEquals(_loadedBook, book))
@@ -390,8 +430,11 @@ internal sealed class PlayerContentController
         }
 
         var loadVersion = ++_chapterLoadVersion;
+        var expectedBook = _loadedBook;
+        var expectedChapter = expectedBook.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex);
         var chapter = await _contentService.GetChapterAsync(bookId, chapterIndex, cancellationToken);
-        if (loadVersion != _chapterLoadVersion || chapter is null)
+        if (loadVersion != _chapterLoadVersion || chapter is null || !ReferenceEquals(_loadedBook, expectedBook) ||
+            (expectedChapter?.ChapterId is not null && chapter.ChapterId != expectedChapter.ChapterId))
         {
             return false;
         }
@@ -461,7 +504,8 @@ internal sealed class PlayerContentController
                     return false;
                 }
 
-                var isDifferentBook = !string.Equals(_loadedBook?.BookId, book.BookId, StringComparison.Ordinal);
+                var isDifferentBook = !string.Equals(_loadedBook?.BookId, book.BookId, StringComparison.Ordinal) ||
+                    _loadedBook?.SourceContext != book.SourceContext;
                 var projectedChapterIndex = initialPositionRevision == _positionRevision
                     ? currentChapterIndex
                     : _latestPositionChapterIndex;

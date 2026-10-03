@@ -27,7 +27,8 @@ public sealed partial class PlaybackCoordinatorTests
         FakeReadingProgressStore? readingProgressStore = null,
         FakePrefetchScheduler? prefetchScheduler = null,
         FakeAppSettingsStore? appSettingsStore = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IBookSourceChangeSource? sourceChanges = null)
     {
         var audioController = new PlaybackAudioController(localCoordinator);
         return new PlaybackCoordinator(
@@ -42,7 +43,8 @@ public sealed partial class PlaybackCoordinatorTests
             new PlaybackProgressController(readingProgressStore ?? new FakeReadingProgressStore()),
             prefetchScheduler ?? new FakePrefetchScheduler(),
             appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default),
-            timeProvider ?? TimeProvider.System);
+            timeProvider ?? TimeProvider.System,
+            sourceChanges: sourceChanges);
     }
 
     private static PlaybackBookContent CreateBook()
@@ -208,6 +210,14 @@ public sealed partial class PlaybackCoordinatorTests
 
         public PlaybackBookContent Book { get; set; }
 
+        public TaskCompletionSource? CurrentContextGate { get; set; }
+
+        public async Task<bool> IsCurrentAsync(PlaybackBookContent book, CancellationToken cancellationToken)
+        {
+            if (CurrentContextGate is { } gate) await gate.Task.WaitAsync(cancellationToken);
+            return book.BookId == Book.BookId && book.SourceContext == Book.SourceContext;
+        }
+
         public Dictionary<int, int> GetChapterCallCounts { get; } = [];
 
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -221,9 +231,10 @@ public sealed partial class PlaybackCoordinatorTests
                 Book.BookId,
                 Book.BookTitle,
                 Book.Chapters
-                    .Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title))
+                    .Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title, chapter.ChapterId))
                     .ToArray(),
-                Book.BookAuthor);
+                Book.BookAuthor,
+                Book.SourceContext);
             return Task.FromResult<PlaybackBookContent?>(metadataOnly);
         }
 

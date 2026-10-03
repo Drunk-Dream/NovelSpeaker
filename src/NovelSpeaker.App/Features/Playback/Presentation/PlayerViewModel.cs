@@ -1149,11 +1149,6 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         var previousSnapshot = _lastAppliedSnapshot;
         ApplySnapshot(snapshot);
 
-        if (string.IsNullOrWhiteSpace(snapshot.BookId))
-        {
-            return;
-        }
-
         try
         {
             await EnsureContentLoadedForSnapshotAsync(

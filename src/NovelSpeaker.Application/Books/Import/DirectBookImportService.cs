@@ -7,7 +7,7 @@ namespace NovelSpeaker.Application.Books.Import;
 /// <summary>
 /// Coordinates one direct TXT import through file, persistence, and chapter-rule ports.
 /// </summary>
-public sealed class DirectBookImportService : IDirectBookImportService
+public sealed class DirectBookImportService : IDirectBookImportService, IBookSourceChangeSource
 {
     private static readonly IReadOnlyList<string> SupportedEncodings = ["utf-8", "utf-16le", "utf-16be", "gb18030"];
 
@@ -26,6 +26,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
     private readonly TimeProvider _timeProvider;
     private readonly IBookImportIdGenerator _idGenerator;
     private readonly SemaphoreSlim _imports = new(1, 1);
+    public event EventHandler<BookSourceCatalogChanged>? CatalogChanged;
 
     public DirectBookImportService(
         ITextFileAnalyzer textFileAnalyzer,
@@ -243,6 +244,16 @@ public sealed class DirectBookImportService : IDirectBookImportService
 
         try
         {
+            if (target?.Book.ActiveSourceId == sourceId)
+            {
+                // Observers cannot turn a durable import into a business failure.
+                foreach (EventHandler<BookSourceCatalogChanged> handler in CatalogChanged?.GetInvocationList() ?? [])
+                {
+                    try { handler(this, new BookSourceCatalogChanged(bookId, sourceId, chapterEntities[0].Id)); }
+                    catch { }
+                }
+            }
+
             if (target?.LocalSource is { } oldSource)
             {
                 await _bookFileStore.CleanupAsync(new BookFileCopyHandle(oldSource.StoredContentPath,

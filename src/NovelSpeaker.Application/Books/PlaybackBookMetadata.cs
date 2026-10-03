@@ -7,7 +7,8 @@ public sealed record PlaybackBookMetadata(
     string BookId,
     string Title,
     string? Author,
-    IReadOnlyList<PlaybackChapterSummaryMetadata> Chapters);
+    IReadOnlyList<PlaybackChapterSummaryMetadata> Chapters,
+    ActiveSourceContext? SourceContext = null);
 
 /// <summary>
 /// Book identity metadata used when a caller already owns the chapter catalog.
@@ -15,22 +16,23 @@ public sealed record PlaybackBookMetadata(
 public sealed record PlaybackBookHeader(
     string BookId,
     string Title,
-    string? Author);
+    string? Author,
+    ActiveSourceContext? SourceContext = null);
 
 /// <summary>
 /// Chapter metadata used by book-level playback navigation.
 /// </summary>
 public sealed record PlaybackChapterSummaryMetadata(
     int ChapterIndex,
-    string Title);
+    string Title,
+    string? ChapterId = null);
 
 /// <summary>
-/// Persisted chapter metadata. Text remains owned by the book content store.
+/// Source catalog entry. Storage paths and typed content ranges remain in Infrastructure.
 /// </summary>
 public sealed record PlaybackChapterMetadata(
     int ChapterIndex,
     string Title,
-    string StoredFilePath,
-    int StartOffset,
-    int Length,
-    string? ChapterId = null);
+    string SourceId,
+    string ChapterId,
+    ActiveSourceContext? SourceContext = null);

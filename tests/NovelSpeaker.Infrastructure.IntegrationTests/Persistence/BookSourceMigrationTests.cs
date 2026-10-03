@@ -2,6 +2,8 @@ using System.Globalization;
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
+using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.TestKit.Common;
 using Xunit;
 
@@ -9,6 +11,24 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 
 public sealed class BookSourceMigrationTests
 {
+    [Fact]
+    public async Task Migrated_local_book_reads_active_catalog_and_internal_content_after_restart()
+    {
+        using var directory = new TemporaryDirectory();
+        var factory = await CreateVersion11FixtureAsync(directory.Path);
+        var path = Path.Combine(directory.Path, "Books", "book-a", "content.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, new string('前', 12) + new string('文', 34));
+        await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
+        var restartedFactory = await CreateFactoryAsync(directory.Path);
+        var metadata = await new SqliteBookPlaybackMetadataQuery(restartedFactory).GetBookAsync("book-a", CancellationToken.None);
+        Assert.Equal("local:book-a", metadata!.SourceContext!.SourceId);
+        Assert.Equal("chapter-a", Assert.Single(metadata.Chapters).ChapterId);
+        var reader = new SourceContentReader(new AppStoragePathResolver(new AppDataDirectoryProvider(directory.Path)), restartedFactory);
+        Assert.Equal(new string('文', 34), await reader.ReadChapterTextAsync(metadata.SourceContext.SourceId, "chapter-a", CancellationToken.None));
+        Assert.Equal(2, (await new SqliteReadingProgressStore(restartedFactory).GetAsync("book-a", CancellationToken.None))!.SegmentIndex);
+    }
+
     private static readonly string[] PreservedTables =
     [
         "ReadingProgress", "ChapterSpeechPlans", "ChapterSpeechPlanSegments",

@@ -277,6 +277,43 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task Duration_pause_checkpoint_failure_preserves_queued_audio_completion()
+    {
+        var clock = new ManualTimeProvider();
+        var audio = new FakeLocalAudioPlaybackCoordinator();
+        var pauseCheckpoint = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var progress = new FakeReadingProgressStore { SaveGate = pauseCheckpoint, SaveGateCall = 1 };
+        var content = new FakeBookPlaybackContentService(CreateTwoChapterBook());
+        await using var coordinator = CreateCoordinator(audio, bookContentService: content, readingProgressStore: progress, timeProvider: clock);
+        var terminalCheck = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var timerFailure = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.SnapshotChanged += (_, snapshot) =>
+        {
+            if (snapshot.Message == "定时停止执行失败，请重新设置。") timerFailure.TrySetResult();
+        };
+        try
+        {
+            await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+            ((IPlaybackStopTimer)coordinator).ScheduleAfter(TimeSpan.FromMinutes(1));
+            clock.Advance(TimeSpan.FromMinutes(1));
+            await progress.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // Keep completion validation pending until the timer has projected its failure.
+            content.CurrentContextGate = terminalCheck;
+            audio.RaiseCompleted();
+            pauseCheckpoint.TrySetException(new InvalidOperationException("checkpoint-failure"));
+            await timerFailure.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            terminalCheck.TrySetResult();
+            await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ChapterIndex == 1 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+            Assert.Equal(1, audio.LastStartedRequest!.ChapterIndex);
+        }
+        finally
+        {
+            pauseCheckpoint.TrySetResult(null);
+            terminalCheck.TrySetResult();
+        }
+    }
+
+    [Fact]
     public async Task Duration_pause_failure_publishes_only_safe_timer_message()
     {
         var timeProvider = new ManualTimeProvider();

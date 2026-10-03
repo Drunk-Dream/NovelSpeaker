@@ -21,7 +21,9 @@ public static class BooksRegistration
         services.TryAddSingleton<ITextNormalizer, TextNormalizer>();
         services.TryAddSingleton<IChapterSplitter, ChapterSplitter>();
         services.TryAddSingleton<IBookImportIdGenerator, BookImportIdGenerator>();
-        services.TryAddSingleton<IDirectBookImportService, DirectBookImportService>();
+        services.TryAddSingleton<DirectBookImportService>();
+        services.TryAddSingleton<IDirectBookImportService>(provider => provider.GetRequiredService<DirectBookImportService>());
+        services.TryAddSingleton<IBookSourceChangeSource>(provider => provider.GetRequiredService<DirectBookImportService>());
         services.TryAddSingleton<IBookDeletionService, BookDeletionService>();
         services.TryAddSingleton<IChapterRuleWorkspaceService, ChapterRuleWorkspaceService>();
         services.TryAddSingleton<IRegexReplacementRuleErrorStore, RegexReplacementRuleErrorStore>();
