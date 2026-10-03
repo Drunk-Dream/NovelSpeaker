@@ -12,7 +12,6 @@ public static class BooksRegistration
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.TryAddSingleton<IBookDuplicateDetector, BookDuplicateDetector>();
         services.TryAddSingleton<IBookTextExportService, NovelSpeaker.Infrastructure.Books.FileStorage.BookTextExportService>();
         services.TryAddSingleton<IBookPlaybackMetadataQuery, SqliteBookPlaybackMetadataQuery>();
         return services;

@@ -1227,7 +1227,6 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
     {
         var message = failureReason switch
         {
-            BookImportFailureReason.DuplicateBook => "该小说已经导入",
             BookImportFailureReason.NoValidChapters => "章节解析失败，请检查文件内容。",
             BookImportFailureReason.UnsupportedEncoding => "无法识别编码，请手动选择。",
             BookImportFailureReason.FileReadFailed => "文件无法读取，请确认文件仍可访问。",

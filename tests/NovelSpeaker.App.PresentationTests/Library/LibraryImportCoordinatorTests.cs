@@ -7,6 +7,38 @@ namespace NovelSpeaker.App.PresentationTests.Library;
 
 public sealed class LibraryImportCoordinatorTests
 {
+    [Theory]
+    [InlineData("b", false)]
+    [InlineData(null, true)]
+    [InlineData(null, false)]
+    public async Task ImportAsync_closes_progress_before_book_selection_and_preserves_the_choice(string? bookId, bool createNew)
+    {
+        var service = new FakeDirectBookImportService();
+        service.Results.Enqueue(new DirectBookImportResult(DirectBookImportStatus.RequiresBookSelection,
+            BookCandidates: [new("a", "Fixture", null, DateTimeOffset.UnixEpoch, null), new("b", "Fixture", null, DateTimeOffset.UnixEpoch, null)]));
+        service.Results.Enqueue(new DirectBookImportResult(DirectBookImportStatus.Imported));
+        var progress = new FakeImportProgressDialogService();
+        var selection = new FakeBookSelectionDialog
+        {
+            Selection = bookId is null && !createNew ? null : new BookImportSelection(bookId, createNew),
+            OnShow = () => Assert.False(progress.IsOpen)
+        };
+        var coordinator = new LibraryImportCoordinator(service, new FakeEncodingSelectionDialogService(), progress,
+            FakeUserDocumentFileOperations.ForFile("demo.txt", 6 * 1024 * 1024), selection);
+        var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
+        if (selection.Selection is null)
+        {
+            Assert.Equal(LibraryImportCoordinatorStatus.Cancelled, result.Status);
+            Assert.Single(service.Requests);
+        }
+        else
+        {
+            Assert.Equal(LibraryImportCoordinatorStatus.Imported, result.Status);
+            Assert.Equal(bookId, service.Requests[1].TargetBookId);
+            Assert.Equal(createNew, service.Requests[1].CreateNewBook);
+        }
+    }
+
     [Fact]
     public async Task ImportAsync_prompts_for_encoding_and_retries_until_import_succeeds()
     {
@@ -31,7 +63,7 @@ public sealed class LibraryImportCoordinatorTests
             directImportService,
             encodingDialog,
             new FakeImportProgressDialogService(),
-            FakeUserDocumentFileOperations.ForFile("demo.txt", 256));
+            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), new FakeBookSelectionDialog());
 
         var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
@@ -56,7 +88,7 @@ public sealed class LibraryImportCoordinatorTests
             directImportService,
             new FakeEncodingSelectionDialogService(),
             new FakeImportProgressDialogService(),
-            FakeUserDocumentFileOperations.ForFile("demo.txt", 256));
+            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), new FakeBookSelectionDialog());
 
         var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
@@ -79,7 +111,7 @@ public sealed class LibraryImportCoordinatorTests
             directImportService,
             new FakeEncodingSelectionDialogService(),
             progressDialog,
-            FakeUserDocumentFileOperations.ForFile("demo.txt", fileSize));
+            FakeUserDocumentFileOperations.ForFile("demo.txt", fileSize), new FakeBookSelectionDialog());
 
         var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
@@ -105,7 +137,7 @@ public sealed class LibraryImportCoordinatorTests
                 directImportService,
                 new FakeEncodingSelectionDialogService(),
                 new FakeImportProgressDialogService(),
-                fileOperations);
+                fileOperations, new FakeBookSelectionDialog());
 
             var result = await coordinator.ImportAsync(filePath, CancellationToken.None);
 
@@ -123,7 +155,7 @@ public sealed class LibraryImportCoordinatorTests
             new FakeDirectBookImportService(),
             new FakeEncodingSelectionDialogService(),
             new FakeImportProgressDialogService(),
-            FakeUserDocumentFileOperations.ForFile("demo.txt", 256));
+            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), new FakeBookSelectionDialog());
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => coordinator.ImportAsync("demo.txt", cancellation.Token));
@@ -145,6 +177,17 @@ public sealed class LibraryImportCoordinatorTests
         }
     }
 
+    private sealed class FakeBookSelectionDialog : IBookImportSelectionDialogService
+    {
+        public BookImportSelection? Selection { get; init; }
+        public Action? OnShow { get; init; }
+        public Task<BookImportSelection?> ShowAsync(IReadOnlyList<BookImportCandidate> candidates, CancellationToken cancellationToken)
+        {
+            OnShow?.Invoke();
+            return Task.FromResult(Selection);
+        }
+    }
+
     private sealed class FakeEncodingSelectionDialogService : IEncodingSelectionDialogService
     {
         public string? NextEncoding { get; set; }
@@ -160,15 +203,24 @@ public sealed class LibraryImportCoordinatorTests
         public bool WasInvoked { get; private set; }
 
         public string? FileName { get; private set; }
+        public bool IsOpen { get; private set; }
 
-        public Task<LibraryImportCoordinatorResult> RunAsync(
+        public async Task<LibraryImportCoordinatorResult> RunAsync(
             string fileName,
             Func<IProgress<BookImportProgress>, CancellationToken, Task<LibraryImportCoordinatorResult>> operation,
             CancellationToken cancellationToken)
         {
             WasInvoked = true;
             FileName = fileName;
-            return operation(new Progress<BookImportProgress>(), cancellationToken);
+            IsOpen = true;
+            try
+            {
+                return await operation(new Progress<BookImportProgress>(), cancellationToken);
+            }
+            finally
+            {
+                IsOpen = false;
+            }
         }
     }
 

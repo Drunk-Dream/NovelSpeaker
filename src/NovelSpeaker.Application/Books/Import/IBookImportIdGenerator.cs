@@ -7,6 +7,8 @@ public interface IBookImportIdGenerator
 {
     string CreateBookId();
 
+    string CreateSourceId();
+
     string CreateChapterId();
 
     string CreateOperationId();

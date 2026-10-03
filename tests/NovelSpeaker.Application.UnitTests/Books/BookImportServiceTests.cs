@@ -11,19 +11,68 @@ namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class BookImportServiceTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportAsync_requires_explicit_choice_for_multiple_candidates(bool createNew)
+    {
+        var candidates = new[]
+        {
+            new BookImportCandidate("a", "demo", null, DateTimeOffset.UnixEpoch, null),
+            new BookImportCandidate("b", "demo", null, DateTimeOffset.UnixEpoch, null)
+        };
+        var repository = new CapturingBookImportRepository { Candidates = candidates, Target = ExistingTarget("b") };
+        var fileStore = new FakeBookFileStore();
+        var service = CreateService(repository: repository, fileStore: fileStore);
+        var unresolved = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None);
+        Assert.Equal(DirectBookImportStatus.RequiresBookSelection, unresolved.Status);
+        Assert.Equal(candidates, unresolved.BookCandidates);
+        Assert.Null(repository.SavedSnapshot);
+        Assert.Null(fileStore.LastNormalizedText);
+
+        var resolved = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt",
+            TargetBookId: createNew ? null : "b", CreateNewBook: createNew), null, CancellationToken.None);
+        Assert.Equal(DirectBookImportStatus.Imported, resolved.Status);
+        Assert.Equal(createNew ? "book-id" : "b", resolved.ImportedBook?.BookId);
+        Assert.Equal(createNew, repository.SavedSnapshot?.IsNewBook);
+    }
+
     [Fact]
-    public async Task ImportAsync_returns_duplicate_failure_when_hash_already_exists()
+    public async Task ImportAsync_matches_blank_author_and_reuses_the_existing_local_source()
+    {
+        var repository = new CapturingBookImportRepository
+        {
+            Candidates = [new BookImportCandidate("existing", "demo", null, DateTimeOffset.UnixEpoch, null)],
+            Target = ExistingTarget("existing")
+        };
+        var service = CreateService(repository: repository);
+        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None);
+        Assert.Equal("existing", result.ImportedBook?.BookId);
+        Assert.True(string.IsNullOrEmpty(repository.MatchedAuthor));
+        Assert.Equal("existing-source", repository.SavedSnapshot?.Source.Id);
+        Assert.Equal("Books/existing/content.txt", repository.SavedSnapshot?.ExpectedContentPath);
+        Assert.All(repository.SavedSnapshot!.Catalog, chapter => Assert.Equal("existing-source", chapter.SourceId));
+    }
+
+    private static LocalSourceImportTarget ExistingTarget(string id)
+    {
+        var now = DateTimeOffset.UnixEpoch;
+        return new LocalSourceImportTarget(new Book(id, "demo", null, "existing-source", now, null, now),
+            new BookSource("existing-source", id, SourceType.Local, "demo", null, "old description", now, now),
+            new LocalBookSource("existing-source", "demo.txt", $"Books/{id}/content.txt", "old-hash", "utf-8", now, now));
+    }
+
+    [Fact]
+    public async Task ImportAsync_creates_a_book_without_using_hash_as_identity()
     {
         var service = CreateService(
             analyzer: new FakeTextFileAnalyzer(CreateAnalysis("utf-8")),
             hasher: new FakeContentHasher("same-hash"),
-            duplicates: new FakeDuplicateDetector("book-42"),
             splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "第一章 开始", 6, 2)]));
 
         var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, CancellationToken.None);
 
-        Assert.Equal(DirectBookImportStatus.Failed, result.Status);
-        Assert.Equal(BookImportFailureReason.DuplicateBook, result.FailureReason);
+        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
     }
 
     [Fact]
@@ -77,7 +126,7 @@ public sealed class BookImportServiceTests
         Assert.Equal("utf-16le", analyzer.LastRequest?.EncodingOverride);
         Assert.Equal(DirectBookImportStatus.Imported, result.Status);
         Assert.NotNull(repository.SavedBook);
-        Assert.Equal("utf-16le", repository.SavedBook!.Encoding);
+        Assert.Equal("utf-16le", repository.SavedSnapshot!.LocalSource.Encoding);
     }
 
     [Fact]
@@ -139,7 +188,7 @@ public sealed class BookImportServiceTests
     }
 
     [Fact]
-    public async Task ImportAsync_cleans_up_staged_file_without_finalizing_when_repository_save_fails()
+    public async Task ImportAsync_removes_the_new_snapshot_when_repository_save_fails()
     {
         var fileStore = new FakeBookFileStore();
         var service = CreateService(
@@ -150,14 +199,14 @@ public sealed class BookImportServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, CancellationToken.None));
 
-        Assert.False(fileStore.FinalizeCalled);
+        Assert.True(fileStore.FinalizeCalled);
         Assert.True(fileStore.CleanupCalled);
         Assert.True(fileStore.CleanupIncludedFinalFile);
         Assert.False(fileStore.CleanupCancellationToken.CanBeCanceled);
     }
 
     [Fact]
-    public async Task ImportAsync_leaves_database_committed_import_for_recovery_when_finalize_fails()
+    public async Task ImportAsync_does_not_commit_when_finalize_fails()
     {
         var fileStore = new FakeBookFileStore
         {
@@ -177,8 +226,8 @@ public sealed class BookImportServiceTests
         Assert.Equal(DirectBookImportStatus.Failed, result.Status);
         Assert.Equal(BookImportFailureReason.FileReadFailed, result.FailureReason);
         Assert.True(fileStore.FinalizeCalled);
-        Assert.False(fileStore.CleanupCalled);
-        Assert.NotNull(repository.SavedBook);
+        Assert.True(fileStore.CleanupCalled);
+        Assert.Null(repository.SavedBook);
     }
 
     [Fact]
@@ -204,12 +253,12 @@ public sealed class BookImportServiceTests
         Assert.Equal("book-fixed", result.ImportedBook?.BookId);
         Assert.Equal(now, repository.SavedBook?.ImportedAt);
         Assert.Equal(now, repository.SavedBook?.UpdatedAt);
-        Assert.Equal(now, repository.SavedBook?.LastImportedAt);
+        Assert.Equal(now, repository.SavedSnapshot?.LocalSource.LastImportedAt);
         Assert.Equal(["chapter-1", "chapter-2"], repository.SavedChapters?.Select(chapter => chapter.Id));
     }
 
     [Fact]
-    public async Task ImportAsync_persists_staged_database_committed_and_completed_phases_in_order()
+    public async Task ImportAsync_completes_the_journal_after_snapshot_commit()
     {
         var journal = new FakeBookOperationJournal();
         var service = CreateService(journal: journal);
@@ -222,26 +271,25 @@ public sealed class BookImportServiceTests
         Assert.Equal(DirectBookImportStatus.Imported, result.Status);
         Assert.NotNull(journal.CreatedOperation);
         Assert.Equal(BookOperationPhase.Staged, journal.CreatedOperation!.Phase);
-        Assert.Equal(
-            [BookOperationPhase.DatabaseCommitted, BookOperationPhase.Completed],
-            journal.Phases);
+        Assert.Contains(BookOperationPhase.Completed, journal.Phases);
     }
 
     [Fact]
-    public async Task ImportAsync_does_not_remove_files_after_database_commit_when_phase_update_fails()
+    public async Task ImportAsync_reports_success_and_leaves_recovery_intent_when_completion_recording_fails()
     {
         var fileStore = new FakeBookFileStore();
-        var journal = new FakeBookOperationJournal { FailOnPhase = BookOperationPhase.DatabaseCommitted };
+        var journal = new FakeBookOperationJournal { FailOnPhase = BookOperationPhase.Completed };
         var repository = new CapturingBookImportRepository();
         var service = CreateService(fileStore: fileStore, repository: repository, journal: journal);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportAsync(
+        var result = await service.ImportAsync(
             new DirectBookImportRequest("demo.txt", null, "demo.txt"),
             progress: null,
-            CancellationToken.None));
+            CancellationToken.None);
 
+        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
         Assert.NotNull(repository.SavedBook);
-        Assert.False(fileStore.FinalizeCalled);
+        Assert.True(fileStore.FinalizeCalled);
         Assert.False(fileStore.CleanupCalled);
     }
 
@@ -269,7 +317,7 @@ public sealed class BookImportServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), progress: null, cancellation.Token));
 
-        Assert.False(fileStore.FinalizeCalled);
+        Assert.True(fileStore.FinalizeCalled);
         Assert.True(fileStore.CleanupCalled);
         Assert.True(fileStore.CleanupIncludedFinalFile);
         Assert.False(fileStore.CleanupCancellationToken.CanBeCanceled);
@@ -279,7 +327,6 @@ public sealed class BookImportServiceTests
         ITextFileAnalyzer? analyzer = null,
         FakeTextNormalizer? normalizer = null,
         FakeContentHasher? hasher = null,
-        FakeDuplicateDetector? duplicates = null,
         FakeChapterRuleRepository? rules = null,
         IChapterSplitter? splitter = null,
         FakeBookFileStore? fileStore = null,
@@ -295,7 +342,6 @@ public sealed class BookImportServiceTests
             analyzer ?? new FakeTextFileAnalyzer(CreateAnalysis("utf-8")),
             normalizer ?? new FakeTextNormalizer("第一章 开始\n正文"),
             hasher ?? new FakeContentHasher("hash"),
-            duplicates ?? new FakeDuplicateDetector(null),
             rules ?? new FakeChapterRuleRepository([]),
             splitter ?? new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]),
             fileStore ?? new FakeBookFileStore(),
@@ -350,6 +396,8 @@ public sealed class BookImportServiceTests
         private readonly Queue<string> _ids = new(ids);
 
         public string CreateBookId() => _ids.Dequeue();
+
+        public string CreateSourceId() => "local-source-id";
 
         public string CreateChapterId() => _ids.Dequeue();
 
@@ -407,21 +455,6 @@ public sealed class BookImportServiceTests
         }
     }
 
-    private sealed class FakeDuplicateDetector : IBookDuplicateDetector
-    {
-        private readonly string? _existingId;
-
-        public FakeDuplicateDetector(string? existingId)
-        {
-            _existingId = existingId;
-        }
-
-        public Task<string?> FindExistingBookIdAsync(string sourceHash, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(_existingId);
-        }
-    }
-
     private sealed class FakeChapterRuleRepository : IChapterRuleRepository
     {
         private readonly IReadOnlyList<ChapterRule> _rules;
@@ -473,7 +506,8 @@ public sealed class BookImportServiceTests
             CancellationToken cancellationToken)
         {
             LastNormalizedText = normalizedText;
-            return Task.FromResult(new BookFileCopyHandle($"Books/{bookId}/content.txt", $"Books/{bookId}/content.txt.tmp"));
+            var path = $"Books/{bookId}/content-{Guid.NewGuid():N}.txt";
+            return Task.FromResult(new BookFileCopyHandle(path, path + ".tmp"));
         }
 
         public Task FinalizeAsync(BookFileCopyHandle copyHandle, CancellationToken cancellationToken)
@@ -499,9 +533,18 @@ public sealed class BookImportServiceTests
         }
     }
 
-    private sealed class FakeBookImportRepository : IBookImportRepository
+    private class FakeBookImportRepository : IBookImportRepository
     {
-        public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken) => Task.CompletedTask;
+        public IReadOnlyList<BookImportCandidate> Candidates { get; init; } = [];
+        public LocalSourceImportTarget? Target { get; init; }
+        public string? MatchedAuthor { get; private set; }
+        public Task<IReadOnlyList<BookImportCandidate>> FindCandidatesAsync(string title, string? author, CancellationToken cancellationToken)
+        {
+            MatchedAuthor = author;
+            return Task.FromResult(Candidates);
+        }
+        public Task<LocalSourceImportTarget?> GetTargetAsync(string bookId, CancellationToken cancellationToken) => Task.FromResult(Target);
+        public virtual Task SaveAsync(LocalSourceImportSnapshot snapshot, string operationId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeBookOperationJournal : IBookOperationJournal
@@ -533,17 +576,17 @@ public sealed class BookImportServiceTests
             Task.FromResult<IReadOnlyList<BookOperationRecord>>([]);
     }
 
-    private sealed class ThrowingBookImportRepository : IBookImportRepository
+    private sealed class ThrowingBookImportRepository : FakeBookImportRepository
     {
-        public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken)
+        public override Task SaveAsync(LocalSourceImportSnapshot snapshot, string operationId, CancellationToken cancellationToken)
         {
             throw new InvalidOperationException("save failed");
         }
     }
 
-    private sealed class CancelingBookImportRepository(CancellationTokenSource cancellation) : IBookImportRepository
+    private sealed class CancelingBookImportRepository(CancellationTokenSource cancellation) : FakeBookImportRepository
     {
-        public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken)
+        public override Task SaveAsync(LocalSourceImportSnapshot snapshot, string operationId, CancellationToken cancellationToken)
         {
             cancellation.Cancel();
             return Task.FromCanceled(cancellationToken);
@@ -573,16 +616,16 @@ public sealed class BookImportServiceTests
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) => Task.FromResult(settings);
     }
 
-    private sealed class CapturingBookImportRepository : IBookImportRepository
+    private sealed class CapturingBookImportRepository : FakeBookImportRepository
     {
-        public Book? SavedBook { get; private set; }
+        public Book? SavedBook => SavedSnapshot?.Book;
 
-        public IReadOnlyList<Chapter>? SavedChapters { get; private set; }
+        public IReadOnlyList<Chapter>? SavedChapters => SavedSnapshot?.Catalog;
+        public LocalSourceImportSnapshot? SavedSnapshot { get; private set; }
 
-        public Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken)
+        public override Task SaveAsync(LocalSourceImportSnapshot snapshot, string operationId, CancellationToken cancellationToken)
         {
-            SavedBook = book;
-            SavedChapters = chapters;
+            SavedSnapshot = snapshot;
             return Task.CompletedTask;
         }
     }

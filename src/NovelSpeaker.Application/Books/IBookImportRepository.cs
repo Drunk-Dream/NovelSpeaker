@@ -1,11 +1,11 @@
-using NovelSpeaker.Domain.Books;
-
 namespace NovelSpeaker.Application.Books;
 
 /// <summary>
-/// Commits an imported book and all of its chapters as one persistence operation.
+/// Resolves book candidates and atomically commits a complete local source snapshot.
 /// </summary>
 public interface IBookImportRepository
 {
-    Task SaveAsync(Book book, IReadOnlyList<Chapter> chapters, CancellationToken cancellationToken);
+    Task<IReadOnlyList<BookImportCandidate>> FindCandidatesAsync(string title, string? author, CancellationToken cancellationToken);
+    Task<LocalSourceImportTarget?> GetTargetAsync(string bookId, CancellationToken cancellationToken);
+    Task SaveAsync(LocalSourceImportSnapshot snapshot, string operationId, CancellationToken cancellationToken);
 }

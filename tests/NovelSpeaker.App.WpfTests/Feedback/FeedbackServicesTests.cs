@@ -14,6 +14,54 @@ namespace NovelSpeaker.App.WpfTests.Feedback;
 [Collection("WpfDispatcher")]
 public sealed class FeedbackServicesTests
 {
+    [Theory]
+    [InlineData(ContentDialogResult.Primary)]
+    [InlineData(ContentDialogResult.Secondary)]
+    [InlineData(ContentDialogResult.None)]
+    public void Book_selection_requires_explicit_choice_and_supports_new_book_and_cancel(ContentDialogResult response)
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var dialogs = new FakeContentDialogService
+            {
+                NextResult = response,
+                OnShow = dialog =>
+                {
+                    static IEnumerable<DependencyObject> Descendants(DependencyObject node)
+                    {
+                        yield return node;
+                        foreach (var child in LogicalTreeHelper.GetChildren(node).OfType<DependencyObject>())
+                        {
+                            foreach (var descendant in Descendants(child))
+                            {
+                                yield return descendant;
+                            }
+                        }
+                    }
+
+                    var choices = Assert.Single(Descendants(dialog).OfType<ComboBox>());
+                    Assert.Null(choices.SelectedItem);
+                    Assert.False(dialog.IsPrimaryButtonEnabled);
+                    if (response == ContentDialogResult.Primary)
+                    {
+                        choices.SelectedIndex = 1;
+                        Assert.True(dialog.IsPrimaryButtonEnabled);
+                    }
+                }
+            };
+            var service = new BookImportSelectionDialogService(dialogs);
+            var result = service.ShowAsync(
+                [new("a", "Fixture", null, DateTimeOffset.UnixEpoch, null), new("b", "Fixture", null, DateTimeOffset.UnixEpoch, null)],
+                CancellationToken.None).GetAwaiter().GetResult();
+            Assert.Equal(response switch
+            {
+                ContentDialogResult.Primary => new BookImportSelection("b", false),
+                ContentDialogResult.Secondary => new BookImportSelection(null, true),
+                _ => null
+            }, result);
+        });
+    }
+
     private void AppDialogService_maps_confirmation_and_unsaved_changes_results()
     {
         WpfTestHost.RunInSta(() =>

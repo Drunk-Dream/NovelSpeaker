@@ -632,14 +632,14 @@ public sealed partial class LibraryViewModelTests
         Assert.Single(importCoordinator.Requests);
     }
 
-    private async Task ImportFilesAsync_shows_duplicate_warning_without_refreshing_books()
+    private async Task ImportFilesAsync_shows_invalid_chapters_warning_without_refreshing_books()
     {
         var feedback = new FakeFeedbackService();
         var importCoordinator = new FakeLibraryImportCoordinator
         {
             NextResult = new LibraryImportCoordinatorResult(
                 LibraryImportCoordinatorStatus.Failed,
-                BookImportFailureReason.DuplicateBook)
+                BookImportFailureReason.NoValidChapters)
         };
         var catalogService = new FakeBookCatalogService([]);
         var viewModel = CreateViewModel(
@@ -650,7 +650,7 @@ public sealed partial class LibraryViewModelTests
         await viewModel.ImportFilesAsync([CreateTempTxtFile()], CancellationToken.None);
 
         Assert.Equal("无法导入", feedback.LastTitle);
-        Assert.Equal("该小说已经导入", feedback.LastMessage);
+        Assert.Equal("章节解析失败，请检查文件内容。", feedback.LastMessage);
         Assert.Equal(UiMessageSeverity.Warning, Assert.Single(feedback.Notifications).Severity);
         Assert.Empty(viewModel.Books);
     }
@@ -766,7 +766,7 @@ public sealed partial class LibraryViewModelTests
     public async Task Library_import_contracts_cover_refresh_warnings_cancellation_and_inputs()
     {
         await ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported();
-        await ImportFilesAsync_shows_duplicate_warning_without_refreshing_books();
+        await ImportFilesAsync_shows_invalid_chapters_warning_without_refreshing_books();
         await ImportFilesAsync_cancels_previous_inflight_import_when_new_request_starts();
         await ImportFilesAsync_rejects_invalid_inputs();
         await ImportFilesAsync_projects_invalid_source_reported_by_coordinator();

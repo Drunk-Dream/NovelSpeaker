@@ -7,4 +7,5 @@ public sealed record DirectBookImportResult(
     DirectBookImportStatus Status,
     BookImportResult? ImportedBook = null,
     EncodingSelectionPrompt? EncodingSelectionPrompt = null,
-    BookImportFailureReason? FailureReason = null);
+    BookImportFailureReason? FailureReason = null,
+    IReadOnlyList<BookImportCandidate>? BookCandidates = null);

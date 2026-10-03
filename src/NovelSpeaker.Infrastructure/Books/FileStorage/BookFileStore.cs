@@ -29,10 +29,18 @@ public sealed class BookFileStore : IBookFileStore
         var directory = _pathResolver.ResolvePath(Path.Combine(_directories.BooksDirectoryPath, bookId));
         Directory.CreateDirectory(directory);
 
-        var finalPath = _pathResolver.ResolvePath(Path.Combine(directory, "content.txt"));
-        var temporaryPath = _pathResolver.ResolvePath(Path.Combine(directory, "content.txt.tmp"));
+        var finalPath = _pathResolver.ResolvePath(Path.Combine(directory, $"content-{Guid.NewGuid():N}.txt"));
+        var temporaryPath = finalPath + ".tmp";
 
-        await File.WriteAllTextAsync(temporaryPath, normalizedText, Utf8WithoutBom, cancellationToken);
+        try
+        {
+            await File.WriteAllTextAsync(temporaryPath, normalizedText, Utf8WithoutBom, cancellationToken);
+        }
+        catch
+        {
+            File.Delete(temporaryPath);
+            throw;
+        }
         var encodedLength = Utf8WithoutBom.GetByteCount(normalizedText);
         progress?.Report(new BookImportProgress(
             BookImportPhase.WritingContentFile,
