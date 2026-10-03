@@ -43,11 +43,13 @@
 
 完成成果：在现有 active-slot 锁内完成 CTS 取消与状态转换；受控替换竞态用例、focused tests、格式检查与 Release build 通过。
 
-## [ ] T019（P2）：确认并收敛 Playback 替换提交边界
+## [x] T019（P2）：确认并收敛 Playback 替换提交边界
 
 目标：验证目标 checkpoint 成功后、目标音频准备失败或取消时的 snapshot、持久进度与 Resume 行为；若当前行为违反长期合同则修复 rollback/提交边界，否则记录证据并关闭，不为测试假设改变产品语义。
 
 依赖：无。审计依据：I01。
+
+完成成果：播放型替换在目标音频启动后才保存目标 checkpoint；准备失败或取消时恢复旧 session、snapshot 与进度。Playback focused tests 62 项、格式检查与 Release build 通过。
 
 ### 迁移残留与数据读取
 

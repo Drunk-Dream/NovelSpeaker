@@ -300,6 +300,11 @@ public sealed partial class PlaybackCoordinatorTests
                 new TtsExecutionFailure(kind, message, null, null, null, null))));
         }
 
+        public void EnqueueException(Exception exception)
+        {
+            _results.Enqueue(() => Task.FromException<AudioGenerationResult>(exception));
+        }
+
         public void EnqueueSuccess(string filePath)
         {
             _results.Enqueue(() => Task.FromResult(new AudioGenerationResult(filePath, false, null)));
@@ -313,8 +318,13 @@ public sealed partial class PlaybackCoordinatorTests
         public PendingAudioResult EnqueuePendingSuccess(string filePath)
         {
             var completionSource = new TaskCompletionSource<AudioGenerationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _results.Enqueue(() => completionSource.Task);
-            return new PendingAudioResult(completionSource, filePath);
+            var started = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _results.Enqueue(() =>
+            {
+                started.TrySetResult(null);
+                return completionSource.Task;
+            });
+            return new PendingAudioResult(completionSource, filePath, started.Task);
         }
 
         public Task<AudioGenerationResult> GetAudioAsync(
@@ -345,11 +355,17 @@ public sealed partial class PlaybackCoordinatorTests
             private readonly TaskCompletionSource<AudioGenerationResult> _completionSource;
             private readonly string _filePath;
 
-            public PendingAudioResult(TaskCompletionSource<AudioGenerationResult> completionSource, string filePath)
+            public PendingAudioResult(
+                TaskCompletionSource<AudioGenerationResult> completionSource,
+                string filePath,
+                Task started)
             {
                 _completionSource = completionSource;
                 _filePath = filePath;
+                Started = started;
             }
+
+            public Task Started { get; }
 
             public void CompleteSuccess()
             {

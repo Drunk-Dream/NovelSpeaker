@@ -291,6 +291,74 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task JumpToSegmentAsync_when_target_audio_preparation_fails_keeps_previous_position_and_resume()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakeAudioGenerationProvider();
+        var readingProgressStore = new FakeReadingProgressStore();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            readingProgressStore: readingProgressStore,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+        audioProvider.EnqueueException(new IOException("audio preparation failed"));
+
+        await Assert.ThrowsAsync<IOException>(() =>
+            coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None));
+
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+
+        await coordinator.ResumeAsync(CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(0, localCoordinator.LastStartedRequest?.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task JumpToSegmentAsync_when_target_audio_preparation_is_cancelled_keeps_previous_position_and_resume()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakeAudioGenerationProvider();
+        var readingProgressStore = new FakeReadingProgressStore();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            readingProgressStore: readingProgressStore,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+        var pendingAudio = audioProvider.EnqueuePendingSuccess("target.mp3");
+        using var cancellationSource = new CancellationTokenSource();
+        var jumpTask = coordinator.JumpToSegmentAsync(0, 2, cancellationSource.Token);
+        await pendingAudio.Started.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+        cancellationSource.Cancel();
+        pendingAudio.CompleteSuccess();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jumpTask);
+
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+
+        await coordinator.ResumeAsync(CancellationToken.None);
+
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(0, localCoordinator.LastStartedRequest?.SegmentIndex);
+    }
+
+    [Fact]
     public async Task DisposeAsync_saves_current_progress_before_releasing_session()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();

@@ -1152,7 +1152,10 @@ public sealed class PlaybackCoordinator :
             session.SetResumePosition(resumePositionMilliseconds);
             session.SetConsecutiveSegmentFailureCount(initialConsecutiveFailureCount);
 
-            if (checkpointNewPosition)
+            if (!await _bookContentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false))
+                throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
+
+            if (checkpointNewPosition && !playImmediately)
             {
                 await _progressController.SaveAsync(
                     session,
@@ -1160,8 +1163,6 @@ public sealed class PlaybackCoordinator :
                     _audioController.CurrentSnapshot,
                     cancellationToken).ConfigureAwait(false);
             }
-            if (!await _bookContentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false))
-                throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
         }
         catch
         {
@@ -1180,7 +1181,10 @@ public sealed class PlaybackCoordinator :
         }
 
         _commandProcessor.AdvanceEventEpoch();
-        await DisposeSessionAsync();
+        if (!playImmediately)
+        {
+            await DisposeSessionAsync();
+        }
         _currentSession = session;
         _currentBook = book;
         _currentProvider = selectedProvider;
@@ -1189,6 +1193,11 @@ public sealed class PlaybackCoordinator :
 
         if (selectedProvider is null)
         {
+            if (playImmediately && previousSession is not null)
+            {
+                await previousSession.DisposeAsync().ConfigureAwait(false);
+            }
+
             _currentBook = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken).ConfigureAwait(false);
             PublishSnapshot(CreateProviderMissingSnapshot(
                 _currentBook,
@@ -1200,6 +1209,7 @@ public sealed class PlaybackCoordinator :
 
         if (playImmediately)
         {
+            var targetCheckpointSaved = !checkpointNewPosition;
             PublishSnapshot(BuildSnapshot(
                 PlaybackState.Preparing,
                 book,
@@ -1213,7 +1223,85 @@ public sealed class PlaybackCoordinator :
                 false,
                 false));
 
-            await PlayCurrentSegmentAsync(session, resumePositionMilliseconds, forceInvalidate, cancellationToken);
+            try
+            {
+                await PlayCurrentSegmentAsync(
+                    session,
+                    resumePositionMilliseconds,
+                    forceInvalidate,
+                    cancellationToken,
+                    checkpointNewPosition
+                        ? async token =>
+                        {
+                            await _progressController.SaveAsync(
+                                session,
+                                resumePositionMilliseconds,
+                                _audioController.CurrentSnapshot,
+                                token).ConfigureAwait(false);
+                            targetCheckpointSaved = true;
+                        }
+                : null);
+            }
+            catch
+            {
+                if (ReferenceEquals(_currentSession, session))
+                {
+                    if (session.HasLoadedAudio && targetCheckpointSaved)
+                    {
+                        if (previousSession is not null)
+                        {
+                            await previousSession.DisposeAsync().ConfigureAwait(false);
+                        }
+
+                        throw;
+                    }
+
+                    if (session.HasLoadedAudio)
+                    {
+                        await _audioController.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                    }
+
+                    ClearProtectedPlaybackFile();
+                    await session.DisposeAsync().ConfigureAwait(false);
+                    _currentSession = previousSession;
+                    _currentBook = previousSession?.Book;
+                    _currentProvider = previousSession?.Provider;
+
+                    if (checkpointNewPosition && previousSession is not null)
+                    {
+                        await _progressController.SaveAsync(
+                            previousSession,
+                            previousPositionForSave,
+                            previousAudioSnapshot,
+                            CancellationToken.None).ConfigureAwait(false);
+                    }
+
+                    if (previousSession is null)
+                    {
+                        _currentBook = null;
+                        _currentProvider = null;
+                        ClearCurrentBookContext();
+                        PublishSnapshot(previousSnapshot);
+                    }
+                    else
+                    {
+                        RestorePreviousSessionAfterReplacementFailure(
+                            previousSession,
+                            previousSnapshot,
+                            previousPositionForSave,
+                            previousAudioStopped);
+                    }
+
+                    _commandProcessor.AdvanceEventEpoch();
+                }
+
+                throw;
+            }
+
+            if (previousSession is not null)
+            {
+                await previousSession.DisposeAsync().ConfigureAwait(false);
+            }
             return;
         }
 
@@ -1273,7 +1361,8 @@ public sealed class PlaybackCoordinator :
         PlaybackSessionState session,
         long resumePositionMilliseconds,
         bool forceInvalidate,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task>? onAudioPrepared = null)
     {
         if (_currentBook is null) return;
         var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
@@ -1433,6 +1522,11 @@ public sealed class PlaybackCoordinator :
                 local.IsUsingCache,
                 false));
             return;
+        }
+
+        if (onAudioPrepared is not null)
+        {
+            await onAudioPrepared(linkedCts.Token).ConfigureAwait(false);
         }
 
         session.SetConsecutiveSegmentFailureCount(0);
