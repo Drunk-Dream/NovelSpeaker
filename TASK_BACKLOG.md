@@ -1,219 +1,126 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 阶段定位
+## 1. 当前阶段：基于代码库审计的维护性清理
 
-**v0.8.0 后的统一批量管理 + 通用 Book/Source 数据模型阶段**已完成，完整标准门禁已恢复。
+本阶段根据 `CODEBASE_AUDIT_REPORT.md` 安排，目标是收紧输入资源边界、修复异步状态竞争、删除已完成迁移留下的冗余路径，并降低工程维护面。任务按依赖顺序执行；每项详细范围与验收条件见对应 `tasks/Txxx_*.md`。
 
-规划代码基线：`7b17e4c51d566b0640b49a33c426a61c4a6eaafa`（`main`，v0.8.0）。
-
-上一轮 Backlog 已全部完成，本文件清空旧任务后重新开始编号。当前阶段只实现已经确认的两组长期方向：
-
-1. 把 Library、Playback 章节、Speech Provider、Rules 的批量操作收敛为统一的页面级 Management Mode；CacheManagement 保持文件管理器式选择例外。
-2. 把当前“Book 直接拥有 Local TXT/Chapters”的模型迁移为 `Book → Sources → Source-owned Catalog/Content`，当前只实现 Local Source，不实现 Online Source 具体能力。
-
-本阶段明确不做：
-
-- Legado/在线书源规则、目录抓取、正文请求、登录、变量系统；
-- 自动 Source fallback；
-- 跨 Source Chapter Identity 或模糊章节匹配；
-- 高级在线正文缓存管理；
-- WebDAV/云同步；
-- 新一轮 Diagnostics 扩张；
-- 与本阶段无关的大规模 UI/架构重写。
-
-长期合同：
-
-- `docs/00_PRODUCT_AND_SCOPE.md`
-- `docs/03_BOOKS_PLAYBACK_AND_PROGRESS.md`
-- `docs/04_CACHE_AND_BACKGROUND_WORK.md`
-- `docs/05_DATA_AND_COMPATIBILITY.md`
-- `docs/06_UI_AND_VISUAL_SYSTEM.md`
-- `docs/specs/BOOK_DATA_MODEL.md`
-- `docs/specs/BOOK_IMPORT.md`
-- `docs/specs/BATCH_MANAGEMENT.md`
-- `docs/08_QUALITY_AND_TESTING.md`
-- `AGENTS.md`
+本阶段不重新设计产品功能，不引入新的通用框架，不擅自改变持久化数据合同。审计中关于 `LegacyRuleId` / `SynthesisProfiles.RuleId` 的持久数据删改、Source 模型撤销、HTTP 重定向凭据行为和路径 TOCTOU 均未获充分证据或数据授权，不纳入本轮实施任务。
 
 ## 2. 状态与执行规则
 
 - `[ ]` 未开始
 - `[-]` 进行中
-- `[x]` 已完成，追加简短“完成成果”
-- `[!]` 阻塞，只记录真正需要用户决定的新产品/架构/隐私冲突；普通实现细节由 Codex 自行决定
+- `[x]` 已完成，追加简短成果摘要
+- `[!]` 阻塞，仅用于必须由用户决定的新产品、架构、隐私或持久化边界
 
-默认按 T001 → T002 → T003 → T009 → T010 → T011 → T012 → T013 → T014 → T015 → T004 → T005 → T006 → T007 → T008 串行执行。如果调用明确要求连续执行整个 Backlog，可以按依赖顺序自动继续，不等待人工验收。
+默认按编号串行执行。明确要求连续执行整个 Backlog 时，可按顺序继续，不等待人工验收。实施任务保持仓库可构建、可测试；本阶段不包含 staged breaking migration。
 
-人工视觉/交互验收始终是可选补充，不阻塞任务完成或下一任务。
+任务完成后，满足 task spec 的自动验收、清理临时产物、在此处记录简短成果并删除对应 task spec。已完成的历史实施细节由 Git 保存，不在 Backlog 复制。
 
-每个未完成任务的详细实施合同位于 `tasks/`。完成任务后：
+## 3. 清理任务
 
-1. 满足 task spec 中的强制自动验收；
-2. 删除所有当前任务临时测试、fixture、脚本、截图和诊断产物；
-3. 更新本文件状态并追加简短“完成成果”；
-4. 删除对应 `tasks/Txxx_*.md`；
-5. 按调用要求停止或继续下一任务，不等待人工验收。
+### 输入与运行时边界
 
-## 3. Staged breaking migration window
+## [ ] T016（P2）：为章节规则正则设置执行时限
 
-T004 → T007 属于一次明确授权的 **staged breaking migration window**，现已随 T008 完整阶段验收结束；后续任务恢复正常可构建、可测试要求。
+目标：让章节规则校验与导入切章共用有界正则执行策略，超时以稳定且可理解的规则/导入失败呈现，不保留无 timeout 的生产执行路径。
 
-在这个窗口中：
+依赖：无。审计依据：F01。
 
-- 不要求每个任务结束时整个应用都可运行；
-- 不要求每个任务都通过完整 solution build/test；
-- task spec 必须明确当前切片允许暂时失效的调用方或测试；
-- 当前任务仍必须完成自己的 focused verification；
-- 不为维持中间态可运行而建立旧/新 Book 模型双读、双写或 compatibility wrapper；
-- T008 必须恢复完整标准门禁，阶段才算完成。
+## [ ] T017（P2）：限制 HTTP TTS 成功响应的落盘字节数
 
-T001 → T003 不属于 breaking migration，原则上应保持仓库正常可构建。
+目标：在成功响应写入临时音频的单一流复制边界执行字节预算；超过预算时取消复制、删除部分文件并返回稳定失败，不增加不一致的预检/二次复制路径。
 
-## 4. 已批准的 Book schema 变更边界
+依赖：无。先核实现有 Provider 格式与产品音频长度所需范围；审计依据：F02。
 
-本轮用户已经明确批准为通用 Book/Source 模型调整数据库表、删除/调整旧表字段，并要求不长期兼容旧模型。T004 可以直接实施 `docs/05_DATA_AND_COMPATIBILITY.md` 列出的 v0.8.0 → Book/Source 持久化变更集合，不需要逐字段重复请示。
+## [ ] T018（P2）：修复 Active Cache 取消与 CTS 替换竞态
 
-如果实现需要超出该文档已列集合的新持久化概念，才按 `AGENTS.md` 停止并请求授权。
+目标：确保取消活动批次时，CancellationTokenSource 不会在检查/取消期间被并发替换并释放；复用现有任务 owner 和同步边界，不增加新的同步层。
 
-自动迁移应保持简单。当前 v0.8.0 的应用内规范化 `Books/{BookId}/content.txt` 可以继续作为 Local Source 持久正文，不为目录美观搬迁。若真实实现证明自动迁移仍必须引入模糊章节匹配、寻找外部 TXT、长期双模型兼容或新的重型一次性恢复系统，则使用已批准 fallback：要求用户重新导入本地书籍，不实现复杂迁移。
+依赖：无。审计依据：F03。
 
----
+## [ ] T019（P2）：确认并收敛 Playback 替换提交边界
 
-# Phase A：统一页面级批量管理
+目标：验证目标 checkpoint 成功后、目标音频准备失败或取消时的 snapshot、持久进度与 Resume 行为；若当前行为违反长期合同则修复 rollback/提交边界，否则记录证据并关闭，不为测试假设改变产品语义。
 
-## [x] T001（P0）：建立统一 Management Mode 选择基础设施
+依赖：无。审计依据：I01。
 
-目标：在现有 `DesktopSelectionController` 稳定 key 选择能力之上建立页面级 Management Mode 生命周期、visible-set reconciliation、Select All、右键语义与 Normal/Management 行为隔离的共享 primitive；不把业务动作塞进 Shared。
+### 迁移残留与数据读取
 
-完成成果：新增页面级 `ManagementSelectionController<TKey>`，组合现有 stable-key 选择引擎，提供 Enter/Exit/Reset、Normal/Management 点击分流、toggle/range、Select All、visible/manageable set reconciliation 与右键选择语义；支持零选择保持模式和增量选择装饰通知。Shared 仅拥有交互状态，业务动作与 Dirty Draft 保护由 Feature 承担；CacheManagement 保持原行为。新增 10 项长期行为测试，保留既有选择与页面测试；本任务没有需要删除的旧实现或兼容层，临时实施规格已删除。locked restore、format、Release build（零警告/错误）及全量 914 项测试全部通过（零跳过），无环境受限检查或长期文档冲突；业务页面接线由 T002/T003 完成。
+## [ ] T020（P2）：移除无生产用途的 BackgroundTaskRegistry
 
-## [x] T002（P1）：迁移 Library 与 Playback 章节批量管理
+目标：确认不存在反射或外部动态入口后，删除无生产调用的 registry、startup/shutdown wiring 及只保护该类型实现形状的测试；保留真实启动维护行为。
 
-依赖：T001。
+依赖：无。审计依据：S01。
 
-目标：Library 增加显式批量管理、Select All、批量导出/删除；Playback 把现有“主动缓存选择模式”改造成通用章节 Management Mode，当前批量动作仍只有 Cache，并保持 Active Cache coordinator 只负责任务执行。
+## [ ] T021（P2）：合并 Provider 限流实现路径
 
-完成成果：Library 接入页面级 Management Mode、全选、单次确认的逐书删除与单次目录选择的批量 UTF-8 正文导出；文件名复用安全规范，冲突确定性加后缀且不覆盖，缺少完整正文跳过。Playback 删除 Active Cache 专用选择命名，接入通用章节管理与右键/全选，页面拥有选择、coordinator 继续拥有缓存批次；全部命中缓存的章节报告 skipped，缺失音频继续补齐，单章失败继续后续章节并汇总。CacheManagement 保留 Extended Selection。新增 7 项核心行为测试并扩展既有失败场景，保留并适配已有页面、缓存与隔离 WPF 测试，合并重复 selection 样式；没有临时验证产物。locked restore、format、Release build（零警告/错误）和完整 922 项测试通过（零跳过）；先前全量运行出现旧数据库临时文件删除占用，重跑全量通过，原错误已记录。无未执行的强制检查或长期文档冲突；临时实施规格已删除。
+目标：在保留并发许可、排队、pace、retry-after、取消与 lease 行为的前提下，将 Provider-keyed 调用收敛到一条 typed limiter path，删除 synthetic RuleId/string adapter 与不再独立使用的旧接口。
 
-## [x] T003（P1）：迁移 Speech Provider 与 Rules 批量管理
+依赖：T018。审计依据：F04 / S02。
 
-依赖：T001。
+## [ ] T022（P2）：移除 CacheCatalog 的逐本 fallback
 
-目标：把 Provider 与四类 Rule workspace 从“普通选择直接兼任多选”的现状迁移到 Normal Mode + Management Mode；保留 Dirty Draft 保护、批量导出/删除、部分跳过和 CurrentProvider 删除后变 None 的既有产品语义。
+目标：将生产批量目录依赖的 `IBookLibraryQuery` 明确为必需依赖，删除逐本 metadata 查询 fallback 和虚构默认进度/时间值；保留单本详情查询能力。
 
-完成成果：Provider、Chapter/Regex/File Name/Text Header Rules 接入各自页面级 Management Mode，显式入口与 Ctrl/Shift 共用原有草稿保存/放弃/取消保护；管理点击只改变选择，Header 与右键共用批量导出/删除，全选仅覆盖可见项，隐藏与删除后主动收敛选择。正式 exchange schema 与 Provider typed config 保持；内置 Provider 可选且执行时跳过并汇总，HTTP 凭据提示保留；逐项删除一次确认、失败继续，CurrentProvider 删除后为 None，删除编辑规则关闭编辑器且不新增 fallback；页面取消后仍完成已提交 Regex 删除的播放运行态同步，异步导出结果使用稳定快照。移除普通选择兼任批量选择的旧接线，没有兼容层或临时产物。新增/扩展 19 项核心行为用例，保留并适配既有编辑、exchange、架构与隔离 WPF 测试；旧 WPF 编辑按钮检查限定到编辑区，布局 fixture 补齐新的正常模式排序能力。locked restore、format、Release build（零警告/错误）与完整 941 项测试通过（零跳过）；此前旧数据库测试清理时报 IOException（app.db 被其他进程占用，TemporaryDirectory.Dispose/Directory.Delete），重跑完整门禁测试通过。无环境受限的强制检查或长期文档冲突；临时实施规格已删除。
+依赖：无。审计依据：S07。
 
----
+### 工程门禁与导入并发
 
-## [x] T009（P1）：批量管理 Header 图标与布局修复
+## [ ] T023（P2）：将 CI 全局质量门禁移出测试矩阵
 
-依赖：T003；在 T004 前完成。
+目标：restore、format、solution build 与已由 solution build 覆盖的 Gallery build 不按每个测试项目重复执行；保留各测试层独立、可辨识的结果及失败状态。
 
-目标：统一 Library、Playback、Speech Provider 和四类 Rule workspace 的 Header 图标、操作顺序与单行布局，保留既有批量行为。
+依赖：无。审计依据：F05 / S03。
 
-完成成果：Library、Playback、Speech Provider 与四类 Rule workspace 的 Header 批量管理、全选、导出、删除、退出统一为主题图标按钮，补齐 Tooltip/Automation Name，并按普通/管理模式调整操作顺序、8/12 DIP 间距与单行对齐；Library 搜索/排序固定 180/110 DIP，管理入口位于导入右侧。Playback 工具栏接入 AppPageHeader.Actions，缓存状态移到 Header 下方独立提示行，空提示折叠，保留语速与定时停止原有内容；元数据规则普通操作也改为图标。移除旧文本批量按钮、Header WrapPanel 与播放管理双行按钮布局，没有新增公共 API、兼容层或持久化变化，既有命令/事件接线与业务 owner 保持。保留全部核心测试，仅适配播放页图标/提示位置及章节规则普通工具栏检查；无新增永久布局测试。临时隔离 WPF 验证覆盖 128 个 Light/Dark、最小/常用内容宽度、普通/管理模式、零/非零选择与长缓存提示组合，检查操作顺序、同排、无重叠裁切、尺寸、禁用条件、无障碍名称和命令绑定，验证代码及失败诊断产物已清理。locked restore、format verify、Release build（零警告/错误）与完整 941 项测试（零跳过）通过；完整测试最终使用 `dotnet test -c Release --no-build -m:1` 串行执行测试项目。此前默认并行全量出现既有数据库测试清理 IOException：`app.db` 被其他进程占用，位于 TemporaryDirectory.Dispose/Directory.Delete，涉及 Version_7_rules_migrate_to_providers_and_reconcile_current_selection、Failed_settings_reconciliation_retries_after_database_migration_commits、Foreground_playback_retries_when_the_prefetch_owner_of_shared_audio_is_cancelled；首项 focused 复测通过，最终完整串行套件全部通过。既有数据库清理偶发占用仍为已知风险，本任务未修改持久化代码、删除核心测试或放宽隔离。无环境受限的未执行检查或长期文档冲突；临时实施规格已删除。
+## [ ] T024（P2）：精简 Architecture Fitness 源码扫描器
 
----
+目标：保留长期架构合同所需的依赖方向、模块边界、owner 与 trust-boundary 检查；删除冻结私有实现形状、重复穷举 parser 行为及仅支撑这些断言的 fixture/helper。
 
-## [x] T010（P1）：SQLite 资源生命周期与测试清理占用修复
+依赖：无。不得整体移除 Architecture Fitness Tests。审计依据：F06 / S04。
 
-依赖：T009；在 T004 前完成。
+## [ ] T025（P2）：缩小 BookMutationGate 独占区
 
-目标：定位并修复临时数据库删除占用的资源释放原因，恢复默认并行完整测试的稳定通过，不改变 schema、SQL 或用户数据。
+目标：在证明导入解析/staging、目标重新验证、文件 journal 和 SQLite commit 的并发及恢复语义后，将 singleton gate 缩到真正需要串行化的区间；若证明不足，保留现状并记录具体阻碍，不冒险释放锁。
 
-完成成果：定位到未显式释放的 SqliteCommand 经连接弱引用与延迟终结造成底层 SQLite statement 保留文件句柄，复现迁移完成后独占访问 app.db 的 IOException；为生产持久化代码 76 处及测试夹具 75 处命令补齐 using，并释放连接打开取消路径中的连接，消除依赖命令终结器的旧释放方式。SQL、已发布 migration、schema、用户数据与连接池策略保持不变，没有兼容层、新迁移、清理重试、固定等待、生产 GC 或测试串行化。新增成功/失败迁移后立即独占访问数据库的两项核心回归；成功场景修复前稳定失败，修复后两项通过，保留全部既有核心测试，未删除或弱化测试。Infrastructure 343 项通过；独立工作树 locked restore、format verify、Release build（零警告/错误）及默认并行完整 943 项连续三轮通过（零跳过、无数据库清理占用），工作树已清理。包含 T011 的主工作区完整门禁最终通过，默认并行完整 945 项全部通过；首次主工作区全量曾出现 PlayerView_virtualized_target_moves_toward_center_without_direction_reversal 居中断言失败（PlayerViewAnimationTests.cs:367，偏差 176.333，预期 0–1），并伴随 WpfDispatcher collection cleanup failure，针对性及全量复测通过，本任务未修改该用例，仍记录为独立的 WPF 动画偶发风险。临时实施规格已删除，无环境受限的未执行检查或长期文档冲突。
+依赖：无。审计依据：D01 / S05。
 
----
+## [ ] T026（P2）：评估并降低大型 TXT 导入的峰值内存
 
-## [x] T011（P1）：批量选择提示主题修复与通用防复发门禁
+目标：先明确当前支持的本地 TXT 范围并量化全文读取、规范化、hash、切行的重叠表示；只在有明确收益时调整数据流，避免无目标的通用 streaming 框架或改变章节识别语义。
 
-用户追加修复；在 T004 前执行。修复书库、Provider、Rules 暗色冷启动选择提示前景色，并建立防复发约束与主题回归验证。
+依赖：无。审计依据：大型 TXT 导入内存风险（见审计报告技术债与调查候选）。
 
-完成成果：共享 AppPageHeader 提供动态主题前景色，Library、Speech Provider、Chapter/Regex/File Name/Text Header Rules 的选择提示使用既有显式文字样式；补齐元数据规则编辑区三处同类遗漏，下拉框字符串模板显式绑定 ContentPresenter 的主题前景色，保留禁用/交互颜色。移除对 WPF 默认黑色和隐式祖先颜色的依赖，没有新增主题 owner、兼容层或持久化变化。AGENTS.md 与 UI 合同补充全局文字资源规则和冷启动/切换/切换后新建页面验收；新增两项通用架构测试，扫描全部产品 XAML 的 TextBlock、样式继承与前景色定义，拒绝遗漏主题前景、StaticResource 画刷和硬编码可见颜色，无页面白名单。既有核心测试全部保留；按用户要求，页面专用验证只作临时测试，验证后连同诊断产物清理。隔离 Desktop 临时验证先在旧实现复现书库暗色文字对比度 1.18，修复后覆盖六个业务页面与共享页头的暗色启动、Light/Dark 切换及切换后新建页面，并验证 Standard/Compact 下拉框正常/禁用颜色跟随宿主，全部通过。locked restore、format verify、Release build（零警告/错误）、完整 WPF 97 项与 Presentation 272 项测试通过（零跳过），git diff --check 通过；未执行与本次 UI/架构变更无关的完整 solution 测试，无环境受限检查或长期文档冲突。静态门禁不替代任意运行时绑定和 C# 动态创建文字的主题验收；后者已纳入开发约束。临时实施规格已删除。
+### 小型重复项与维护文档
 
----
+## [ ] T027（P3）：收敛 UI 资源重复并核实 Gallery-only 样式
 
-## [x] T012（P1）：书库 Snackbar 通知与项目 Review 检查清单
+目标：在验证 WPF Application resource 查找后，将重复的 `BooleanToVisibilityConverter` 声明收敛到合适的共享 owner；核对 ComboBox 重复模板和 Gallery-only 控件样式的实际合同，删除已确认无用途的副本/bridge/fixture。
 
-用户追加修复；在 T004 前执行。书库导出、删除结果复用已有 Snackbar，删除页内结果通知块；保留导入进度分流，增加独立可选项目检查清单与每轮 Review 核对约束。
+依赖：无。只删除已证明可省略的资源，不以 Gallery 当前无产品 caller 单独判死。审计依据：S08 / I06 / I07。
 
-完成成果：书库单书/批量导出及批量删除结果通过现有 IAppFeedbackService 接入 Snackbar，全部成功使用 Success、存在跳过/失败使用 Warning；删除对象已不存在时刷新后通知，异常仅投影通知，取消不发送完成汇总。删除 LibraryViewModel.StatusMessage、页内结果通知块及 WPF 夹具字段；保留 ImportStatusMessage、5 MiB 导入分流和导入生命周期，没有新增通知宿主、兼容层、公共接口或持久化变化。AGENTS.md 与 UI 合同明确瞬时通知与进度/校验/空状态职责；新增独立 .codex/review-checklist.md 的主题前景色与 Snackbar 两项，通用 skill/指引接入被审查仓库可选清单，覆盖首审、复审、替换 reviewer、缺省及不可读取场景，并要求逐项结论与依据。扩展既有核心导出/删除/取消测试，新增单书导出、取消目录选择及删除对象不存在/失败行为覆盖，合计增加 13 个测试用例；保留全部导入、反馈和主题架构测试，没有永久布局测试。locked restore、format verify、Release build（零警告/错误）、完整 Presentation 285 项、相关 Library/Feedback WPF 6 项通过（零跳过），skill 校验和 git diff --check 通过；清单接入规则已静态核对，两项清单核对均通过。隔离 Desktop 临时主题验证覆盖 Light/Dark 首次创建、已有页面切换及切换后新建页面，两项通过，验证代码已删除；首次脱离窗口的验证发生颜色资源不一致，改为隔离 Desktop 真实窗口宿主后通过，生产主题代码未修改。临时规格已删除，无遗留临时诊断产物、环境受限检查或长期合同冲突；按用户要求未提交及未执行远端操作，未推进 T004。未运行与本次 App 修改无关的其余 solution 测试项目。
+## [ ] T028（P3）：移除 Visual Review manifest 的过期 fallback
 
----
+目标：让 `Generate-VisualReviewManifest.ps1` 只接受当前 Gallery manifest 结构，删除旧 `Scenarios` 和缺失 `scene` 的默认兼容路径；保留路径/hash 校验和索引生成。
 
-## [x] T013（P1）：移除小文件导入页内进度
+依赖：无。审计依据：S09。
 
-用户追加调整；在 T004 前执行。小于 5 MiB 的导入不展示进度，仅通过已有 Snackbar 反馈结果；大于等于 5 MiB 保留可取消进度弹窗。
+## [ ] T029（P3）：收敛 AGENTS 与长期 owner 文档的重复规则
 
-完成成果：小于 5 MiB 的导入直接执行，不展示进度或发送进行中通知，仅用已有 Snackbar 反馈成功/失败；大于等于 5 MiB 保留可取消进度弹窗。删除页内导入块、ImportStatusMessage、ApplyImportProgress、测试夹具字段及 ILibraryImportCoordinator 的 inlineProgress 参数，所有调用方直接适配，没有兼容接口或持久化变化；保留编码选择、替换/离页取消、迟到结果抑制、刷新及 IsBusy 生命周期。同步 AGENTS.md、UI 合同与项目 Review 清单，T012 成果保留为历史记录。保留全部核心测试，扩展既有导入分流测试覆盖阈值两侧及精确边界（增加 2 个用例），现有导入测试核对唯一结果通知与取消，无新增永久布局测试。format verify、Release build（零警告/错误）、完整 Presentation 287 项、相关 Library/Feedback WPF 6 项与 git diff --check 全部通过（零跳过）；隔离 Desktop 临时主题验证覆盖 Light/Dark 首次创建、切换及切换后新建页面，两项通过，临时代码已清理。首次 Presentation 运行因临时文件的零参数 Show 调用触发共享窗口宿主静态检查，清理临时文件后完整复测通过，未弱化门禁；主题前景色与 Snackbar 两项清单核对通过。临时规格已删除，无环境受限检查、遗留临时产物或长期合同冲突；依赖未变未重复 restore，未运行其余无关 solution 测试项目，保留此前全部未提交修改，未提交或执行远端操作，未推进 T004。
+目标：让 `AGENTS.md` 保留执行时必须直接看到的硬约束与 owner 文档入口，将稳定 UI/test 合同的详细定义归还唯一 owner 文档；不得削弱隐私、安全、持久化授权或验收约束。
 
----
+依赖：无。当前 Backlog 历史日志已在本次计划整理中移除。审计依据：AGENTS 与 owner 文档规则重复（S06）。
 
-## [x] T014（P1）：补齐书库与元数据规则多选 ESC 退出
+## [ ] T030（P3）：统一 Release 输出与 ZIP 内容校验规则来源
 
-用户追加修复；在 T004 前执行。修复书库进入批量管理后 ESC 无法退出的问题，并补齐文件名/正文头部元数据规则页的同类遗漏。
+目标：逐项比较 publish 目录与最终 ZIP 的 required/excluded predicates；仅消除规则漂移和重复维护，保留对最终封包内容及 tag/checksum 的完整验证。
 
-完成成果：LibraryViewModel 与 MetadataRuleWorkbenchViewModel 接入已有 ITransientEscapeHandler，复用各自页面级选择控制器的 Exit；零选择及非零选择均可退出并清空批量选择，元数据规则恢复正常编辑项装饰并保留编辑内容，普通模式不消费 ESC，继续由现有 Shell 快捷键策略处理返回。没有新增键盘路由、状态 owner、兼容层或持久化变化，也没有需要删除的旧实现。扩展已有书库管理及两类元数据规则草稿/管理核心行为测试，覆盖接口接线、零/非零选择退出、普通模式与编辑内容保留；全部既有核心测试保留，没有新增测试用例或临时产物。format verify、Release build（零警告/错误）、完整 Presentation 287 项、相关 Library/ShortcutContext 隔离 WPF 6 项及 git diff --check 通过，零跳过。项目清单 NS-01 不适用（无文字/图标/主题变更），NS-02 不适用（无结果通知、进度或反馈路径变更）。依赖未变未重复 restore，未运行其余无关 solution 测试项目；无环境受限检查或长期合同冲突，未提交或执行远端操作，未推进 T004。
+依赖：无。不得以删掉其中一层校验作为简化。审计依据：D05。
 
----
+## 4. 暂不安排
 
-## [x] T015（P1）：以当前导航页面统一 ESC 路由
-
-用户追加修复；在 T004 前执行。处理书架 Ctrl/Shift 多选及页头管理入口的焦点依赖问题，统一当前页面 ESC 消费、瞬时 surface、文本编辑与返回的优先级。
-
-完成成果：定位到书卡 Ctrl/Shift PreviewMouseLeftButtonDown 提前处理事件，焦点保留在导航区域或搜索框；页头管理按钮隐藏后也会失去页面内焦点，旧焦点祖先查找与文本编辑保护使 ESC 无法到达已补齐的 ViewModel。Shell 每次按键从当前导航内容取得 ITransientEscapeHandler，由八个现有业务页面桥接到原有 ViewModel，统一“瞬时 surface → 当前页面局部交互 → 文本编辑保护 → 返回”优先级；普通文本编辑和其它快捷键保持原策略，CacheManagement 继续 Extended Selection。删除焦点 DataContext 祖先消费者查找以及 PlayerView/CacheManagementPage 的独立 ESC 分支，没有新增 registry、页面缓存、选择状态 owner、兼容层、强制焦点转移或持久化变化。导航及批量管理长期合同同步补充规则。新增八个快捷键优先级核心用例和一个真实 MainWindow 页面切换/返回核心用例，重写已有焦点祖先用例为当前页面独立于焦点及旧 DataContext 的合同，扩展既有组合根测试覆盖八个页面 ESC 边界；其余核心测试全部保留。临时隔离 Desktop 验证真实书架页头入口、Ctrl/Shift 与导航项/搜索框焦点四种组合、书卡焦点及零/非零选择退出全部通过，验证代码与诊断产物已清理。locked restore、format verify、Release build（零警告/错误）、默认并行完整 969 项测试（零跳过）及 git diff --check 通过。首轮完整运行新增 Shell 用例失败（MainWindowNavigationTests.cs:67，退出断言失败）；诊断发现测试在导航内容尚未加载时发出按键，改为等待实际 Loaded 事件后 focused 及完整门禁通过，不使用固定延时或弱化断言。清单 NS-01 不适用（无产品主题文字/图标变更），NS-02 不适用（无通知/反馈路径变更）。无环境受限的未执行检查或长期合同冲突；临时实施规格已删除，未提交或执行远端操作，未推进 T004。
-
----
-
-# Phase B：通用 Book/Source 模型
-
-## [x] T004（P0）：建立 Book/Source 持久化模型并完成 v0.8.0 schema migration
-
-依赖：T003。
-
-目标：建立 Book、Source、Local Source typed persistence、Source-owned Catalog 的最终数据结构；追加新的 SQLite migration，把现有每本本地书转换为一个 Local Source，并保留 BookId、Chapter 技术 ID、ReadingProgress、Speech Plan 与可安全保留的音频缓存关系。删除旧 Book 上已经失去语义的 Local TXT 字段/约束。
-
-完成成果：追加 schema v12，未改动 v4–v11；新增 BookSources / LocalBookSources / LocalChapterContents，Book 保留显示元数据与 nullable ActiveSourceId，Catalog 改为 SourceId ownership，领域合同拆分为 BookSource、SourceType、LocalBookSource、LocalChapterContent。每本旧 Book 自动获得一个 Local Source 并激活，保留 BookId、ChapterId、Book 时间状态、ReadingProgress、Speech Plan/Segments、SynthesisProfiles、音频缓存及操作记录；Local 路径原值保留，不搬迁正文、不访问外部 TXT。删除 Books 的 Local 专属列和 IX_Books_SourceHash、Chapters.BookId 与通用内容范围，没有旧/新兼容 wrapper 或双读/双写；路径规范化服务直接读取新 Local typed table。Local singleton、ActiveSource 同 Book 外键、Source/Catalog/typed content 级联及范围约束生效；重建仅在专属连接上临时关闭外键，提交前执行 foreign_key_check，失败/取消整笔回滚并恢复外键。保留并适配既有迁移核心测试，新增 8 项升级/创建/约束/失败与取消回滚用例；迁移 focused 24 项、Domain 15 项、变更文件 format verify、v4–v11 不变与领域 ownership/LF 静态检查、git diff --check 通过，零跳过。迁移测试通过仓库外临时工程链接真实源码运行，排除尚未迁移的 DirectBookImportService 及其两层注册；工程与临时产物已清理。首次 focused 运行一项旧外键测试因 fixture 仍插入旧列失败，适配新 schema 后全量复测通过；未弱化核心断言。按已授权 staged breaking migration 合同未运行完整 solution 门禁：导入构造器/持久化、Query、正文读取、删除/恢复及相关调用方和测试仍待 T005–T007 迁移，T008 恢复完整门禁；无环境受限检查或长期文档冲突。临时任务规格已删除，未推进 T005。
-
-## [x] T005（P0）：重构 Local TXT 导入与重新导入更新
-
-依赖：T004。
-
-目标：直接导入改为创建 `Book + LocalSource + Catalog`；使用严格 Title+Author 自动匹配，唯一候选时更新该 Book 的唯一 Local Source，多候选时要求用户选择目标 Book 或新建；更新采用完整 snapshot 原子替换，失败保留旧 Source。
-
-完成成果：DirectBookImportService 按最终 Title + Author 严格查找 Book（空作者明确匹配），零候选创建 Book + 激活 Local Source，唯一候选更新/绑定唯一 Local Source，多候选返回 RequiresBookSelection 并由轻量对话框明确选择目标、新建或取消；显示作者、导入/阅读时间与原文件名，不猜测候选。更新保留 BookId/SourceId 和初始时间，新建章节技术 ID；仅 active Local Source 完整投影显示元数据，空 Description 清空旧值，非 active 来源不自动激活，ReadingProgress 保持原值并交 T006 做边界处理。正文先准备为 Book 目录内独立快照文件，SQLite 事务原子替换 metadata/catalog/typed content pointer 并推进操作 journal；失败清理新文件且保留旧 snapshot，成功清理旧文件，清理失败由已有启动恢复重试。恢复比较实际路径以兼容既有绝对路径记录，严格验证暂存/正文边界；导入串行执行且解析/目录投影离开 Dispatcher。删除 SourceHash 重复身份 detector、注册、失败状态与旧 Book-owned 导入写法，无新 schema migration、双读双写或兼容 wrapper。新增/改写导入、严格匹配、歧义选择、active/non-active 投影、旧快照保留、外部 TXT 删除、过期更新拒绝及恢复安全核心测试，保留既有编码、规则和迁移测试；临时主题验证与诊断产物已清理。Application Books 66 项、Infrastructure 导入/文件/迁移 focused 23 项、Library/架构 Presentation 61 项、隔离 WPF 反馈/选择 6 项全部通过，零跳过；临时隔离 Desktop 主题验证覆盖 Light/Dark 先应用后创建、已有控件切换、切换后新建，两项通过并已删除。产品 Release 构建零警告/错误，变更文件 format verify、LF 与 git diff --check 通过。标准 Infrastructure 测试工程仍因 BookCatalogServiceTests、BookManagementServiceTests、SqliteReadingProgressStoreTests 的旧构造器/导入合同无法编译，按 staged breaking migration 留给 T006/T007；通过仓库外临时工程引用真实生产工程和任务测试完成 focused 验证，未运行完整 solution gate，T008 收口。曾出现并行构建共享 DLL 占用（CS2012），串行重跑通过；临时主题验证首轮离屏对象未刷新，挂载隔离 Desktop 实际控件后通过，未弱化断言。清单 NS-01 主题动态资源及冷启动/切换验证通过，NS-02 继续复用已有 Snackbar，编码/候选选择前关闭大文件进度 surface，小于 5 MiB 无进度。无环境受限的未执行 focused 检查或长期合同冲突；临时实施规格已删除，未推进 T006。
-
-## [x] T006（P0）：把 Query、正文读取、Playback 与 ReadingProgress 接到 ActiveSource Catalog
-
-依赖：T004、T005。
-
-目标：移除运行时“Book 直接拥有 StoredFilePath/Chapters”的假设；Library/BookDetails/Player/Cache/Speech Plan 通过 ActiveSource Catalog 和 Source content port 工作；ReadingProgress 保持 Book 级并在 Catalog 更新时只做边界截断。
-
-完成成果：Library/BookDetails/Playback metadata 按 Book.ActiveSourceId 查询 Source Catalog，返回来源摘要、技术 ChapterId 与基于完整替换后新 ID 的上下文版本；Source content port 只接收 SourceId/ChapterId，Local 正文路径与范围由 Infrastructure 解析，正文导出保留整个来源文本。删除旧 IBookContentReader/BookContentReader 和 read model 中的 Book-owned path/range，不新增持久化字段或 migration。ActiveSource=None/空目录返回安全未定位状态；ReadingProgress 保持 Book 级，目录缩短后先定位合法章节、解析章内并截断，再 checkpoint；SQLite 事务拒绝旧上下文 checkpoint，保留重导入前原坐标。Books 在 active Local snapshot 成功提交后发布专属变更事件；Playback 取消旧 session/content/audio/prefetch 并在接收与播放边界校验上下文，Player 清理同 Book 的旧正文及 current/selected decoration，Library/Details 忽略旧 snapshot。Speech Plan/Audio Cache 继续引用技术 ChapterId，拒绝将迟到音频挂到新章节；目录替换级联移除旧派生索引，文件由现有 maintenance 清理；全局缓存管理保留非 active 来源条目，不成为 Catalog owner。
-
-核心测试新增/改写迁移后来源读取与运行、active/empty/None 查询、重启进度、章节及章内 clamp、旧 content/audio/checkpoint 拒绝、同 Book 页面投影更新、技术 ID 派生数据与清理；原正文/导出/计划/生产 pipeline fixture 迁移到 Source 模型，删除只保护旧 path/range 形状的正文读取测试及连接次数断言，保留核心播放、缓存、迁移、编码、导入与架构契约。locked restore、产品 Release 构建、变更 C# format verify、LF 与 git diff --check 通过；Application 全部 223 项、Infrastructure focused 163 项、Books/Details/Player/架构 Presentation 97 项、WPF 组合根 6 项通过，零跳过。10,000 条目录临时验证覆盖 Details/Playback catalog、跨批次排序和 Library，四类查询总计约 180 ms，专用验证代码不保留。标准 Infrastructure 测试工程只剩 T007 的 BookManagementServiceTests 旧 Book/Chapter 构造器 3 个 CS1729；按 staged window 通过仓库外临时工程引用真实生产工程与全部可编译测试完成 focused 验证，完整 solution build/test 留给 T008。隔离 Desktop 的两个既有 BookDetailsPage 交互测试分别触发 blame-hang 超时；异步等待实验仍在页面加载完成后的 Dispatcher ApplicationIdle 等待处挂起，未弱化隔离/断言、未启用可见窗口，实验代码已删除，两项未通过作为剩余 WPF 验证限制记录。无长期文档冲突，T007 的删除/恢复旧 SQL 尚未迁移；临时实施规格已删除，未推进 T007。 独立首审发现并修复 Idle snapshot 的 Player 调用链早退/目录版本清理遗漏，以及定时暂停失败全局 epoch 丢弃合法完成事件；补充实际 ViewModel 事件入口和暂停 checkpoint 失败并发完成测试通过。复审补齐首次目录读取/索引尚未提交时的 Idle 加载失效保护，受控迟到目录测试通过。
-
-## [x] T007（P1）：收口 Source/Book 生命周期并删除旧模型残留
-
-依赖：T006。
-
-目标：完成 Local Source 更新/删除、Book 删除、ActiveSource=None 安全处理、文件/SQLite/音频缓存/ReadingProgress/Speech Plan 协调；删除旧 SourceHash-based duplicate path、Book-owned content contract 和仅为旧 schema 存在的代码/测试。
-
-完成成果：Book deletion 与启动恢复改为 Source-owned Catalog / Local typed content；Source removal 复用文件暂存、SQLite 事务与 operation recovery，最后来源删除 Book，活动来源删除后 ActiveSourceId=null、保留最后展示元数据且不 fallback，非活动来源删除保留其它来源与 Book 级 ReadingProgress。关联 Catalog、typed content、Speech Plan/segments、音频索引通过正式外键清理，真实正文与所选音频文件先暂存再删除；原有保留物理音频选项仍交给 orphan maintenance。删除与 journal DatabaseCommitted 同事务，恢复以提交状态和目标 Source/Book ownership 判定回滚或清理，只删除属于该操作的 staged 文件。导入与删除共用 Books 专属串行边界，Playback 在删除前取消旧 content/synthesis/prefetch、停止音频并释放保护；Active Cache 启动共用该串行边界，移除前取消并等待匹配冻结来源的批次；删除全程持有既有 Audio Cache mutex 的 storage lease，排除路径快照到提交/回滚间的并发文件/索引 mutation；统一 Books committed catalog 发布者，observer failure 不影响持久操作。复用数据根 trust resolver，目录递归操作检查内部 reparse point，继续支持数据根及祖先链接；未改变 schema/migration、用户外部 TXT 或新增 Online 实现/UI。
-
-删除运行时旧 Books.StoredFilePath / Chapters.BookId SQL 与重复的旧恢复清理代码；旧 duplicate detector、Book-owned content reader 已在 T005/T006 删除，本次确认无残留。运行 fixture 共用新 SourceBookFixture，配置备份验证新增 Source/typed content 数据不受影响；历史 migration 与升级测试中的旧 schema 合同保留。新增最后/活动/非活动 Source 移除、其它来源派生数据保留、Source 恢复/失败回滚、内部链接安全、迟到音频拒绝及无当前来源详情核心测试，保留删除、导入严格匹配/忽略 hash、播放、进度、升级及架构核心合同；将缺失已提交正文的旧恢复测试改为保留 Source 与未完成 journal 并报告失败。详情使用已有目录摘要展示“无当前来源”，复用原主题文字宿主。locked restore、完整 format verify、solution Release build（零警告/错误）、Application 全部 224 项、Infrastructure focused（含音频缓存）186 项、相关 Presentation/架构 70 项、隔离 WPF 组合根 6 项均通过，零跳过；临时隔离 Desktop Light/Dark 先应用后创建、已有页面切换、切换后新建的实际详情文字绑定两项通过，验证代码已删除。首轮编译与 focused 失败来自旧事件订阅、缓存 fixture 技术 ID、seed journal 未收尾，以及新测试的文案/固定三章等待假设，适配新合同后重跑通过。LF、旧运行模型静态审计与 git diff --check 通过；无本任务环境受限检查或长期文档冲突。按 staged window，完整阶段 build/test 组合及 T006 已记录的两个 WPF 目录交互用例由 T008 验收，本次未推进 T008；临时实施规格已删除。独立首审指出 Active Cache 可在路径枚举后、SQLite 删除前写入新音频，造成 index 级联删除但物理文件漏清理；补齐目标批次取消/等待与既有 Cache mutex 的移除 lease，新增 Book/Source 两种受控迟到写入核心用例及匹配来源批次终止用例，复跑上述门禁全部通过。复审发现启动入口提前释放占位可让排队请求覆盖运行批次，改为仅在入口 finally 释放，重新构建和执行 Application 全部 224 项通过。
-
----
-
-# Phase C：最终集成收口
-
-## [x] T008（P0）：恢复完整可运行状态并执行阶段级验收
-
-依赖：T001–T007。
-
-目标：完成跨模块接线、测试收敛、架构审计和文档一致性检查；确保没有旧/新 Book 模型双路径、没有遗漏的 active-cache selection 专名、没有隐藏 selected item 参与批量操作，最终执行完整标准门禁。
-
-完成成果：完成 Batch Management、Book/Source 接线与架构审计：Shared 只拥有页面选择 primitive，Library/Player/Provider/Rules 保持 Normal/Management 分离、空选择不退出、visible/manageable reconciliation、右键语义、单次批量确认与逐项继续，CacheManagement 保持 Extended Selection 例外；新导入、唯一候选更新、多候选明确选择、Library/Details、播放/进度、Speech Plan/音频缓存、删除与 v11 迁移后重启均通过核心回归。运行时无 Book-owned path/hash/catalog、ReadingProgress ChapterId、新旧双读写或过渡 adapter；Local Source 自身的 SourceHash 和明确历史 migration 保留，不新增 schema 或 Online 实现。
-
-修复短音频在 StartAsync 返回前完成时被 Stopped 投影误丢弃的终止事件，仍以会话/事件版本/音频身份拒绝迟到结果；现有跨章/全书完成核心测试扩为普通完成、首章启动中完成、末章启动中完成三种受控场景，修复前受控场景可复现失败。Provider/Rules 部分失败或跳过汇总改用已有 Snackbar warning，并在发布完成通知前检查取消；补强已有批量行为测试的汇总类型断言。Provider 升级测试不再冻结过期的最终 schema v11，仍保护迁移内容与设置失败后重试。清理两处旧 Active Cache selection 测试专名；只将 Cache 长期文档中的待迁移描述改为当前章节管理事实，未扩写迁移历史。未删除核心测试或弱化 WPF 隔离，无临时测试/脚本进入提交。
-
-标准 locked restore、完整 format verify、solution Release build（零警告/错误）、完整 test 全部通过：Domain 15、Application 224、Infrastructure 386、Presentation 303、隔离 WPF 101，共 1,029 项，零失败、零跳过；包括 T006 记录的两个目录交互用例。初轮全量的两处旧 schema 断言和播放完成竞态已修复并通过复跑；focused 播放/Provider 持久化最终 66 项与 Presentation 全部 303 项亦通过。独立首审发现启动中完成的成功短音频未重置连续失败计数；确认当前 Completed 时补齐重置，已有成功段恢复测试扩充即时完成场景，修复前可复现、修复后通过，并重新执行完整 format/build/test 全部通过。LF、git diff --check 与旧模型/选择专名审计通过；无环境限制未执行项或长期合同冲突。临时实施规格已删除，staged breaking migration window 正式结束。
+- `LegacyRuleId` / `SynthesisProfiles.RuleId`：涉及已有 SQLite 数据与恢复路径；先完成读取者和版本兼容调查，并取得具体持久化变更授权后再排期。
+- Source 模型：属于已批准的长期 Book/Source 方向，不因当前仅有 Local Source 实现而撤销（I03）。
+- HTTP 跨主机重定向凭据语义、数据根 TOCTOU：当前证据不足以形成修复任务（I04 / I05）。
+- App 对 Domain 的传递项目引用：目前属于低置信度工程表达问题，没有明确收益前不单独建立重构任务（D06）。
+- resolver convenience constructors、release 目录/ZIP 双层校验：前者收益不足，后者各层核验职责不同；不作为删除目标（审计报告 9.5–9.6）。
