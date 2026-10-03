@@ -124,6 +124,50 @@ public sealed class ActiveCacheCoordinatorTests
         Assert.True(audio.Calls[1].CancellationToken.IsCancellationRequested);
     }
 
+    [Fact]
+    public async Task CancelAsync_does_not_cancel_replacement_batch_when_old_batch_finishes_during_notification()
+    {
+        var audio = new ControlledAudioProvider();
+        var oldBatchAudio = audio.EnqueuePending();
+        var replacementAudio = audio.EnqueuePending();
+        await using var coordinator = new ActiveCacheCoordinator(
+            new FakeContentService(),
+            new MutableRuleProvider(CreateRule(7, "批次规则")),
+            audio,
+            new BookMutationGate());
+
+        var start = await coordinator.StartAsync(
+            new StartActiveCacheRequest("book-1", [8], 10),
+            CancellationToken.None);
+        await oldBatchAudio.Started;
+
+        var notificationHandled = false;
+        ActiveCacheStartResult? replacement = null;
+        coordinator.SnapshotChanged += (_, snapshot) =>
+        {
+            if (notificationHandled || snapshot.Status != ActiveCacheBatchStatus.Cancelling)
+            {
+                return;
+            }
+
+            notificationHandled = true;
+            coordinator.WaitForCurrentBatchAsync(CancellationToken.None).GetAwaiter().GetResult();
+            replacement = coordinator.StartAsync(
+                new StartActiveCacheRequest("book-1", [3], 10),
+                CancellationToken.None).GetAwaiter().GetResult();
+        };
+
+        await coordinator.CancelAsync(CancellationToken.None);
+        await replacementAudio.Started;
+
+        Assert.Equal(ActiveCacheStartStatus.Accepted, start.Status);
+        Assert.Equal(ActiveCacheStartStatus.Accepted, replacement?.Status);
+        Assert.True(audio.Calls[0].CancellationToken.IsCancellationRequested);
+        Assert.False(audio.Calls[1].CancellationToken.IsCancellationRequested);
+
+        await coordinator.CancelAsync(CancellationToken.None);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

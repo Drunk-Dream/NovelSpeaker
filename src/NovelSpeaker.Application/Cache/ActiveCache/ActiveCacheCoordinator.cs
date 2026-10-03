@@ -170,26 +170,27 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
     {
         ThrowIfDisposed();
         Task? activeTask;
-        CancellationTokenSource? activeCancellation;
         lock (_syncRoot)
         {
             activeTask = _activeTask;
-            activeCancellation = _activeCancellation;
+            var activeCancellation = _activeCancellation;
+            if (activeTask is null || activeTask.IsCompleted || activeCancellation is null)
+            {
+                return;
+            }
+
+            // Keep the active-slot check and cancellation together so a replacement
+            // batch cannot dispose this token source before it is cancelled.
+            activeCancellation.Cancel();
+
+            var snapshot = CurrentSnapshot;
+            if (snapshot is not null &&
+                snapshot.Status is ActiveCacheBatchStatus.Waiting or ActiveCacheBatchStatus.Running)
+            {
+                Publish(snapshot with { Status = ActiveCacheBatchStatus.Cancelling });
+            }
         }
 
-        if (activeTask is null || activeTask.IsCompleted || activeCancellation is null)
-        {
-            return;
-        }
-
-        var snapshot = CurrentSnapshot;
-        if (snapshot is not null &&
-            snapshot.Status is ActiveCacheBatchStatus.Waiting or ActiveCacheBatchStatus.Running)
-        {
-            Publish(snapshot with { Status = ActiveCacheBatchStatus.Cancelling });
-        }
-
-        activeCancellation.Cancel();
         await activeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 

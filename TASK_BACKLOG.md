@@ -35,11 +35,13 @@
 
 依赖：无。先核实现有 Provider 格式与产品音频长度所需范围；审计依据：F02。
 
-## [ ] T018（P2）：修复 Active Cache 取消与 CTS 替换竞态
+## [x] T018（P2）：修复 Active Cache 取消与 CTS 替换竞态
 
 目标：确保取消活动批次时，CancellationTokenSource 不会在检查/取消期间被并发替换并释放；复用现有任务 owner 和同步边界，不增加新的同步层。
 
 依赖：无。审计依据：F03。
+
+完成成果：在现有 active-slot 锁内完成 CTS 取消与状态转换；受控替换竞态用例、focused tests、格式检查与 Release build 通过。
 
 ## [ ] T019（P2）：确认并收敛 Playback 替换提交边界
 
