@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 
@@ -112,6 +113,12 @@ public sealed class DirectBookImportService : IDirectBookImportService
             return new DirectBookImportResult(
                 DirectBookImportStatus.Failed,
                 FailureReason: BookImportFailureReason.FileReadFailed);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return new DirectBookImportResult(
+                DirectBookImportStatus.Failed,
+                FailureReason: BookImportFailureReason.ChapterRuleTimedOut);
         }
     }
 

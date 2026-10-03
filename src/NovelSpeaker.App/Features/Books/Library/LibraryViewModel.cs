@@ -1230,6 +1230,7 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
             BookImportFailureReason.NoValidChapters => "章节解析失败，请检查文件内容。",
             BookImportFailureReason.UnsupportedEncoding => "无法识别编码，请手动选择。",
             BookImportFailureReason.FileReadFailed => "文件无法读取，请确认文件仍可访问。",
+            BookImportFailureReason.ChapterRuleTimedOut => "章节规则匹配超时，请调整规则后重试。",
             _ => "导入失败，请重试。"
         };
 

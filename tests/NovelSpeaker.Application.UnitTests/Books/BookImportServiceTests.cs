@@ -11,6 +11,23 @@ namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class BookImportServiceTests
 {
+    [Fact]
+    public async Task ImportAsync_returns_stable_failure_when_chapter_rule_times_out()
+    {
+        var rule = new ChapterRule("rule", "复杂规则", @"^(a+)+$", 10, true,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        var service = CreateService(
+            normalizer: new FakeTextNormalizer(new string('a', 100_000) + "!"),
+            splitter: new ChapterSplitter(),
+            rules: new FakeChapterRuleRepository([rule]));
+
+        var result = await service.ImportAsync(
+            new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None);
+
+        Assert.Equal(DirectBookImportStatus.Failed, result.Status);
+        Assert.Equal(BookImportFailureReason.ChapterRuleTimedOut, result.FailureReason);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

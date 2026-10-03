@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Application.Books.RuleEditing;
 
 namespace NovelSpeaker.Application.Books.Import;
 
@@ -84,7 +85,10 @@ public sealed class ChapterSplitter : IChapterSplitter
     private static List<Line> FindLines(string normalizedText, IReadOnlyList<ChapterRule> rules)
     {
         var lines = new List<Line>();
-        var orderedRules = rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.SortOrder).ToArray();
+        var orderedRules = rules.Where(rule => rule.IsEnabled)
+            .OrderBy(rule => rule.SortOrder)
+            .Select(rule => ChapterRuleRegexPolicy.Create(rule.Pattern))
+            .ToArray();
         var lineStart = 0;
         foreach (var line in normalizedText.Split('\n'))
         {
@@ -94,7 +98,7 @@ public sealed class ChapterSplitter : IChapterSplitter
                 end,
                 line,
                 string.IsNullOrWhiteSpace(line),
-                orderedRules.Any(rule => Regex.IsMatch(line, rule.Pattern, RegexOptions.CultureInvariant))));
+                orderedRules.Any(regex => regex.IsMatch(line))));
             lineStart = end;
         }
 

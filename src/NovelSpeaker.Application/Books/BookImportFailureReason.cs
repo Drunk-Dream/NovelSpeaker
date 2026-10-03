@@ -5,5 +5,6 @@ public enum BookImportFailureReason
     UnsupportedEncoding,
     NoValidChapters,
     FileReadFailed,
-    TextNormalizationFailed
+    TextNormalizationFailed,
+    ChapterRuleTimedOut
 }

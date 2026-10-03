@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.RuleEditing;
 using NovelSpeaker.App.Features.Rules.Shared;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
@@ -832,7 +833,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
         {
             try
             {
-                _ = new RegularExpression(DraftPattern.Trim(), RegexOptions.CultureInvariant);
+                _ = new RegularExpression(DraftPattern.Trim(), RegexOptions.CultureInvariant, ChapterRuleRegexPolicy.MatchTimeout);
                 PatternValidationMessage = string.Empty;
             }
             catch (ArgumentException exception)
