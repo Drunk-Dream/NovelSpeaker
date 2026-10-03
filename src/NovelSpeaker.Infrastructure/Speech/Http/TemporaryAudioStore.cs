@@ -9,6 +9,8 @@ namespace NovelSpeaker.Infrastructure.Speech.Http;
 /// <summary>Owns temporary HTTP TTS response files and their cleanup.</summary>
 public sealed class TemporaryAudioStore : IGeneratedAudioFileStore
 {
+    internal const long MaximumResponseBytes = 64L * 1024 * 1024;
+
     private readonly IAppDataDirectoryProvider _directories;
     private readonly IAppStoragePathResolver _pathResolver;
     private readonly ITemporaryAudioFileOperations _fileOperations;
@@ -61,8 +63,28 @@ public sealed class TemporaryAudioStore : IGeneratedAudioFileStore
             Path.Combine(directoryPath, $"tts-{ruleId}-{Guid.NewGuid():N}.tmp"));
         try
         {
-            await using var file = File.Create(path);
-            await content.CopyToAsync(file, cancellationToken).ConfigureAwait(false);
+            await using var file = _fileOperations.Create(path);
+            var buffer = new byte[81920];
+            long totalBytes = 0;
+            while (true)
+            {
+                var remainingBytes = MaximumResponseBytes - totalBytes;
+                var readBuffer = buffer.AsMemory(0, (int)Math.Min(buffer.Length, remainingBytes + 1));
+                var bytesRead = await content.ReadAsync(readBuffer, cancellationToken).ConfigureAwait(false);
+                if (bytesRead == 0)
+                {
+                    break;
+                }
+
+                if (bytesRead > remainingBytes)
+                {
+                    throw new TtsAudioResponseTooLargeException();
+                }
+
+                await file.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+                totalBytes += bytesRead;
+            }
+
             return path;
         }
         catch
@@ -116,6 +138,8 @@ public sealed class TemporaryAudioStore : IGeneratedAudioFileStore
 
 internal interface ITemporaryAudioFileOperations
 {
+    Stream Create(string path);
+
     void Copy(string sourcePath, string destinationPath);
 
     void Delete(string path);
@@ -123,6 +147,8 @@ internal interface ITemporaryAudioFileOperations
 
 internal sealed class TemporaryAudioFileOperations : ITemporaryAudioFileOperations
 {
+    public Stream Create(string path) => File.Create(path);
+
     public void Copy(string sourcePath, string destinationPath)
     {
         File.Copy(sourcePath, destinationPath, overwrite: true);
@@ -133,6 +159,9 @@ internal sealed class TemporaryAudioFileOperations : ITemporaryAudioFileOperatio
         TemporaryAudioStore.Delete(path);
     }
 }
+
+internal sealed class TtsAudioResponseTooLargeException()
+    : IOException("HTTP TTS audio response exceeded the configured size limit.");
 
 internal sealed class TemporaryAudioFileOwner(
     string path,

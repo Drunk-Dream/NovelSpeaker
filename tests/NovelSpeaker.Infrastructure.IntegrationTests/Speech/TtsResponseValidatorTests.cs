@@ -31,6 +31,86 @@ public sealed class TtsResponseValidatorTests
     }
 
     [Fact]
+    public async Task Temporary_store_accepts_response_at_byte_limit_without_a_known_length()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new TemporaryAudioStore(directories);
+        await using var content = new GeneratedContentStream(TemporaryAudioStore.MaximumResponseBytes);
+
+        var path = await store.WriteAsync(1, content, CancellationToken.None);
+
+        Assert.Equal(TemporaryAudioStore.MaximumResponseBytes, new FileInfo(path).Length);
+        TemporaryAudioStore.Delete(path);
+    }
+
+    [Fact]
+    public async Task Temporary_store_rejects_actual_bytes_over_limit_and_deletes_partial_file()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new TemporaryAudioStore(directories);
+        await using var content = new GeneratedContentStream(TemporaryAudioStore.MaximumResponseBytes + 1);
+
+        await Assert.ThrowsAsync<TtsAudioResponseTooLargeException>(() =>
+            store.WriteAsync(1, content, CancellationToken.None));
+
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+    }
+
+    [Fact]
+    public async Task ValidateAsync_returns_stable_invalid_response_for_oversized_audio()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
+        await using var response = new TtsTransportResponse(
+            200,
+            "audio/mpeg",
+            new GeneratedContentStream(TemporaryAudioStore.MaximumResponseBytes + 1));
+
+        var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
+
+        Assert.Equal(TtsErrorKind.InvalidResponse, result.Failure!.Kind);
+        Assert.Equal("服务返回的音频超过允许大小，无法生成音频。", result.Failure.Message);
+        Assert.Null(result.Failure.ResponseSummary);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+    }
+
+    [Fact]
+    public async Task Temporary_store_deletes_partial_file_when_cancelled_during_copy()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new TemporaryAudioStore(directories);
+        using var cancellation = new CancellationTokenSource();
+        await using var content = new GeneratedContentStream(TemporaryAudioStore.MaximumResponseBytes, cancellation);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            store.WriteAsync(1, content, cancellation.Token));
+
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+    }
+
+    [Fact]
+    public async Task Temporary_store_deletes_partial_file_when_file_write_fails()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new TemporaryAudioStore(directories, new WriteFailureOperations());
+        await using var content = new GeneratedContentStream(128);
+
+        await Assert.ThrowsAsync<IOException>(() => store.WriteAsync(1, content, CancellationToken.None));
+
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+    }
+
+    [Fact]
     public async Task ValidateAsync_classifies_an_empty_success_response_separately()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -211,6 +291,8 @@ public sealed class TtsResponseValidatorTests
 
     private sealed class PartialCopyThenThrowOperations : ITemporaryAudioFileOperations
     {
+        public Stream Create(string path) => File.Create(path);
+
         public void Copy(string sourcePath, string destinationPath)
         {
             File.WriteAllText(destinationPath, "partial");
@@ -220,6 +302,93 @@ public sealed class TtsResponseValidatorTests
         public void Delete(string path)
         {
             TemporaryAudioStore.Delete(path);
+        }
+    }
+
+    private sealed class WriteFailureOperations : ITemporaryAudioFileOperations
+    {
+        public Stream Create(string path) => new PartialThenFailWriteStream(File.Create(path));
+
+        public void Copy(string sourcePath, string destinationPath) => File.Copy(sourcePath, destinationPath);
+
+        public void Delete(string path) => TemporaryAudioStore.Delete(path);
+    }
+
+    private sealed class PartialThenFailWriteStream(Stream inner) : Stream
+    {
+        private bool _failed;
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_failed)
+            {
+                throw new IOException("simulated disk write failure");
+            }
+
+            _failed = true;
+            await inner.WriteAsync(buffer[..Math.Min(buffer.Length, 4)], cancellationToken);
+            throw new IOException("simulated disk write failure");
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
+
+    private sealed class GeneratedContentStream(long totalBytes, CancellationTokenSource? cancelAfterFirstRead = null) : Stream
+    {
+        private long _remaining = totalBytes;
+        private bool _cancelled;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_remaining == 0)
+            {
+                return ValueTask.FromResult(0);
+            }
+
+            var bytesRead = (int)Math.Min(buffer.Length, _remaining);
+            buffer.Span[..bytesRead].Clear();
+            _remaining -= bytesRead;
+            if (!_cancelled && cancelAfterFirstRead is not null)
+            {
+                _cancelled = true;
+                cancelAfterFirstRead.Cancel();
+            }
+
+            return ValueTask.FromResult(bytesRead);
         }
     }
 }
