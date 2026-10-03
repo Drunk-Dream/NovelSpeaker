@@ -1,18 +1,14 @@
 namespace NovelSpeaker.Domain.Books;
 
 /// <summary>
-/// Represents an imported book record that points to the stored normalized TXT file.
+/// Represents a stable book identity and its current display metadata snapshot.
 /// </summary>
 public sealed record Book(
     string Id,
     string Title,
     string? Author,
-    string OriginalFileName,
-    string StoredFilePath,
-    string SourceHash,
-    string Encoding,
+    string? ActiveSourceId,
     DateTimeOffset ImportedAt,
-    DateTimeOffset LastImportedAt,
     DateTimeOffset? LastPlayedAt,
     DateTimeOffset UpdatedAt,
     string? Description = null);

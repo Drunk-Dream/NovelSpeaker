@@ -166,13 +166,13 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 
 # Phase B：通用 Book/Source 模型
 
-## [ ] T004（P0）：建立 Book/Source 持久化模型并完成 v0.8.0 schema migration
+## [x] T004（P0）：建立 Book/Source 持久化模型并完成 v0.8.0 schema migration
 
 依赖：T003。
 
 目标：建立 Book、Source、Local Source typed persistence、Source-owned Catalog 的最终数据结构；追加新的 SQLite migration，把现有每本本地书转换为一个 Local Source，并保留 BookId、Chapter 技术 ID、ReadingProgress、Speech Plan 与可安全保留的音频缓存关系。删除旧 Book 上已经失去语义的 Local TXT 字段/约束。
 
-详细规格：`tasks/T004_BOOK_SOURCE_SCHEMA_MIGRATION.md`
+完成成果：追加 schema v12，未改动 v4–v11；新增 BookSources / LocalBookSources / LocalChapterContents，Book 保留显示元数据与 nullable ActiveSourceId，Catalog 改为 SourceId ownership，领域合同拆分为 BookSource、SourceType、LocalBookSource、LocalChapterContent。每本旧 Book 自动获得一个 Local Source 并激活，保留 BookId、ChapterId、Book 时间状态、ReadingProgress、Speech Plan/Segments、SynthesisProfiles、音频缓存及操作记录；Local 路径原值保留，不搬迁正文、不访问外部 TXT。删除 Books 的 Local 专属列和 IX_Books_SourceHash、Chapters.BookId 与通用内容范围，没有旧/新兼容 wrapper 或双读/双写；路径规范化服务直接读取新 Local typed table。Local singleton、ActiveSource 同 Book 外键、Source/Catalog/typed content 级联及范围约束生效；重建仅在专属连接上临时关闭外键，提交前执行 foreign_key_check，失败/取消整笔回滚并恢复外键。保留并适配既有迁移核心测试，新增 8 项升级/创建/约束/失败与取消回滚用例；迁移 focused 24 项、Domain 15 项、变更文件 format verify、v4–v11 不变与领域 ownership/LF 静态检查、git diff --check 通过，零跳过。迁移测试通过仓库外临时工程链接真实源码运行，排除尚未迁移的 DirectBookImportService 及其两层注册；工程与临时产物已清理。首次 focused 运行一项旧外键测试因 fixture 仍插入旧列失败，适配新 schema 后全量复测通过；未弱化核心断言。按已授权 staged breaking migration 合同未运行完整 solution 门禁：导入构造器/持久化、Query、正文读取、删除/恢复及相关调用方和测试仍待 T005–T007 迁移，T008 恢复完整门禁；无环境受限检查或长期文档冲突。临时任务规格已删除，未推进 T005。
 
 ## [ ] T005（P0）：重构 Local TXT 导入与重新导入更新
 
