@@ -368,6 +368,8 @@ public sealed partial class PlaybackCoordinatorTests
 
         public int StartCallCount { get; private set; }
 
+        public int? CompleteOnStartCall { get; init; }
+
         public int PauseCallCount { get; private set; }
 
         public int StopCallCount { get; private set; }
@@ -397,6 +399,10 @@ public sealed partial class PlaybackCoordinatorTests
                 PlaybackVolume.Default,
                 request.PlaybackSessionId);
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
+            if (StartCallCount == CompleteOnStartCall)
+            {
+                RaiseCompleted();
+            }
             return Task.CompletedTask;
         }
 

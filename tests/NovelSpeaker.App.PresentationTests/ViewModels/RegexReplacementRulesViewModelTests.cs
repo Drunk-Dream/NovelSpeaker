@@ -115,6 +115,8 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Equal(1, vm.SelectedCount);
         Assert.Equal(1, fixture.Feedback.DeletionPromptCount);
         Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+        Assert.Equal("成功 2，跳过 0，失败 1。", fixture.Feedback.LastWarningMessage);
+        Assert.Null(fixture.Feedback.LastSuccessTitle);
     }
 
     private async Task LoadAsync_leaves_editor_closed_until_a_rule_is_clicked()
@@ -548,6 +550,7 @@ public sealed class RegexReplacementRulesViewModelTests
     {
         public string? LastProjectedTitle { get; private set; }
         public string? LastSuccessTitle { get; private set; }
+        public string? LastWarningMessage { get; private set; }
         public int DeletionPromptCount { get; private set; }
         public AppConfirmationDecision DeletionDecision { get; set; } = AppConfirmationDecision.Cancel;
 
@@ -565,6 +568,7 @@ public sealed class RegexReplacementRulesViewModelTests
 
         public void ShowWarning(string title, string message)
         {
+            LastWarningMessage = message;
         }
 
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(

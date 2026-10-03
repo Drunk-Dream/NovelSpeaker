@@ -755,7 +755,10 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
                 catch (Exception) { failed++; }
             }
             await RefreshAsync(SelectedRuleId, selectFirst: false, cancellationToken);
-            _feedback.ShowSuccess("删除完成", $"成功 {succeeded}，跳过 0，失败 {failed}。");
+            cancellationToken.ThrowIfCancellationRequested();
+            var message = $"成功 {succeeded}，跳过 0，失败 {failed}。";
+            if (failed > 0) _feedback.ShowWarning("删除完成", message);
+            else _feedback.ShowSuccess("删除完成", message);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) { _feedback.ShowProjectedNotification("批量删除失败", _feedback.Project(exception)); }

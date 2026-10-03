@@ -1712,12 +1712,8 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        if (_currentSnapshot.State == PlaybackState.Stopped &&
-            command.Kind is PlaybackEventCommandKind.Completed or PlaybackEventCommandKind.Failed)
-        {
-            return;
-        }
-
+        // Very short audio can finish before StartAsync returns and already project Stopped.
+        // Session, epoch and audio identity above decide whether its terminal event is current.
         try
         {
             switch (command.Kind)
@@ -1756,6 +1752,10 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
+        // Completion during StartAsync can bypass its successful-playing projection.
+        // A confirmed successful segment still starts a new failure window.
+        session.SetConsecutiveSegmentFailureCount(0);
+        _lastFailureKind = null;
         session.UpdateAudio(snapshot);
         var next = await ResolveRelativeSegmentAsync(
             _currentBook,

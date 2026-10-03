@@ -286,7 +286,10 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
                 }
                 if (clipboard) await _documents.CopyAsync(result.Json, token);
                 else if (!await _documents.ExportAsync("speech-provider.json", result.Json, token)) return;
-                _feedback.ShowSuccess("导出完成", $"成功 {result.ExportedCount}，跳过 {result.SkippedCount}，失败 0。");
+                token.ThrowIfCancellationRequested();
+                var message = $"成功 {result.ExportedCount}，跳过 {result.SkippedCount}，失败 0。";
+                if (result.SkippedCount > 0) _feedback.ShowWarning("导出完成", message);
+                else _feedback.ShowSuccess("导出完成", message);
             }
             finally { IsBusy = false; }
         }, cancellationToken);
@@ -836,7 +839,10 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
                 catch (Exception) { failed++; }
             }
             await RefreshAsync(cancellationToken);
-            _feedback.ShowSuccess("删除完成", $"成功 {succeeded}，跳过 {skipped}，失败 {failed}。");
+            cancellationToken.ThrowIfCancellationRequested();
+            var message = $"成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
+            if (skipped > 0 || failed > 0) _feedback.ShowWarning("删除完成", message);
+            else _feedback.ShowSuccess("删除完成", message);
         }
         finally { IsBusy = false; }
     }

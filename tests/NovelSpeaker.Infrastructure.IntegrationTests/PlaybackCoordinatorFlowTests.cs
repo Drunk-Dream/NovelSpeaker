@@ -214,23 +214,38 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
     }
 
-    [Fact]
-    public async Task PlaybackCompleted_moves_to_next_chapter_and_stops_at_book_end()
+    [Theory]
+    [InlineData(null)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task PlaybackCompleted_moves_to_next_chapter_and_stops_at_book_end(int? completeOnStartCall)
     {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator
+        {
+            CompleteOnStartCall = completeOnStartCall
+        };
         await using var coordinator = CreateCoordinator(
             localCoordinator,
             book: CreateTwoChapterBook());
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        localCoordinator.RaiseCompleted();
+        if (completeOnStartCall != 1)
+        {
+            localCoordinator.RaiseCompleted();
+        }
 
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ChapterIndex == 1);
+        if (completeOnStartCall != 2)
+        {
+            await WaitForAsync(coordinator, () =>
+                coordinator.CurrentSnapshot.ChapterIndex == 1 &&
+                coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+            localCoordinator.RaiseCompleted();
+        }
+
+        await WaitForAsync(coordinator, () =>
+            coordinator.CurrentSnapshot.State == PlaybackState.Stopped &&
+            coordinator.CurrentSnapshot.Message == "全书播放完成。");
         Assert.Equal("第二章 延续", coordinator.CurrentSnapshot.ChapterTitle);
-
-        localCoordinator.RaiseCompleted();
-
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
         Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
     }
 

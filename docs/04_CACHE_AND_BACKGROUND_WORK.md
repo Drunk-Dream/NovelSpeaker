@@ -139,7 +139,7 @@ Cache 不通过 Prefetch 反向依赖 Playback mutable session。
 - 完成/取消/失败后释放 active slot。
 - 页面通过 immutable progress snapshot 展示状态。
 
-Playback 章节目录中的“主动缓存选择”应迁移为通用章节 Management Mode 中的 `Cache` 动作，选择语义见 `specs/BATCH_MANAGEMENT.md`。Active Cache coordinator 仍只负责批次执行，不拥有页面 selection。
+Playback 章节目录使用通用章节 Management Mode，`Cache` 是其中的批量动作，选择语义见 `specs/BATCH_MANAGEMENT.md`。Active Cache coordinator 只负责批次执行，不拥有页面 selection。
 
 Cache 动作是幂等的：
 

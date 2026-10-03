@@ -1037,7 +1037,10 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
                 catch (Exception) { failed++; }
             }
             await RefreshRulesAsync(CurrentRuleId, openEditorIfNeeded: false, cancellationToken);
-            _feedbackService.ShowSuccess("删除完成", $"成功 {succeeded}，跳过 {skipped}，失败 {failed}。");
+            cancellationToken.ThrowIfCancellationRequested();
+            var message = $"成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
+            if (skipped > 0 || failed > 0) _feedbackService.ShowWarning("删除完成", message);
+            else _feedbackService.ShowSuccess("删除完成", message);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) { _feedbackService.ShowProjectedNotification("批量删除失败", _feedbackService.Project(exception)); }

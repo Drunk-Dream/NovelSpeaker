@@ -104,6 +104,7 @@ public sealed class ChapterRulesViewModelTests
         Assert.Equal(2, vm.SelectedCount);
         Assert.Equal(1, feedback.DeletionPromptCount);
         Assert.Equal("成功 1，跳过 1，失败 1。", feedback.LastMessage);
+        Assert.True(feedback.LastWasWarning);
     }
 
     private async Task NewRuleAsync_saves_after_deduplication_and_selects_saved_rule()
@@ -770,6 +771,7 @@ public sealed class ChapterRulesViewModelTests
         public int DeletionPromptCount { get; private set; }
 
         public string? LastMessage { get; private set; }
+        public bool LastWasWarning { get; private set; }
 
         public AppConfirmationDecision NextConfirmationDecision { get; set; } = AppConfirmationDecision.Confirm;
 
@@ -786,12 +788,14 @@ public sealed class ChapterRulesViewModelTests
 
         public void ShowSuccess(string title, string message)
         {
+            LastWasWarning = false;
             LastTitle = title;
             LastMessage = message;
         }
 
         public void ShowWarning(string title, string message)
         {
+            LastWasWarning = true;
             LastTitle = title;
             LastMessage = message;
         }

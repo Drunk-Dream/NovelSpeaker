@@ -2,7 +2,7 @@
 
 ## 1. 阶段定位
 
-当前进入 **v0.8.0 后的统一批量管理 + 通用 Book/Source 数据模型阶段**。
+**v0.8.0 后的统一批量管理 + 通用 Book/Source 数据模型阶段**已完成，完整标准门禁已恢复。
 
 规划代码基线：`7b17e4c51d566b0640b49a33c426a61c4a6eaafa`（`main`，v0.8.0）。
 
@@ -55,7 +55,7 @@
 
 ## 3. Staged breaking migration window
 
-T004 → T007 属于一次明确授权的 **staged breaking migration window**。
+T004 → T007 属于一次明确授权的 **staged breaking migration window**，现已随 T008 完整阶段验收结束；后续任务恢复正常可构建、可测试要求。
 
 在这个窗口中：
 
@@ -206,10 +206,14 @@ T001 → T003 不属于 breaking migration，原则上应保持仓库正常可�
 
 # Phase C：最终集成收口
 
-## [ ] T008（P0）：恢复完整可运行状态并执行阶段级验收
+## [x] T008（P0）：恢复完整可运行状态并执行阶段级验收
 
 依赖：T001–T007。
 
 目标：完成跨模块接线、测试收敛、架构审计和文档一致性检查；确保没有旧/新 Book 模型双路径、没有遗漏的 active-cache selection 专名、没有隐藏 selected item 参与批量操作，最终执行完整标准门禁。
 
-详细规格：`tasks/T008_INTEGRATION_CLOSURE.md`
+完成成果：完成 Batch Management、Book/Source 接线与架构审计：Shared 只拥有页面选择 primitive，Library/Player/Provider/Rules 保持 Normal/Management 分离、空选择不退出、visible/manageable reconciliation、右键语义、单次批量确认与逐项继续，CacheManagement 保持 Extended Selection 例外；新导入、唯一候选更新、多候选明确选择、Library/Details、播放/进度、Speech Plan/音频缓存、删除与 v11 迁移后重启均通过核心回归。运行时无 Book-owned path/hash/catalog、ReadingProgress ChapterId、新旧双读写或过渡 adapter；Local Source 自身的 SourceHash 和明确历史 migration 保留，不新增 schema 或 Online 实现。
+
+修复短音频在 StartAsync 返回前完成时被 Stopped 投影误丢弃的终止事件，仍以会话/事件版本/音频身份拒绝迟到结果；现有跨章/全书完成核心测试扩为普通完成、首章启动中完成、末章启动中完成三种受控场景，修复前受控场景可复现失败。Provider/Rules 部分失败或跳过汇总改用已有 Snackbar warning，并在发布完成通知前检查取消；补强已有批量行为测试的汇总类型断言。Provider 升级测试不再冻结过期的最终 schema v11，仍保护迁移内容与设置失败后重试。清理两处旧 Active Cache selection 测试专名；只将 Cache 长期文档中的待迁移描述改为当前章节管理事实，未扩写迁移历史。未删除核心测试或弱化 WPF 隔离，无临时测试/脚本进入提交。
+
+标准 locked restore、完整 format verify、solution Release build（零警告/错误）、完整 test 全部通过：Domain 15、Application 224、Infrastructure 386、Presentation 303、隔离 WPF 101，共 1,029 项，零失败、零跳过；包括 T006 记录的两个目录交互用例。初轮全量的两处旧 schema 断言和播放完成竞态已修复并通过复跑；focused 播放/Provider 持久化最终 66 项与 Presentation 全部 303 项亦通过。独立首审发现启动中完成的成功短音频未重置连续失败计数；确认当前 Completed 时补齐重置，已有成功段恢复测试扩充即时完成场景，修复前可复现、修复后通过，并重新执行完整 format/build/test 全部通过。LF、git diff --check 与旧模型/选择专名审计通过；无环境限制未执行项或长期合同冲突。临时实施规格已删除，staged breaking migration window 正式结束。

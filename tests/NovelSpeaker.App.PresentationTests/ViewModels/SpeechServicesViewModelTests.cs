@@ -43,6 +43,7 @@ public sealed class SpeechServicesViewModelTests
         var exported = ProviderEnvelopeCodec.Read(fixture.Documents.ExportedJson!);
         Assert.Equal(["First", "Second"], exported.Items.Select(item => item.Name));
         Assert.Equal("成功 2，跳过 1，失败 0。", fixture.Feedback.LastMessage);
+        Assert.True(fixture.Feedback.LastWasWarning);
         Assert.Equal(3, vm.SelectedCount);
         await vm.SelectProviderWithModifiersAsync(vm.Providers.Single(item => item.Id == second.Id), DesktopSelectionModifiers.None, CancellationToken.None);
         Assert.Equal(fixture.First.Id, vm.SelectedProviderId);
@@ -82,6 +83,7 @@ public sealed class SpeechServicesViewModelTests
         Assert.DoesNotContain(vm.Providers, item => item.Id == fixture.First.Id);
         Assert.Equal(1, fixture.Feedback.DeletionPromptCount);
         Assert.Equal("成功 1，跳过 1，失败 1。", fixture.Feedback.LastMessage);
+        Assert.True(fixture.Feedback.LastWasWarning);
         vm.HandleNavigatedFrom();
         await vm.FinishDeactivationAsync();
     }
@@ -546,6 +548,7 @@ public sealed class SpeechServicesViewModelTests
         public string? LastTitle { get; private set; }
 
         public string? LastMessage { get; private set; }
+        public bool LastWasWarning { get; private set; }
         public int DeletionPromptCount { get; private set; }
 
         public ProjectedUiError Project(Exception exception) => new(exception.Message, UiMessageSeverity.Error, false);
@@ -558,12 +561,14 @@ public sealed class SpeechServicesViewModelTests
 
         public void ShowSuccess(string title, string message)
         {
+            LastWasWarning = false;
             LastTitle = title;
             LastMessage = message;
         }
 
         public void ShowWarning(string title, string message)
         {
+            LastWasWarning = true;
             LastTitle = title;
             LastMessage = message;
         }

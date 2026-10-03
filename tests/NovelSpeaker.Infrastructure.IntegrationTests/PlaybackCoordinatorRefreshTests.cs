@@ -131,10 +131,15 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(4, audioProvider.Requests.Count);
     }
 
-    [Fact]
-    public async Task A_successful_segment_resets_the_consecutive_failure_count()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_successful_segment_resets_the_consecutive_failure_count(bool completeDuringStart)
     {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator
+        {
+            CompleteOnStartCall = completeDuringStart ? 1 : null
+        };
         var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
         audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
@@ -148,19 +153,16 @@ public sealed partial class PlaybackCoordinatorTests
             book: CreateSegmentBook(6));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
-        var lastSegmentStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        coordinator.SnapshotChanged += (_, snapshot) =>
+        if (!completeDuringStart)
         {
-            if (snapshot.State == PlaybackState.Playing && snapshot.SegmentIndex == 5)
-            {
-                lastSegmentStarted.TrySetResult();
-            }
-        };
+            Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+            Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+            localCoordinator.RaiseCompleted();
+        }
 
-        localCoordinator.RaiseCompleted();
-        await lastSegmentStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForAsync(coordinator, () =>
+            coordinator.CurrentSnapshot.State == PlaybackState.Playing &&
+            coordinator.CurrentSnapshot.SegmentIndex == 5);
 
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal([0, 1, 2, 3, 4, 5], audioProvider.Requests.Select(request => request.SegmentIndex));

@@ -35,7 +35,7 @@ public sealed partial class PlayerViewModelTests
     }
 
     [Fact]
-    public async Task Active_cache_selection_consumes_chapter_clicks_then_exit_restores_playback_jump()
+    public async Task Chapter_management_consumes_clicks_then_exit_restores_playback_jump()
     {
         var playback = CreatePlaybackCoordinator();
         var viewModel = CreateViewModel(playback, CreateContentService());
@@ -70,7 +70,7 @@ public sealed partial class PlayerViewModelTests
     }
 
     [Fact]
-    public async Task Active_cache_selection_projects_shift_range_and_select_all_through_the_view_model()
+    public async Task Chapter_management_projects_shift_range_and_select_all_through_the_view_model()
     {
         var viewModel = CreateViewModel(
             CreatePlaybackCoordinator(),
