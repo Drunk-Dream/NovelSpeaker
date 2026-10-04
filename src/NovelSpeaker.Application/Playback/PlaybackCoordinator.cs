@@ -40,39 +40,15 @@ public sealed class PlaybackCoordinator :
     private readonly object _disposeGate = new();
     private readonly object _volumePersistenceGate = new();
 
-    private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
-    private PlaybackSessionState? _currentSession;
+    private readonly PlaybackRuntime _runtime = new();
     private readonly IBookSourceChangeSource? _sourceChanges;
     private readonly IRegexReplacementRuleWorkspaceService? _regexWorkspace;
-    private TtsErrorKind? _lastFailureKind;
-    private string? _lastRecoveredCorruptSegmentKey;
-    private long _contentRevision;
     private bool _disposed;
     private Task? _disposeTask;
     private CancellationTokenSource? _volumePersistenceCancellation;
     private Task? _volumePersistenceTask;
     private double _pendingVolume;
     private bool _hasPendingVolumePersistence;
-
-    // These accessors are aliases into the session owner. They intentionally do not
-    // cache a second book, provider, or protection handle in the coordinator.
-    private PlaybackBookContent? _currentBook
-    {
-        get => _currentSession?.Book;
-        set
-        {
-            if (value is not null && _currentSession is not null)
-            {
-                _currentSession.ReplaceBook(value);
-            }
-        }
-    }
-
-    private ResolvedSpeechProvider? _currentProvider
-    {
-        get => _currentSession?.Provider;
-        set => _currentSession?.SetProvider(value);
-    }
 
     internal PlaybackCoordinator(
         IBookPlaybackContentService bookContentService,
@@ -107,7 +83,6 @@ public sealed class PlaybackCoordinator :
             PublishEventCommandFailureSafely);
         var startupVolume = PlaybackVolume.Normalize(_appSettingsService.Current.PlaybackVolume);
         _audioController.SetVolume(startupVolume);
-        _currentSnapshot = PlaybackSnapshot.Idle with { Volume = startupVolume };
         _stopTimer = new PlaybackStopTimer(
             _timeProvider,
             PauseAsync,
@@ -121,7 +96,7 @@ public sealed class PlaybackCoordinator :
         if (_regexWorkspace is not null) _regexWorkspace.Changed += OnRegexRulesChanged;
     }
 
-    public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
+    public PlaybackSnapshot CurrentSnapshot => PlaybackSnapshotProjector.Project(_runtime.Current, _audioController.Volume);
 
     public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 

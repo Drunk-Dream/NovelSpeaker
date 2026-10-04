@@ -1,60 +1,36 @@
-using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Speech.Providers;
-using NovelSpeaker.Domain.Settings;
-
 namespace NovelSpeaker.Application.Playback;
 
-/// <summary>
-/// Immutable input for creating one playback snapshot.
-/// </summary>
-internal sealed record PlaybackSnapshotProjectionInput(
-    PlaybackState State,
-    PlaybackBookContent Book,
-    int ChapterIndex,
-    int SegmentIndex,
-    ResolvedSpeechProvider? SelectedProvider,
-    int SpeakSpeed,
-    long PositionMilliseconds,
-    long DurationMilliseconds,
-    string? Message,
-    bool IsUsingCache,
-    bool CanRetry,
-    long ContentRevision = 0,
-    int? SegmentCountOverride = null,
-    double Volume = PlaybackVolume.Default);
-
-/// <summary>
-/// Pure projection from explicit playback data to an immutable UI snapshot.
-/// It owns no coordinator state and never publishes events.
-/// </summary>
+/// <summary>Pure projection of one authoritative read; volume remains a process concern.</summary>
 internal static class PlaybackSnapshotProjector
 {
-    internal static PlaybackSnapshot Project(PlaybackSnapshotProjectionInput input)
+    internal static PlaybackSnapshot Project(PlaybackRuntimeState state, double volume = PlaybackVolume.Default)
     {
-        ArgumentNullException.ThrowIfNull(input);
-
-        var chapter = input.Book.Chapters.FirstOrDefault(
-            candidate => candidate.ChapterIndex == input.ChapterIndex);
+        ArgumentNullException.ThrowIfNull(state);
+        var chapter = state.Position is { } position
+            ? state.Book?.Chapters.FirstOrDefault(c => c.ChapterIndex == position.ChapterIndex)
+            : null;
         return new PlaybackSnapshot(
-            input.State,
-            input.Book.BookId,
-            input.Book.BookTitle,
-            input.ChapterIndex,
+            state.State,
+            state.Book?.BookId,
+            state.Book?.BookTitle,
+            state.Position?.ChapterIndex ?? 0,
             chapter?.Title,
-            input.SegmentIndex,
-            input.SegmentCountOverride ?? chapter?.Segments.Count ?? 0,
-            input.SelectedProvider?.ProviderId,
-            input.SelectedProvider?.ProviderName,
-            AppSettings.NormalizeSpeakSpeed(input.SpeakSpeed),
-            input.PositionMilliseconds,
-            input.DurationMilliseconds,
-            input.Message,
-            input.IsUsingCache,
-            input.CanRetry,
-            input.Book.BookAuthor,
-            input.SelectedProvider is not null,
-            input.ContentRevision,
-            PlaybackVolume.Normalize(input.Volume),
-            SourceContext: input.Book.SourceContext);
+            state.Position?.SegmentIndex ?? 0,
+            chapter?.Segments.Count ?? 0,
+            state.Provider?.ProviderId,
+            state.Provider?.ProviderName,
+            state.SpeakSpeed,
+            state.Audio.HasLoadedAudio || state.State == PlaybackState.Stopped
+                ? state.Audio.PositionMilliseconds : state.ResumePositionMilliseconds,
+            state.Audio.DurationMilliseconds,
+            state.Message,
+            state.Audio.IsUsingCache,
+            state.CanRetry,
+            state.Book?.BookAuthor,
+            state.Identity is null || state.Provider is not null,
+            state.ContentRevision,
+            PlaybackVolume.Normalize(volume),
+            state.Audio.HasLoadedAudio,
+            state.Book?.SourceContext);
     }
 }

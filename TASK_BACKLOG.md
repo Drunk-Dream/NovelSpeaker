@@ -55,11 +55,15 @@
 
 ### staged breaking migration window：T004–T007
 
-## [ ] T004（P0）：建立 Playback authoritative runtime 与 transition 模型
+## [x] T004（P0）：建立 Playback authoritative runtime 与 transition 模型
 
 依赖：T003。
 
 目标：建立唯一高层可变 Playback runtime/session state，明确 command、transition、effect 和 snapshot projection 边界；本切片允许现有 Coordinator 调用方暂时未迁移。
+
+完成成果：以 PlaybackRuntime 替代 PlaybackSessionState，唯一拥有完整 immutable runtime read、session identity/Source context、Book/content、逻辑位置、Provider/config、语速、resume/checkpoint、失败窗口、高层状态/message/cache/retry 与 session cancellation/audio protection。准备不改变当前状态或分配 session 资源，提交重验合法位置、runtime/revision 和取消状态后一次替换；旧 session 资源转交 retire effect，checkpoint、当前段 audio 与 prefetch 使用带完整身份的明确 intent。Audio result 集中校验 session/Book/Source/catalog/position，纯 SnapshotProjector 仅接受完整 runtime read 与 process volume；ProgressController 只持久化 immutable checkpoint，不再同步 low-level snapshot 或修改 session。删除旧 session 类、Coordinator 的平行状态字段/Book/Provider alias 与自由拼装的 SnapshotProjectionInput，不保留兼容 wrapper。新增核心 transition tests，保留并迁移 checkpoint token/失败/取消测试，将旧 session 资源测试并入 runtime 生命周期覆盖；合法/非法位置、commit 前拒绝/取消、旧 preparation/result、projection 纯度、checkpoint、失败窗口成功清零和资源释放覆盖，Playback focused unit tests 67/67、隔离 Application Release build、生产/测试 format 与 diff 检查通过。
+
+中间态与后续迁移：T005 接续 Start/OpenPaused、Pause/Resume/Stop/Clear、jump/move/retry/skip、Provider/speed、Books/Regex 已提交变化、StartNewSessionAsync/字段级 rollback、checkpoint/prefetch 与 shutdown；T006 接续 local snapshot/completed/failed、ProcessEventCommandAsync、PublishSnapshot/BuildSnapshot、EventEpoch/重复身份判断、AudioController 代理职责、volume/stop-timer 的发布整合。以上旧调用仍引用已删除的 PlaybackSessionState/字段/旧 ProgressController 与 projector API，未经隔离的 Application build 因 Coordinator 的 PlaybackSessionState 引用报 CS0246，属于本窗口允许的中间破坏态；完整 solution 门禁由 T007 恢复。focused 验证使用仓库外一次性副本，仅排除 Coordinator、PlaybackRegistration 及依赖它的 Application DI composition 文件，不排除 Playback 单元测试，不新增持久化变更、产品语义或长期文档解释；无环境限制。
 
 ## [ ] T005（P0）：迁移 Playback 命令与 session replacement 生命周期
 
