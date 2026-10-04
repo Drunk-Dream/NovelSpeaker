@@ -205,7 +205,7 @@ public sealed class DiagnosticToolViewModelTests
             exports ?? new FakeExportService { DestinationPath = "problem.zip" },
             windowCapture ?? new FakeWindowCapture(),
             fileDialogs ?? new FakeFileDialogs { SavePath = "problem.zip" },
-            new FixedTimeProvider());
+            new ChinaStandardTimeProvider());
 
     private sealed class FakeSessionService : IDiagnosticSessionService
     {
@@ -349,7 +349,8 @@ public sealed class DiagnosticToolViewModelTests
             Task.FromResult<string?>(null);
     }
 
-    private sealed class FixedTimeProvider : TimeProvider
+    // The shared FixedTimeProvider uses the machine's local time zone; this test needs a stable UTC+8 zone.
+    private sealed class ChinaStandardTimeProvider : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
 

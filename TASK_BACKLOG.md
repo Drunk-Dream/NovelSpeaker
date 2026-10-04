@@ -73,11 +73,13 @@
 
 ### 测试维护
 
-## [ ] T008（P3）：去除可共享的诊断测试时钟重复实现
+## [x] T008（P3）：去除可共享的诊断测试时钟重复实现
 
 目标：对照 TestKit 的 Manual/FixedTimeProvider 与诊断测试中的本地实现；语义完全等价时复用共享实现并删除重复类，保留必要的特例。
 
-依赖：无。范围与验收见 [T008 task spec](tasks/T008_Consolidate_Diagnostic_Test_Clocks.md)。
+依赖：无。
+
+完成成果：诊断 store/export 测试复用 TestKit 的 Manual/FixedTimeProvider 并删除重复类；ViewModel 测试保留固定 UTC+8 本地时区特例并注明共享实现不匹配的原因。
 
 ## [ ] T009（P3）：清理不承载行为合同的 WPF 实现细节断言
 

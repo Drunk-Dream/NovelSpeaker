@@ -21,7 +21,7 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
         var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var context = new ObservabilityContextAccessor("process-one");
-        var clock = new FixedTimeProvider();
+        var clock = new FixedTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
         await using var store = new SqliteDiagnosticSessionStore(
             directories,
             context,
@@ -79,9 +79,12 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var context = new ObservabilityContextAccessor("process-one");
         await using var store = new SqliteDiagnosticSessionStore(
-            directories, context, new FixedTimeProvider(),
+            directories, context, new FixedTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
             new TestAppSettingsService(AppSettings.Default), new AppStoragePathResolver(directories));
-        await using (var provider = new RollingFileLoggerProvider(directories, context, timeProvider: new FixedTimeProvider()))
+        await using (var provider = new RollingFileLoggerProvider(
+            directories,
+            context,
+            timeProvider: new FixedTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero))))
         {
             using var factory = LoggerFactory.Create(builder => builder.AddProvider(provider));
             var logger = factory.CreateLogger("ExportCorrelationTests");
@@ -205,7 +208,7 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
         await using var store = new SqliteDiagnosticSessionStore(
             directories,
             new ObservabilityContextAccessor("process-one"),
-            new FixedTimeProvider(),
+            new FixedTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
             new TestAppSettingsService(AppSettings.Default),
             new AppStoragePathResolver(directories));
         var started = await store.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
@@ -240,15 +243,13 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
         var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var store = new SqliteDiagnosticSessionStore(
-            directories, new ObservabilityContextAccessor("process-one"), new FixedTimeProvider(),
+            directories,
+            new ObservabilityContextAccessor("process-one"),
+            new FixedTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)),
             new TestAppSettingsService(AppSettings.Default), new AppStoragePathResolver(directories));
         var started = await store.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
         await store.EndAsync(CancellationToken.None);
         return (store, directories, started.SessionId);
     }
 
-    private sealed class FixedTimeProvider : TimeProvider
-    {
-        public override DateTimeOffset GetUtcNow() => new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
-    }
 }
