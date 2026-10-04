@@ -53,9 +53,14 @@ public sealed class BookLibraryPersistenceTests
     {
         var fixture = await CreateFixtureAsync();
         var path = await SeedBookAsync(fixture, "book-1", "最后来源", null);
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
         var result = await ((IBookSourceRemovalService)fixture.Deletion).RemoveAsync(
             new("book-1", "local:book-1"), CancellationToken.None);
         Assert.True(result!.DeletedBook);
+        Assert.Equal<BookCommittedChange>([
+            new BookCommittedChange.SourceRemoved("book-1", "local:book-1"),
+            new BookCommittedChange.BookRemoved("book-1")], changes);
         Assert.Null(await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None));
         Assert.False(File.Exists(path));
         await AssertTablesEmptyAsync(fixture, "Books", "BookSources", "LocalBookSources", "Chapters", "LocalChapterContents");
@@ -83,8 +88,9 @@ public sealed class BookLibraryPersistenceTests
             """, ("$file", otherFile));
         if (!active) await ExecuteAsync(fixture, "UPDATE Books SET ActiveSourceId = 'future-source' WHERE Id = 'book-1';");
 
-        var changes = new List<BookSourceCatalogChanged>();
-        fixture.Changes.CatalogChanged += (_, change) => changes.Add(change);
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, _) => throw new InvalidOperationException("observer failed");
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
         var result = await ((IBookSourceRemovalService)fixture.Deletion).RemoveAsync(new("book-1", "local:book-1"), CancellationToken.None);
 
         Assert.False(result!.DeletedBook);
@@ -103,13 +109,15 @@ public sealed class BookLibraryPersistenceTests
             var summary = Assert.Single(await fixture.Query.GetBooksAsync(CancellationToken.None));
             Assert.Equal(header.Title, summary.Title);
             Assert.Null(summary.SourceContext);
-            Assert.Single(changes);
+            Assert.Equal<BookCommittedChange>([
+                new BookCommittedChange.SourceRemoved("book-1", "local:book-1"),
+                new BookCommittedChange.ActiveSourceChanged("book-1", "local:book-1", null)], changes);
         }
         else
         {
             Assert.Equal("future-source", header.ActiveSource!.Context.SourceId);
             Assert.Single(await fixture.DetailsQuery.GetCatalogAsync("book-1", CancellationToken.None));
-            Assert.Empty(changes);
+            Assert.Equal(new BookCommittedChange.SourceRemoved("book-1", "local:book-1"), Assert.Single(changes));
         }
         await using var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
         using var verify = connection.CreateCommand();
@@ -178,9 +186,12 @@ public sealed class BookLibraryPersistenceTests
             CREATE TRIGGER BlockSourceDelete BEFORE DELETE ON BookSources
             BEGIN SELECT RAISE(ABORT, 'blocked'); END;
             """);
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
         await Assert.ThrowsAsync<SqliteException>(() => ((IBookSourceRemovalService)fixture.Deletion).RemoveAsync(
             new("book-1", "local:book-1"), CancellationToken.None));
         Assert.True(File.Exists(path));
+        Assert.Empty(changes);
         Assert.Equal("local:book-1", (await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None))!.ActiveSource!.Context.SourceId);
         Assert.Equal(2, (await fixture.DetailsQuery.GetCatalogAsync("book-1", CancellationToken.None)).Count);
         Assert.Empty(await new SqliteBookOperationJournal(fixture.Factory, TimeProvider.System).GetIncompleteAsync(CancellationToken.None));
@@ -216,6 +227,9 @@ public sealed class BookLibraryPersistenceTests
         var catalog = await fixture.DetailsQuery.GetCatalogAsync("book-1", CancellationToken.None);
         var readingPosition = await fixture.DetailsQuery.GetReadingPositionAsync("book-1", CancellationToken.None);
         var statistics = await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None);
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, _) => throw new InvalidOperationException("observer failed");
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
         var updated = await fixture.Metadata.UpdateMetadataAsync(
             new BookMetadataUpdateRequest("book-1", "  新书名  ", "  作者甲  "),
             CancellationToken.None);
@@ -231,6 +245,10 @@ public sealed class BookLibraryPersistenceTests
         Assert.Equal("新书名", updated.Title);
         Assert.Equal("作者甲", updated.Author);
         Assert.Equal("旧简介", updated.Description);
+        var persisted = await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None);
+        Assert.Equal(updated.Title, persisted!.Title);
+        Assert.Equal(updated.Author, persisted.Author);
+        Assert.Equal(new BookCommittedChange.MetadataCommitted("book-1"), Assert.Single(changes));
     }
 
     [Fact]
@@ -257,6 +275,8 @@ public sealed class BookLibraryPersistenceTests
     {
         var fixture = await CreateFixtureAsync();
         await SeedBookAsync(fixture, "book-1", title: "保留书名", author: "保留作者");
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Metadata.UpdateMetadataAsync(
             new BookMetadataUpdateRequest("missing", "新书名", "新作者"),
@@ -266,6 +286,7 @@ public sealed class BookLibraryPersistenceTests
         Assert.NotNull(unchanged);
         Assert.Equal("保留书名", unchanged.Title);
         Assert.Equal("保留作者", unchanged.Author);
+        Assert.Empty(changes);
     }
 
     [Fact]
@@ -358,6 +379,8 @@ public sealed class BookLibraryPersistenceTests
     {
         var fixture = await CreateFixtureAsync();
         var storedFilePath = await SeedBookAsync(fixture, "book-1", title: "触发回滚", author: null);
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
 
         await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
         {
@@ -377,6 +400,7 @@ public sealed class BookLibraryPersistenceTests
             fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None));
 
         Assert.True(File.Exists(storedFilePath));
+        Assert.Empty(changes);
         Assert.NotNull(await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None));
     }
 
@@ -534,7 +558,6 @@ public sealed class BookLibraryPersistenceTests
         var progressStore = new SqliteReadingProgressStore(factory);
         var query = new BookLibraryQuery(factory);
         var detailsQuery = new BookDetailsQuery(factory);
-        var metadata = new BookMetadataUpdateService(factory);
         var journal = new SqliteBookOperationJournal(factory, TimeProvider.System);
         var deletionStore = new BookDeletionOperationStore(
             factory,
@@ -544,7 +567,9 @@ public sealed class BookLibraryPersistenceTests
             journal,
             TimeProvider.System);
         var changes = new BookSourceChanges();
-        var deletion = new Application.Books.Library.BookDeletionService(deletionStore, new BookMutationGate(), changes, [], [cache]);
+        var mutations = new BookMutationGate();
+        var metadata = new Application.Books.Library.BookMetadataUpdateService(new SqliteBookMetadataStore(factory), mutations, changes);
+        var deletion = new Application.Books.Library.BookDeletionService(deletionStore, mutations, changes, [], [cache]);
         return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, query, detailsQuery, metadata, deletion, changes);
     }
 
@@ -583,7 +608,7 @@ public sealed class BookLibraryPersistenceTests
         AudioCacheProtectionRegistry ProtectionRegistry,
         BookLibraryQuery Query,
         BookDetailsQuery DetailsQuery,
-        BookMetadataUpdateService Metadata,
+        IBookMetadataUpdateService Metadata,
         IBookDeletionService Deletion,
         BookSourceChanges Changes);
 

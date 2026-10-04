@@ -29,9 +29,11 @@
 
 ### staged breaking migration window：T001–T003
 
-## [ ] T001（P0）：建立 Books 已提交语义变更合同
+## [x] T001（P0）：建立 Books 已提交语义变更合同
 
 目标：让 Books mutation owner 在持久变更成功后发布 Metadata、Catalog、ActiveSource、Removed 等窄语义事实；不再用 `BookSourceCatalogChanged` 或 App 层 bool 代替所有变化。
+
+完成成果：Books 通过专属 `BookCommittedChange` 发布 MetadataCommitted、ActiveCatalogCommitted、ActiveSourceChanged、SourceRemoved、BookRemoved，仅携带稳定身份/提交事实，并逐 observer 隔离异常。元数据验证、串行 mutation 和通知归 Application 用例，SQLite adapter 只持久化；删除旧 CatalogChanged 合同及 removal 空目录表达，不改 schema、journal、rollback 或 pre-commit work stopper。新增元数据核心测试，扩展并保留导入/删除及 SQLite 回归，覆盖新书、活动/非活动 Source、最后 Source 删除、失败/取消/回滚与提交后 cleanup recovery；Application Books 84/84、Infrastructure Books 69/69、format 和 diff 检查通过。focused tests 使用仓库外一次性编译隔离，移除旧 Playback 订阅入口并排除旧消费者专用测试，隔离产物已清理。未经隔离的 Application build 在未迁移的 PlaybackCoordinator 因旧 BookSourceCatalogChanged 报 CS0246，属于本窗口明确允许的中间态；消费者迁移归 T002，完整门禁归 T003。无环境限制或长期文档冲突。
 
 ## [ ] T002（P0）：迁移 Books 变更消费者并删除 UI 后果编排
 

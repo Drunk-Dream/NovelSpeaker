@@ -1,6 +1,6 @@
 namespace NovelSpeaker.Application.Books;
 
-/// <summary>Serializes durable import/removal operations across SQLite and content files.</summary>
+/// <summary>Serializes durable Books mutations across SQLite and content files.</summary>
 public sealed class BookMutationGate : IDisposable
 {
     private readonly SemaphoreSlim _gate = new(1, 1);

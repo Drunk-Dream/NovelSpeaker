@@ -128,10 +128,17 @@ public sealed class BookImportRepositoryTests
     public async Task Import_creates_a_complete_source_snapshot_independent_of_the_external_file()
     {
         using var fixture = await Fixture.CreateAsync();
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, _) => throw new InvalidOperationException("observer failed");
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
         var result = await fixture.ImportAsync("Fixture.txt", "first body");
         var target = await fixture.Repository.GetTargetAsync(result.ImportedBook!.BookId, CancellationToken.None);
         Assert.Equal(DirectBookImportStatus.Imported, result.Status);
         Assert.Equal(target!.Source!.Id, target.Book.ActiveSourceId);
+        Assert.Equal<BookCommittedChange>([
+            new BookCommittedChange.MetadataCommitted(target.Book.Id),
+            new BookCommittedChange.ActiveSourceChanged(target.Book.Id, null, target.Source.Id),
+            new BookCommittedChange.ActiveCatalogCommitted(target.Book.Id, target.Source.Id, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"))], changes);
         Assert.Equal("Fixture", target.Book.Title);
         Assert.Equal("utf-8", target.LocalSource!.Encoding);
         Assert.Equal(target.LocalSource.ImportedAt, target.LocalSource.LastImportedAt);
@@ -163,6 +170,8 @@ public sealed class BookImportRepositoryTests
             await fixture.ExecuteAsync("UPDATE Books SET ActiveSourceId = NULL;");
         }
 
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
         var second = await fixture.ImportAsync("Renamed.txt", "new body", id);
         var updated = (await fixture.Repository.GetTargetAsync(id, CancellationToken.None))!;
         Assert.Equal(id, second.ImportedBook?.BookId);
@@ -181,6 +190,11 @@ public sealed class BookImportRepositoryTests
         Assert.Equal(0L, await fixture.ScalarAsync("SELECT COUNT(*) FROM ChapterSpeechPlans;"));
         Assert.Equal("new body", await fixture.ReadContentAsync(updated));
         Assert.False(File.Exists(fixture.Resolver.ResolvePath(old.LocalSource.StoredContentPath)));
+        if (active)
+            Assert.Equal<BookCommittedChange>([
+                new BookCommittedChange.MetadataCommitted(id),
+                new BookCommittedChange.ActiveCatalogCommitted(id, updated.Source.Id, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"))], changes);
+        else Assert.Empty(changes);
     }
 
     [Fact]
@@ -224,12 +238,15 @@ public sealed class BookImportRepositoryTests
         var old = (await fixture.Repository.GetTargetAsync(first.ImportedBook!.BookId, CancellationToken.None))!;
         var chapter = await fixture.StringScalarAsync("SELECT Id FROM Chapters;");
         await fixture.ExecuteAsync("CREATE TRIGGER RejectCatalog BEFORE INSERT ON LocalChapterContents BEGIN SELECT RAISE(ABORT, 'fixture failure'); END;");
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
         await Assert.ThrowsAsync<SqliteException>(() => fixture.ImportAsync("Renamed.txt", "replacement body", old.Book.Id));
         var after = (await fixture.Repository.GetTargetAsync(old.Book.Id, CancellationToken.None))!;
         Assert.Equal(old, after);
         Assert.Equal(chapter, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"));
         Assert.Equal("old body", await fixture.ReadContentAsync(after));
         Assert.Single(Directory.GetFiles(Path.Combine(fixture.Directories.BooksDirectoryPath, old.Book.Id)));
+        Assert.Empty(changes);
     }
 
     [Fact]
@@ -238,12 +255,15 @@ public sealed class BookImportRepositoryTests
         using var fixture = await Fixture.CreateAsync();
         var now = DateTimeOffset.UnixEpoch.ToString("O");
         await fixture.ExecuteAsync($"INSERT INTO Books(Id, Title, ImportedAt, UpdatedAt) VALUES('existing', 'Displayed', '{now}', '{now}');");
+        var changes = new List<BookCommittedChange>();
+        fixture.Changes.Changed += (_, change) => changes.Add(change);
         var result = await fixture.ImportAsync("Fixture.txt", "body", "existing");
         var target = (await fixture.Repository.GetTargetAsync("existing", CancellationToken.None))!;
         Assert.Equal("existing", result.ImportedBook?.BookId);
         Assert.Null(target.Book.ActiveSourceId);
         Assert.Equal("Displayed", target.Book.Title);
         Assert.Equal("Fixture", target.Source?.Title);
+        Assert.Empty(changes);
     }
 
     [Fact]
@@ -321,6 +341,7 @@ public sealed class BookImportRepositoryTests
         public BookImportRepository Repository { get; }
         public SqliteBookOperationJournal Journal { get; }
         public BookDeletionService Deletion { get; }
+        public BookSourceChanges Changes { get; } = new();
         private BookMutationGate Mutations { get; } = new();
         private DirectBookImportService Service { get; }
 
@@ -332,11 +353,11 @@ public sealed class BookImportRepositoryTests
             Repository = new BookImportRepository(Factory);
             Journal = new SqliteBookOperationJournal(Factory, TimeProvider.System);
             Deletion = new BookDeletionService(new BookDeletionOperationStore(Factory, Directories,
-                new AudioCacheProtectionRegistry(), Resolver, Journal, TimeProvider.System), Mutations, new BookSourceChanges(), [], []);
+                new AudioCacheProtectionRegistry(), Resolver, Journal, TimeProvider.System), Mutations, Changes, [], []);
             Service = new DirectBookImportService(analyzer ?? new TextFileAnalyzer(), new TextNormalizer(), new Sha256ContentHasher(),
                 new ChapterRuleRepository(Factory), new ChapterSplitter(), new BookFileStore(Directories, Resolver), Repository,
                 Journal, new FileNameMetadataRuleRepository(Factory),
-                new TextHeaderMetadataRuleRepository(Factory), new Settings(), new ImportMetadataExtractor(), TimeProvider.System, new Ids(), Mutations, new BookSourceChanges());
+                new TextHeaderMetadataRuleRepository(Factory), new Settings(), new ImportMetadataExtractor(), TimeProvider.System, new Ids(), Mutations, Changes);
         }
 
         public static async Task<Fixture> CreateAsync(ITextFileAnalyzer? analyzer = null)

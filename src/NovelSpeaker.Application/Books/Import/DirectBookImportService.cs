@@ -263,13 +263,19 @@ public sealed class DirectBookImportService : IDirectBookImportService
             throw;
         }
 
+        // The mutation gate keeps this target authoritative through the durable commit.
+        if (snapshot.IsNewBook || target?.Book.ActiveSourceId == sourceId)
+        {
+            _sourceChanges.Publish(new BookCommittedChange.MetadataCommitted(bookId));
+            if (snapshot.IsNewBook)
+            {
+                _sourceChanges.Publish(new BookCommittedChange.ActiveSourceChanged(bookId, null, sourceId));
+            }
+            _sourceChanges.Publish(new BookCommittedChange.ActiveCatalogCommitted(bookId, sourceId, chapterEntities[0].Id));
+        }
+
         try
         {
-            if (target?.Book.ActiveSourceId == sourceId)
-            {
-                _sourceChanges.Publish(new BookSourceCatalogChanged(bookId, sourceId, chapterEntities[0].Id));
-            }
-
             if (target?.LocalSource is { } oldSource)
             {
                 await _bookFileStore.CleanupAsync(new BookFileCopyHandle(oldSource.StoredContentPath,

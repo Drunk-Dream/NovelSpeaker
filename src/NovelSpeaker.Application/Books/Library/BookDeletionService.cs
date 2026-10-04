@@ -56,7 +56,7 @@ public sealed class BookDeletionService : IBookDeletionService, IBookSourceRemov
             foreach (var provider in _storageLeases)
                 leases.Add(await provider.AcquireAsync(cancellationToken).ConfigureAwait(false));
             var preparation = await begin().ConfigureAwait(false);
-            return await ExecuteAsync(preparation, cancellationToken).ConfigureAwait(false) ? preparation : null;
+            return await ExecuteAsync(preparation, sourceId, cancellationToken).ConfigureAwait(false) ? preparation : null;
         }
         finally
         {
@@ -64,7 +64,7 @@ public sealed class BookDeletionService : IBookDeletionService, IBookSourceRemov
         }
     }
 
-    private async Task<bool> ExecuteAsync(BookDeletionPreparation? preparation, CancellationToken cancellationToken)
+    private async Task<bool> ExecuteAsync(BookDeletionPreparation? preparation, string? removedSourceId, CancellationToken cancellationToken)
     {
         if (preparation is null)
         {
@@ -74,9 +74,17 @@ public sealed class BookDeletionService : IBookDeletionService, IBookSourceRemov
         try
         {
             await _operationStore.CommitAsync(preparation, cancellationToken).ConfigureAwait(false);
-            if (preparation.ActiveSourceId is { } sourceId)
+            if (removedSourceId is not null)
             {
-                _sourceChanges.Publish(new BookSourceCatalogChanged(preparation.Result.BookId, sourceId, string.Empty));
+                _sourceChanges.Publish(new BookCommittedChange.SourceRemoved(preparation.Result.BookId, removedSourceId));
+            }
+            if (preparation.DeletesBook)
+            {
+                _sourceChanges.Publish(new BookCommittedChange.BookRemoved(preparation.Result.BookId));
+            }
+            else if (preparation.ActiveSourceId is { } sourceId)
+            {
+                _sourceChanges.Publish(new BookCommittedChange.ActiveSourceChanged(preparation.Result.BookId, sourceId, null));
             }
             await _operationStore.CompleteAsync(preparation, cancellationToken).ConfigureAwait(false);
             return true;

@@ -22,6 +22,7 @@ public static class BooksRegistration
         services.TryAddSingleton<IChapterSplitter, ChapterSplitter>();
         services.TryAddSingleton<IBookImportIdGenerator, BookImportIdGenerator>();
         services.TryAddSingleton<BookMutationGate>();
+        services.TryAddSingleton<IBookMetadataUpdateService, BookMetadataUpdateService>();
         services.TryAddSingleton<BookSourceChanges>();
         services.TryAddSingleton<DirectBookImportService>();
         services.TryAddSingleton<IDirectBookImportService>(provider => provider.GetRequiredService<DirectBookImportService>());

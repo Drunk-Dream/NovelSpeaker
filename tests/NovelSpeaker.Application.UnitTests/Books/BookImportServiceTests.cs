@@ -38,19 +38,87 @@ public sealed class BookImportServiceTests
         var repository = new CapturingBookImportRepository { Target = target };
         var changes = new BookSourceChanges();
         var service = CreateService(repository: repository, sourceChanges: changes);
-        BookSourceCatalogChanged? change = null;
-        changes.CatalogChanged += (_, _) => throw new InvalidOperationException("observer failure");
-        changes.CatalogChanged += (_, value) => change = value;
+        var committed = new List<BookCommittedChange>();
+        changes.Changed += (_, _) => throw new InvalidOperationException("observer failure");
+        changes.Changed += (_, value) =>
+        {
+            Assert.NotNull(repository.SavedSnapshot);
+            committed.Add(value);
+        };
         var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt", TargetBookId: "existing"),
             null, CancellationToken.None);
         Assert.Equal(DirectBookImportStatus.Imported, result.Status);
         if (active)
         {
-            Assert.Equal("existing", change!.BookId);
+            Assert.Equal(2, committed.Count);
+            Assert.Equal(new BookCommittedChange.MetadataCommitted("existing"), committed[0]);
+            var change = Assert.IsType<BookCommittedChange.ActiveCatalogCommitted>(committed[1]);
+            Assert.Equal("existing", change.BookId);
             Assert.Equal("existing-source", change.SourceId);
             Assert.Equal(repository.SavedSnapshot!.Catalog[0].Id, change.CatalogVersion);
         }
-        else Assert.Null(change);
+        else Assert.Empty(committed);
+    }
+
+    [Fact]
+    public async Task ImportAsync_publishes_initial_metadata_activation_and_catalog_after_commit()
+    {
+        var repository = new CapturingBookImportRepository();
+        var changes = new BookSourceChanges();
+        var committed = new List<BookCommittedChange>();
+        var observedAfterCommit = true;
+        changes.Changed += (_, _) => throw new InvalidOperationException("observer failure");
+        changes.Changed += (_, value) =>
+        {
+            observedAfterCommit &= repository.SavedSnapshot is not null;
+            committed.Add(value);
+        };
+        var service = CreateService(repository: repository, sourceChanges: changes,
+            journal: new FakeBookOperationJournal { FailOnPhase = BookOperationPhase.Completed });
+
+        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None);
+
+        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
+        Assert.True(observedAfterCommit);
+        Assert.Equal<BookCommittedChange>([
+            new BookCommittedChange.MetadataCommitted("book-id"),
+            new BookCommittedChange.ActiveSourceChanged("book-id", null, "local-source-id"),
+            new BookCommittedChange.ActiveCatalogCommitted("book-id", "local-source-id", "chapter-id")], committed);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportAsync_does_not_publish_when_file_or_database_commit_fails(bool fileFailure)
+    {
+        var changes = new BookSourceChanges();
+        var committed = new List<BookCommittedChange>();
+        changes.Changed += (_, value) => committed.Add(value);
+        var service = CreateService(sourceChanges: changes,
+            fileStore: new FakeBookFileStore { FinalizeException = fileFailure ? new InvalidOperationException("file failed") : null },
+            repository: new ThrowingBookImportRepository());
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportAsync(
+            new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None));
+
+        Assert.Empty(committed);
+    }
+
+    [Fact]
+    public async Task ImportAsync_waits_for_repository_commit_before_publishing()
+    {
+        var repository = new DeferredBookImportRepository();
+        var changes = new BookSourceChanges();
+        var committed = new List<BookCommittedChange>();
+        changes.Changed += (_, change) => committed.Add(change);
+        var service = CreateService(repository: repository, sourceChanges: changes);
+
+        var import = service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None);
+        await repository.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Empty(committed);
+        repository.AllowCommit.SetResult();
+        Assert.Equal(DirectBookImportStatus.Imported, (await import).Status);
+        Assert.Equal(3, committed.Count);
     }
 
     [Theory]
@@ -351,8 +419,12 @@ public sealed class BookImportServiceTests
     {
         var cancellation = new CancellationTokenSource();
         var fileStore = new FakeBookFileStore();
+        var changes = new BookSourceChanges();
+        var committed = new List<BookCommittedChange>();
+        changes.Changed += (_, value) => committed.Add(value);
         var service = CreateService(
             fileStore: fileStore,
+            sourceChanges: changes,
             repository: new CancelingBookImportRepository(cancellation),
             splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]));
 
@@ -363,6 +435,7 @@ public sealed class BookImportServiceTests
         Assert.True(fileStore.CleanupCalled);
         Assert.True(fileStore.CleanupIncludedFinalFile);
         Assert.False(fileStore.CleanupCancellationToken.CanBeCanceled);
+        Assert.Empty(committed);
     }
 
     private static DirectBookImportService CreateService(
@@ -624,6 +697,18 @@ public sealed class BookImportServiceTests
         public override Task SaveAsync(LocalSourceImportSnapshot snapshot, string operationId, CancellationToken cancellationToken)
         {
             throw new InvalidOperationException("save failed");
+        }
+    }
+
+    private sealed class DeferredBookImportRepository : FakeBookImportRepository
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource AllowCommit { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override Task SaveAsync(LocalSourceImportSnapshot snapshot, string operationId, CancellationToken cancellationToken)
+        {
+            Entered.SetResult();
+            return AllowCommit.Task.WaitAsync(cancellationToken);
         }
     }
 

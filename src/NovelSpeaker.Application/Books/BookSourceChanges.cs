@@ -1,13 +1,13 @@
 namespace NovelSpeaker.Application.Books;
 
-/// <summary>Books-owned committed catalog changes for import and removal.</summary>
+/// <summary>Books-owned committed changes; each observer is isolated from the mutation and other observers.</summary>
 public sealed class BookSourceChanges : IBookSourceChangeSource
 {
-    public event EventHandler<BookSourceCatalogChanged>? CatalogChanged;
+    public event EventHandler<BookCommittedChange>? Changed;
 
-    public void Publish(BookSourceCatalogChanged change)
+    internal void Publish(BookCommittedChange change)
     {
-        foreach (EventHandler<BookSourceCatalogChanged> handler in CatalogChanged?.GetInvocationList() ?? [])
+        foreach (EventHandler<BookCommittedChange> handler in Changed?.GetInvocationList() ?? [])
         {
             try { handler(this, change); }
             catch { /* Observers cannot fail a durable mutation. */ }
