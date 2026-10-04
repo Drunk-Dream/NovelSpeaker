@@ -33,11 +33,11 @@
 
 完成成果：Shell 按批次与 ChapterIndex 保留章节行实例，进度快照只更新当前变化行，批次替换时才重建；排序、摘要、取消与终态通知保持原语义。
 
-## [ ] T003（P2）：收窄 Release workflow 的写权限
+## [x] T003（P2）：收窄 Release workflow 的写权限
 
 目标：让校验与质量门禁 job 只持有所需的读取权限，仅 publish job 获得创建/上传 Release 所需的 `contents: write`。
 
-依赖：无。范围与验收见 [T003 task spec](tasks/T003_Narrow_Release_Workflow_Permissions.md)。
+完成成果：Release workflow 默认与 validate/quality job 限为 `contents: read`，仅 publish job 显式拥有 `contents: write`；保留原有 tag、产物和发布校验流程。
 
 ### 死代码与文档漂移
 
