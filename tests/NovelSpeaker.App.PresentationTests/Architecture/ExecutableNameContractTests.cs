@@ -19,33 +19,17 @@ public sealed class ExecutableNameContractTests
     public void Release_workflow_requires_the_new_name_and_rejects_the_legacy_name()
     {
         var workflow = File.ReadAllText(Path.Combine(Repository.RootPath, ".github", "workflows", "release.yml"));
+        var packageValidation = File.ReadAllText(Path.Combine(Repository.RootPath, "tools", "ReleasePackageValidation.ps1"));
         var legacyExecutableName = string.Join('.', "NovelSpeaker", "App", "exe");
-        var requiredRootFilesStart = workflow.IndexOf("$requiredRootFiles", StringComparison.Ordinal);
-        var requiredRootFilesLoopStart = workflow.IndexOf(
-            "foreach ($required in $requiredRootFiles)",
-            requiredRootFilesStart,
-            StringComparison.Ordinal);
 
-        Assert.True(requiredRootFilesStart >= 0);
-        Assert.True(requiredRootFilesLoopStart > requiredRootFilesStart);
-
-        var requiredRootFiles = workflow[requiredRootFilesStart..requiredRootFilesLoopStart];
-        Assert.Contains("'NovelSpeaker.exe'", requiredRootFiles, StringComparison.Ordinal);
-        Assert.DoesNotContain($"'{legacyExecutableName}'", requiredRootFiles, StringComparison.Ordinal);
+        Assert.Contains("'NovelSpeaker.exe'", packageValidation, StringComparison.Ordinal);
+        Assert.Contains("$name -eq '" + legacyExecutableName + "'", packageValidation, StringComparison.Ordinal);
         Assert.Contains(
-            "$publishedLegacyExecutables = Get-ChildItem artifacts/publish -Recurse -File",
+            "Assert-ReleasePackageDirectory -Path artifacts/publish",
             workflow,
             StringComparison.Ordinal);
         Assert.Contains(
-            "Where-Object { $_.Name -eq '" + legacyExecutableName + "' }",
-            workflow,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "$packagedLegacyExecutables = $entries",
-            workflow,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "[System.IO.Path]::GetFileName($_) -eq '" + legacyExecutableName + "'",
+            "Assert-ReleasePackageZip -Path $zip",
             workflow,
             StringComparison.Ordinal);
     }

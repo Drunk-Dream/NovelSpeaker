@@ -143,11 +143,13 @@
 
 完成成果：AGENTS 保留 WPF/ViewModel 边界、Snackbar 执行约束、主题验收入口、批量管理入口、review checklist、WPF 隔离和标准门禁；稳定 UI 与永久测试细则改由 docs/06、docs/08 唯一维护。Markdown 链接目标和 LF 检查通过。
 
-## [ ] T030（P3）：统一 Release 输出与 ZIP 内容校验规则来源
+## [x] T030（P3）：统一 Release 输出与 ZIP 内容校验规则来源
 
 目标：逐项比较 publish 目录与最终 ZIP 的 required/excluded predicates；仅消除规则漂移和重复维护，保留对最终封包内容及 tag/checksum 的完整验证。
 
 依赖：无。不得以删掉其中一层校验作为简化。审计依据：D05。
+
+完成成果：required root files 与全部排除 predicates 收敛至 `tools/ReleasePackageValidation.ps1`，对规范化 publish 条目和最终 ZIP 条目分别执行；保留 tag ancestry、ZIP 重读验证与 checksum。PowerShell fixtures 验证两层有效包、缺失文件和禁止用户数据，release 契约 focused tests 8 项通过。
 
 ## 4. 暂不安排
 

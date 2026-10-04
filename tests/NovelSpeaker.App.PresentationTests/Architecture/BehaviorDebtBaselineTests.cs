@@ -86,6 +86,7 @@ public sealed class BehaviorDebtBaselineTests
     public void Release_and_quality_workflows_keep_locked_build_test_and_package_boundaries()
     {
         var release = File.ReadAllText(Absolute(".github/workflows/release.yml"));
+        var releasePackageValidation = File.ReadAllText(Absolute("tools/ReleasePackageValidation.ps1"));
         var quality = File.ReadAllText(Absolute(".github/workflows/quality-matrix.yml"));
 
         Assert.Contains("uses: ./.github/workflows/quality-matrix.yml", release, StringComparison.Ordinal);
@@ -93,9 +94,11 @@ public sealed class BehaviorDebtBaselineTests
             "dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore",
             release,
             StringComparison.Ordinal);
-        Assert.Contains("TestAssets", release, StringComparison.Ordinal);
-        Assert.Contains("StyleGallery", release, StringComparison.Ordinal);
-        Assert.Contains("visual-review", release, StringComparison.Ordinal);
+        Assert.Contains("Assert-ReleasePackageDirectory -Path artifacts/publish", release, StringComparison.Ordinal);
+        Assert.Contains("Assert-ReleasePackageZip -Path $zip", release, StringComparison.Ordinal);
+        Assert.Contains("TestAssets", releasePackageValidation, StringComparison.Ordinal);
+        Assert.Contains("StyleGallery", releasePackageValidation, StringComparison.Ordinal);
+        Assert.Contains("visual-review", releasePackageValidation, StringComparison.Ordinal);
 
         foreach (var command in new[]
                  {
