@@ -81,11 +81,13 @@
 
 ### 工程门禁与导入并发
 
-## [ ] T023（P2）：将 CI 全局质量门禁移出测试矩阵
+## [x] T023（P2）：将 CI 全局质量门禁移出测试矩阵
 
 目标：restore、format、solution build 与已由 solution build 覆盖的 Gallery build 不按每个测试项目重复执行；保留各测试层独立、可辨识的结果及失败状态。
 
 依赖：无。审计依据：F05 / S03。
+
+完成成果：locked restore、format 与含 Gallery 的 solution build 收敛到单一 gates job；五层矩阵依赖 gates、下载构建产物并复用 NuGet cache，仅执行各自 no-build tests，保留独立失败状态与 WPF 诊断。actionlint 与 PR/Release 依赖、版本及覆盖静态校验通过；未触发远端 Actions，跨 runner 传输仍需下一次 CI 验证。无新增永久测试。
 
 ## [ ] T024（P2）：精简 Architecture Fitness 源码扫描器
 
