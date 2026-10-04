@@ -41,11 +41,13 @@
 
 ### 死代码与文档漂移
 
-## [ ] T004（P3）：删除旧 HTTP 迁移 codec 未使用的序列化方法
+## [x] T004（P3）：删除旧 HTTP 迁移 codec 未使用的序列化方法
 
 目标：删除 `SerializeHeaders`、`SerializeRequestOptions` 及仅供其使用的 writer 代码；保留旧数据库迁移仍需要的读取/解析行为。
 
-依赖：无。范围与验收见 [T004 task spec](tasks/T004_Remove_Unused_Legacy_HTTP_Serializers.md)。
+依赖：无。
+
+完成成果：删除 `SerializeHeaders`、`SerializeRequestOptions` 及专属 writer/编码器依赖；旧 HTTP Provider 迁移读取逻辑和既有兼容测试保留。
 
 ## [ ] T005（P3）：修正文档中的 Regex 规则导航归属
 
