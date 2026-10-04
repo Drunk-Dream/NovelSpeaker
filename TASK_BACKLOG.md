@@ -21,11 +21,11 @@
 
 ### 临时文件、运行时投影与权限
 
-## [ ] T001（P2）：清理异常退出遗留的临时语音文件
+## [x] T001（P2）：清理异常退出遗留的临时语音文件
 
 目标：为 RuleTests、ProviderPreviews 和 TTS 临时音频补齐安全的启动残留清理，避免生成的语音内容在异常退出后无限期留存。
 
-依赖：无。范围与验收见 [T001 task spec](tasks/T001_Cleanup_Temporary_Speech_Audio.md)。
+完成成果：RuleTests、ProviderPreviews 与 TTS staging 改用进程租约目录；启动维护和 Clear All 仅回收已失主目录，保留活动文件、持久缓存和 Local Source。旧版无租约残留因无法安全区分活跃实例而跳过。
 
 ## [ ] T002（P2）：避免 Active Cache 进度更新重建整份章节列表
 

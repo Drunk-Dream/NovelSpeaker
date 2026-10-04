@@ -20,12 +20,9 @@ public sealed class TtsResponseValidatorTests
         var outside = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(outside);
         DirectoryLinkTestHelper.CreateDirectoryLink(
-            Path.Combine(directories.CacheDirectoryPath, "RuleTests"),
+            Path.Combine(directories.CacheDirectoryPath, "TemporarySpeech"),
             outside);
-        var store = new TemporaryAudioStore(directories);
-
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            store.WriteAsync(1, new MemoryStream([1, 2, 3]), CancellationToken.None));
+        Assert.Throws<InvalidDataException>(() => new TemporaryAudioStore(directories));
 
         Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
     }
@@ -57,7 +54,7 @@ public sealed class TtsResponseValidatorTests
         await Assert.ThrowsAsync<TtsAudioResponseTooLargeException>(() =>
             store.WriteAsync(1, content, CancellationToken.None));
 
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -77,7 +74,7 @@ public sealed class TtsResponseValidatorTests
         Assert.Equal(TtsErrorKind.InvalidResponse, result.Failure!.Kind);
         Assert.Equal("服务返回的音频超过允许大小，无法生成音频。", result.Failure.Message);
         Assert.Null(result.Failure.ResponseSummary);
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -93,7 +90,7 @@ public sealed class TtsResponseValidatorTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             store.WriteAsync(1, content, cancellation.Token));
 
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -107,7 +104,7 @@ public sealed class TtsResponseValidatorTests
 
         await Assert.ThrowsAsync<IOException>(() => store.WriteAsync(1, content, CancellationToken.None));
 
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -127,7 +124,7 @@ public sealed class TtsResponseValidatorTests
         var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
 
         Assert.Equal(TtsErrorKind.EmptyAudioResponse, result.Failure!.Kind);
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -175,8 +172,7 @@ public sealed class TtsResponseValidatorTests
         var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
 
         Assert.Equal(TtsErrorKind.AudioDecode, result.Failure!.Kind);
-        var temporaryDirectory = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
-        Assert.Empty(Directory.EnumerateFiles(temporaryDirectory));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -251,8 +247,7 @@ public sealed class TtsResponseValidatorTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             validator.ValidateAsync(CreateRequest(), response, cancellation.Token));
 
-        var temporaryDirectory = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
-        Assert.Empty(Directory.EnumerateFiles(temporaryDirectory));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -263,14 +258,72 @@ public sealed class TtsResponseValidatorTests
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var operations = new PartialCopyThenThrowOperations();
         var store = new TemporaryAudioStore(directories, operations);
-        var temporaryPath = Path.Combine(directories.CacheDirectoryPath, "RuleTests", "source.tmp");
-        Directory.CreateDirectory(Path.GetDirectoryName(temporaryPath)!);
-        File.WriteAllText(temporaryPath, "source");
+        var temporaryPath = await store.WriteAsync(7, new MemoryStream("source"u8.ToArray()), CancellationToken.None);
         var candidatePath = Path.ChangeExtension(temporaryPath, "wav");
 
         Assert.Throws<IOException>(() => store.CreateCandidate(temporaryPath, "wav"));
 
         Assert.False(File.Exists(candidatePath));
+    }
+
+    [Fact]
+    public async Task Residual_cleanup_removes_abandoned_owner_files_and_preserves_live_owner_and_persistent_data()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var paths = new AppStoragePathResolver(directories);
+        using var active = new TemporarySpeechFileLease(directories, paths);
+        var activeFile = active.CreatePath("ProviderPreviews", "preview.wav");
+        Directory.CreateDirectory(Path.GetDirectoryName(activeFile)!);
+        File.WriteAllText(activeFile, "active");
+
+        using var abandoned = new TemporarySpeechFileLease(directories, paths);
+        var abandonedFiles = new[]
+        {
+            abandoned.CreatePath("RuleTests", "response.tmp"),
+            abandoned.CreatePath("RuleTests", "response.mp3"),
+            abandoned.CreatePath("RuleTests", "response.wav"),
+            abandoned.CreatePath("RuleTests", "response.audio"),
+            abandoned.CreatePath("ProviderPreviews", "preview.wav"),
+            abandoned.CreatePath("TtsCache", "aa", "staging.tmp")
+        };
+        foreach (var path in abandonedFiles)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "abandoned");
+        }
+        var abandonedDirectory = abandoned.RootPath;
+        abandoned.Dispose();
+
+        var cacheFile = Path.Combine(directories.CacheDirectoryPath, "Tts", "v1", "persisted.mp3");
+        var localSourceFile = Path.Combine(directories.BooksDirectoryPath, "book", "content.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(cacheFile)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(localSourceFile)!);
+        File.WriteAllText(cacheFile, "persistent cache");
+        File.WriteAllText(localSourceFile, "source");
+
+        active.DeleteAbandonedDirectories(CancellationToken.None);
+        active.DeleteAbandonedDirectories(CancellationToken.None);
+
+        Assert.True(File.Exists(activeFile));
+        Assert.False(Directory.Exists(abandonedDirectory));
+        Assert.All(abandonedFiles, path => Assert.False(File.Exists(path)));
+        Assert.True(File.Exists(cacheFile));
+        Assert.True(File.Exists(localSourceFile));
+    }
+
+    private static IEnumerable<string> GetPurposeFiles(AppDataDirectoryProvider directories, string purpose)
+    {
+        var root = Path.Combine(directories.CacheDirectoryPath, "TemporarySpeech");
+        return Directory.Exists(root)
+            ? Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                .Where(path => Path.GetRelativePath(root, path)
+                    .Split(Path.DirectorySeparatorChar)
+                    .Contains(purpose, StringComparer.Ordinal))
+                .Where(path => !Path.GetFileName(path).Equals(".owner-lock", StringComparison.Ordinal))
+                .ToArray()
+            : [];
     }
 
     private static ParsedTtsRequest CreateRequest() => new(

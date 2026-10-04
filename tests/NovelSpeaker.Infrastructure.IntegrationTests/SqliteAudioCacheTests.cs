@@ -659,18 +659,22 @@ public sealed class SqliteAudioCacheTests
     public async Task RunMaintenanceAsync_cleans_tmp_files_and_orphan_cache_files()
     {
         var fixture = await CreateFixtureAsync();
+        var pathResolver = new AppStoragePathResolver(fixture.Directories);
+        var abandonedOwner = new TemporarySpeechFileLease(fixture.Directories, pathResolver);
+        var tempFile = abandonedOwner.CreatePath("TtsCache", "aa", "leftover.tmp");
+        Directory.CreateDirectory(Path.GetDirectoryName(tempFile)!);
+        await File.WriteAllTextAsync(tempFile, "tmp", CancellationToken.None);
+        abandonedOwner.Dispose();
+
         var shardDirectory = Path.Combine(fixture.Directories.CacheDirectoryPath, "Tts", AudioCacheKey.CurrentVersion, "aa");
         Directory.CreateDirectory(shardDirectory);
-
-        var tempFile = Path.Combine(shardDirectory, "leftover.tmp");
-        await File.WriteAllTextAsync(tempFile, "tmp", CancellationToken.None);
 
         var orphanFile = Path.Combine(shardDirectory, "orphan.mp3");
         File.Copy(PlaybackTestAudio.DemoMp3Path, orphanFile, overwrite: true);
 
         await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
 
-        Assert.False(File.Exists(tempFile));
+        Assert.False(Directory.Exists(abandonedOwner.RootPath));
         Assert.False(File.Exists(orphanFile));
     }
 
@@ -856,14 +860,10 @@ public sealed class SqliteAudioCacheTests
             AudioCacheKey.CurrentVersion,
             key.Shard,
             $"{key.FileNameBase}.mp3")));
-        var ttsDirectory = Path.Combine(fixture.Directories.CacheDirectoryPath, "Tts");
-        if (Directory.Exists(ttsDirectory))
-        {
-            Assert.Empty(Directory.EnumerateFiles(
-                ttsDirectory,
-                "*.tmp",
-                SearchOption.AllDirectories));
-        }
+        var temporarySpeechDirectory = Path.Combine(fixture.Directories.CacheDirectoryPath, "TemporarySpeech");
+        Assert.DoesNotContain(
+            Directory.EnumerateFiles(temporarySpeechDirectory, "*", SearchOption.AllDirectories),
+            path => !Path.GetFileName(path).Equals(".owner-lock", StringComparison.Ordinal));
         File.Delete(sourceFile);
     }
 

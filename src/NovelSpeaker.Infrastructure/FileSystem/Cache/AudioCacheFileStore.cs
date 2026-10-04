@@ -1,6 +1,7 @@
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Infrastructure.FileSystem;
 
 namespace NovelSpeaker.Infrastructure.FileSystem.Cache;
 
@@ -11,6 +12,7 @@ internal sealed class AudioCacheFileStore
 {
     private readonly IAppStoragePathResolver _pathResolver;
     private readonly IAudioCacheProtectionRegistry _protectionRegistry;
+    private readonly TemporarySpeechFileLease _temporaryFiles;
     private readonly string _ttsStorageKey;
     private readonly string _versionStorageKey;
     private readonly string _versionRootPath;
@@ -20,9 +22,23 @@ internal sealed class AudioCacheFileStore
         IAppDataDirectoryProvider directories,
         IAppStoragePathResolver pathResolver,
         IAudioCacheProtectionRegistry protectionRegistry)
+        : this(
+            directories,
+            pathResolver,
+            protectionRegistry,
+            new TemporarySpeechFileLease(directories, pathResolver))
+    {
+    }
+
+    public AudioCacheFileStore(
+        IAppDataDirectoryProvider directories,
+        IAppStoragePathResolver pathResolver,
+        IAudioCacheProtectionRegistry protectionRegistry,
+        TemporarySpeechFileLease temporaryFiles)
     {
         _pathResolver = pathResolver;
         _protectionRegistry = protectionRegistry;
+        _temporaryFiles = temporaryFiles;
         _pathComparison = OperatingSystem.IsWindows()
             ? StringComparison.OrdinalIgnoreCase
             : StringComparison.Ordinal;
@@ -53,8 +69,8 @@ internal sealed class AudioCacheFileStore
         var finalPath = GetDestinationPath(request);
         var shardDirectory = Path.GetDirectoryName(finalPath)
             ?? throw new InvalidDataException("缓存文件路径缺少所属目录。");
-        var temporaryPath = ResolveCachePath(CombineStorageKey(
-            _versionStorageKey,
+        var temporaryPath = ResolveCachePath(_temporaryFiles.CreatePath(
+            "TtsCache",
             request.Key.Shard,
             $"{request.Key.FileNameBase}.{Guid.NewGuid():N}.tmp"));
 
@@ -62,6 +78,7 @@ internal sealed class AudioCacheFileStore
         using var temporaryProtection = _protectionRegistry.Protect(temporaryPath);
         try
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(temporaryPath)!);
             await CopyOrMoveToTemporaryPathAsync(
                 request.SourceFilePath,
                 temporaryPath,
@@ -136,31 +153,7 @@ internal sealed class AudioCacheFileStore
 
     public void DeleteResidualTemporaryFiles(CancellationToken cancellationToken)
     {
-        var ttsRootPath = _pathResolver.ResolvePath(_ttsStorageKey);
-        if (!Directory.Exists(ttsRootPath))
-        {
-            return;
-        }
-
-        foreach (var candidate in Directory.EnumerateFiles(ttsRootPath, "*.tmp", SearchOption.AllDirectories))
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            string filePath;
-            try
-            {
-                filePath = ResolveCachePath(candidate);
-            }
-            catch (InvalidDataException)
-            {
-                continue;
-            }
-            if (_protectionRegistry.IsProtected(filePath))
-            {
-                continue;
-            }
-
-            TryDeleteFile(filePath);
-        }
+        _temporaryFiles.DeleteAbandonedDirectories(cancellationToken);
     }
 
     public bool DeleteOrphanCacheFiles(
@@ -206,8 +199,12 @@ internal sealed class AudioCacheFileStore
         var resolvedPath = _pathResolver.ResolvePath(storageKeyOrLegacyPath);
         var ttsRootPath = _pathResolver.ResolvePath(_ttsStorageKey);
         var ttsPrefix = ttsRootPath + Path.DirectorySeparatorChar;
-        if (!string.Equals(resolvedPath, ttsRootPath, _pathComparison) &&
-            !resolvedPath.StartsWith(ttsPrefix, _pathComparison))
+        var temporaryRoot = _temporaryFiles.RootPath;
+        var temporaryPrefix = temporaryRoot + Path.DirectorySeparatorChar;
+        if ((!string.Equals(resolvedPath, ttsRootPath, _pathComparison) &&
+             !resolvedPath.StartsWith(ttsPrefix, _pathComparison)) &&
+            !string.Equals(resolvedPath, temporaryRoot, _pathComparison) &&
+            !resolvedPath.StartsWith(temporaryPrefix, _pathComparison))
         {
             throw new InvalidDataException("音频缓存路径不属于应用缓存目录。");
         }

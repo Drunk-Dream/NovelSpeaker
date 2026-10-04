@@ -81,8 +81,13 @@ public sealed class ProviderPreviewAudioPlayerTests
                 await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
                     preview.PlayAsync(audio, "wav", cancellation.Token));
                 Assert.Equal(0, fake.PlayCount);
-                Assert.Empty(Directory.GetFiles(
-                    Path.Combine(directories.CacheDirectoryPath, "ProviderPreviews")));
+                Assert.DoesNotContain(Directory.EnumerateFiles(
+                    Path.Combine(directories.CacheDirectoryPath, "TemporarySpeech"),
+                    "*",
+                    SearchOption.AllDirectories), path =>
+                    path.Contains($"{Path.DirectorySeparatorChar}ProviderPreviews{Path.DirectorySeparatorChar}",
+                        StringComparison.Ordinal) &&
+                    !Path.GetFileName(path).Equals(".owner-lock", StringComparison.Ordinal));
             }
         }
         finally

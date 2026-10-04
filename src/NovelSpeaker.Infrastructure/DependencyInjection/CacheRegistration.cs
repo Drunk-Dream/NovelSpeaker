@@ -7,6 +7,7 @@ using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.Infrastructure.Cache.Export;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
+using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence.Cache;
 
 namespace NovelSpeaker.Infrastructure.DependencyInjection;
@@ -23,8 +24,15 @@ public static class CacheRegistration
         services.TryAddSingleton<IAudioGenerationFailureReporter, AudioGenerationFailureReporter>();
         services.TryAddSingleton<ICacheCompletenessFailureReporter, CacheCompletenessFailureReporter>();
         services.TryAddSingleton<IAudioCacheProtectionRegistry, AudioCacheProtectionRegistry>();
+        services.TryAddSingleton<TemporarySpeechFileLease>(provider => new TemporarySpeechFileLease(
+            provider.GetRequiredService<NovelSpeaker.Application.Abstractions.IAppDataDirectoryProvider>(),
+            provider.GetRequiredService<NovelSpeaker.Application.Abstractions.IAppStoragePathResolver>()));
         services.TryAddSingleton<SqliteAudioCacheIndex>();
-        services.TryAddSingleton<AudioCacheFileStore>();
+        services.TryAddSingleton<AudioCacheFileStore>(provider => new AudioCacheFileStore(
+            provider.GetRequiredService<NovelSpeaker.Application.Abstractions.IAppDataDirectoryProvider>(),
+            provider.GetRequiredService<NovelSpeaker.Application.Abstractions.IAppStoragePathResolver>(),
+            provider.GetRequiredService<IAudioCacheProtectionRegistry>(),
+            provider.GetRequiredService<TemporarySpeechFileLease>()));
         services.TryAddSingleton<AudioCacheMaintenance>();
         services.TryAddSingleton<AudioCacheFacade>();
         services.TryAddSingleton<IAudioCache>(provider => provider.GetRequiredService<AudioCacheFacade>());
