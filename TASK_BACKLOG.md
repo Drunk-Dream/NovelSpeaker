@@ -105,11 +105,17 @@
 
 完成成果：外部 TXT 读取→规范化/hash→元数据/切章移出 gate；候选/目标读取→catalog 验证→Book 目录 staging→journal→文件 finalize/SQLite commit→通知/旧文件清理仍在同一 gate。删除会搬移整个 Book 目录，故 staging 保留互斥；Active Cache 冻结仍与完整提交互斥，SQLite expected-content-path 二次验证与恢复语义保留。新增 5 个受控并发数据安全场景覆盖跨 Book 进展、同目标更新/删除/Source 移除和取消；既有提交失败、恢复与冻结测试保留。Books/Source integration 83 项、Application Books/Active Cache 79 项、format 与 Release build 通过；无 schema、journal 格式或长期合同变更。
 
-## [ ] T026（P2）：评估并降低大型 TXT 导入的峰值内存
+## [x] T026（P2）：评估并降低大型 TXT 导入的峰值内存
 
 目标：先明确当前支持的本地 TXT 范围并量化全文读取、规范化、hash、切行的重叠表示；只在有明确收益时调整数据流，避免无目标的通用 streaming 框架或改变章节识别语义。
 
 依赖：无。审计依据：大型 TXT 导入内存风险（见审计报告技术债与调查候选）。
+
+完成成果：章节识别改为直接扫描规范化字符串的行 span，删除两次全文 Split 数组、行字符串及 Line records；规范化合并换行/control 处理，已规范化输入复用原串。编码检测/源文件 hash/正文持久化未变；hash 仅使用 80 KiB buffer，原始和规范化全文仍按 string 持有。支持现有 UTF-8、UTF-16LE/BE、GB18030，无新增大小限制；本次验证单次 64/128 MiB TXT，超过该范围及多份并发准备仍受可用内存、string/int offset 上限约束，不承诺任意规模。
+
+量化证据：Windows .NET 10 Release 独立进程，以 10cbc09 旧算法和新算法运行实际 Analyze→Normalize→源 hash→首标题→Split→Stage/Finalize 管线（不含 SQLite）；脱敏 UTF-8 无 BOM 文件由 `Chapter 1\r\n` 加 1,000 个 80 字符正文行/CRLF 组成块，ASCII 用 819/1,637 块，中文用 278 块（每行“脱敏正文”重复 20 次）。GC 总分配量 / Process.PeakWorkingSet64：64 MiB ASCII 1,181.9→516.8 / 846.1→548.7 MiB；128 MiB ASCII 2,378.2→1,032.8 / 1,628.7→1,068.4 MiB；64 MiB 中文 407.0→174.8 / 330.8→211.5 MiB。三组源 hash、落盘正文 hash、章节数一致；峰值工作集下降约 34–36%，分配量下降约 56–57%，数值为该脱敏管线实测而非整应用内存保证。
+
+验收：临时固定 seed 26026 的 10,000 组文本、4 类规则、两种空行模式比较规范化全文、首标题与完整章节范围均等价；Application Books/Active Cache focused tests 79 项通过，既有正文/编码/hash/错误/取消/恢复核心测试保留，无新增永久细节测试。临时基准/样本/等价验证全部清理；locked restore、format、Release build 和五层完整 tests 1,040 项通过（含 Books/Source integration 83 项与 Architecture 26 项），无未执行的本地门禁或长期文档冲突。
 
 ### 小型重复项与维护文档
 
