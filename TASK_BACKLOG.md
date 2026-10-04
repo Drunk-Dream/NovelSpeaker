@@ -1,160 +1,90 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 当前阶段：基于代码库审计的维护性清理
+## 1. 当前阶段：代码库审计后的维护与清理
 
-本阶段根据 `CODEBASE_AUDIT_REPORT.md` 安排，目标是收紧输入资源边界、修复异步状态竞争、删除已完成迁移留下的冗余路径，并降低工程维护面。任务按依赖顺序执行；每项详细范围与验收条件见对应 `tasks/Txxx_*.md`。
+本轮根据 2026-10-04 全仓库扫描结果安排，从 T001 重新编号。每项当前任务的详细范围、证据与验收条件以其 task spec 为准；上一轮已完成的 T016–T030 保留在 Git 历史中，不在当前调度表重复维护。
 
-本阶段不重新设计产品功能，不引入新的通用框架，不擅自改变持久化数据合同。审计中关于 `LegacyRuleId` / `SynthesisProfiles.RuleId` 的持久数据删改、Source 模型撤销、HTTP 重定向凭据行为和路径 TOCTOU 均未获充分证据或数据授权，不纳入本轮实施任务。
+任务顺序优先处理明确的资源生命周期、重复 UI 投影和权限范围问题，再处理低风险死代码和需要测量/语义核实的维护候选。审计中的低置信度事项不自动转为重构任务。
+
+本轮不改变 SQLite schema、持久化数据或用户外部 TXT；任何后续方案若需要新增持久状态或迁移，须先单独取得授权。遵守 `AGENTS.md`、各 task spec 与被引用的长期 owner 文档。
 
 ## 2. 状态与执行规则
 
 - `[ ]` 未开始
 - `[-]` 进行中
-- `[x]` 已完成，追加简短成果摘要
+- `[x]` 已完成，并追加简短成果
 - `[!]` 阻塞，仅用于必须由用户决定的新产品、架构、隐私或持久化边界
 
-默认按编号串行执行。明确要求连续执行整个 Backlog 时，可按顺序继续，不等待人工验收。实施任务保持仓库可构建、可测试；本阶段不包含 staged breaking migration。
+默认按编号串行执行。明确要求连续执行整个 Backlog 时，可按顺序继续。每项任务必须满足 task spec 的自动验收；完成后清理临时产物、在此处记录成果并删除对应 task spec。不得因可选人工验收未执行而阻塞。
 
-任务完成后，满足 task spec 的自动验收、清理临时产物、在此处记录简短成果并删除对应 task spec。已完成的历史实施细节由 Git 保存，不在 Backlog 复制。
+## 3. 审计后任务
 
-## 3. 清理任务
+### 临时文件、运行时投影与权限
 
-### 输入与运行时边界
+## [ ] T001（P2）：清理异常退出遗留的临时语音文件
 
-## [x] T016（P2）：为章节规则正则设置执行时限
+目标：为 RuleTests、ProviderPreviews 和 TTS 临时音频补齐安全的启动残留清理，避免生成的语音内容在异常退出后无限期留存。
 
-目标：让章节规则校验与导入切章共用有界正则执行策略，超时以稳定且可理解的规则/导入失败呈现，不保留无 timeout 的生产执行路径。
+依赖：无。范围与验收见 [T001 task spec](tasks/T001_Cleanup_Temporary_Speech_Audio.md)。
 
-依赖：无。审计依据：F01。
+## [ ] T002（P2）：避免 Active Cache 进度更新重建整份章节列表
 
-完成成果：章节规则编辑与切章统一使用 100 ms Regex timeout；超时返回明确导入失败。Focused tests、格式检查与 Release build 通过。
+目标：保留 Active Cache coordinator 的快照所有权与 UI 现有排序/状态，只更新变化的章节投影，避免每个片段完成后清空并重新创建全部行。
 
-## [x] T017（P2）：限制 HTTP TTS 成功响应的落盘字节数
+依赖：无。范围与验收见 [T002 task spec](tasks/T002_Incremental_Active_Cache_Projection.md)。
 
-目标：在成功响应写入临时音频的单一流复制边界执行字节预算；超过预算时取消复制、删除部分文件并返回稳定失败，不增加不一致的预检/二次复制路径。
+## [ ] T003（P2）：收窄 Release workflow 的写权限
 
-依赖：无。先核实现有 Provider 格式与产品音频长度所需范围；审计依据：F02。
+目标：让校验与质量门禁 job 只持有所需的读取权限，仅 publish job 获得创建/上传 Release 所需的 `contents: write`。
 
-完成成果：在唯一响应落盘复制点按实际读取字节限制为 64 MiB，超限返回稳定失败并清理部分文件；focused tests 13 项、格式检查与 Release build 通过。
+依赖：无。范围与验收见 [T003 task spec](tasks/T003_Narrow_Release_Workflow_Permissions.md)。
 
-## [x] T018（P2）：修复 Active Cache 取消与 CTS 替换竞态
+### 死代码与文档漂移
 
-目标：确保取消活动批次时，CancellationTokenSource 不会在检查/取消期间被并发替换并释放；复用现有任务 owner 和同步边界，不增加新的同步层。
+## [ ] T004（P3）：删除旧 HTTP 迁移 codec 未使用的序列化方法
 
-依赖：无。审计依据：F03。
+目标：删除 `SerializeHeaders`、`SerializeRequestOptions` 及仅供其使用的 writer 代码；保留旧数据库迁移仍需要的读取/解析行为。
 
-完成成果：在现有 active-slot 锁内完成 CTS 取消与状态转换；受控替换竞态用例、focused tests、格式检查与 Release build 通过。
+依赖：无。范围与验收见 [T004 task spec](tasks/T004_Remove_Unused_Legacy_HTTP_Serializers.md)。
 
-## [x] T019（P2）：确认并收敛 Playback 替换提交边界
+## [ ] T005（P3）：修正文档中的 Regex 规则导航归属
 
-目标：验证目标 checkpoint 成功后、目标音频准备失败或取消时的 snapshot、持久进度与 Resume 行为；若当前行为违反长期合同则修复 rollback/提交边界，否则记录证据并关闭，不为测试假设改变产品语义。
+目标：将运行时导航文档中的 RegexReplacementRules 父级路由描述更新为当前 Settings 路由，并核对相关术语和链接。
 
-依赖：无。审计依据：I01。
+依赖：无。范围与验收见 [T005 task spec](tasks/T005_Correct_Regex_Route_Documentation.md)。
 
-完成成果：播放型替换在目标音频启动后才保存目标 checkpoint；准备失败或取消时恢复旧 session、snapshot 与进度。Playback focused tests 62 项、格式检查与 Release build 通过。
+### 先测量再决定
 
-### 迁移残留与数据读取
+## [ ] T006（P2 调查）：量化启动路径迁移的重复扫描成本
 
-## [x] T020（P2）：移除无生产用途的 BackgroundTaskRegistry
+目标：测量启动时对 `LocalBookSources` 和 `AudioCacheEntries` 路径列重复扫描的成本，并确认当前/最旧受支持数据库是否还可能含待迁移绝对路径；本任务只形成有证据的处置决定。
 
-目标：确认不存在反射或外部动态入口后，删除无生产调用的 registry、startup/shutdown wiring 及只保护该类型实现形状的测试；保留真实启动维护行为。
+依赖：无。不得未经授权增加 schema 标记、迁移或其它持久状态。范围与验收见 [T006 task spec](tasks/T006_Measure_Startup_Path_Migration_Scan.md)。
 
-依赖：无。审计依据：S01。
+## [ ] T007（P2 调查）：评估 SourceContentReader 的整本正文缓存收益
 
-完成成果：确认无生产注册或动态入口后删除 registry、空 shutdown wiring 与专属实现测试；保留 startup 直接等待维护及真实后台 owner 的有界关闭。Startup/组合根/架构 focused tests 31 项、格式检查与 Release build 通过。
+目标：量化整本正文字符串的保留内存与重复章节读取收益，据此决定保留、缩短生命周期或有界化；不得未经测量直接删除缓存。
 
-## [x] T021（P2）：合并 Provider 限流实现路径
+依赖：无。范围与验收见 [T007 task spec](tasks/T007_Evaluate_Source_Content_Cache.md)。
 
-目标：在保留并发许可、排队、pace、retry-after、取消与 lease 行为的前提下，将 Provider-keyed 调用收敛到一条 typed limiter path，删除 synthetic RuleId/string adapter 与不再独立使用的旧接口。
+### 测试维护
 
-依赖：T018。审计依据：F04 / S02。
+## [ ] T008（P3）：去除可共享的诊断测试时钟重复实现
 
-完成成果：ProviderRequestLimiter 直接以 typed ProviderId/RateLimit 持有唯一调度状态，删除旧接口、synthetic RuleId/string adapter 和重复注册；既有队列、pace、retry-after、取消与 lease 核心测试迁移至 typed API。Speech/Infrastructure/组合根 focused tests 110 项、格式检查与 Release build 通过。
+目标：对照 TestKit 的 Manual/FixedTimeProvider 与诊断测试中的本地实现；语义完全等价时复用共享实现并删除重复类，保留必要的特例。
 
-## [x] T022（P2）：移除 CacheCatalog 的逐本 fallback
+依赖：无。范围与验收见 [T008 task spec](tasks/T008_Consolidate_Diagnostic_Test_Clocks.md)。
 
-目标：将生产批量目录依赖的 `IBookLibraryQuery` 明确为必需依赖，删除逐本 metadata 查询 fallback 和虚构默认进度/时间值；保留单本详情查询能力。
+## [ ] T009（P3）：清理不承载行为合同的 WPF 实现细节断言
 
-依赖：无。审计依据：S07。
+目标：结合断言上下文、历史回归和质量合同，删除仅锁定资源 key、brush identity、icon enum 或内部 visual-tree 形状的低价值断言；保留用户行为、导航、键盘与辅助功能合同。
 
-完成成果：IBookLibraryQuery 成为 CacheCatalog 必需依赖，批量列表只消费 bulk metadata，删除逐本 fallback 与伪默认值；缺失 metadata 的物理缓存仍可管理，单本详情查询保留。真实 SQLite 行为测试先复现旧 fallback 后通过；focused tests 32 项及完整门禁通过（全量测试 1,039 项）。
+依赖：无。范围与验收见 [T009 task spec](tasks/T009_Trim_WPF_Implementation_Detail_Assertions.md)。
 
-### 工程门禁与导入并发
+## 4. 暂不排期
 
-## [x] T023（P2）：将 CI 全局质量门禁移出测试矩阵
-
-目标：restore、format、solution build 与已由 solution build 覆盖的 Gallery build 不按每个测试项目重复执行；保留各测试层独立、可辨识的结果及失败状态。
-
-依赖：无。审计依据：F05 / S03。
-
-完成成果：locked restore、format 与含 Gallery 的 solution build 收敛到单一 gates job；五层矩阵依赖 gates、下载构建产物并复用 NuGet cache，仅执行各自 no-build tests，保留独立失败状态与 WPF 诊断。actionlint 与 PR/Release 依赖、版本及覆盖静态校验通过；未触发远端 Actions，跨 runner 传输仍需下一次 CI 验证。无新增永久测试。
-
-## [x] T024（P2）：精简 Architecture Fitness 源码扫描器
-
-目标：保留长期架构合同所需的依赖方向、模块边界、owner 与 trust-boundary 检查；删除冻结私有实现形状、重复穷举 parser 行为及仅支撑这些断言的 fixture/helper。
-
-依赖：无。不得整体移除 Architecture Fitness Tests。审计依据：F06 / S04。
-
-完成成果：删除类型/目录/私有 setter/virtualization markup 等实现形状断言、Clear/Add 循环语法 parser 与穷举 fixture，以及仅支撑它们的 baseline，净减少 705 行。保留四层依赖、模块/Feature 循环、Shared 方向、Playback/ReadingProgress owner、Service Locator/通用协调禁令、异步/API、主题和测试隔离检查，对应架构合同与质量文档核心边界；必要源码/DI 扫描继续复用现有实现，无新白名单或永久测试。Architecture focused tests 26 项、format 与 Release build 通过。
-
-## [x] T025（P2）：缩小 BookMutationGate 独占区
-
-目标：在证明导入解析/staging、目标重新验证、文件 journal 和 SQLite commit 的并发及恢复语义后，将 singleton gate 缩到真正需要串行化的区间；若证明不足，保留现状并记录具体阻碍，不冒险释放锁。
-
-依赖：无。审计依据：D01 / S05。
-
-完成成果：外部 TXT 读取→规范化/hash→元数据/切章移出 gate；候选/目标读取→catalog 验证→Book 目录 staging→journal→文件 finalize/SQLite commit→通知/旧文件清理仍在同一 gate。删除会搬移整个 Book 目录，故 staging 保留互斥；Active Cache 冻结仍与完整提交互斥，SQLite expected-content-path 二次验证与恢复语义保留。新增 5 个受控并发数据安全场景覆盖跨 Book 进展、同目标更新/删除/Source 移除和取消；既有提交失败、恢复与冻结测试保留。Books/Source integration 83 项、Application Books/Active Cache 79 项、format 与 Release build 通过；无 schema、journal 格式或长期合同变更。
-
-## [x] T026（P2）：评估并降低大型 TXT 导入的峰值内存
-
-目标：先明确当前支持的本地 TXT 范围并量化全文读取、规范化、hash、切行的重叠表示；只在有明确收益时调整数据流，避免无目标的通用 streaming 框架或改变章节识别语义。
-
-依赖：无。审计依据：大型 TXT 导入内存风险（见审计报告技术债与调查候选）。
-
-完成成果：章节识别改为直接扫描规范化字符串的行 span，删除两次全文 Split 数组、行字符串及 Line records；规范化合并换行/control 处理，已规范化输入复用原串。编码检测/源文件 hash/正文持久化未变；hash 仅使用 80 KiB buffer，原始和规范化全文仍按 string 持有。支持现有 UTF-8、UTF-16LE/BE、GB18030，无新增大小限制；本次验证单次 64/128 MiB TXT，超过该范围及多份并发准备仍受可用内存、string/int offset 上限约束，不承诺任意规模。
-
-量化证据：Windows .NET 10 Release 独立进程，以 10cbc09 旧算法和新算法运行实际 Analyze→Normalize→源 hash→首标题→Split→Stage/Finalize 管线（不含 SQLite）；脱敏 UTF-8 无 BOM 文件由 `Chapter 1\r\n` 加 1,000 个 80 字符正文行/CRLF 组成块，ASCII 用 819/1,637 块，中文用 278 块（每行“脱敏正文”重复 20 次）。GC 总分配量 / Process.PeakWorkingSet64：64 MiB ASCII 1,181.9→516.8 / 846.1→548.7 MiB；128 MiB ASCII 2,378.2→1,032.8 / 1,628.7→1,068.4 MiB；64 MiB 中文 407.0→174.8 / 330.8→211.5 MiB。三组源 hash、落盘正文 hash、章节数一致；峰值工作集下降约 34–36%，分配量下降约 56–57%，数值为该脱敏管线实测而非整应用内存保证。
-
-验收：临时固定 seed 26026 的 10,000 组文本、4 类规则、两种空行模式比较规范化全文、首标题与完整章节范围均等价；Application Books/Active Cache focused tests 79 项通过，既有正文/编码/hash/错误/取消/恢复核心测试保留，无新增永久细节测试。临时基准/样本/等价验证全部清理；locked restore、format、Release build 和五层完整 tests 1,040 项通过（含 Books/Source integration 83 项与 Architecture 26 项），无未执行的本地门禁或长期文档冲突。
-
-### 小型重复项与维护文档
-
-## [x] T027（P3）：收敛 UI 资源重复并核实 Gallery-only 样式
-
-目标：在验证 WPF Application resource 查找后，将重复的 `BooleanToVisibilityConverter` 声明收敛到合适的共享 owner；核对 ComboBox 重复模板和 Gallery-only 控件样式的实际合同，删除已确认无用途的副本/bridge/fixture。
-
-依赖：无。只删除已证明可省略的资源，不以 Gallery 当前无产品 caller 单独判死。审计依据：S08 / I06 / I07。
-
-完成成果：BooleanToVisibilityConverter 收敛到 Application.Resources；Compact ComboBox 复用 Standard string 模板，删除无长期合同且仅 Gallery 使用的 CheckBox.Compact，PasswordBox Compact 与 Provider bridge 保留。Presentation 298 项、隔离 WPF 101 项、Light/Dark Gallery input-controls 渲染、format 与 Release build 通过。
-
-## [x] T028（P3）：移除 Visual Review manifest 的过期 fallback
-
-目标：让 `Generate-VisualReviewManifest.ps1` 只接受当前 Gallery manifest 结构，删除旧 `Scenarios` 和缺失 `scene` 的默认兼容路径；保留路径/hash 校验和索引生成。
-
-依赖：无。审计依据：S09。
-
-完成成果：manifest 生成脚本只读取当前 `scenes[].scene` 结构，旧 `Scenarios` schema 与缺失/空 scene 均带文件和条目位置明确失败；文件存在、SHA-256 校验和 root index 保留。当前结构、旧结构拒绝及缺失 scene 验证通过。
-
-## [x] T029（P3）：收敛 AGENTS 与长期 owner 文档的重复规则
-
-目标：让 `AGENTS.md` 保留执行时必须直接看到的硬约束与 owner 文档入口，将稳定 UI/test 合同的详细定义归还唯一 owner 文档；不得削弱隐私、安全、持久化授权或验收约束。
-
-依赖：无。当前 Backlog 历史日志已在本次计划整理中移除。审计依据：AGENTS 与 owner 文档规则重复（S06）。
-
-完成成果：AGENTS 保留 WPF/ViewModel 边界、Snackbar 执行约束、主题验收入口、批量管理入口、review checklist、WPF 隔离和标准门禁；稳定 UI 与永久测试细则改由 docs/06、docs/08 唯一维护。Markdown 链接目标和 LF 检查通过。
-
-## [x] T030（P3）：统一 Release 输出与 ZIP 内容校验规则来源
-
-目标：逐项比较 publish 目录与最终 ZIP 的 required/excluded predicates；仅消除规则漂移和重复维护，保留对最终封包内容及 tag/checksum 的完整验证。
-
-依赖：无。不得以删掉其中一层校验作为简化。审计依据：D05。
-
-完成成果：required root files 与全部排除 predicates 收敛至 `tools/ReleasePackageValidation.ps1`，对规范化 publish 条目和最终 ZIP 条目分别执行；保留 tag ancestry、ZIP 重读验证与 checksum。PowerShell fixtures 验证两层有效包、缺失文件和禁止用户数据，release 契约 focused tests 8 项通过。
-
-## 4. 暂不安排
-
-- `LegacyRuleId` / `SynthesisProfiles.RuleId`：涉及已有 SQLite 数据与恢复路径；先完成读取者和版本兼容调查，并取得具体持久化变更授权后再排期。
-- Source 模型：属于已批准的长期 Book/Source 方向，不因当前仅有 Local Source 实现而撤销（I03）。
-- HTTP 跨主机重定向凭据语义、数据根 TOCTOU：当前证据不足以形成修复任务（I04 / I05）。
-- App 对 Domain 的传递项目引用：目前属于低置信度工程表达问题，没有明确收益前不单独建立重构任务（D06）。
-- resolver convenience constructors、release 目录/ZIP 双层校验：前者收益不足，后者各层核验职责不同；不作为删除目标（审计报告 9.5–9.6）。
+- `SourceContentReader`、启动路径扫描任务完成前，不引入缓存淘汰器、扫描完成标记或持久化状态；任何 schema/持久化变更需另行授权。
+- Chapter/Regex 规则 workspace 的交换格式重复：导入差异和内建规则策略尚未证明可统一；不先建立通用规则框架。
+- `ActiveSourceContext.CatalogVersion` 的 first-chapter-ID 约定：当前全量替换会生成新 ChapterId，未发现行为缺陷；后续可在相关查询改动中评估 SQL 去重，不新增持久版本列。
+- `AppSettingsService` 通知异常语义与锁内发布、`PlayerAutoScrollCoordinator` 生命周期、`PlaybackCoordinator` 拆分及规则导入反馈差异：当前证据不足以支持行为或 owner 变更；不按文件大小单独拆分协调器。
+- AppSettings / Source 模型 / HTTP 重定向凭据 / storage-root TOCTOU 等产品、兼容与安全边界，继续遵守长期文档和现有授权约束；本轮审计没有批准改变这些边界。
