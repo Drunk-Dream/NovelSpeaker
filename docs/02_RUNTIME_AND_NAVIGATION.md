@@ -52,7 +52,7 @@ bootstrap essential logging
 
 - BookDetails → Library；
 - Settings 子页 → Settings；
-- RegexReplacementRules → ImportTextSettings；
+- RegexReplacementRules → Settings；
 - CacheManagement → CacheAndData。
 
 Player 是唯一使用动态一次性 ReturnRoute 的页面。ReturnRoute 记录进入 Player 前的完整业务 route，不递归指向另一个 Player。

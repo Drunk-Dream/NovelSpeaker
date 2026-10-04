@@ -49,11 +49,13 @@
 
 完成成果：删除 `SerializeHeaders`、`SerializeRequestOptions` 及专属 writer/编码器依赖；旧 HTTP Provider 迁移读取逻辑和既有兼容测试保留。
 
-## [ ] T005（P3）：修正文档中的 Regex 规则导航归属
+## [x] T005（P3）：修正文档中的 Regex 规则导航归属
 
 目标：将运行时导航文档中的 RegexReplacementRules 父级路由描述更新为当前 Settings 路由，并核对相关术语和链接。
 
-依赖：无。范围与验收见 [T005 task spec](tasks/T005_Correct_Regex_Route_Documentation.md)。
+依赖：无。
+
+完成成果：运行时导航文档将 RegexReplacementRules 的稳定父级更新为 Settings，与路由定义及导航测试一致。
 
 ### 先测量再决定
 
