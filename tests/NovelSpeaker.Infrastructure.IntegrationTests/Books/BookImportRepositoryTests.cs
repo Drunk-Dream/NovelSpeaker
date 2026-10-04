@@ -1,11 +1,13 @@
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.Import;
+using NovelSpeaker.Application.Books.Library;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Infrastructure.Books.FileStorage;
 using NovelSpeaker.Infrastructure.Books.Text;
+using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Persistence;
 using NovelSpeaker.Infrastructure.Persistence.Books;
@@ -15,6 +17,113 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookImportRepositoryTests
 {
+    [Fact]
+    public async Task Import_preparation_allows_another_book_to_commit()
+    {
+        var analyzer = new PausingAnalyzer();
+        using var fixture = await Fixture.CreateAsync(analyzer);
+        var paused = fixture.ImportAsync("Paused.txt", "paused body");
+        DirectBookImportResult other;
+        try
+        {
+            await analyzer.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            other = await fixture.ImportAsync("Other.txt", "other body").WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(DirectBookImportStatus.Imported, other.Status);
+        }
+        finally
+        {
+            analyzer.Continue.TrySetResult();
+            await paused;
+        }
+        var first = await paused;
+        Assert.NotEqual(first.ImportedBook!.BookId, other.ImportedBook!.BookId);
+        Assert.Equal(2L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Books;"));
+        Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reimport_revalidates_a_target_removed_during_preparation(bool removeSource)
+    {
+        var analyzer = new PausingAnalyzer();
+        using var fixture = await Fixture.CreateAsync(analyzer);
+        var original = await fixture.ImportAsync("Fixture.txt", "old body");
+        var target = (await fixture.Repository.GetTargetAsync(original.ImportedBook!.BookId, CancellationToken.None))!;
+        var paused = fixture.ImportAsync("Paused.txt", "new body", target.Book.Id);
+        try
+        {
+            await analyzer.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (removeSource)
+                await fixture.Deletion.RemoveAsync(new BookSourceRemoveRequest(target.Book.Id, target.Source!.Id),
+                    CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+            else
+                await fixture.Deletion.DeleteAsync(new BookDeleteRequest(target.Book.Id, true),
+                    CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            analyzer.Continue.TrySetResult();
+            try { await paused; }
+            catch (InvalidOperationException) { }
+        }
+        await Assert.ThrowsAsync<InvalidOperationException>(() => paused);
+        Assert.Null(await fixture.Repository.GetTargetAsync(target.Book.Id, CancellationToken.None));
+        Assert.Empty(Directory.GetFiles(fixture.Directories.BooksDirectoryPath, "*", SearchOption.AllDirectories));
+        Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Cancellation_during_import_preparation_leaves_the_existing_snapshot_intact()
+    {
+        var analyzer = new PausingAnalyzer();
+        using var fixture = await Fixture.CreateAsync(analyzer);
+        using var cancellation = new CancellationTokenSource();
+        var original = await fixture.ImportAsync("Fixture.txt", "old body");
+        var target = (await fixture.Repository.GetTargetAsync(original.ImportedBook!.BookId, CancellationToken.None))!;
+        var path = Path.Combine(fixture.Root, "Paused.txt");
+        await File.WriteAllTextAsync(path, "new body");
+        var paused = fixture.ImportRequestAsync(new DirectBookImportRequest(path, "utf-8", "Paused.txt", target.Book.Id), cancellation.Token);
+        try
+        {
+            await analyzer.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => paused);
+        }
+        Assert.Equal(target, await fixture.Repository.GetTargetAsync(target.Book.Id, CancellationToken.None));
+        Assert.Equal("old body", await fixture.ReadContentAsync(target));
+        Assert.Single(Directory.GetFiles(Path.Combine(fixture.Directories.BooksDirectoryPath, target.Book.Id)));
+        Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Concurrent_reimports_resolve_the_latest_snapshot_before_replacement()
+    {
+        var analyzer = new PausingAnalyzer();
+        using var fixture = await Fixture.CreateAsync(analyzer);
+        var original = await fixture.ImportAsync("Fixture.txt", "old body");
+        var id = original.ImportedBook!.BookId;
+        var paused = fixture.ImportAsync("Paused.txt", "final body", id);
+        try
+        {
+            await analyzer.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await fixture.ImportAsync("Other.txt", "intermediate body", id).WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            analyzer.Continue.TrySetResult();
+            await paused;
+        }
+        var target = (await fixture.Repository.GetTargetAsync(id, CancellationToken.None))!;
+        Assert.Equal("final body", await fixture.ReadContentAsync(target));
+        Assert.Single(Directory.GetFiles(Path.Combine(fixture.Directories.BooksDirectoryPath, id)));
+        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM BookSources;"));
+        Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
+    }
+
     [Fact]
     public async Task Import_creates_a_complete_source_snapshot_independent_of_the_external_file()
     {
@@ -210,23 +319,29 @@ public sealed class BookImportRepositoryTests
         public AppStoragePathResolver Resolver { get; }
         public SqliteConnectionFactory Factory { get; }
         public BookImportRepository Repository { get; }
+        public SqliteBookOperationJournal Journal { get; }
+        public BookDeletionService Deletion { get; }
+        private BookMutationGate Mutations { get; } = new();
         private DirectBookImportService Service { get; }
 
-        private Fixture()
+        private Fixture(ITextFileAnalyzer? analyzer)
         {
             Directories = new AppDataDirectoryProvider(Path.Combine(Root, "data"));
             Resolver = new AppStoragePathResolver(Directories);
             Factory = new SqliteConnectionFactory(Directories, observability: null, pooling: false);
             Repository = new BookImportRepository(Factory);
-            Service = new DirectBookImportService(new TextFileAnalyzer(), new TextNormalizer(), new Sha256ContentHasher(),
+            Journal = new SqliteBookOperationJournal(Factory, TimeProvider.System);
+            Deletion = new BookDeletionService(new BookDeletionOperationStore(Factory, Directories,
+                new AudioCacheProtectionRegistry(), Resolver, Journal, TimeProvider.System), Mutations, new BookSourceChanges(), [], []);
+            Service = new DirectBookImportService(analyzer ?? new TextFileAnalyzer(), new TextNormalizer(), new Sha256ContentHasher(),
                 new ChapterRuleRepository(Factory), new ChapterSplitter(), new BookFileStore(Directories, Resolver), Repository,
-                new SqliteBookOperationJournal(Factory, TimeProvider.System), new FileNameMetadataRuleRepository(Factory),
-                new TextHeaderMetadataRuleRepository(Factory), new Settings(), new ImportMetadataExtractor(), TimeProvider.System, new Ids(), new BookMutationGate(), new BookSourceChanges());
+                Journal, new FileNameMetadataRuleRepository(Factory),
+                new TextHeaderMetadataRuleRepository(Factory), new Settings(), new ImportMetadataExtractor(), TimeProvider.System, new Ids(), Mutations, new BookSourceChanges());
         }
 
-        public static async Task<Fixture> CreateAsync()
+        public static async Task<Fixture> CreateAsync(ITextFileAnalyzer? analyzer = null)
         {
-            var fixture = new Fixture();
+            var fixture = new Fixture(analyzer);
             await fixture.Directories.EnsureCreatedAsync(CancellationToken.None);
             await new SqliteMigrationRunner(fixture.Factory).InitializeAsync(CancellationToken.None);
             return fixture;
@@ -240,6 +355,8 @@ public sealed class BookImportRepositoryTests
         }
 
         public Task<string> ReadContentAsync(LocalSourceImportTarget target) => File.ReadAllTextAsync(Resolver.ResolvePath(target.LocalSource!.StoredContentPath));
+        public Task<DirectBookImportResult> ImportRequestAsync(DirectBookImportRequest request, CancellationToken cancellationToken) =>
+            Service.ImportAsync(request, null, cancellationToken);
         public async Task ExecuteAsync(string sql)
         {
             await using var connection = await Factory.OpenConnectionAsync(CancellationToken.None);
@@ -255,7 +372,30 @@ public sealed class BookImportRepositoryTests
             command.CommandText = sql;
             return Convert.ToString(await command.ExecuteScalarAsync())!;
         }
-        public void Dispose() => Directory.Delete(Root, recursive: true);
+        public void Dispose()
+        {
+            Mutations.Dispose();
+            Directory.Delete(Root, recursive: true);
+        }
+    }
+
+    private sealed class PausingAnalyzer : ITextFileAnalyzer
+    {
+        private readonly TextFileAnalyzer _inner = new();
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Continue { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<TextFileAnalysis> AnalyzeAsync(BookImportRequest request, IProgress<BookImportProgress>? progress,
+            CancellationToken cancellationToken)
+        {
+            var analysis = await _inner.AnalyzeAsync(request, progress, cancellationToken);
+            if (Path.GetFileName(request.FilePath) == "Paused.txt")
+            {
+                Started.TrySetResult();
+                await Continue.Task.WaitAsync(cancellationToken);
+            }
+            return analysis;
+        }
     }
 
     private sealed class Ids : IBookImportIdGenerator

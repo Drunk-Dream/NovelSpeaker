@@ -97,11 +97,13 @@
 
 完成成果：删除类型/目录/私有 setter/virtualization markup 等实现形状断言、Clear/Add 循环语法 parser 与穷举 fixture，以及仅支撑它们的 baseline，净减少 705 行。保留四层依赖、模块/Feature 循环、Shared 方向、Playback/ReadingProgress owner、Service Locator/通用协调禁令、异步/API、主题和测试隔离检查，对应架构合同与质量文档核心边界；必要源码/DI 扫描继续复用现有实现，无新白名单或永久测试。Architecture focused tests 26 项、format 与 Release build 通过。
 
-## [ ] T025（P2）：缩小 BookMutationGate 独占区
+## [x] T025（P2）：缩小 BookMutationGate 独占区
 
 目标：在证明导入解析/staging、目标重新验证、文件 journal 和 SQLite commit 的并发及恢复语义后，将 singleton gate 缩到真正需要串行化的区间；若证明不足，保留现状并记录具体阻碍，不冒险释放锁。
 
 依赖：无。审计依据：D01 / S05。
+
+完成成果：外部 TXT 读取→规范化/hash→元数据/切章移出 gate；候选/目标读取→catalog 验证→Book 目录 staging→journal→文件 finalize/SQLite commit→通知/旧文件清理仍在同一 gate。删除会搬移整个 Book 目录，故 staging 保留互斥；Active Cache 冻结仍与完整提交互斥，SQLite expected-content-path 二次验证与恢复语义保留。新增 5 个受控并发数据安全场景覆盖跨 Book 进展、同目标更新/删除/Source 移除和取消；既有提交失败、恢复与冻结测试保留。Books/Source integration 83 项、Application Books/Active Cache 79 项、format 与 Release build 通过；无 schema、journal 格式或长期合同变更。
 
 ## [ ] T026（P2）：评估并降低大型 TXT 导入的峰值内存
 

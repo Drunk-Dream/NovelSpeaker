@@ -71,9 +71,8 @@ public sealed class DirectBookImportService : IDirectBookImportService
         CancellationToken cancellationToken)
     {
         // Parsing and catalog projection must not run unbounded on the WPF Dispatcher.
-        return await _mutations.RunAsync(
-            () => Task.Run(() => ImportCoreAsync(request, progress, cancellationToken), cancellationToken),
-            cancellationToken).ConfigureAwait(false);
+        return await Task.Run(() => ImportCoreAsync(request, progress, cancellationToken), cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<DirectBookImportResult> ImportCoreAsync(
@@ -161,6 +160,23 @@ public sealed class DirectBookImportService : IDirectBookImportService
             throw new ArgumentException("A target book and a new book cannot both be selected.", nameof(request));
         }
 
+        // Preparation reads only external text and rule snapshots. Resolve the current target under the
+        // mutation gate; staging stays here too because deletion can move the whole Book directory.
+        return await _mutations.RunAsync(
+            () => CommitPreparedTextAsync(request, analyzedText, normalizedText, sourceHash, metadata, chapters,
+                progress, cancellationToken), cancellationToken);
+    }
+
+    private async Task<DirectBookImportResult> CommitPreparedTextAsync(
+        DirectBookImportRequest request,
+        TextFileAnalysis analyzedText,
+        string normalizedText,
+        string sourceHash,
+        ImportMetadata metadata,
+        IReadOnlyList<BookImportChapter> chapters,
+        IProgress<BookImportProgress>? progress,
+        CancellationToken cancellationToken)
+    {
         var targetBookId = request.TargetBookId;
         if (!request.CreateNewBook && targetBookId is null)
         {
