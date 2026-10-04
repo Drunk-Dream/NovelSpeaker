@@ -1,3 +1,4 @@
+using NovelSpeaker.TestKit.Books;
 using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.TestKit.Speech;
 using System.Diagnostics;
@@ -170,7 +171,7 @@ public sealed partial class BookDetailsPageTests
             new FakeFeedbackService(),
             new FakeAppDialogService(),
             new FakeBookDeleteDialogService(),
-            new BookCatalogInvalidationState(),
+            new FakeBookChanges(),
             new FakePlaybackCoordinator(),
             new FakeGuardedNavigationService());
     }
@@ -366,7 +367,7 @@ public sealed partial class BookDetailsPageTests
             => Task.FromResult(new BookDeleteDialogResult(false, true));
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackBookCommands
+    private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource
     {
         public PlaybackSnapshot CurrentSnapshot { get; } = PlaybackSnapshot.Idle;
 
@@ -413,9 +414,7 @@ public sealed partial class BookDetailsPageTests
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

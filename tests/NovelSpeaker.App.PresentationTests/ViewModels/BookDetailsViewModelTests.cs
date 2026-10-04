@@ -1,3 +1,5 @@
+using NovelSpeaker.App.Shell.Activation;
+using NovelSpeaker.TestKit.Books;
 using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Speech.Providers;
@@ -18,6 +20,86 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class BookDetailsViewModelTests
 {
+    [Fact]
+    public async Task Book_refresh_failure_after_leave_does_not_notify_the_next_page()
+    {
+        var changes = new FakeBookChanges();
+        var feedback = new FakeFeedbackService();
+        var service = new FakeBookManagementService();
+        var viewModel = CreateViewModel(managementService: service, bookChanges: changes, feedbackService: feedback);
+        using var activation = new PageActivationController().Activate();
+        viewModel.HandleNavigatedTo(activation);
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        var pending = new TaskCompletionSource<BookDetailsHeader?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.HeaderResult = pending.Task;
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-1"));
+        viewModel.HandleNavigatedFrom();
+        pending.SetException(new IOException("late query failure"));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Null(feedback.LastTitle);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Catalog_change_supersedes_initial_load_without_failure(bool ignoreCancellation)
+    {
+        var changes = new FakeBookChanges();
+        var feedback = new FakeFeedbackService();
+        var service = new FakeBookManagementService { BlockDetailsLoad = true, IgnoreDetailsCancellation = ignoreCancellation };
+        var viewModel = CreateViewModel(managementService: service, bookChanges: changes, feedbackService: feedback);
+        using var activation = new PageActivationController().Activate();
+        viewModel.HandleNavigatedTo(activation);
+        var initialLoad = viewModel.LoadAsync("book-1", CancellationToken.None);
+        service.BlockDetailsLoad = false;
+        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source", "catalog"));
+        service.ReleaseBlockedDetailsLoad();
+        await initialLoad.WaitAsync(TimeSpan.FromSeconds(5));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(viewModel.HasBook);
+        Assert.Equal(3, viewModel.Chapters.Count);
+        Assert.Null(feedback.LastTitle);
+
+        viewModel.EditTitle = "Unsaved draft";
+        service.BlockDetailsLoad = true;
+        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source", "catalog-2"));
+        service.BlockDetailsLoad = false;
+        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source", "catalog-3"));
+        service.ReleaseBlockedDetailsLoad();
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("Unsaved draft", viewModel.EditTitle);
+        Assert.Null(feedback.LastTitle);
+    }
+
+    [Fact]
+    public async Task Committed_changes_update_active_details_preserve_draft_and_detach_on_leave()
+    {
+        var changes = new FakeBookChanges();
+        var service = new FakeBookManagementService { Details = CreateDetails() };
+        var viewModel = CreateViewModel(managementService: service, bookChanges: changes);
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        viewModel.EditTitle = "Unsaved draft";
+        service.Details = service.Details with { Header = service.Details.Header with { Title = "Committed" } };
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-2"));
+        Assert.Equal("示例小说", viewModel.Title);
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-1"));
+        Assert.Equal("Committed", viewModel.Title);
+        Assert.Equal("Unsaved draft", viewModel.EditTitle);
+        Assert.True(viewModel.HasUnsavedChanges);
+        service.Details = service.Details with { Catalog = [service.Details.Catalog[0]] };
+        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source", "updated"));
+        Assert.Single(viewModel.Chapters);
+        Assert.Equal("Unsaved draft", viewModel.EditTitle);
+        changes.Publish(new BookCommittedChange.BookRemoved("book-1"));
+        Assert.False(viewModel.HasBook);
+        Assert.Empty(viewModel.Chapters);
+        viewModel.HandleNavigatedFrom();
+        Assert.Equal(0, changes.SubscriberCount);
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-1"));
+        Assert.False(viewModel.HasBook);
+    }
+
     [Fact]
     public async Task Details_without_active_source_keep_metadata_and_show_stable_empty_catalog()
     {
@@ -128,7 +210,7 @@ public sealed class BookDetailsViewModelTests
             managementService: managementService,
             playbackCoordinator: playbackCoordinator);
 
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         var loadTask = viewModel.LoadAsync("book-1", CancellationToken.None);
         await Task.Yield();
 
@@ -254,14 +336,14 @@ public sealed class BookDetailsViewModelTests
         };
         var viewModel = CreateViewModel(managementService: managementService);
 
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.StartStagedLoading();
         await Task.Yield();
 
         viewModel.HandleNavigatedFrom();
         managementService.BlockStatisticsLoad = false;
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.StartStagedLoading();
 
@@ -290,7 +372,7 @@ public sealed class BookDetailsViewModelTests
             cacheDependencies: cacheDependencies,
             dialogService: dialogService);
 
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.StartStagedLoading();
         await Task.Yield();
@@ -324,7 +406,7 @@ public sealed class BookDetailsViewModelTests
             managementService: managementService,
             dialogService: dialogService);
 
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.StartStagedLoading();
         await Task.Yield();
@@ -349,7 +431,7 @@ public sealed class BookDetailsViewModelTests
         var changes = new List<NotifyCollectionChangedAction>();
         viewModel.Chapters.CollectionChanged += (_, args) => changes.Add(args.Action);
 
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.StartStagedLoading();
         await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == 10_000);
@@ -422,7 +504,7 @@ public sealed class BookDetailsViewModelTests
         FakeBookDeleteDialogService? deleteDialogService = null,
         FakePlaybackCoordinator? playbackCoordinator = null,
         FakeGuardedNavigationService? guardedNavigationService = null,
-        IBookCatalogInvalidationState? invalidationState = null,
+        IBookSourceChangeSource? bookChanges = null,
         IUiScheduler? uiScheduler = null)
     {
         managementService ??= new FakeBookManagementService();
@@ -439,7 +521,7 @@ public sealed class BookDetailsViewModelTests
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
             deleteDialogService ?? new FakeBookDeleteDialogService(),
-            invalidationState ?? new BookCatalogInvalidationState(),
+            bookChanges ?? new FakeBookChanges(),
             playbackCoordinator ?? new FakePlaybackCoordinator(),
             guardedNavigationService ?? new FakeGuardedNavigationService(),
             uiScheduler ?? new ImmediateUiScheduler());
@@ -510,7 +592,7 @@ public sealed class BookDetailsViewModelTests
 
     private static async Task LoadViewModelAsync(BookDetailsViewModel viewModel, int expectedChapterCount = 3)
     {
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         await viewModel.LoadAsync("book-1", CancellationToken.None);
         viewModel.StartStagedLoading();
         await WaitForConditionAsync(viewModel, () => !viewModel.IsBusy && viewModel.Chapters.Count == expectedChapterCount);
@@ -535,9 +617,13 @@ public sealed class BookDetailsViewModelTests
 
         public FakeDetailsState? NextDetailsAfterClear { get; set; }
 
-        public FakeDetailsState? Details { get; init; }
+        public FakeDetailsState? Details { get; set; }
 
         public bool BlockDetailsLoad { get; set; }
+
+        public bool IgnoreDetailsCancellation { get; set; }
+
+        public Task<BookDetailsHeader?>? HeaderResult { get; set; }
 
         public bool BlockStatisticsLoad { get; set; }
 
@@ -553,7 +639,7 @@ public sealed class BookDetailsViewModelTests
         {
             GetBookDetailsHeaderCallCount++;
             var details = GetDetails();
-            return Task.FromResult<BookDetailsHeader?>(details.Header);
+            return HeaderResult ?? Task.FromResult<BookDetailsHeader?>(details.Header);
         }
 
         public Task<IReadOnlyList<BookChapterSummary>> GetCatalogAsync(string bookId, CancellationToken cancellationToken)
@@ -563,7 +649,8 @@ public sealed class BookDetailsViewModelTests
             if (BlockDetailsLoad)
             {
                 _blockedDetailsLoadSource = new TaskCompletionSource<IReadOnlyList<BookChapterSummary>>(TaskCreationOptions.RunContinuationsAsynchronously);
-                cancellationToken.Register(() => _blockedDetailsLoadSource.TrySetCanceled(cancellationToken));
+                if (!IgnoreDetailsCancellation)
+                    cancellationToken.Register(() => _blockedDetailsLoadSource.TrySetCanceled(cancellationToken));
                 return _blockedDetailsLoadSource.Task;
             }
 
@@ -965,7 +1052,7 @@ public sealed class BookDetailsViewModelTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackBookCommands
+    private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource
     {
         public FakePlaybackCoordinator()
             : this(PlaybackSnapshot.Idle)
@@ -979,9 +1066,7 @@ public sealed class BookDetailsViewModelTests
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
 
-        public string? LastRefreshedBookId { get; private set; }
 
-        public string? LastDeletedBookId { get; private set; }
 
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
@@ -1001,21 +1086,9 @@ public sealed class BookDetailsViewModelTests
         public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken)
-        {
-            LastRefreshedBookId = bookId;
-            return Task.CompletedTask;
-        }
 
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
-        {
-            LastDeletedBookId = bookId;
-            CurrentSnapshot = PlaybackSnapshot.Idle;
-            SnapshotChanged?.Invoke(this, CurrentSnapshot);
-            return Task.CompletedTask;
-        }
 
         public void Publish(PlaybackSnapshot snapshot)
         {

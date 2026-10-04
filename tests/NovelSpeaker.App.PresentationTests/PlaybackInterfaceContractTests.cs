@@ -47,14 +47,7 @@ public sealed class PlaybackInterfaceContractTests
                 "StopAsync"
             ],
             GetPublicMemberNames(assembly, "IPlaybackSession"));
-        Assert.Equal(
-            [
-                "CurrentSnapshot",
-                "HandleBookDeletedAsync",
-                "RefreshBookMetadataAsync",
-                "SnapshotChanged"
-            ],
-            GetPublicMemberNames(assembly, "IPlaybackBookCommands"));
+        Assert.Null(assembly.GetType("NovelSpeaker.Application.Playback.IPlaybackBookCommands"));
         Assert.Equal(
             ["RefreshRegexReplacementAsync"],
             GetPublicMemberNames(assembly, "IPlaybackRegexReplacementRefresher"));
@@ -91,7 +84,6 @@ public sealed class PlaybackInterfaceContractTests
 
             Assert.Same(coordinator, provider.GetRequiredService<IPlaybackSnapshotSource>());
             Assert.Same(coordinator, provider.GetRequiredService<IPlaybackSession>());
-            Assert.Same(coordinator, provider.GetRequiredService<IPlaybackBookCommands>());
             Assert.Same(coordinator, provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
         }
         finally

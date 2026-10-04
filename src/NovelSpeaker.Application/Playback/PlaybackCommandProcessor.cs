@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using NovelSpeaker.Application.Books;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -60,7 +61,7 @@ internal sealed class PlaybackCommandProcessor : IAsyncDisposable
             return;
         }
 
-        if (!_pendingEventCommands.TryAdd(command.Key, 0))
+        if (command.Kind != PlaybackEventCommandKind.BookChanged && !_pendingEventCommands.TryAdd(command.Key, 0))
         {
             return;
         }
@@ -197,7 +198,7 @@ internal enum PlaybackEventCommandKind
     Completed,
     Failed,
     SnapshotChanged,
-    SourceCatalogChanged
+    BookChanged
 }
 
 internal sealed record PlaybackEventCommand(
@@ -205,7 +206,9 @@ internal sealed record PlaybackEventCommand(
     Guid? SessionId,
     LocalAudioPlaybackSnapshot? Snapshot,
     PlaybackErrorEventArgs? Error,
-    long EventEpoch)
+    long EventEpoch,
+    BookCommittedChange? BookChange = null,
+    ActiveSourceContext? SourceContext = null)
 {
     public PlaybackEventKey Key => new(
         EventEpoch,

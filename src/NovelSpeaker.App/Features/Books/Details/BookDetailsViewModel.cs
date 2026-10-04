@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -29,9 +30,12 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppDialogService _dialogService;
     private readonly IBookDeleteDialogService _deleteDialogService;
-    private readonly IBookCatalogInvalidationState _catalogInvalidationState;
+    private readonly IBookSourceChangeSource _bookChanges;
+    private PageActivationScope? _bookChangeActivation;
+    private readonly SemaphoreSlim _bookChangeUpdates = new(1, 1);
+    private Task? _criticalLoadTask;
     private readonly IAppNavigator _navigator;
-    private readonly IPlaybackBookCommands _playbackCoordinator;
+    private readonly IPlaybackSnapshotSource _playbackCoordinator;
     private readonly ChapterCacheStatusRefreshController _cacheStatusRefresh;
     private readonly BookDetailsProjectionController _projection = new();
     private readonly OwnedTaskRegistry _pageTasks = new();
@@ -61,8 +65,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
         IBookDeleteDialogService deleteDialogService,
-        IBookCatalogInvalidationState catalogInvalidationState,
-        IPlaybackBookCommands playbackCoordinator,
+        IBookSourceChangeSource bookChanges,
+        IPlaybackSnapshotSource playbackCoordinator,
         IAppNavigator navigator,
         IUiScheduler? uiScheduler = null)
     {
@@ -77,7 +81,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _feedbackService = feedbackService;
         _dialogService = dialogService;
         _deleteDialogService = deleteDialogService;
-        _catalogInvalidationState = catalogInvalidationState;
+        _bookChanges = bookChanges;
         _playbackCoordinator = playbackCoordinator;
         _navigator = navigator;
         _cacheStatusRefresh = new ChapterCacheStatusRefreshController(
@@ -201,7 +205,10 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         Request();
     }
 
-    public async Task LoadAsync(string bookId, CancellationToken cancellationToken)
+    public Task LoadAsync(string bookId, CancellationToken cancellationToken) =>
+        _criticalLoadTask = LoadCoreAsync(bookId, cancellationToken);
+
+    private async Task LoadCoreAsync(string bookId, CancellationToken cancellationToken, bool preserveEditor = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
@@ -239,7 +246,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
                 return;
             }
 
-            ApplyHeader(header);
+            ApplyHeader(header, preserveEditor);
             Volatile.Write(ref _headerLoadVersion, version);
             await ApplyCriticalCatalogAsync(
                 bookId,
@@ -259,7 +266,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
                 NotifyCommandStateChanged();
             }
 
-            throw;
+            if (cancellationToken.IsCancellationRequested || version == Volatile.Read(ref _loadVersion)) throw;
         }
         catch (Exception exception)
         {
@@ -307,12 +314,16 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public void HandleNavigatedFrom()
     {
+        var activation = _bookChangeActivation;
+        _bookChangeActivation = null;
+        activation?.Dispose();
         Interlocked.Increment(ref _loadVersion);
         CancelPendingLoad();
         DeactivateCacheStatusUpdates();
         if (_isPlaybackEventsRegistered)
         {
             _playbackCoordinator.SnapshotChanged -= OnPlaybackSnapshotChanged;
+            _bookChanges.Changed -= OnBookCommittedChange;
             Interlocked.Increment(ref _playbackProjectionVersion);
             _isPlaybackEventsRegistered = false;
         }
@@ -322,8 +333,14 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         NotifyCommandStateChanged();
     }
 
-    public void HandleNavigatedTo()
+    public void HandleNavigatedTo(PageActivationScope activation)
     {
+        _bookChangeActivation?.Dispose();
+        _bookChangeActivation = activation;
+        activation.Register(() =>
+        {
+            if (ReferenceEquals(_bookChangeActivation, activation)) HandleNavigatedFrom();
+        });
         RegisterPlaybackEvents();
         ApplyPlaybackSnapshot(_playbackCoordinator.CurrentSnapshot);
     }
@@ -438,27 +455,21 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             return;
         }
 
+        var deletedTitle = _loadedHeader.Title;
         BeginMutation();
         try
         {
-            if (IsCurrentPlaybackBook(_bookId))
-            {
-                await _playbackCoordinator.HandleBookDeletedAsync(_bookId, cancellationToken);
-            }
-
             var result = await _bookDeletionService.DeleteAsync(
                 new BookDeleteRequest(_bookId, deleteDecision.DeleteAudioCache),
                 cancellationToken);
             if (result is null)
             {
                 StatusMessage = "这本书已不存在。";
-                _catalogInvalidationState.Invalidate();
                 await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
                 return;
             }
 
-            _catalogInvalidationState.Invalidate();
-            _feedbackService.ShowSuccess("删除成功", $"已删除《{_loadedHeader.Title}》。");
+            _feedbackService.ShowSuccess("删除成功", $"已删除《{deletedTitle}》。");
             await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
         }
         catch (Exception exception)
@@ -559,8 +570,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
                     NormalizeAuthor(EditAuthor)),
                 cancellationToken);
             ApplyHeader(updated);
-            _catalogInvalidationState.Invalidate();
-            await _playbackCoordinator.RefreshBookMetadataAsync(_bookId, cancellationToken);
             _feedbackService.ShowSuccess("已保存", "书名和作者已更新。");
             return true;
         }
@@ -917,9 +926,71 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         }
 
         _playbackCoordinator.SnapshotChanged += OnPlaybackSnapshotChanged;
+        _bookChanges.Changed += OnBookCommittedChange;
         Interlocked.Increment(ref _playbackProjectionVersion);
         _isPlaybackEventsRegistered = true;
     }
+
+    private void OnBookCommittedChange(object? sender, BookCommittedChange change)
+    {
+        if (_bookChangeActivation is not { IsCurrent: true } activation || change.BookId != _bookId) return;
+        activation.Run(token => _uiScheduler.InvokeLaterAsync(() =>
+        {
+            if (!activation.IsCurrent || change.BookId != _bookId) return;
+            if (change is BookCommittedChange.BookRemoved or BookCommittedChange.ActiveCatalogCommitted or BookCommittedChange.ActiveSourceChanged)
+            {
+                Interlocked.Increment(ref _loadVersion);
+                CancelPendingLoad();
+            }
+            activation.Run(ct => RefreshBookAsync(change, ct), ReportBookRefreshFailure);
+        }, token), ReportBookRefreshFailure);
+    }
+
+    private async Task RefreshBookAsync(BookCommittedChange change, CancellationToken cancellationToken)
+    {
+        await _bookChangeUpdates.WaitAsync(cancellationToken);
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (change.BookId != _bookId) return;
+            while (_criticalLoadTask is { } loading)
+            {
+                try { await loading.WaitAsync(cancellationToken); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
+                if (ReferenceEquals(loading, _criticalLoadTask)) break;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            if (change.BookId != _bookId) return;
+            if (change is BookCommittedChange.MetadataCommitted)
+            {
+                var loadVersion = Volatile.Read(ref _loadVersion);
+                var header = await _bookDetailsQuery.GetHeaderAsync(change.BookId, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                if (loadVersion != Volatile.Read(ref _loadVersion)) return;
+                if (header is not null) ApplyHeader(header, preserveEditor: true);
+            }
+            else if (change is BookCommittedChange.BookRemoved)
+            {
+                Interlocked.Increment(ref _loadVersion);
+                CancelPendingLoad();
+                DeactivateCacheStatusUpdates();
+                ClearBook();
+                StatusMessage = "这本书已不存在。";
+            }
+            else if (change is not BookCommittedChange.SourceRemoved)
+            {
+                await (_criticalLoadTask = LoadCoreAsync(change.BookId, cancellationToken, preserveEditor: true));
+                StartStagedLoading();
+            }
+        }
+        finally
+        {
+            _bookChangeUpdates.Release();
+        }
+    }
+
+    private void ReportBookRefreshFailure(Exception exception) =>
+        _feedbackService.ShowProjectedNotification("刷新书籍详情失败", _feedbackService.Project(exception));
 
     private void OnPlaybackSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
     {

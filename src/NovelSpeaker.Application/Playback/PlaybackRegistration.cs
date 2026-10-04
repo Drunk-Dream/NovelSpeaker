@@ -46,8 +46,6 @@ public static class PlaybackRegistration
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackStopTimer>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
-        services.TryAddSingleton<IPlaybackBookCommands>(serviceProvider =>
-            serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackRegexReplacementRefresher>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         return services;

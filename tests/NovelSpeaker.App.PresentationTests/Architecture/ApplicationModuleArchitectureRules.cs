@@ -66,8 +66,7 @@ internal static partial class ArchitectureRules
     private static readonly IReadOnlySet<string> PlaybackCommandTypes =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            "IPlaybackSession",
-            "IPlaybackBookCommands"
+            "IPlaybackSession"
         };
 
     private static readonly IReadOnlySet<string> CacheMutableTruthTypes =

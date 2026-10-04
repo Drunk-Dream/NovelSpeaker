@@ -8,7 +8,6 @@ public static class BooksSharedServiceCollectionExtensions
     public static IServiceCollection AddBooksSharedFeature(this IServiceCollection services)
     {
         services.TryAddSingleton<IBookCoverGenerator, BookCoverGenerator>();
-        services.TryAddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
         services.TryAddSingleton<IBookDeleteDialogService, BookDeleteDialogService>();
         return services;
     }

@@ -1,3 +1,4 @@
+using NovelSpeaker.TestKit.Books;
 using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Speech.Providers;
@@ -41,8 +42,8 @@ public sealed class AppNavigationPageProviderTests
             services.AddSingleton<IAppFeedbackService, FakeAppFeedbackService>();
             services.AddSingleton<IAppDialogService, FakeAppDialogService>();
             services.AddSingleton<IBookDeleteDialogService, FakeBookDeleteDialogService>();
-            services.AddSingleton<IBookCatalogInvalidationState, BookCatalogInvalidationState>();
-            services.AddSingleton<IPlaybackBookCommands, FakePlaybackCoordinator>();
+            services.AddSingleton<IBookSourceChangeSource, FakeBookChanges>();
+            services.AddSingleton<IPlaybackSnapshotSource, FakePlaybackCoordinator>();
             services.AddTransient<BookDetailsViewModel>();
             services.AddTransient<BookDetailsPage>();
 
@@ -228,7 +229,7 @@ public sealed class AppNavigationPageProviderTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackBookCommands
+    private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource
     {
         public PlaybackSnapshot CurrentSnapshot { get; } = PlaybackSnapshot.Idle;
 
@@ -257,9 +258,7 @@ public sealed class AppNavigationPageProviderTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }

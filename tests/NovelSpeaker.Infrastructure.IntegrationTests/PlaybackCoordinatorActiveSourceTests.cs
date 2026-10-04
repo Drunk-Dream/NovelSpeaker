@@ -6,6 +6,45 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed partial class PlaybackCoordinatorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Stopped_projection_is_invalidated_by_source_facts_without_another_audio_stop(bool removal)
+    {
+        var audio = new FakeLocalAudioPlaybackCoordinator();
+        var changes = new SourceChanges();
+        await using var coordinator = CreateCoordinator(audio,
+            book: CreateBook() with { SourceContext = new("source-1", "catalog-1") }, sourceChanges: changes);
+        await coordinator.StartAsync(new("book-1", null, null, null, 10), CancellationToken.None);
+        await coordinator.StopAsync(CancellationToken.None);
+        changes.Publish(removal
+            ? new BookCommittedChange.SourceRemoved("book-1", "source-1")
+            : new BookCommittedChange.ActiveCatalogCommitted("book-1", "source-1", "catalog-2"));
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookId is null);
+        Assert.Equal(1, audio.StopCallCount);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Active_source_change_invalidates_only_the_current_context(bool clearSource)
+    {
+        var audio = new FakeLocalAudioPlaybackCoordinator();
+        var changes = new SourceChanges();
+        await using var coordinator = CreateCoordinator(audio,
+            book: CreateBook() with { SourceContext = new("source-1", "catalog-1") }, sourceChanges: changes);
+        await coordinator.StartAsync(new("book-1", null, null, null, 10), CancellationToken.None);
+        var previous = coordinator.CurrentSnapshot;
+        changes.Publish(new BookCommittedChange.ActiveSourceChanged("other-book", "source-1", "source-2"));
+        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "other-source", "new-catalog"));
+        changes.Publish(new BookCommittedChange.SourceRemoved("book-1", "other-source"));
+        Assert.Equal(previous, coordinator.CurrentSnapshot);
+        changes.Publish(new BookCommittedChange.ActiveSourceChanged("book-1", "source-1", clearSource ? null : "source-2"));
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookId is null);
+        Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
+        Assert.Equal(1, audio.StopCallCount);
+    }
+
     [Fact]
     public async Task Removal_quiesces_active_source_and_rejects_late_audio_without_stopping_other_source()
     {
@@ -86,7 +125,7 @@ public sealed partial class PlaybackCoordinatorTests
         var start = coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
         Assert.Single(audioProvider.Requests);
         content.Book = CreateTwoChapterBook() with { SourceContext = new("local:book-1", "new-chapter") };
-        changes.Publish(new("book-1", "local:book-1", "new-chapter"));
+        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "local:book-1", "new-chapter"));
         pending.CompleteSuccess();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start);
         await discarded.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -101,7 +140,7 @@ public sealed partial class PlaybackCoordinatorTests
 
     private sealed class SourceChanges : IBookSourceChangeSource
     {
-        public event EventHandler<BookSourceCatalogChanged>? CatalogChanged;
-        public void Publish(BookSourceCatalogChanged change) => CatalogChanged?.Invoke(this, change);
+        public event EventHandler<BookCommittedChange>? Changed;
+        public void Publish(BookCommittedChange change) => Changed?.Invoke(this, change);
     }
 }

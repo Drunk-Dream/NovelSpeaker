@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -31,10 +32,13 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
     private readonly IBookDeletionService _bookDeletionService;
     private readonly ILibraryImportCoordinator _libraryImportCoordinator;
     private readonly IBookDeleteDialogService _deleteDialogService;
-    private readonly IBookCatalogInvalidationState _catalogInvalidationState;
+    private readonly IBookSourceChangeSource _bookChanges;
+    private PageActivationScope? _bookChangeActivation;
+    private readonly SemaphoreSlim _catalogUpdates = new(1, 1);
+    private Task<bool>? _criticalLoadTask;
     private readonly IAppFeedbackService _feedbackService;
     private readonly IAppNavigator _navigator;
-    private readonly IPlaybackBookCommands _playbackCoordinator;
+    private readonly IPlaybackSnapshotSource _playbackCoordinator;
     private readonly IUiScheduler _uiScheduler;
     private readonly TimeProvider _timeProvider;
     private readonly IBookCoverGenerator _bookCoverGenerator;
@@ -77,10 +81,10 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         IBookCoverGenerator bookCoverGenerator,
         ILibraryImportCoordinator libraryImportCoordinator,
         IBookDeleteDialogService deleteDialogService,
-        IBookCatalogInvalidationState catalogInvalidationState,
+        IBookSourceChangeSource bookChanges,
         IAppFeedbackService feedbackService,
         IAppNavigator navigator,
-        IPlaybackBookCommands playbackCoordinator,
+        IPlaybackSnapshotSource playbackCoordinator,
         LibraryScrollState scrollState,
         IUiScheduler? uiScheduler = null,
         TimeProvider? timeProvider = null,
@@ -92,7 +96,7 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         _bookCoverGenerator = bookCoverGenerator;
         _libraryImportCoordinator = libraryImportCoordinator;
         _deleteDialogService = deleteDialogService;
-        _catalogInvalidationState = catalogInvalidationState;
+        _bookChanges = bookChanges;
         _feedbackService = feedbackService;
         _navigator = navigator;
         _playbackCoordinator = playbackCoordinator;
@@ -188,7 +192,10 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
     [ObservableProperty]
     private string librarySummaryText = "共 0 本 · 最近阅读优先";
 
-    public async Task<bool> LoadAsync(CancellationToken cancellationToken)
+    public Task<bool> LoadAsync(CancellationToken cancellationToken) =>
+        _criticalLoadTask = LoadCoreAsync(cancellationToken);
+
+    private async Task<bool> LoadCoreAsync(CancellationToken cancellationToken)
     {
         var loadVersion = Interlocked.Increment(ref _loadVersion);
         InvalidateVisibleProjection();
@@ -227,7 +234,6 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         }
 
         ApplyPlaybackSnapshot(_playbackCoordinator.CurrentSnapshot);
-        _catalogInvalidationState.Consume();
         return true;
     }
 
@@ -253,12 +259,6 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
 
             if (outcome.Status == LibraryImportCoordinatorStatus.Imported)
             {
-                if (!await LoadAsync(activeCancellationTokenSource.Token) ||
-                    !IsCurrentImport(version, activeCancellationTokenSource))
-                {
-                    return;
-                }
-
                 _feedbackService.ShowSuccess("导入成功", "已导入小说。");
             }
             else if (outcome.Status == LibraryImportCoordinatorStatus.Failed)
@@ -296,8 +296,14 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         IsBusy = false;
     }
 
-    public void HandleNavigatedTo()
+    public void HandleNavigatedTo(PageActivationScope activation)
     {
+        _bookChangeActivation?.Dispose();
+        _bookChangeActivation = activation;
+        activation.Register(() =>
+        {
+            if (ReferenceEquals(_bookChangeActivation, activation)) HandleNavigatedFrom();
+        });
         if (_managementLifetime.IsCancellationRequested)
         {
             _managementLifetime.Dispose();
@@ -324,6 +330,9 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
 
     public void HandleNavigatedFrom()
     {
+        var activation = _bookChangeActivation;
+        _bookChangeActivation = null;
+        activation?.Dispose();
         _managementLifetime.Cancel();
         _selection.Reset();
         var projectionWasActive = _activeProjectionCancellationTokenSource is not null;
@@ -355,6 +364,7 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         }
 
         _playbackCoordinator.SnapshotChanged -= OnPlaybackSnapshotChanged;
+        _bookChanges.Changed -= OnBookCommittedChange;
         Interlocked.Increment(ref _playbackProjectionVersion);
         _isPageEventsRegistered = false;
     }
@@ -367,9 +377,55 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         }
 
         _playbackCoordinator.SnapshotChanged += OnPlaybackSnapshotChanged;
+        _bookChanges.Changed += OnBookCommittedChange;
         Interlocked.Increment(ref _playbackProjectionVersion);
         _isPageEventsRegistered = true;
     }
+
+    private void OnBookCommittedChange(object? sender, BookCommittedChange change)
+    {
+        if (_bookChangeActivation is not { IsCurrent: true } activation) return;
+        activation.Run(token => _uiScheduler.InvokeLaterAsync(() =>
+            activation.Run(ct => RefreshBookAsync(change.BookId, ct), ReportBookRefreshFailure), token),
+            ReportBookRefreshFailure);
+    }
+
+    private async Task RefreshBookAsync(string bookId, CancellationToken cancellationToken)
+    {
+        await _catalogUpdates.WaitAsync(cancellationToken);
+        try
+        {
+            while (_criticalLoadTask is { } loading)
+            {
+                try { await loading.WaitAsync(cancellationToken); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
+                if (ReferenceEquals(loading, _criticalLoadTask)) break;
+            }
+            var loadVersion = Volatile.Read(ref _loadVersion);
+            var summaries = await _bookLibraryQuery.GetBooksAsync([bookId], cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (loadVersion != Volatile.Read(ref _loadVersion)) return;
+            LibraryBookCatalog BuildCatalog() => new(
+                _catalog.Items.Where(item => item.BookId != bookId).Select(item => item.Summary)
+                    .Concat(summaries).ToArray());
+            var catalog = _catalog.Count >= 512
+                ? await Task.Run(BuildCatalog, cancellationToken)
+                : BuildCatalog();
+            if (loadVersion != Volatile.Read(ref _loadVersion)) return;
+            while (!await ProjectVisibleBooksAsync(cancellationToken, catalog))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (loadVersion != Volatile.Read(ref _loadVersion)) return;
+            }
+        }
+        finally
+        {
+            _catalogUpdates.Release();
+        }
+    }
+
+    private void ReportBookRefreshFailure(Exception exception) =>
+        _feedbackService.ShowProjectedNotification("刷新书库失败", _feedbackService.Project(exception));
 
     [RelayCommand]
     private Task OpenBook(LibraryBookCardProjection? book, CancellationToken cancellationToken)
@@ -423,18 +479,12 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         _isDeletingBook = true;
         try
         {
-            if (IsCurrentPlaybackBook(book.BookId))
-            {
-                await _playbackCoordinator.HandleBookDeletedAsync(book.BookId, cancellationToken);
-            }
-
             var result = await _bookDeletionService.DeleteAsync(
                 new BookDeleteRequest(book.BookId, decision.DeleteAudioCache),
                 cancellationToken);
 
             if (result is null)
             {
-                _catalogInvalidationState.Invalidate();
                 if (!await LoadAsync(cancellationToken))
                 {
                     return;
@@ -443,11 +493,7 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
                 return;
             }
 
-            _catalogInvalidationState.Invalidate();
-            if (!await LoadAsync(cancellationToken))
-            {
-                return;
-            }
+            cancellationToken.ThrowIfCancellationRequested();
             _feedbackService.ShowSuccess("删除成功", $"已删除《{book.Title}》。");
         }
         catch (Exception exception)
@@ -475,7 +521,6 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
                 new BookDeleteDialogRequest($"{books.Length} 本书籍", books.Any(book => IsCurrentPlaybackBook(book.BookId)), BookCount: books.Length),
                 cancellationToken);
             if (!decision.IsConfirmed) return;
-            _catalogInvalidationState.Invalidate();
             var succeeded = 0;
             var skipped = 0;
             var failed = 0;
@@ -484,8 +529,6 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    if (IsCurrentPlaybackBook(book.BookId))
-                        await _playbackCoordinator.HandleBookDeletedAsync(book.BookId, cancellationToken);
                     var result = await _bookDeletionService.DeleteAsync(new BookDeleteRequest(book.BookId, decision.DeleteAudioCache), cancellationToken);
                     if (result is null) skipped++;
                     else succeeded++;
@@ -493,8 +536,6 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch (Exception) { failed++; }
             }
-            _catalogInvalidationState.Invalidate();
-            await LoadAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             ShowBatchCompletion("删除完成", succeeded, skipped, failed);
         }

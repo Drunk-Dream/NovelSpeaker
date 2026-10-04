@@ -19,7 +19,6 @@ public sealed class PlaybackCoordinator :
     IPlaybackSnapshotSource,
     IPlaybackSession,
     IPlaybackStopTimer,
-    IPlaybackBookCommands,
     IPlaybackRegexReplacementRefresher,
     IBookRemovalWorkStopper,
     IAsyncDisposable
@@ -116,7 +115,7 @@ public sealed class PlaybackCoordinator :
         _audioController.PlaybackCompleted += OnLocalPlaybackCompleted;
         _audioController.PlaybackFailed += OnLocalPlaybackFailed;
         _appSettingsService.Changed += OnSettingsChanged;
-        if (_sourceChanges is not null) _sourceChanges.CatalogChanged += OnSourceCatalogChanged;
+        if (_sourceChanges is not null) _sourceChanges.Changed += OnBookCommittedChange;
     }
 
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -264,21 +263,9 @@ public sealed class PlaybackCoordinator :
         }
     }
 
-    public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-        return RunSerializedAsync(ct => RefreshBookMetadataCoreAsync(bookId, ct), cancellationToken);
-    }
-
     public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken)
     {
         return RunSerializedAsync(RefreshRegexReplacementCoreAsync, cancellationToken);
-    }
-
-    public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-        return RunSerializedAsync(ct => HandleBookDeletedCoreAsync(bookId, ct), cancellationToken);
     }
 
     public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken)
@@ -295,16 +282,30 @@ public sealed class PlaybackCoordinator :
         }, cancellationToken);
     }
 
-    private void OnSourceCatalogChanged(object? sender, BookSourceCatalogChanged change)
+    private void OnBookCommittedChange(object? sender, BookCommittedChange change)
     {
         var session = _currentSession;
-        if (_disposed || session?.BookId != change.BookId || session.Book.SourceContext?.SourceId != change.SourceId ||
-            session.Book.SourceContext.CatalogVersion == change.CatalogVersion) return;
-        // Invalidate foreground work immediately; the owned queue handles stop/disposal.
-        session.Cancel();
-        _commandProcessor.Enqueue(new PlaybackEventCommand(PlaybackEventCommandKind.SourceCatalogChanged,
-            session.SessionId, null, null, _commandProcessor.CurrentEventEpoch));
+        if (_disposed || _currentSnapshot.BookId != change.BookId && session?.BookId != change.BookId) return;
+        var invalidatesContext = InvalidatesBookContext(change, session?.Book.SourceContext ?? _currentSnapshot.SourceContext);
+        if (change is not BookCommittedChange.MetadataCommitted && !invalidatesContext) return;
+        // Cancellation releases an in-flight content/synthesis command; all effects run on the owned queue.
+        if (invalidatesContext) session?.Cancel();
+        _commandProcessor.Enqueue(new PlaybackEventCommand(PlaybackEventCommandKind.BookChanged,
+            session?.SessionId ?? Guid.Empty, null, null, _commandProcessor.CurrentEventEpoch, change,
+            session?.Book.SourceContext ?? _currentSnapshot.SourceContext));
     }
+
+    private bool InvalidatesBookContext(BookCommittedChange change, ActiveSourceContext? context) =>
+        change switch
+        {
+            BookCommittedChange.ActiveCatalogCommitted catalog =>
+                context?.SourceId == catalog.SourceId && context.CatalogVersion != catalog.CatalogVersion,
+            BookCommittedChange.ActiveSourceChanged source => context?.SourceId != source.SourceId,
+            // Removal already quiesced session work through the removal use case. Only a retained projection can remain.
+            BookCommittedChange.BookRemoved => _currentSession is null,
+            BookCommittedChange.SourceRemoved source => _currentSession is null && context?.SourceId == source.SourceId,
+            _ => false
+        };
 
     private async Task DiscardSourceContextAsync(CancellationToken cancellationToken)
     {
@@ -335,7 +336,7 @@ public sealed class PlaybackCoordinator :
     {
         _disposed = true;
         _appSettingsService.Changed -= OnSettingsChanged;
-        if (_sourceChanges is not null) _sourceChanges.CatalogChanged -= OnSourceCatalogChanged;
+        if (_sourceChanges is not null) _sourceChanges.Changed -= OnBookCommittedChange;
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _commandProcessor.BeginShutdown();
         _currentSession?.Cancel();
@@ -708,8 +709,7 @@ public sealed class PlaybackCoordinator :
     {
         ThrowIfDisposed();
 
-        if (_currentBook is null ||
-            !string.Equals(_currentBook.BookId, bookId, StringComparison.Ordinal))
+        if (!string.Equals(_currentSnapshot.BookId, bookId, StringComparison.Ordinal))
         {
             return;
         }
@@ -720,17 +720,18 @@ public sealed class PlaybackCoordinator :
             return;
         }
 
-        if (refreshedBook.SourceContext != _currentBook.SourceContext)
+        if (refreshedBook.SourceContext != (_currentBook?.SourceContext ?? _currentSnapshot.SourceContext))
         {
             await DiscardSourceContextAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
 
-        _currentBook = MergeBookMetadata(_currentBook, refreshedBook);
+        if (_currentBook is { } currentBook)
+            _currentBook = MergeBookMetadata(currentBook, refreshedBook);
         PublishSnapshot(_currentSnapshot with
         {
-            BookTitle = _currentBook.BookTitle,
-            BookAuthor = _currentBook.BookAuthor
+            BookTitle = refreshedBook.BookTitle,
+            BookAuthor = refreshedBook.BookAuthor
         });
     }
 
@@ -831,32 +832,6 @@ public sealed class PlaybackCoordinator :
             pausedState: PlaybackState.Paused,
             pausedMessage: "正则替换规则已应用，等待播放。",
             cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task HandleBookDeletedCoreAsync(string bookId, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-
-        if (!string.Equals(_currentSnapshot.BookId, bookId, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        _stopTimer.Cancel();
-        if (_currentSession is not null)
-        {
-            if (_currentSession.HasLoadedAudio)
-            {
-                await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            await _prefetchController.CancelAsync(_currentSession.SessionId, cancellationToken).ConfigureAwait(false);
-            await DisposeSessionAsync().ConfigureAwait(false);
-        }
-
-        ClearProtectedPlaybackFile();
-        ClearCurrentBookContext();
-        PublishSnapshot(PlaybackSnapshot.Idle);
     }
 
     private async Task MoveSegmentCoreAsync(int delta, CancellationToken cancellationToken)
@@ -1768,10 +1743,17 @@ public sealed class PlaybackCoordinator :
         PlaybackEventCommand command,
         CancellationToken cancellationToken)
     {
-        if (!_disposed && command.Kind == PlaybackEventCommandKind.SourceCatalogChanged &&
-            command.SessionId is Guid changedSession && IsSessionCurrent(changedSession))
+        if (!_disposed && command.Kind == PlaybackEventCommandKind.BookChanged)
         {
-            await DiscardSourceContextAsync(cancellationToken).ConfigureAwait(false);
+            if (command.BookChange?.BookId != _currentSnapshot.BookId && command.BookChange?.BookId != _currentSession?.BookId) return;
+            if (command.BookChange is BookCommittedChange.MetadataCommitted metadata)
+                await RefreshBookMetadataCoreAsync(metadata.BookId, cancellationToken).ConfigureAwait(false);
+            else if (command.BookChange is { } change &&
+                (_currentSession is null
+                    ? _currentSnapshot.SourceContext == command.SourceContext
+                    : command.SessionId is Guid changedSession && IsSessionCurrent(changedSession)) &&
+                InvalidatesBookContext(change, _currentBook?.SourceContext ?? _currentSnapshot.SourceContext))
+                await DiscardSourceContextAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
         if (_disposed ||

@@ -107,7 +107,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IBookCoverGenerator>(provider.GetRequiredService<IBookCoverGenerator>());
                 Assert.IsType<LibraryScrollState>(provider.GetRequiredService<LibraryScrollState>());
                 Assert.IsAssignableFrom<ILibraryImportCoordinator>(provider.GetRequiredService<ILibraryImportCoordinator>());
-                Assert.IsAssignableFrom<IBookCatalogInvalidationState>(provider.GetRequiredService<IBookCatalogInvalidationState>());
                 var themePreferenceService = provider.GetRequiredService<IThemePreferenceService>();
                 Assert.IsAssignableFrom<ThemePreferenceService>(themePreferenceService);
                 Assert.Same(themePreferenceService, provider.GetRequiredService<IThemeToggleService>());
@@ -204,7 +203,7 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<IPlaybackSnapshotSource>());
                 Assert.Same(
                     provider.GetRequiredService<IPlaybackSession>(),
-                    provider.GetRequiredService<IPlaybackBookCommands>());
+                    provider.GetRequiredService<IPlaybackSnapshotSource>());
                 Assert.Same(
                     provider.GetRequiredService<IPlaybackSession>(),
                     provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
@@ -390,7 +389,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(ILocalAudioPlaybackCoordinator),
             typeof(IPlaybackPrefetchController),
             typeof(IPlaybackSession),
-            typeof(IPlaybackBookCommands),
+            typeof(IPlaybackSnapshotSource),
             typeof(IPlaybackRegexReplacementRefresher),
             typeof(ICurrentSpeechProvider),
             typeof(IAppSettingsService)

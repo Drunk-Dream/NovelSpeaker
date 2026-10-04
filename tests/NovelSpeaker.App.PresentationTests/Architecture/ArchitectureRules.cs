@@ -369,8 +369,7 @@ internal static partial class ArchitectureRules
                      file.ProjectDirectoryRelativePath == "src/NovelSpeaker.App"))
         {
             var source = StripCommentsAndLiterals(file.Content);
-            var isCommandConsumer = source.Contains("IPlaybackSession", StringComparison.Ordinal) ||
-                                    source.Contains("IPlaybackBookCommands", StringComparison.Ordinal);
+            var isCommandConsumer = source.Contains("IPlaybackSession", StringComparison.Ordinal);
             var usesPlaybackSnapshot = source.Contains("PlaybackSnapshot", StringComparison.Ordinal);
             if (!isCommandConsumer && !usesPlaybackSnapshot)
             {

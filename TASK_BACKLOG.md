@@ -35,11 +35,13 @@
 
 完成成果：Books 通过专属 `BookCommittedChange` 发布 MetadataCommitted、ActiveCatalogCommitted、ActiveSourceChanged、SourceRemoved、BookRemoved，仅携带稳定身份/提交事实，并逐 observer 隔离异常。元数据验证、串行 mutation 和通知归 Application 用例，SQLite adapter 只持久化；删除旧 CatalogChanged 合同及 removal 空目录表达，不改 schema、journal、rollback 或 pre-commit work stopper。新增元数据核心测试，扩展并保留导入/删除及 SQLite 回归，覆盖新书、活动/非活动 Source、最后 Source 删除、失败/取消/回滚与提交后 cleanup recovery；Application Books 84/84、Infrastructure Books 69/69、format 和 diff 检查通过。focused tests 使用仓库外一次性编译隔离，移除旧 Playback 订阅入口并排除旧消费者专用测试，隔离产物已清理。未经隔离的 Application build 在未迁移的 PlaybackCoordinator 因旧 BookSourceCatalogChanged 报 CS0246，属于本窗口明确允许的中间态；消费者迁移归 T002，完整门禁归 T003。无环境限制或长期文档冲突。
 
-## [ ] T002（P0）：迁移 Books 变更消费者并删除 UI 后果编排
+## [x] T002（P0）：迁移 Books 变更消费者并删除 UI 后果编排
 
 依赖：T001。
 
 目标：由 Playback 与 Books presentation 自行消费 Books 变化，删除 ViewModel 对 `HandleBookDeletedAsync`、`RefreshBookMetadataAsync` 和 `BookCatalogInvalidationState` 的编排及旧接口。
+
+完成成果：Playback 自行消费 Books committed facts，元数据在串行边界内合并且保留当前音频，相关 Catalog/ActiveSource 变化取消旧 session/prefetch 并拒绝迟到结果；删除继续只由 removal use case 调用 work stopper。Library/BookDetails 通过现有 PageActivationScope 在活动期间订阅变化并查询受影响 Book，离开后解除订阅、取消刷新并拒绝旧 activation 结果，非活动页面再次进入正常加载；详情刷新保留未保存草稿。删除 IPlaybackBookCommands、旧 CatalogChanged 消费、全局 BookCatalogInvalidationState 及 UI 跨模块后果编排，更新 DI、架构与页面 fixture。保留 Books 导入/删除/rollback 核心测试，改写 Playback 元数据/删除测试为 committed mutation 或 removal owner 路径，增加来源相关性、停止后的残留投影、页面订阅、内部加载替换、忽略取消与离开后失败抑制覆盖；Application Books 84/84、Books/Playback Integration 149/149、相关 Presentation/Architecture 63/63、Release build、format 与 diff 检查通过。Regex 旧 port 留给 T003，完整门禁由 T003 收口；无持久化变化、环境限制或长期文档冲突。
 
 ## [ ] T003（P0）：收敛 Regex 变更传播并完成 Phase A 验收
 
