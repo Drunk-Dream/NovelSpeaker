@@ -8,6 +8,7 @@ using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 using NovelSpeaker.Infrastructure.Persistence.Cache;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
@@ -18,6 +19,60 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed class SqliteAudioCacheTests
 {
+    [Fact]
+    public async Task Cached_book_lists_use_library_metadata_and_keep_unlisted_cache_available_for_cleanup()
+    {
+        var fixture = await CreateFixtureAsync();
+        foreach (var bookId in new[] { "book-1", "book-2" })
+        {
+            await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
+                CreateKey(bookId, 0, 0, 1, 10, "缓存正文"),
+                bookId, 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
+                CancellationToken.None);
+        }
+
+        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE Books SET Author = '作者一' WHERE Id = 'book-1';
+                UPDATE Books SET Author = '作者二', ImportedAt = 'not-a-date' WHERE Id = 'book-2';
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var catalog = new CacheCatalog(
+            fixture.Cache,
+            new SqliteBookPlaybackMetadataQuery(fixture.ConnectionFactory),
+            new BookLibraryQuery(fixture.ConnectionFactory));
+        var books = await catalog.GetCachedBooksAsync(CancellationToken.None);
+        Assert.Equal(["book-1", "book-2"], books.Select(book => book.BookId));
+        Assert.Equal("书一", books[0].Title);
+        Assert.Equal("作者一", books[0].Author);
+        Assert.Equal("book-2", books[1].Title);
+        Assert.Null(books[1].Author);
+        Assert.All(books, book =>
+        {
+            Assert.Equal(1, book.EntryCount);
+            Assert.Equal(1, book.ChapterCount);
+            Assert.True(book.TotalSizeBytes > 0);
+        });
+
+        var targeted = Assert.Single(await catalog.GetCachedBooksAsync(
+            ["book-2", "missing-book"], CancellationToken.None));
+        Assert.Equal(books[1], targeted);
+        Assert.Empty(await catalog.GetCachedBooksAsync(["missing-book"], CancellationToken.None));
+
+        var details = await catalog.GetCachedBookAsync("book-2", CancellationToken.None);
+        Assert.NotNull(details);
+        Assert.Equal("书二", details.Title);
+        Assert.Equal("作者二", details.Author);
+        Assert.Equal(targeted.TotalSizeBytes, details.TotalSizeBytes);
+        Assert.Null(await catalog.GetCachedBookAsync("missing-book", CancellationToken.None));
+        Assert.Equal("第一章", Assert.Single(await catalog.GetCachedChapterCatalogAsync(
+            "book-2", CancellationToken.None)).Title);
+    }
+
     [Fact]
     public async Task No_active_source_hides_chapter_coverage_but_preserves_cache_for_cleanup()
     {

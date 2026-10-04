@@ -9,16 +9,16 @@ public sealed class CacheCatalog : ICacheCatalog
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _bookMetadataQuery;
-    private readonly IBookLibraryQuery? _bookLibraryQuery;
+    private readonly IBookLibraryQuery _bookLibraryQuery;
 
     public CacheCatalog(
         IAudioCacheStore cacheStore,
         IBookPlaybackMetadataQuery bookMetadataQuery,
-        IBookLibraryQuery? bookLibraryQuery = null)
+        IBookLibraryQuery bookLibraryQuery)
     {
         _cacheStore = cacheStore;
         _bookMetadataQuery = bookMetadataQuery;
-        _bookLibraryQuery = bookLibraryQuery;
+        _bookLibraryQuery = bookLibraryQuery ?? throw new ArgumentNullException(nameof(bookLibraryQuery));
     }
 
     public async Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken)
@@ -58,31 +58,15 @@ public sealed class CacheCatalog : ICacheCatalog
             return [];
         }
 
-        var metadataById = _bookLibraryQuery is null
-            ? null
-            : (await _bookLibraryQuery.GetBooksAsync(
-                    summaries.Select(static summary => summary.BookId).ToArray(),
-                    cancellationToken)
-                .ConfigureAwait(false))
-                .ToDictionary(book => book.Id, StringComparer.Ordinal);
+        var metadataById = (await _bookLibraryQuery.GetBooksAsync(
+                summaries.Select(static summary => summary.BookId).ToArray(),
+                cancellationToken)
+            .ConfigureAwait(false))
+            .ToDictionary(book => book.Id, StringComparer.Ordinal);
         var books = new List<CachedBookSummary>(summaries.Count);
         foreach (var summary in summaries)
         {
-            var metadata = metadataById?.GetValueOrDefault(summary.BookId);
-            if (metadata is null)
-            {
-                metadata = await _bookMetadataQuery
-                    .GetBookAsync(summary.BookId, cancellationToken)
-                    .ConfigureAwait(false)
-                    is { } playbackMetadata
-                    ? new BookSummary(
-                        playbackMetadata.BookId,
-                        playbackMetadata.Title,
-                        playbackMetadata.Author,
-                        "未开始",
-                        DateTimeOffset.MinValue)
-                    : null;
-            }
+            var metadata = metadataById.GetValueOrDefault(summary.BookId);
 
             books.Add(new CachedBookSummary(
                 summary.BookId,

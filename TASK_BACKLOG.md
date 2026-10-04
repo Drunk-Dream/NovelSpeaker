@@ -71,11 +71,13 @@
 
 完成成果：ProviderRequestLimiter 直接以 typed ProviderId/RateLimit 持有唯一调度状态，删除旧接口、synthetic RuleId/string adapter 和重复注册；既有队列、pace、retry-after、取消与 lease 核心测试迁移至 typed API。Speech/Infrastructure/组合根 focused tests 110 项、格式检查与 Release build 通过。
 
-## [ ] T022（P2）：移除 CacheCatalog 的逐本 fallback
+## [x] T022（P2）：移除 CacheCatalog 的逐本 fallback
 
 目标：将生产批量目录依赖的 `IBookLibraryQuery` 明确为必需依赖，删除逐本 metadata 查询 fallback 和虚构默认进度/时间值；保留单本详情查询能力。
 
 依赖：无。审计依据：S07。
+
+完成成果：IBookLibraryQuery 成为 CacheCatalog 必需依赖，批量列表只消费 bulk metadata，删除逐本 fallback 与伪默认值；缺失 metadata 的物理缓存仍可管理，单本详情查询保留。真实 SQLite 行为测试先复现旧 fallback 后通过；focused tests 32 项及完整门禁通过（全量测试 1,039 项）。
 
 ### 工程门禁与导入并发
 
