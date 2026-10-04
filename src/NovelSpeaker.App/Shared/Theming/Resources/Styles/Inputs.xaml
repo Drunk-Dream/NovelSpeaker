@@ -463,21 +463,6 @@
     <Style x:Key="App.Input.ComboBox.Compact"
            TargetType="{x:Type ComboBox}"
            BasedOn="{StaticResource App.Input.ComboBox.Standard}">
-        <Style.Resources>
-            <DataTemplate DataType="{x:Type sys:String}">
-                <TextBlock HorizontalAlignment="Stretch"
-                           VerticalAlignment="Center"
-                           Foreground="{Binding (TextElement.Foreground), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
-                           Text="{Binding}">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
-                            <Setter Property="TextWrapping" Value="NoWrap" />
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
-            </DataTemplate>
-        </Style.Resources>
         <Setter Property="Padding" Value="{StaticResource App.Padding.Input.Compact}" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.Input.Compact}" />
     </Style>
@@ -512,13 +497,6 @@
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
             </MultiTrigger>
         </Style.Triggers>
-    </Style>
-
-    <Style x:Key="App.Input.CheckBox.Compact"
-           TargetType="{x:Type CheckBox}"
-           BasedOn="{StaticResource App.Input.CheckBox.Standard}">
-        <Setter Property="MinHeight" Value="{StaticResource App.Size.Control.Compact}" />
-        <Setter Property="Padding" Value="0" />
     </Style>
 
     <Style x:Key="App.Input.ToggleSwitch.Standard"

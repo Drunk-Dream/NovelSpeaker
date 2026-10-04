@@ -15,7 +15,6 @@
                   ExtendsContentIntoTitleBar="True"
                   Background="{DynamicResource App.Brush.Window.Background}">
     <ui:FluentWindow.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </ui:FluentWindow.Resources>
 
     <Grid>

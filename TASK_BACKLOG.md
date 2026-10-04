@@ -119,11 +119,13 @@
 
 ### 小型重复项与维护文档
 
-## [ ] T027（P3）：收敛 UI 资源重复并核实 Gallery-only 样式
+## [x] T027（P3）：收敛 UI 资源重复并核实 Gallery-only 样式
 
 目标：在验证 WPF Application resource 查找后，将重复的 `BooleanToVisibilityConverter` 声明收敛到合适的共享 owner；核对 ComboBox 重复模板和 Gallery-only 控件样式的实际合同，删除已确认无用途的副本/bridge/fixture。
 
 依赖：无。只删除已证明可省略的资源，不以 Gallery 当前无产品 caller 单独判死。审计依据：S08 / I06 / I07。
+
+完成成果：BooleanToVisibilityConverter 收敛到 Application.Resources；Compact ComboBox 复用 Standard string 模板，删除无长期合同且仅 Gallery 使用的 CheckBox.Compact，PasswordBox Compact 与 Provider bridge 保留。Presentation 298 项、隔离 WPF 101 项、Light/Dark Gallery input-controls 渲染、format 与 Release build 通过。
 
 ## [ ] T028（P3）：移除 Visual Review manifest 的过期 fallback
 

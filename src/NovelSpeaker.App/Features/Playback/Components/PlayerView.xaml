@@ -9,7 +9,6 @@
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              PreviewKeyDown="PlayerView_OnPreviewKeyDown">
     <UserControl.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <Style x:Key="Player.StopTimerChoice"
                TargetType="{x:Type Button}"
                BasedOn="{StaticResource App.Button.Subtle}">

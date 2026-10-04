@@ -970,7 +970,7 @@ internal static class GallerySceneBuilders
                 "input-checkbox-unchecked-standard",
                 "CheckBox unchecked read footnotes")));
         selections.Children.Add(CreateInputField(
-            "Disabled · CheckBox.Compact",
+            "Disabled · CheckBox.Standard",
             CreateInputControl(
                 new CheckBox
                 {
@@ -978,8 +978,8 @@ internal static class GallerySceneBuilders
                     IsChecked = true,
                     IsEnabled = false
                 },
-                "App.Input.CheckBox.Compact",
-                "input-checkbox-disabled-compact",
+                "App.Input.CheckBox.Standard",
+                "input-checkbox-disabled-standard",
                 "CheckBox disabled option")));
 
         var invalidCheckBox = CreateInputControl(
@@ -988,15 +988,15 @@ internal static class GallerySceneBuilders
                 Content = "将章节标题合并到正文",
                 IsChecked = false
             },
-            "App.Input.CheckBox.Compact",
-            "input-checkbox-error-compact",
+            "App.Input.CheckBox.Standard",
+            "input-checkbox-error-standard",
             "CheckBox invalid chapter title option");
         MarkInputValidationError(
             invalidCheckBox,
             ToggleButton.IsCheckedProperty,
             "请选择是否合并章节标题，否则无法保存当前朗读配置。");
         selections.Children.Add(CreateInputField(
-            "Error · CheckBox.Compact",
+            "Error · CheckBox.Standard",
             invalidCheckBox,
             "请选择是否合并章节标题，否则无法保存当前朗读配置。"));
 

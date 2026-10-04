@@ -14,7 +14,6 @@
       ClipToBounds="True"
       navigation:NavigationViewportHeightBehavior.IsEnabled="True">
     <Page.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <Style x:Key="ProviderExportAction" TargetType="MenuItem" BasedOn="{StaticResource App.Menu.Item}">
             <Setter Property="Visibility" Value="{Binding PlacementTarget.DataContext.CanShare, RelativeSource={RelativeSource AncestorType=ContextMenu}, Converter={StaticResource BooleanToVisibilityConverter}}" />
             <Style.Triggers>
