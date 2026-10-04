@@ -1106,7 +1106,6 @@ public sealed partial class LibraryViewModelTests
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
 
         public void Publish(PlaybackSnapshot snapshot)

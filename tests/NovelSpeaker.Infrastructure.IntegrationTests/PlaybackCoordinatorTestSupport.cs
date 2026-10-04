@@ -20,7 +20,7 @@ public sealed partial class PlaybackCoordinatorTests
 {
     private static PlaybackCoordinator CreateCoordinator(
         FakeLocalAudioPlaybackCoordinator localCoordinator,
-        FakeBookPlaybackContentService? bookContentService = null,
+        IBookPlaybackContentService? bookContentService = null,
         FakeCurrentSpeechProvider? selectedProviderProvider = null,
         FakeAudioGenerationProvider? audioProvider = null,
         PlaybackBookContent? book = null,
@@ -28,7 +28,8 @@ public sealed partial class PlaybackCoordinatorTests
         FakePrefetchScheduler? prefetchScheduler = null,
         FakeAppSettingsStore? appSettingsStore = null,
         TimeProvider? timeProvider = null,
-        IBookSourceChangeSource? sourceChanges = null)
+        IBookSourceChangeSource? sourceChanges = null,
+        IRegexReplacementRuleWorkspaceService? regexWorkspace = null)
     {
         var audioController = new PlaybackAudioController(localCoordinator);
         return new PlaybackCoordinator(
@@ -44,7 +45,8 @@ public sealed partial class PlaybackCoordinatorTests
             prefetchScheduler ?? new FakePrefetchScheduler(),
             appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default),
             timeProvider ?? TimeProvider.System,
-            sourceChanges: sourceChanges);
+            sourceChanges: sourceChanges,
+            regexWorkspace: regexWorkspace);
     }
 
     private static PlaybackBookContent CreateBook()

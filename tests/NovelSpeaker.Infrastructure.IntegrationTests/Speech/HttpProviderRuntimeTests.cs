@@ -45,6 +45,7 @@ public sealed class HttpProviderRuntimeTests
             using var services = new ServiceCollection()
                 .AddSingleton<IProviderStore>(new Store(provider))
                 .AddSingleton<IAppDataDirectoryProvider>(directories)
+                .AddSingleton<IAppStoragePathResolver>(new AppStoragePathResolver(directories))
                 .AddSingleton(TimeProvider.System)
                 .AddNovelSpeakerSpeechApplication()
                 .AddNovelSpeakerSpeechAdapters()

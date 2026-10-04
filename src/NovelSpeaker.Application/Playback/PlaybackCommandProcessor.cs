@@ -61,7 +61,8 @@ internal sealed class PlaybackCommandProcessor : IAsyncDisposable
             return;
         }
 
-        if (command.Kind != PlaybackEventCommandKind.BookChanged && !_pendingEventCommands.TryAdd(command.Key, 0))
+        if (command.Kind is not (PlaybackEventCommandKind.BookChanged or PlaybackEventCommandKind.RegexChanged) &&
+            !_pendingEventCommands.TryAdd(command.Key, 0))
         {
             return;
         }
@@ -198,7 +199,8 @@ internal enum PlaybackEventCommandKind
     Completed,
     Failed,
     SnapshotChanged,
-    BookChanged
+    BookChanged,
+    RegexChanged
 }
 
 internal sealed record PlaybackEventCommand(

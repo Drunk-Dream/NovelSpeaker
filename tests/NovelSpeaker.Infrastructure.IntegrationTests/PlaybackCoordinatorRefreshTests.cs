@@ -261,49 +261,6 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task RefreshRegexReplacementAsync_restarts_playback_when_mapped_speech_changes()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakeAudioGenerationProvider();
-        var content = new FakeBookPlaybackContentService(CreateBook());
-        await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: content, audioProvider: audioProvider);
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        content.Book = new PlaybackBookContent(
-            "book-1",
-            "示例小说",
-            [PlaybackChapterContent.FromLoaded(0, "第一章 开始", [new SpeechSegment(0, 0, 6, "新展示", "新语音")])]);
-
-        await coordinator.RefreshRegexReplacementAsync(CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal(2, audioProvider.Requests.Count);
-        Assert.Equal("新语音", audioProvider.Requests[1].SpeechText);
-        Assert.Equal(1, coordinator.CurrentSnapshot.ContentRevision);
-    }
-
-    [Fact]
-    public async Task RefreshRegexReplacementAsync_keeps_current_audio_when_only_display_changes()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakeAudioGenerationProvider();
-        var content = new FakeBookPlaybackContentService(CreateBook());
-        await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: content, audioProvider: audioProvider);
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        content.Book = new PlaybackBookContent(
-            "book-1",
-            "示例小说",
-            [PlaybackChapterContent.FromLoaded(0, "第一章 开始", [new SpeechSegment(0, 0, 6, "新展示", "第一段")])]);
-
-        await coordinator.RefreshRegexReplacementAsync(CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Single(audioProvider.Requests);
-        Assert.Equal(1, coordinator.CurrentSnapshot.ContentRevision);
-    }
-
-    [Fact]
     public async Task StartAsync_skips_consecutive_empty_speech_segments_without_requesting_tts()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();

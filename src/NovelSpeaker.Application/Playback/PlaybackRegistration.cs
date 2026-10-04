@@ -38,15 +38,14 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<IAppSettingsService>(),
                 serviceProvider.GetRequiredService<TimeProvider>(),
                 serviceProvider.GetRequiredService<IObservability>(),
-                serviceProvider.GetService<IBookSourceChangeSource>()));
+                serviceProvider.GetRequiredService<IBookSourceChangeSource>(),
+                serviceProvider.GetRequiredService<IRegexReplacementRuleWorkspaceService>()));
         services.TryAddSingleton<IPlaybackSnapshotSource>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IBookRemovalWorkStopper, PlaybackRemovalWorkStopper>());
         services.TryAddSingleton<IPlaybackSession>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackStopTimer>(serviceProvider =>
-            serviceProvider.GetRequiredService<PlaybackCoordinator>());
-        services.TryAddSingleton<IPlaybackRegexReplacementRefresher>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         return services;
     }

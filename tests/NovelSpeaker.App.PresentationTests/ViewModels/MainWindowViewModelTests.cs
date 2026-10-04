@@ -593,7 +593,6 @@ public sealed class MainWindowViewModelTests
         {
         }
 
-        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
     }
 

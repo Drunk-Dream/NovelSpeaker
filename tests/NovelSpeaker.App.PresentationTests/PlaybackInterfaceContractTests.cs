@@ -48,9 +48,7 @@ public sealed class PlaybackInterfaceContractTests
             ],
             GetPublicMemberNames(assembly, "IPlaybackSession"));
         Assert.Null(assembly.GetType("NovelSpeaker.Application.Playback.IPlaybackBookCommands"));
-        Assert.Equal(
-            ["RefreshRegexReplacementAsync"],
-            GetPublicMemberNames(assembly, "IPlaybackRegexReplacementRefresher"));
+        Assert.Null(assembly.GetType("NovelSpeaker.Application.Playback.IPlaybackRegexReplacementRefresher"));
     }
 
     [Fact]
@@ -84,7 +82,6 @@ public sealed class PlaybackInterfaceContractTests
 
             Assert.Same(coordinator, provider.GetRequiredService<IPlaybackSnapshotSource>());
             Assert.Same(coordinator, provider.GetRequiredService<IPlaybackSession>());
-            Assert.Same(coordinator, provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
         }
         finally
         {

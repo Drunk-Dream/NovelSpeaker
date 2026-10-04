@@ -19,7 +19,6 @@ public sealed class PlaybackCoordinator :
     IPlaybackSnapshotSource,
     IPlaybackSession,
     IPlaybackStopTimer,
-    IPlaybackRegexReplacementRefresher,
     IBookRemovalWorkStopper,
     IAsyncDisposable
 {
@@ -44,6 +43,7 @@ public sealed class PlaybackCoordinator :
     private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
     private PlaybackSessionState? _currentSession;
     private readonly IBookSourceChangeSource? _sourceChanges;
+    private readonly IRegexReplacementRuleWorkspaceService? _regexWorkspace;
     private TtsErrorKind? _lastFailureKind;
     private string? _lastRecoveredCorruptSegmentKey;
     private long _contentRevision;
@@ -86,7 +86,8 @@ public sealed class PlaybackCoordinator :
         IAppSettingsService appSettingsService,
         TimeProvider timeProvider,
         IObservability? observability = null,
-        IBookSourceChangeSource? sourceChanges = null)
+        IBookSourceChangeSource? sourceChanges = null,
+        IRegexReplacementRuleWorkspaceService? regexWorkspace = null)
     {
         _bookContentService = bookContentService;
         _selectedProvider = selectedProvider;
@@ -99,6 +100,7 @@ public sealed class PlaybackCoordinator :
         _appSettingsService = appSettingsService;
         _timeProvider = timeProvider;
         _sourceChanges = sourceChanges;
+        _regexWorkspace = regexWorkspace;
         _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
         _commandProcessor = new PlaybackCommandProcessor(
             ProcessEventCommandAsync,
@@ -116,6 +118,7 @@ public sealed class PlaybackCoordinator :
         _audioController.PlaybackFailed += OnLocalPlaybackFailed;
         _appSettingsService.Changed += OnSettingsChanged;
         if (_sourceChanges is not null) _sourceChanges.Changed += OnBookCommittedChange;
+        if (_regexWorkspace is not null) _regexWorkspace.Changed += OnRegexRulesChanged;
     }
 
     public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
@@ -263,11 +266,6 @@ public sealed class PlaybackCoordinator :
         }
     }
 
-    public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken)
-    {
-        return RunSerializedAsync(RefreshRegexReplacementCoreAsync, cancellationToken);
-    }
-
     public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken)
     {
         // Cancel content/synthesis immediately so a removal can enter the serialized queue.
@@ -293,6 +291,14 @@ public sealed class PlaybackCoordinator :
         _commandProcessor.Enqueue(new PlaybackEventCommand(PlaybackEventCommandKind.BookChanged,
             session?.SessionId ?? Guid.Empty, null, null, _commandProcessor.CurrentEventEpoch, change,
             session?.Book.SourceContext ?? _currentSnapshot.SourceContext));
+    }
+
+    private void OnRegexRulesChanged(object? sender, RegexReplacementRulesChangedEventArgs change)
+    {
+        if (_disposed || !change.AffectsSpeechProfile) return;
+        // Rules apply globally, including to a Book still being opened before its session exists.
+        _commandProcessor.Enqueue(new PlaybackEventCommand(PlaybackEventCommandKind.RegexChanged,
+            Guid.Empty, null, null, _commandProcessor.CurrentEventEpoch));
     }
 
     private bool InvalidatesBookContext(BookCommittedChange change, ActiveSourceContext? context) =>
@@ -337,6 +343,7 @@ public sealed class PlaybackCoordinator :
         _disposed = true;
         _appSettingsService.Changed -= OnSettingsChanged;
         if (_sourceChanges is not null) _sourceChanges.Changed -= OnBookCommittedChange;
+        if (_regexWorkspace is not null) _regexWorkspace.Changed -= OnRegexRulesChanged;
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _commandProcessor.BeginShutdown();
         _currentSession?.Cancel();
@@ -744,13 +751,15 @@ public sealed class PlaybackCoordinator :
         }
 
         var session = _currentSession;
+        using var contentCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.CancellationToken);
         var chapterIndex = session.ChapterIndex;
         var previousChapter = GetChapter(_currentBook, chapterIndex);
         var previousSegment = previousChapter is not null && session.SegmentIndex >= 0 && session.SegmentIndex < previousChapter.Segments.Count
             ? previousChapter.Segments[session.SegmentIndex]
             : null;
         var characterOffset = previousSegment?.StartOffset ?? 0;
-        var replacement = await _bookContentService.GetChapterAsync(_currentBook.BookId, chapterIndex, cancellationToken).ConfigureAwait(false);
+        var replacement = await _bookContentService.GetChapterAsync(_currentBook.BookId, chapterIndex, contentCancellation.Token).ConfigureAwait(false);
+        contentCancellation.Token.ThrowIfCancellationRequested();
         if (replacement is null)
         {
             return;
@@ -763,7 +772,8 @@ public sealed class PlaybackCoordinator :
         if (replacement.LoadState == PlaybackChapterLoadState.LoadedEmpty ||
             PlaybackPositionResolver.FindMappedSegmentIndex(replacement, characterOffset) < 0)
         {
-            var target = await ResolveNearestAvailablePositionAsync(_currentBook, chapterIndex, cancellationToken).ConfigureAwait(false);
+            var target = await ResolveNearestAvailablePositionAsync(_currentBook, chapterIndex, contentCancellation.Token).ConfigureAwait(false);
+            contentCancellation.Token.ThrowIfCancellationRequested();
             if (target is null || _currentProvider is null)
             {
                 if (session.HasLoadedAudio)
@@ -801,7 +811,8 @@ public sealed class PlaybackCoordinator :
 
         var mappedIndex = PlaybackPositionResolver.FindMappedSegmentIndex(replacement, characterOffset);
         var mappedSegment = replacement.Segments[mappedIndex];
-        var speechChanged = previousSegment is null || !string.Equals(previousSegment.SpeechText, mappedSegment.SpeechText, StringComparison.Ordinal);
+        var speechChanged = previousSegment is null || previousSegment.StableIdentity != mappedSegment.StableIdentity ||
+            !string.Equals(previousSegment.SpeechText, mappedSegment.SpeechText, StringComparison.Ordinal);
         if (!speechChanged)
         {
             await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
@@ -1743,6 +1754,22 @@ public sealed class PlaybackCoordinator :
         PlaybackEventCommand command,
         CancellationToken cancellationToken)
     {
+        if (!_disposed && command.Kind == PlaybackEventCommandKind.RegexChanged)
+        {
+            var currentSession = _currentSession;
+            if (currentSession is null || currentSession.CancellationToken.IsCancellationRequested) return;
+            var sessionToken = currentSession.CancellationToken;
+            // Apply the latest global profile to the session owned by this serialized boundary.
+            try
+            {
+                await RefreshRegexReplacementCoreAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || sessionToken.IsCancellationRequested)
+            {
+                // Source invalidation or shutdown cancels stale refresh work normally.
+            }
+            return;
+        }
         if (!_disposed && command.Kind == PlaybackEventCommandKind.BookChanged)
         {
             if (command.BookChange?.BookId != _currentSnapshot.BookId && command.BookChange?.BookId != _currentSession?.BookId) return;

@@ -27,7 +27,7 @@
 
 ## 3. Phase A：让业务变更后果回到模块 owner
 
-### staged breaking migration window：T001–T003
+### staged breaking migration window：T001–T003（已结束，完整门禁恢复）
 
 ## [x] T001（P0）：建立 Books 已提交语义变更合同
 
@@ -43,11 +43,13 @@
 
 完成成果：Playback 自行消费 Books committed facts，元数据在串行边界内合并且保留当前音频，相关 Catalog/ActiveSource 变化取消旧 session/prefetch 并拒绝迟到结果；删除继续只由 removal use case 调用 work stopper。Library/BookDetails 通过现有 PageActivationScope 在活动期间订阅变化并查询受影响 Book，离开后解除订阅、取消刷新并拒绝旧 activation 结果，非活动页面再次进入正常加载；详情刷新保留未保存草稿。删除 IPlaybackBookCommands、旧 CatalogChanged 消费、全局 BookCatalogInvalidationState 及 UI 跨模块后果编排，更新 DI、架构与页面 fixture。保留 Books 导入/删除/rollback 核心测试，改写 Playback 元数据/删除测试为 committed mutation 或 removal owner 路径，增加来源相关性、停止后的残留投影、页面订阅、内部加载替换、忽略取消与离开后失败抑制覆盖；Application Books 84/84、Books/Playback Integration 149/149、相关 Presentation/Architecture 63/63、Release build、format 与 diff 检查通过。Regex 旧 port 留给 T003，完整门禁由 T003 收口；无持久化变化、环境限制或长期文档冲突。
 
-## [ ] T003（P0）：收敛 Regex 变更传播并完成 Phase A 验收
+## [x] T003（P0）：收敛 Regex 变更传播并完成 Phase A 验收
 
 依赖：T002。
 
 目标：Playback 直接消费 Regex workspace 的 `Changed/AffectsSpeechProfile`，删除页面中的 `RefreshRegexReplacementAsync` 调用和旧 refresher port；审计其它跨系统 mutation，结束本窗口并执行完整门禁。
+
+完成成果：Playback process owner 订阅 Regex workspace 的已提交变化，仅将 AffectsSpeechProfile=true 的全局事实排入既有串行边界并更新消费时有效的 session，dispose 解除订阅；首次 Start/OpenPaused 或跨 Book 打开期间不丢提交，连续提交不随音频 session 替换丢失，失效来源取消迟到内容投影。Speech Plan 变化按来源位置映射最近可播放段，包括下一段语音相同的情况；Display/name-only 变化保留当前音频。Workspace 各 mutation 和配置恢复逐 observer 隔离异常，保存、启停、删除、排序、导入及批量删除不再由页面传播 Playback 后果。删除 IPlaybackRegexReplacementRefresher、公开 RefreshRegexReplacementAsync、DI 和旧 refresher fake/调用计数测试；保留编辑、取消、批量反馈及 Books 核心回归，新增真实 workspace mutation → pipeline → Playback 覆盖、打开期间提交、连续提交与来源失效保护。Phase A 搜索确认旧 Books/Regex 传播 API、CatalogChanged 类型、全局 invalidation state 和迁移 wrapper 均已删除；剩余页面刷新用于自身投影。修复完整门禁发现的 Speech runtime 集成 fixture 缺少 storage path resolver 注册。Playback focused 79/79、Regex/Cache observer 22/22、相关 Presentation 11/11；locked restore、format、Release build（0 warning/error）、完整 tests 1078/1078（含隔离 Desktop WPF 100/100）及 diff 检查通过，T001–T003 窗口结束。无持久化变化、环境限制或长期文档冲突。
 
 ## 4. Phase B：重建 Playback 单一运行态
 

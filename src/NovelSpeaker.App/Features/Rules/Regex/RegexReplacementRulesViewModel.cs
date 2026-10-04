@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Features.Rules.Shared;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
@@ -20,7 +19,6 @@ namespace NovelSpeaker.App.Features.Rules.Regex;
 public sealed partial class RegexReplacementRulesViewModel : ObservableObject, ITransientEscapeHandler
 {
     private readonly IRegexReplacementRuleWorkspaceService _workspace;
-    private readonly IPlaybackRegexReplacementRefresher _playback;
     private readonly IAppFeedbackService _feedback;
     private readonly IAppDialogService _dialogs;
     private readonly IAppNavigator _navigator;
@@ -36,14 +34,12 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
 
     public RegexReplacementRulesViewModel(
         IRegexReplacementRuleWorkspaceService workspace,
-        IPlaybackRegexReplacementRefresher playback,
         IAppFeedbackService feedback,
         IAppDialogService dialogs,
         IAppNavigator navigator,
         IRuleDocumentInteraction ruleDocuments)
     {
         _workspace = workspace;
-        _playback = playback;
         _feedback = feedback;
         _dialogs = dialogs;
         _navigator = navigator;
@@ -253,7 +249,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
             await _workspace.SetRuleEnabledAsync(rule.Id, rule.IsEnabled, cancellationToken);
             persisted = true;
             await RefreshAsync(SelectedRuleId, false, cancellationToken);
-            await _playback.RefreshRegexReplacementAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -344,7 +339,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
             IsBusy = true;
             await _workspace.DeleteRuleAsync(item.Id, cancellationToken);
             await RefreshAsync(preferredRuleId, deletingOpenEditor, cancellationToken);
-            await _playback.RefreshRegexReplacementAsync(cancellationToken);
             _feedback.ShowSuccess("正则替换规则已删除", item.Name);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -385,17 +379,10 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         try
         {
             IsBusy = true;
-            var previous = _editorSession.Baseline;
-            var wasNew = _editorSession.IsNew;
             var saved = await _workspace.SaveEditorAsync(new RegexReplacementRuleEditorModel(SelectedRuleId, DraftName, DraftPattern, DraftReplacement, DraftScope), cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             await RefreshAsync(saved.Id, false, cancellationToken);
             Open(saved, false, saved.Id);
-            if (wasNew || previous is null || ExecutionFieldsChanged(previous, saved))
-            {
-                await _playback.RefreshRegexReplacementAsync(cancellationToken);
-            }
-
             _feedback.ShowSuccess("正则替换规则已保存", saved.Name);
             return saved;
         }
@@ -451,7 +438,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
             IsBusy = true;
             await _workspace.SaveOrderAsync(orderedIds, cancellationToken);
             await RefreshAsync(SelectedRuleId, false, cancellationToken);
-            await _playback.RefreshRegexReplacementAsync(cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -503,7 +489,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     {
         var result = await _workspace.ImportJsonAsync(document.Json, cancellationToken);
         await RefreshAsync(SelectedRuleId, false, cancellationToken);
-        await _playback.RefreshRegexReplacementAsync(cancellationToken);
         return new RuleImportResult(result.ImportedCount, result.SkippedCount, result.TotalCount, result.FailedCount);
     }
 
@@ -649,11 +634,6 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         return index + 1 < Rules.Count ? Rules[index + 1].Id : index > 0 ? Rules[index - 1].Id : null;
     }
 
-    private static bool ExecutionFieldsChanged(RegexReplacementRuleEditorModel before, RegexReplacementRuleEditorModel after) =>
-        !string.Equals(before.Pattern, after.Pattern, StringComparison.Ordinal) ||
-        !string.Equals(before.Replacement, after.Replacement, StringComparison.Ordinal) ||
-        before.Scope != after.Scope;
-
     private static bool EditorsEqual(RegexReplacementRuleEditorModel left, RegexReplacementRuleEditorModel right) =>
         left.Id == right.Id &&
         string.Equals(left.Name, right.Name, StringComparison.Ordinal) &&
@@ -764,17 +744,8 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         catch (Exception exception) { _feedback.ShowProjectedNotification("批量删除失败", _feedback.Project(exception)); }
         finally
         {
-            try
-            {
-                // Committed deletes affect the continuing playback session. Complete this
-                // consistency update even when page cancellation stops the remaining batch.
-                if (succeeded > 0) await _playback.RefreshRegexReplacementAsync(CancellationToken.None);
-            }
-            catch (Exception exception)
-            {
-                _feedback.ShowProjectedNotification("刷新正则替换规则失败", _feedback.Project(exception));
-            }
-            finally { SetBusy(false); _deletingBatch = false; }
+            SetBusy(false);
+            _deletingBatch = false;
         }
     }
 }

@@ -204,9 +204,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.Same(
                     provider.GetRequiredService<IPlaybackSession>(),
                     provider.GetRequiredService<IPlaybackSnapshotSource>());
-                Assert.Same(
-                    provider.GetRequiredService<IPlaybackSession>(),
-                    provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
                 var processSettings = provider.GetRequiredService<IAppSettingsService>();
                 Assert.Same(processSettings, provider.GetRequiredService<IAppSettingsService>());
                 Assert.Same(processSettings, provider.GetRequiredService<AppSettingsService>());
@@ -390,7 +387,6 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IPlaybackPrefetchController),
             typeof(IPlaybackSession),
             typeof(IPlaybackSnapshotSource),
-            typeof(IPlaybackRegexReplacementRefresher),
             typeof(ICurrentSpeechProvider),
             typeof(IAppSettingsService)
         };
