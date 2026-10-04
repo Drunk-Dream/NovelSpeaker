@@ -127,11 +127,13 @@
 
 完成成果：BooleanToVisibilityConverter 收敛到 Application.Resources；Compact ComboBox 复用 Standard string 模板，删除无长期合同且仅 Gallery 使用的 CheckBox.Compact，PasswordBox Compact 与 Provider bridge 保留。Presentation 298 项、隔离 WPF 101 项、Light/Dark Gallery input-controls 渲染、format 与 Release build 通过。
 
-## [ ] T028（P3）：移除 Visual Review manifest 的过期 fallback
+## [x] T028（P3）：移除 Visual Review manifest 的过期 fallback
 
 目标：让 `Generate-VisualReviewManifest.ps1` 只接受当前 Gallery manifest 结构，删除旧 `Scenarios` 和缺失 `scene` 的默认兼容路径；保留路径/hash 校验和索引生成。
 
 依赖：无。审计依据：S09。
+
+完成成果：manifest 生成脚本只读取当前 `scenes[].scene` 结构，旧 `Scenarios` schema 与缺失/空 scene 均带文件和条目位置明确失败；文件存在、SHA-256 校验和 root index 保留。当前结构、旧结构拒绝及缺失 scene 验证通过。
 
 ## [ ] T029（P3）：收敛 AGENTS 与长期 owner 文档的重复规则
 
