@@ -8,9 +8,6 @@ internal static class KnownArchitectureBaseline
             "src/NovelSpeaker.App/Bootstrap/WpfStartupRuntime.cs"
         };
 
-    public static readonly IReadOnlySet<string> SourceLayoutViolations =
-        new HashSet<string>(StringComparer.Ordinal);
-
     public static readonly IReadOnlySet<string> ViewModelForbiddenPublicApiDependencies =
         new HashSet<string>(StringComparer.Ordinal);
 
@@ -21,9 +18,6 @@ internal static class KnownArchitectureBaseline
         new HashSet<string>(StringComparer.Ordinal);
 
     public static readonly IReadOnlySet<string> FeaturePageOrViewModelSingletonRegistrations =
-        new HashSet<string>(StringComparer.Ordinal);
-
-    public static readonly IReadOnlySet<string> LargeListClearThenAddViolations =
         new HashSet<string>(StringComparer.Ordinal);
 
 }

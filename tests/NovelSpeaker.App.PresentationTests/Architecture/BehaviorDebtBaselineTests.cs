@@ -21,25 +21,6 @@ public sealed class BehaviorDebtBaselineTests
     }
 
     [Fact]
-    public void Async_void_page_events_delegate_through_the_shared_exception_boundary()
-    {
-        var featuresRoot = Absolute("src/NovelSpeaker.App/Features");
-        var pages = Directory.EnumerateFiles(featuresRoot, "*Page.xaml.cs", SearchOption.AllDirectories);
-
-        foreach (var path in pages)
-        {
-            var source = File.ReadAllText(path);
-            if (!source.Contains("async void", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            Assert.Contains("PageEventOperationRunner", source, StringComparison.Ordinal);
-            Assert.Contains("_eventOperations.RunAsync(", source, StringComparison.Ordinal);
-        }
-    }
-
-    [Fact]
     public void Non_platform_app_code_does_not_perform_user_document_io_directly()
     {
         var appRoot = Absolute("src/NovelSpeaker.App");

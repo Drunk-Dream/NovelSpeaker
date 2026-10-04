@@ -89,11 +89,13 @@
 
 完成成果：locked restore、format 与含 Gallery 的 solution build 收敛到单一 gates job；五层矩阵依赖 gates、下载构建产物并复用 NuGet cache，仅执行各自 no-build tests，保留独立失败状态与 WPF 诊断。actionlint 与 PR/Release 依赖、版本及覆盖静态校验通过；未触发远端 Actions，跨 runner 传输仍需下一次 CI 验证。无新增永久测试。
 
-## [ ] T024（P2）：精简 Architecture Fitness 源码扫描器
+## [x] T024（P2）：精简 Architecture Fitness 源码扫描器
 
 目标：保留长期架构合同所需的依赖方向、模块边界、owner 与 trust-boundary 检查；删除冻结私有实现形状、重复穷举 parser 行为及仅支撑这些断言的 fixture/helper。
 
 依赖：无。不得整体移除 Architecture Fitness Tests。审计依据：F06 / S04。
+
+完成成果：删除类型/目录/私有 setter/virtualization markup 等实现形状断言、Clear/Add 循环语法 parser 与穷举 fixture，以及仅支撑它们的 baseline，净减少 705 行。保留四层依赖、模块/Feature 循环、Shared 方向、Playback/ReadingProgress owner、Service Locator/通用协调禁令、异步/API、主题和测试隔离检查，对应架构合同与质量文档核心边界；必要源码/DI 扫描继续复用现有实现，无新白名单或永久测试。Architecture focused tests 26 项、format 与 Release build 通过。
 
 ## [ ] T025（P2）：缩小 BookMutationGate 独占区
 
