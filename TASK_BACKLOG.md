@@ -59,11 +59,11 @@
 
 ### 先测量再决定
 
-## [ ] T006（P2 调查）：量化启动路径迁移的重复扫描成本
+## [x] T006（P2 调查）：量化启动路径迁移的重复扫描成本
 
 目标：测量启动时对 `LocalBookSources` 和 `AudioCacheEntries` 路径列重复扫描的成本，并确认当前/最旧受支持数据库是否还可能含待迁移绝对路径；本任务只形成有证据的处置决定。
 
-依赖：无。不得未经授权增加 schema 标记、迁移或其它持久状态。范围与验收见 [T006 task spec](tasks/T006_Measure_Startup_Path_Migration_Scan.md)。
+完成成果：审查确认 v12 将旧 Books.StoredFilePath 原样复制进 LocalBookSources.StoredContentPath；旧 v4–v11 数据库可保留绝对路径，而当前导入/音频索引 writer 使用 storage key，因此没有可证明安全的无状态跳过条件。合成 SQLite 两表各 1k/10k/100k 行（5% 合成绝对路径），逐表流式扫描并按当前批量更新模式执行，7 次回滚测量的中位耗时为 5.06/49.96/1345.24 ms，100k 行峰值 Python 跟踪分配中位数 0.80 MiB；结果不含 SQLite native 分配，Python 与 .NET 包装层差异使其不能视为应用启动基准。保留启动迁移，不新增持久 marker/schema；完整路径数据、合成库和 harness 均为临时且已删除。
 
 ## [ ] T007（P2 调查）：评估 SourceContentReader 的整本正文缓存收益
 
