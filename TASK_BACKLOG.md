@@ -81,11 +81,13 @@
 
 完成成果：诊断 store/export 测试复用 TestKit 的 Manual/FixedTimeProvider 并删除重复类；ViewModel 测试保留固定 UTC+8 本地时区特例并注明共享实现不匹配的原因。
 
-## [ ] T009（P3）：清理不承载行为合同的 WPF 实现细节断言
+## [x] T009（P3）：清理不承载行为合同的 WPF 实现细节断言
 
 目标：结合断言上下文、历史回归和质量合同，删除仅锁定资源 key、brush identity、icon enum 或内部 visual-tree 形状的低价值断言；保留用户行为、导航、键盘与辅助功能合同。
 
-依赖：无。范围与验收见 [T009 task spec](tasks/T009_Trim_WPF_Implementation_Detail_Assertions.md)。
+依赖：无。
+
+完成成果：删除 SelectionSurface 的资源/画刷身份测试及 PlayerView 的精确图标、空 Content 和内部布局断言；保留空章节、缓存操作可用性、无 Provider 返回入口、可访问名称和 Provider Popup 行为覆盖。
 
 ## 4. 暂不排期
 
