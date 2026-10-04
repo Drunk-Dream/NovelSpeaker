@@ -55,11 +55,13 @@
 
 ### 迁移残留与数据读取
 
-## [ ] T020（P2）：移除无生产用途的 BackgroundTaskRegistry
+## [x] T020（P2）：移除无生产用途的 BackgroundTaskRegistry
 
 目标：确认不存在反射或外部动态入口后，删除无生产调用的 registry、startup/shutdown wiring 及只保护该类型实现形状的测试；保留真实启动维护行为。
 
 依赖：无。审计依据：S01。
+
+完成成果：确认无生产注册或动态入口后删除 registry、空 shutdown wiring 与专属实现测试；保留 startup 直接等待维护及真实后台 owner 的有界关闭。Startup/组合根/架构 focused tests 31 项、格式检查与 Release build 通过。
 
 ## [ ] T021（P2）：合并 Provider 限流实现路径
 

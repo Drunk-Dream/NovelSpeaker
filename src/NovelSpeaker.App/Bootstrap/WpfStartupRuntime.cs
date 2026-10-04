@@ -46,7 +46,6 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     private readonly Action<MainWindow> _setMainWindow;
     private readonly StartupStatusViewModel _statusViewModel = new();
     private readonly ProcessShutdownGate _shutdownGate = new();
-    private readonly BackgroundTaskRegistry _backgroundTasks;
     private readonly TimeSpan _backgroundShutdownTimeout;
     private StartupStatusWindow? _statusWindow;
     private AppDataDirectoryProvider? _directories;
@@ -64,7 +63,6 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         _backgroundShutdownTimeout = BackgroundShutdownTimeout;
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _setMainWindow = setMainWindow ?? throw new ArgumentNullException(nameof(setMainWindow));
-        _backgroundTasks = new BackgroundTaskRegistry(this, TimeProvider.System);
     }
 
     internal WpfStartupRuntime(
@@ -279,7 +277,6 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     public void BeginShutdown()
     {
         _shutdownGate.TryBeginShutdown();
-        _backgroundTasks.StopAccepting();
         if (_serviceProvider is not null && _shutdownOperation is null)
         {
             _shutdownOperation = _serviceProvider
@@ -342,10 +339,6 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
                 _serviceProvider.GetRequiredService<ICacheInvalidationCoordinator>(),
                 cancellationToken).ConfigureAwait(false);
         }
-
-        await _backgroundTasks.WaitForCompletionAsync(
-            BackgroundShutdownTimeout,
-            cancellationToken).ConfigureAwait(false);
     }
 
     internal async Task WaitForBackgroundTasksAsync(
