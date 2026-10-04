@@ -19,6 +19,9 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
     private readonly IAppFeedbackService _feedbackService;
     private readonly IUiScheduler _uiScheduler;
     private readonly OwnedTaskRegistry _processTasks = new();
+    private readonly Dictionary<int, int> _chapterPositions = [];
+    private readonly Dictionary<int, ShellActiveCacheChapterItem> _chapterRows = [];
+    private Guid? _projectedBatchId;
     private Guid? _notifiedTerminalBatchId;
     private bool _disposed;
 
@@ -151,17 +154,7 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
             $"总进度 {snapshot.CompletedSegmentCount} / {snapshot.TotalSegmentCount} 段";
         CanCancel = snapshot.Status is ActiveCacheBatchStatus.Waiting or ActiveCacheBatchStatus.Running;
 
-        Chapters.Clear();
-        foreach (var chapter in snapshot.Chapters)
-        {
-            Chapters.Add(new ShellActiveCacheChapterItem(
-                chapter.ChapterIndex,
-                chapter.ChapterTitle,
-                BuildChapterStatus(chapter),
-                chapter.Status == ActiveCacheChapterStatus.Running,
-                chapter.Status is ActiveCacheChapterStatus.Completed or ActiveCacheChapterStatus.Skipped,
-                chapter.Status == ActiveCacheChapterStatus.Failed));
-        }
+        ProjectChapters(snapshot);
     }
 
     private void ClearActiveProjection()
@@ -174,7 +167,72 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
         TotalSegmentProgressText = string.Empty;
         CanCancel = false;
         Chapters.Clear();
+        _chapterPositions.Clear();
+        _chapterRows.Clear();
+        _projectedBatchId = null;
     }
+
+    private void ProjectChapters(ActiveCacheSnapshot snapshot)
+    {
+        if (_projectedBatchId != snapshot.BatchId || snapshot.Chapters.Count != Chapters.Count)
+        {
+            RebuildChapterRows(snapshot);
+            return;
+        }
+
+        if (snapshot.CurrentChapterIndex is not int currentChapterIndex)
+        {
+            return;
+        }
+
+        if (!_chapterPositions.TryGetValue(currentChapterIndex, out var chapterPosition))
+        {
+            RebuildChapterRows(snapshot);
+            return;
+        }
+
+        var currentChapter = snapshot.Chapters[chapterPosition];
+        if (currentChapter.ChapterIndex != currentChapterIndex)
+        {
+            // The coordinator freezes the selected chapters for a batch. Rebuild defensively
+            // if that contract ever changes without a new batch identity.
+            RebuildChapterRows(snapshot);
+            return;
+        }
+
+        _chapterRows[currentChapterIndex].Update(
+            currentChapter.ChapterTitle,
+            BuildChapterStatus(currentChapter),
+            currentChapter.Status == ActiveCacheChapterStatus.Running,
+            currentChapter.Status is ActiveCacheChapterStatus.Completed or ActiveCacheChapterStatus.Skipped,
+            currentChapter.Status == ActiveCacheChapterStatus.Failed);
+    }
+
+    private void RebuildChapterRows(ActiveCacheSnapshot snapshot)
+    {
+        Chapters.Clear();
+        _chapterPositions.Clear();
+        _chapterRows.Clear();
+        for (var position = 0; position < snapshot.Chapters.Count; position++)
+        {
+            var chapter = snapshot.Chapters[position];
+            var row = CreateChapterRow(chapter);
+            Chapters.Add(row);
+            _chapterPositions.Add(chapter.ChapterIndex, position);
+            _chapterRows.Add(chapter.ChapterIndex, row);
+        }
+
+        _projectedBatchId = snapshot.BatchId;
+    }
+
+    private static ShellActiveCacheChapterItem CreateChapterRow(ActiveCacheChapterSnapshot chapter) =>
+        new(
+            chapter.ChapterIndex,
+            chapter.ChapterTitle,
+            BuildChapterStatus(chapter),
+            chapter.Status == ActiveCacheChapterStatus.Running,
+            chapter.Status is ActiveCacheChapterStatus.Completed or ActiveCacheChapterStatus.Skipped,
+            chapter.Status == ActiveCacheChapterStatus.Failed);
 
     private void NotifyTerminalOnce(ActiveCacheSnapshot snapshot)
     {

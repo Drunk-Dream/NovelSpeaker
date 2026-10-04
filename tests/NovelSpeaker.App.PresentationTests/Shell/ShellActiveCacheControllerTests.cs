@@ -126,10 +126,62 @@ public sealed class ShellActiveCacheControllerTests
         Assert.Equal(0, coordinator.SubscriberCount);
     }
 
+    private void Incremental_progress_updates_keep_rows_and_only_notify_the_changed_chapter()
+    {
+        var initial = CreateSnapshot(ActiveCacheBatchStatus.Running);
+        var coordinator = new FakeActiveCacheCoordinator(initial);
+        var controller = new ShellActiveCacheController(coordinator,
+            new FakeFeedbackService(), new InlineUiScheduler());
+        var rows = controller.Chapters.ToArray();
+        var changedProperties = new List<string?>();
+        rows[1].PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+        var collectionChanges = 0;
+        controller.Chapters.CollectionChanged += (_, _) => collectionChanges++;
+
+        coordinator.Publish(WithChapterProgress(initial, chapterIndex: 1, completedSegments: 3));
+        coordinator.Publish(WithChapterProgress(initial, chapterIndex: 1, completedSegments: 4));
+
+        Assert.Equal([0, 1, 2], controller.Chapters.Select(chapter => chapter.ChapterIndex));
+        Assert.Collection(controller.Chapters,
+            chapter => Assert.Same(rows[0], chapter),
+            chapter => Assert.Same(rows[1], chapter),
+            chapter => Assert.Same(rows[2], chapter));
+        Assert.Equal("4 / 5", rows[1].StatusText);
+        Assert.Equal([nameof(ShellActiveCacheChapterItem.StatusText), nameof(ShellActiveCacheChapterItem.StatusText)],
+            changedProperties);
+        Assert.Equal(0, collectionChanges);
+        Assert.Equal("总进度 6 / 10 段", controller.TotalSegmentProgressText);
+    }
+
+    private void Replacing_the_batch_rebuilds_rows_in_snapshot_order()
+    {
+        var coordinator = new FakeActiveCacheCoordinator(CreateSnapshot(ActiveCacheBatchStatus.Running));
+        var controller = new ShellActiveCacheController(coordinator, new FakeFeedbackService(), new InlineUiScheduler());
+        var originalRows = controller.Chapters.ToArray();
+        var collectionChanges = 0;
+        controller.Chapters.CollectionChanged += (_, _) => collectionChanges++;
+        var replacement = CreateSnapshot(
+            ActiveCacheBatchStatus.Running,
+            batchId: Guid.Parse("20000000-0000-0000-0000-000000000002"),
+            chapters:
+            [
+                new ActiveCacheChapterSnapshot(9, "第九章", 0, 1, ActiveCacheChapterStatus.Running, null),
+                new ActiveCacheChapterSnapshot(4, "第四章", 1, 1, ActiveCacheChapterStatus.Completed, null)
+            ]);
+
+        coordinator.Publish(replacement);
+
+        Assert.Equal([9, 4], controller.Chapters.Select(chapter => chapter.ChapterIndex));
+        Assert.All(controller.Chapters, row => Assert.DoesNotContain(row, originalRows));
+        Assert.Equal(3, collectionChanges);
+    }
+
     [Fact]
     public void Active_cache_projection_contracts_cover_running_progress_and_terminal_notifications()
     {
         Running_snapshot_projects_compact_progress_and_chapter_rows();
+        Incremental_progress_updates_keep_rows_and_only_notify_the_changed_chapter();
+        Replacing_the_batch_rebuilds_rows_in_snapshot_order();
         Snapshot_events_are_dispatched_and_terminal_notification_is_emitted_once_per_batch();
     }
 
@@ -150,9 +202,11 @@ public sealed class ShellActiveCacheControllerTests
 
     private static ActiveCacheSnapshot CreateSnapshot(
         ActiveCacheBatchStatus status,
-        string? errorSummary = null) =>
+        string? errorSummary = null,
+        Guid? batchId = null,
+        IReadOnlyList<ActiveCacheChapterSnapshot>? chapters = null) =>
         new(
-            Guid.Parse("10000000-0000-0000-0000-000000000001"),
+            batchId ?? Guid.Parse("10000000-0000-0000-0000-000000000001"),
             "book-1",
             "示例小说",
             status,
@@ -162,12 +216,31 @@ public sealed class ShellActiveCacheControllerTests
             10,
             status is ActiveCacheBatchStatus.Completed or ActiveCacheBatchStatus.Cancelled ? null : 1,
             status is ActiveCacheBatchStatus.Completed or ActiveCacheBatchStatus.Cancelled ? null : "第二章",
+            chapters ??
             [
                 new ActiveCacheChapterSnapshot(0, "第一章", 3, 3, ActiveCacheChapterStatus.Completed, null),
                 new ActiveCacheChapterSnapshot(1, "第二章", 2, 5, ActiveCacheChapterStatus.Running, null),
                 new ActiveCacheChapterSnapshot(2, "第三章", 0, 2, ActiveCacheChapterStatus.Pending, null)
             ],
             errorSummary);
+
+    private static ActiveCacheSnapshot WithChapterProgress(
+        ActiveCacheSnapshot snapshot,
+        int chapterIndex,
+        int completedSegments)
+    {
+        var previous = snapshot.Chapters.Single(chapter => chapter.ChapterIndex == chapterIndex);
+        var chapters = snapshot.Chapters
+            .Select(chapter => chapter.ChapterIndex == chapterIndex
+                ? chapter with { CompletedSegmentCount = completedSegments }
+                : chapter)
+            .ToArray();
+        return snapshot with
+        {
+            CompletedSegmentCount = snapshot.CompletedSegmentCount + completedSegments - previous.CompletedSegmentCount,
+            Chapters = chapters
+        };
+    }
 
     private sealed class FakeActiveCacheCoordinator(ActiveCacheSnapshot? snapshot) : IActiveCacheCoordinator
     {

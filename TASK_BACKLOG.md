@@ -27,11 +27,11 @@
 
 完成成果：RuleTests、ProviderPreviews 与 TTS staging 改用进程租约目录；启动维护和 Clear All 仅回收已失主目录，保留活动文件、持久缓存和 Local Source。旧版无租约残留因无法安全区分活跃实例而跳过。
 
-## [ ] T002（P2）：避免 Active Cache 进度更新重建整份章节列表
+## [x] T002（P2）：避免 Active Cache 进度更新重建整份章节列表
 
 目标：保留 Active Cache coordinator 的快照所有权与 UI 现有排序/状态，只更新变化的章节投影，避免每个片段完成后清空并重新创建全部行。
 
-依赖：无。范围与验收见 [T002 task spec](tasks/T002_Incremental_Active_Cache_Projection.md)。
+完成成果：Shell 按批次与 ChapterIndex 保留章节行实例，进度快照只更新当前变化行，批次替换时才重建；排序、摘要、取消与终态通知保持原语义。
 
 ## [ ] T003（P2）：收窄 Release workflow 的写权限
 
