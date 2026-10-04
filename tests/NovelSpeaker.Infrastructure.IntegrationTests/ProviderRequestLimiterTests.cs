@@ -1,22 +1,27 @@
 using NovelSpeaker.Application.Speech;
+using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Infrastructure.Speech.Http;
 using NovelSpeaker.TestKit.Common;
 using Xunit;
 
 namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
-public sealed class TtsRateLimiterTests
+public sealed class ProviderRequestLimiterTests
 {
+    private static readonly ProviderId FirstProviderId = ProviderId.New();
+    private static readonly ProviderId SecondProviderId = ProviderId.New();
+
     [Fact]
-    public async Task WaitAsync_parses_minimum_interval_format()
+    public async Task Admission_enforces_single_request_window()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
 
-        await limiter.WaitAsync(1, "1000", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        var secondRequest = limiter.WaitAsync(
-            1,
-            "1000",
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 1000), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        var secondRequest = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 1000),
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
 
@@ -29,18 +34,18 @@ public sealed class TtsRateLimiterTests
     }
 
     [Fact]
-    public async Task WaitAsync_parses_count_over_window_format()
+    public async Task Admission_enforces_count_over_window()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
 
-        await limiter.WaitAsync(1, "3/1000", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        await limiter.WaitAsync(1, "3/1000", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        await limiter.WaitAsync(1, "3/1000", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(3, 1000), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(3, 1000), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(3, 1000), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
 
-        var fourthRequest = limiter.WaitAsync(
-            1,
-            "3/1000",
+        var fourthRequest = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(3, 1000),
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
         await AssertPendingAsync(fourthRequest);
@@ -50,34 +55,34 @@ public sealed class TtsRateLimiterTests
     }
 
     [Fact]
-    public async Task WaitAsync_isolates_state_per_rule()
+    public async Task Admission_isolates_state_per_provider()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
 
-        await limiter.WaitAsync(1, "1000", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        var blockedRule = limiter.WaitAsync(
-            1,
-            "1000",
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 1000), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        var blockedProvider = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 1000),
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
-        await limiter.WaitAsync(2, "1000", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        await limiter.AdmitAndReleaseAsync(SecondProviderId, new ProviderRequestRateLimit(1, 1000), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
 
-        await AssertPendingAsync(blockedRule);
+        await AssertPendingAsync(blockedProvider);
     }
 
     [Fact]
     public async Task ApplyRetryAfter_extends_wait_window()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
 
-        await limiter.WaitAsync(1, "1000", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        limiter.ApplyRetryAfter(1, TimeSpan.FromSeconds(3));
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 1000), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        limiter.ApplyRetryAfter(FirstProviderId, TimeSpan.FromSeconds(3));
 
-        var retriedRequest = limiter.WaitAsync(
-            1,
-            "1000",
+        var retriedRequest = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 1000),
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
         await AssertPendingAsync(retriedRequest);
@@ -90,14 +95,14 @@ public sealed class TtsRateLimiterTests
     }
 
     [Fact]
-    public async Task WaitAsync_honors_cancellation()
+    public async Task Admission_honors_cancellation()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
         using var cts = new CancellationTokenSource();
 
-        await limiter.WaitAsync(1, "1000", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        var pending = limiter.WaitAsync(1, "1000", TtsAdmissionPriority.CurrentPlayback, cts.Token);
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 1000), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        var pending = limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 1000), TtsAdmissionPriority.CurrentPlayback, cts.Token);
 
         await AssertPendingAsync(pending);
         cts.Cancel();
@@ -106,14 +111,14 @@ public sealed class TtsRateLimiterTests
     }
 
     [Fact]
-    public async Task WaitAsync_admits_concurrent_equal_priority_callers_in_fifo_order()
+    public async Task Admission_admits_concurrent_equal_priority_callers_in_fifo_order()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
 
-        await limiter.WaitAsync(1, "100", TtsAdmissionPriority.Prefetch, CancellationToken.None);
-        var second = limiter.WaitAsync(1, "100", TtsAdmissionPriority.Prefetch, CancellationToken.None);
-        var third = limiter.WaitAsync(1, "100", TtsAdmissionPriority.Prefetch, CancellationToken.None);
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 100), TtsAdmissionPriority.Prefetch, CancellationToken.None);
+        var second = limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 100), TtsAdmissionPriority.Prefetch, CancellationToken.None);
+        var third = limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 100), TtsAdmissionPriority.Prefetch, CancellationToken.None);
 
         await AssertPendingAsync(second);
         await AssertPendingAsync(third);
@@ -127,25 +132,25 @@ public sealed class TtsRateLimiterTests
     }
 
     [Fact]
-    public async Task WaitAsync_admits_current_then_prefetch_then_active_cache()
+    public async Task Admission_admits_current_then_prefetch_then_active_cache()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
 
-        await limiter.WaitAsync(1, "100", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        var activeCache = limiter.WaitAsync(
-            1,
-            "100",
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 100), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        var activeCache = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 100),
             TtsAdmissionPriority.ActiveCache,
             CancellationToken.None);
-        var prefetch = limiter.WaitAsync(
-            1,
-            "100",
+        var prefetch = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 100),
             TtsAdmissionPriority.Prefetch,
             CancellationToken.None);
-        var current = limiter.WaitAsync(
-            1,
-            "100",
+        var current = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 100),
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
 
@@ -166,17 +171,17 @@ public sealed class TtsRateLimiterTests
     }
 
     [Fact]
-    public async Task AcquireAsync_holds_one_shared_execution_lease_per_rule()
+    public async Task AcquireAsync_holds_one_shared_execution_lease_per_provider()
     {
-        var limiter = new TtsRateLimiter(new ManualTimeProvider());
+        var limiter = new ProviderRequestLimiter(new ManualTimeProvider());
         await using var first = await limiter.AcquireAsync(
-            1,
-            concurrentRate: null,
+            FirstProviderId,
+            rateLimit: null,
             TtsAdmissionPriority.ActiveCache,
             CancellationToken.None);
         var second = limiter.AcquireAsync(
-            1,
-            concurrentRate: null,
+            FirstProviderId,
+            rateLimit: null,
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
 
@@ -188,21 +193,21 @@ public sealed class TtsRateLimiterTests
     [Fact]
     public async Task Cancelling_a_queued_lease_does_not_take_the_shared_execution_permit()
     {
-        var limiter = new TtsRateLimiter(new ManualTimeProvider());
+        var limiter = new ProviderRequestLimiter(new ManualTimeProvider());
         await using var blocker = await limiter.AcquireAsync(
-            1,
-            concurrentRate: null,
+            FirstProviderId,
+            rateLimit: null,
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
         using var cancellation = new CancellationTokenSource();
         var cancelled = limiter.AcquireAsync(
-            1,
-            concurrentRate: null,
+            FirstProviderId,
+            rateLimit: null,
             TtsAdmissionPriority.CurrentPlayback,
             cancellation.Token);
         var next = limiter.AcquireAsync(
-            1,
-            concurrentRate: null,
+            FirstProviderId,
+            rateLimit: null,
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
 
@@ -216,12 +221,12 @@ public sealed class TtsRateLimiterTests
     public async Task Cancelling_a_waiter_does_not_consume_rate_quota()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
         using var cancellation = new CancellationTokenSource();
 
-        await limiter.WaitAsync(1, "100", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        var cancelled = limiter.WaitAsync(1, "100", TtsAdmissionPriority.CurrentPlayback, cancellation.Token);
-        var next = limiter.WaitAsync(1, "100", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 100), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        var cancelled = limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 100), TtsAdmissionPriority.CurrentPlayback, cancellation.Token);
+        var next = limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 100), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await cancelled);
@@ -233,18 +238,18 @@ public sealed class TtsRateLimiterTests
     public async Task Lower_priority_waiter_is_not_permanently_starved_by_current_playback()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
 
-        await limiter.WaitAsync(1, "100", TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
-        var background = limiter.WaitAsync(
-            1,
-            "100",
+        await limiter.AdmitAndReleaseAsync(FirstProviderId, new ProviderRequestRateLimit(1, 100), TtsAdmissionPriority.CurrentPlayback, CancellationToken.None);
+        var background = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 100),
             TtsAdmissionPriority.ActiveCache,
             CancellationToken.None);
         var playback = Enumerable.Range(0, 12)
-            .Select(_ => limiter.WaitAsync(
-                1,
-                "100",
+            .Select(_ => limiter.AdmitAndReleaseAsync(
+                FirstProviderId,
+                new ProviderRequestRateLimit(1, 100),
                 TtsAdmissionPriority.CurrentPlayback,
                 CancellationToken.None))
             .ToArray();
@@ -275,30 +280,29 @@ public sealed class TtsRateLimiterTests
     public async Task New_waiter_wakes_an_existing_policy_delay_and_recomputes_admission()
     {
         var timeProvider = new ManualTimeProvider();
-        var limiter = new TtsRateLimiter(timeProvider);
+        var limiter = new ProviderRequestLimiter(timeProvider);
 
-        await limiter.WaitAsync(
-            1,
-            "1000",
+        await limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 1000),
             TtsAdmissionPriority.CurrentPlayback,
             CancellationToken.None);
-        var oldWaiter = limiter.WaitAsync(
-            1,
-            "1000",
+        var oldWaiter = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            new ProviderRequestRateLimit(1, 1000),
             TtsAdmissionPriority.ActiveCache,
             CancellationToken.None);
         await AssertPendingAsync(oldWaiter);
         Assert.Equal(1, timeProvider.PendingTimerCount);
 
-        var newWaiter = limiter.WaitAsync(
-            1,
-            concurrentRate: null,
+        var newWaiter = limiter.AdmitAndReleaseAsync(
+            FirstProviderId,
+            rateLimit: null,
             priority: TtsAdmissionPriority.CurrentPlayback,
             cancellationToken: CancellationToken.None);
 
         await newWaiter.WaitAsync(TimeSpan.FromSeconds(1));
         Assert.False(oldWaiter.IsCompleted);
-        Assert.Equal(1, timeProvider.PendingTimerCount);
         Assert.Equal(1, timeProvider.PendingTimerCount);
 
         timeProvider.Advance(TimeSpan.FromSeconds(1));
@@ -311,19 +315,18 @@ public sealed class TtsRateLimiterTests
         await Task.Yield();
         Assert.False(task.IsCompleted);
     }
-
 }
 
-internal static class TtsRateLimiterTestExtensions
+internal static class ProviderRequestLimiterTestExtensions
 {
-    public static async Task WaitAsync(
-        this TtsRateLimiter limiter,
-        long ruleId,
-        string? concurrentRate,
+    public static async Task AdmitAndReleaseAsync(
+        this IProviderRequestLimiter limiter,
+        ProviderId providerId,
+        ProviderRequestRateLimit? rateLimit,
         TtsAdmissionPriority priority,
         CancellationToken cancellationToken)
     {
         await using var lease = await limiter
-            .AcquireAsync(ruleId, concurrentRate, priority, cancellationToken);
+            .AcquireAsync(providerId, rateLimit, priority, cancellationToken);
     }
 }

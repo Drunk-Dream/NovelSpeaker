@@ -63,11 +63,13 @@
 
 完成成果：确认无生产注册或动态入口后删除 registry、空 shutdown wiring 与专属实现测试；保留 startup 直接等待维护及真实后台 owner 的有界关闭。Startup/组合根/架构 focused tests 31 项、格式检查与 Release build 通过。
 
-## [ ] T021（P2）：合并 Provider 限流实现路径
+## [x] T021（P2）：合并 Provider 限流实现路径
 
 目标：在保留并发许可、排队、pace、retry-after、取消与 lease 行为的前提下，将 Provider-keyed 调用收敛到一条 typed limiter path，删除 synthetic RuleId/string adapter 与不再独立使用的旧接口。
 
 依赖：T018。审计依据：F04 / S02。
+
+完成成果：ProviderRequestLimiter 直接以 typed ProviderId/RateLimit 持有唯一调度状态，删除旧接口、synthetic RuleId/string adapter 和重复注册；既有队列、pace、retry-after、取消与 lease 核心测试迁移至 typed API。Speech/Infrastructure/组合根 focused tests 110 项、格式检查与 Release build 通过。
 
 ## [ ] T022（P2）：移除 CacheCatalog 的逐本 fallback
 

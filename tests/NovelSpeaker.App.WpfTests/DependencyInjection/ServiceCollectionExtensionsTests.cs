@@ -176,7 +176,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<PlaybackSegmentRunner>(provider.GetRequiredService<PlaybackSegmentRunner>());
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
                 Assert.IsType<AudioGenerationFailureReporter>(provider.GetRequiredService<IAudioGenerationFailureReporter>());
-                Assert.IsAssignableFrom<ITtsRateLimiter>(provider.GetRequiredService<ITtsRateLimiter>());
+                Assert.IsAssignableFrom<IProviderRequestLimiter>(provider.GetRequiredService<IProviderRequestLimiter>());
                 Assert.IsAssignableFrom<IHttpTtsClient>(provider.GetRequiredService<IHttpTtsClient>());
                 Assert.IsAssignableFrom<ITtsHttpTransport>(provider.GetRequiredService<ITtsHttpTransport>());
                 Assert.IsAssignableFrom<ITtsRetryPolicy>(provider.GetRequiredService<ITtsRetryPolicy>());

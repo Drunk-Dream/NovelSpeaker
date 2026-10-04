@@ -17,7 +17,6 @@ public static class SpeechRegistration
         ArgumentNullException.ThrowIfNull(services);
 
         services.TryAddSingleton<ITemplateEvaluator, JintTemplateEvaluator>();
-        services.TryAddSingleton<ITtsRateLimiter, TtsRateLimiter>();
         services.TryAddSingleton<IProviderRequestLimiter, ProviderRequestLimiter>();
         services.TryAddSingleton<IProviderPreviewAudioPlayer, ProviderPreviewAudioPlayer>();
         services.TryAddSingleton<ITtsHttpTransport, HttpTtsClient>();

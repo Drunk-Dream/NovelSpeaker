@@ -140,7 +140,7 @@ public sealed class HttpProviderRuntimeTests
         var runtime = new HttpProviderRuntime(
             new HttpProviderRequestCompiler(new JintTemplateEvaluator()),
             new FailingClient(new TtsExecutionFailure(TtsErrorKind.Network, "网络请求失败。", null, null, null, null)),
-            new ProviderRequestLimiter(new TtsRateLimiter(TimeProvider.System)));
+            new ProviderRequestLimiter(TimeProvider.System));
 
         var failed = await runtime.SynthesizeAsync(provider,
             new ProviderSynthesisRequest("hello", 10), CancellationToken.None);
@@ -157,7 +157,7 @@ public sealed class HttpProviderRuntimeTests
     public async Task Structured_rate_limit_waits_for_configured_window()
     {
         var clock = new ManualTimeProvider();
-        var limiter = new ProviderRequestLimiter(new TtsRateLimiter(clock));
+        var limiter = new ProviderRequestLimiter(clock);
         var id = ProviderId.New();
         var policy = new ProviderRequestRateLimit(1, 1000);
         await using (await limiter.AcquireAsync(id, policy, TtsAdmissionPriority.CurrentPlayback, CancellationToken.None))
@@ -179,7 +179,7 @@ public sealed class HttpProviderRuntimeTests
         var runtime = new HttpProviderRuntime(
             new HttpProviderRequestCompiler(new JintTemplateEvaluator()),
             new CancellingSuccessfulClient(cancellation, owner),
-            new ProviderRequestLimiter(new TtsRateLimiter(TimeProvider.System)));
+            new ProviderRequestLimiter(TimeProvider.System));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runtime.SynthesizeAsync(
             CreateProvider("https://example.com/audio"),
