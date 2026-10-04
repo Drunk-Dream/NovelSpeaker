@@ -109,54 +109,23 @@
 
 ## 9. UI 与大列表
 
-遵守 `docs/06_UI_AND_VISUAL_SYSTEM.md`：
+稳定 UI、主题、通知、设置页面、列表规模与视觉合同由 [docs/06_UI_AND_VISUAL_SYSTEM.md](docs/06_UI_AND_VISUAL_SYSTEM.md) 唯一维护；页面级批量管理合同见 [docs/specs/BATCH_MANAGEMENT.md](docs/specs/BATCH_MANAGEMENT.md)。
 
 - WPF code-behind 只处理 WPF 特有生命周期与交互桥接。
 - ViewModel 不引用具体 Page/Window/Dispatcher/Brush/Style/Thickness 等视觉类型。
-- Dialog/Flyout/Popup 遵守 Single Surface。
-- 瞬时操作结果、警告和失败通知必须通过已有 `IAppFeedbackService` / Snackbar 展示；禁止在页面中嵌入通知块作为替代或重复展示。进行中进度、字段校验、空状态等页面状态按其职责展示；Library 小于 5 MiB 的导入不展示进度，仅用 Snackbar 反馈结果，大于等于 5 MiB 保留可取消进度对话框。
-- 图标使用主题语义资源，禁止 Dark Mode 硬编码黑色。
-- 新增普通文本优先使用显式 `App.Typography.*` 样式；独立设置前景色时使用 `DynamicResource App.Brush.Text.*`。共享内容宿主应提供动态主题前景色，不依赖 WPF 默认黑色或未经验证的祖先继承。
-- 产品 XAML 中的 `TextBlock` 必须显式声明具有主题前景色的样式或前景色绑定；前景色 Setter/属性禁止硬编码可见颜色或 `StaticResource` 画刷。控件模板需要继承交互状态颜色时，显式绑定主题 owner 的前景色。C# 创建文本也必须通过 `SetResourceReference` 设置语义样式或动态画刷。通用主题资源架构检查对全部产品 XAML 执行，不以新增白名单绕过。
-- 涉及主题文字/图标的修改，自动验收必须覆盖先应用 Light/Dark 再首次创建页面，以及已有页面切换主题和切换后新建页面；仅验证手动切换后的状态不足以证明冷启动正确。
-- 设置子页面不对设置项做分组；前往规则、管理或其他子页面的导航入口统一放在普通设置项之后，连续排列在设置项列表末尾。
-- 大列表目标至少 10,000 条连续 catalog。
-- WPF virtualization 不替代 data/projection 规模控制。
-- 首个可交互帧不等待完整 enrichment。
-- 支持批量管理的页面必须遵守 `docs/specs/BATCH_MANAGEMENT.md`；CacheManagement 明确作为文件管理器式选择语义的例外。
+- 瞬时操作结果、警告和失败通知使用已有 `IAppFeedbackService` / Snackbar，不在页面内嵌通知块替代或重复展示。
+- 主题文字、图标或资源变更的验收遵守 UI owner 文档中的 Light/Dark 冷启动、主题切换和全量主题资源检查合同。
+- 支持批量管理的页面遵守批量管理合同；CacheManagement 保持文档定义的文件管理器式选择语义例外。
 
 ## 10. 测试与自动验收
 
-遵守 `docs/08_QUALITY_AND_TESTING.md`。
+永久测试准入、测试分层和核心回归范围由 [docs/08_QUALITY_AND_TESTING.md](docs/08_QUALITY_AND_TESTING.md) 唯一维护。
 
 每次代码审查（包括首审、复审、替换 reviewer，以及不通过 skill 发起的审查）必须读取仓库根目录 `.codex/review-checklist.md`，对最新完整 diff 逐项报告通过、失败或不适用及简短依据。该项目清单必须可读取；缺失或不可读取时不能形成可信审查结论。清单不替代本文件、当前任务规格和长期合同。
 
-### 永久测试
-
-- 永久测试只保护核心用户流程、数据/兼容性/安全边界和少量关键架构契约。
-- 非核心修改默认不新增永久测试。
-- 不以覆盖率、测试数量或“改代码就配测试”作为目标。
-- 不使用永久测试冻结私有实现、具体调用次数、XAML 资源顺序、Visual Tree 形状、精确像素和其他可自由演进的细节。
-- 当已有测试与确认过的产品/架构调整冲突时，先判断核心契约是否仍成立；实现细节测试可以删除、合并或重写。
-- 测试不是产品需求来源，不为保持旧测试通过而重建 compatibility wrapper 或旧实现。
-
-### 临时测试
-
-- 为复现问题、验证假设或辅助重构，可以创建临时测试、fixture 或专用验证代码。
-- 临时测试可以贴近内部实现，但完成当前用途后必须删除。
-- 临时测试、临时 fixture、一次性脚本和专用测试入口不得进入任务最终提交。
-- 如果临时测试证明了一个值得长期防止的核心回归，应重新设计成稳定的永久行为测试后再保留。
-
-### 开发方式
-
-- 对核心功能新增/修改和核心 Bug 修复，推荐 test-first/TDD，但不是强制流程。
-- Agent 应根据风险选择最有效的方式：test-first、已有核心测试、临时复现测试、静态分析或最小运行验证都可以。
-- 不得为了遵循 TDD 而为非核心细节制造永久测试。
-
-### WPF 与异步
-
+- 非核心修改默认不新增永久测试；临时测试、fixture、脚本和专用入口在任务完成前删除。
 - Presentation tests 不实例化真实 WPF。
-- WPF tests 只验证必须依赖 WPF 且影响核心可用性的行为，并默认使用隔离 Desktop；隔离失败必须 fail closed。
+- 需要真实 Window/Popup/Focus/HWND 的 WPF tests 使用隔离 Desktop；隔离失败必须 fail closed。
 - 未经当前任务明确授权，不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。
 - 异步测试不使用固定延时猜测完成。
 
@@ -169,7 +138,7 @@ dotnet build -c Release --no-restore
 dotnet test -c Release --no-build
 ```
 
-开发阶段优先运行与当前风险匹配的 focused tests；阶段收口、发布以及任务规格明确要求时执行完整门禁。staged breaking migration 期间按当前 task spec 执行局部门禁，最终 Closure task 必须执行上述完整门禁。由于环境限制无法执行的检查必须如实记录，不得通过删除真正的核心测试、弱化安全隔离或跳过关键架构约束制造绿色。
+开发阶段优先运行与当前风险匹配的 focused tests；阶段收口、发布以及任务规格明确要求时执行完整门禁。staged breaking migration 期间按当前 task spec 执行局部门禁，最终 Closure task 必须执行上述完整门禁。由于环境限制无法执行的检查必须如实记录，不得删除核心测试、弱化安全隔离或跳过关键架构约束制造绿色。
 
 ## 11. Git 与格式
 

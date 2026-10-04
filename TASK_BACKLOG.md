@@ -135,11 +135,13 @@
 
 完成成果：manifest 生成脚本只读取当前 `scenes[].scene` 结构，旧 `Scenarios` schema 与缺失/空 scene 均带文件和条目位置明确失败；文件存在、SHA-256 校验和 root index 保留。当前结构、旧结构拒绝及缺失 scene 验证通过。
 
-## [ ] T029（P3）：收敛 AGENTS 与长期 owner 文档的重复规则
+## [x] T029（P3）：收敛 AGENTS 与长期 owner 文档的重复规则
 
 目标：让 `AGENTS.md` 保留执行时必须直接看到的硬约束与 owner 文档入口，将稳定 UI/test 合同的详细定义归还唯一 owner 文档；不得削弱隐私、安全、持久化授权或验收约束。
 
 依赖：无。当前 Backlog 历史日志已在本次计划整理中移除。审计依据：AGENTS 与 owner 文档规则重复（S06）。
+
+完成成果：AGENTS 保留 WPF/ViewModel 边界、Snackbar 执行约束、主题验收入口、批量管理入口、review checklist、WPF 隔离和标准门禁；稳定 UI 与永久测试细则改由 docs/06、docs/08 唯一维护。Markdown 链接目标和 LF 检查通过。
 
 ## [ ] T030（P3）：统一 Release 输出与 ZIP 内容校验规则来源
 
