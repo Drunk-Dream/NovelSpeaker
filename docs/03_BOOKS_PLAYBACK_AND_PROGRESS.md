@@ -162,6 +162,22 @@ Playback session 是当前活动 Book、ActiveSource、章节、段落和播放�
 
 `PlaybackSnapshot` 是跨页面的 immutable 当前状态投影。Page/ViewModel 只消费 snapshot，不复制 session mutable truth。
 
+内部数据流保持单向：
+
+```text
+command / committed domain change / audio callback
+→ validate current session identity
+→ runtime transition
+→ explicit effects
+→ immutable PlaybackSnapshot projection
+```
+
+- 高层 session runtime 是 Book、Source context、Provider、逻辑位置、恢复位置、失败窗口和当前高层状态的唯一可变 owner。
+- `PlaybackSnapshot` 不作为另一份可独立修改的状态；它只从一次完整 runtime state 投影并发布。
+- low-level audio owner 只拥有播放器资源、设备位置与播放回调。其结果作为 effect result 回到 runtime，不反向成为高层 session 真值。
+- session replacement 只有在目标上下文成功解析并达到明确 commit boundary 后才替换当前 session；失败或取消保留旧 session。
+- Books/Regex/Settings 的已提交变化由 Playback 自己订阅并排入同一串行 command/transition 边界，发起变化的页面不调用 Playback refresh API。
+
 支持：
 
 - Play/Pause/Stop；

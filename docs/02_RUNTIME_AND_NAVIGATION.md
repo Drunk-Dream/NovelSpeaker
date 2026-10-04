@@ -44,6 +44,12 @@ bootstrap essential logging
 
 不通过 Page singleton、Navigation cache 或固定延时保存/恢复业务真值。
 
+Page activation 是页面存在期的唯一 owner：activation token、页面订阅、page-owned fire-and-forget 和迟到结果拒绝统一附着在 activation scope 上。ViewModel 不再为同一页面存在期平行维护 lifetime CTS、activation generation 和第二套 task registry。
+
+页面内部确实存在“后发请求覆盖先发请求”时，例如搜索、筛选、debounced save 或 decoration window，使用独立的小型 latest-operation slot。它负责替换 CTS、operation identity、异常观察和 `TryCommit`；不要把它与 page activation 合并，也不要为每处重复手写 CTS + version + `IsCurrent` + dispose。
+
+Catalog revision、playback snapshot revision、viewport/layout revision 等业务或投影版本只有在需要比较不同数据事实时保留，不能仅用来重复表达 cancellation。
+
 ## 4. 导航
 
 应用使用强类型 route，业务层不维护浏览器式 Back/Forward 历史。

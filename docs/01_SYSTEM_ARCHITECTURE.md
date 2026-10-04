@@ -55,7 +55,9 @@ Desktop  → Playback
 - Playback 可以消费 Cache 与 Speech 的稳定角色接口。
 - Desktop 只消费稳定角色接口，不拥有 Playback/Cache mutable truth。
 
-跨模块变化使用窄的 typed snapshot/change source/role port；源模块只表达“自身发生了什么变化”，派生消费者在自己的边界解释影响。禁止为此引入通用 EventBus/Messenger。
+跨模块变化使用窄的 typed snapshot/change source/role port；源模块只表达“自身已经提交了什么变化”，派生消费者在自己的边界解释影响。mutation 调用者不负责逐个刷新其它模块，UI 也不编排 Playback/Cache/Books 之间的业务后果。变化只在持久提交成功后发布，observer 失败不得回滚已经完成的 mutation。禁止为此引入通用 EventBus/Messenger。
+
+Books 等稳定模块可以分别暴露 MetadataChanged、CatalogChanged、ActiveSourceChanged、Removed 等领域窄事件或等价 typed change；不得把所有模块变化塞入通用消息 envelope。调用者只处理本次操作自身的用户反馈、导航和页面局部结果，长期消费者由对应 process/session owner 自行订阅。
 
 ### Book / Source 边界
 
@@ -139,6 +141,7 @@ Shared/
 - Feature-local controller/projector 默认留在 Feature 内。
 - `Rules/Shared` 只共享真正属于规则编辑的生命周期，不抽象不同规则业务模型。
 - Speech Provider 编辑器只共享 Draft/Dirty/Save/Cancel/Test 等生命周期语义，不共享一套万能配置字段。
+- 编辑工作台通过组合小型行为 owner 复用 draft、import/export、reorder、management selection 等确实相同的流程；不建立 `GenericWorkbenchViewModel<T>`、大型继承层级或统一业务 DTO。
 - 全局 `Shared` 只保存真实跨多个业务域复用的 presentation/lifecycle/platform primitive。
 - 页面级 Management Mode 可以共享 stable-key selection/lifecycle primitive，但 Shared 不拥有 Book/Provider/Rule/Chapter 的 batch business action。
 - `Shared` 不依赖任何 Feature。
@@ -151,7 +154,7 @@ Shared/
 |---|---|---|
 | Book / Source / Catalog 持久事实 | Books persistence/use case | Persistent |
 | 当前 Book ActiveSourceId | Books use case + persistence | Persistent |
-| 当前播放会话与位置 | Playback session owner | Playback session / process |
+| 当前播放会话、逻辑位置与高层播放状态 | Playback runtime/session owner | Playback session / process |
 | 当前 Speech Provider Id | Settings process service | Persistent |
 | Provider 列表、排序与类型配置 | Speech Provider persistence/use case | Persistent |
 | ReadingProgress checkpoint | Application progress use case + persistence | Persistent |
@@ -159,7 +162,7 @@ Shared/
 | 当前路由 | Shell navigation owner | Process |
 | Process fatal 状态与最终退出原因 | Process lifetime owner | Process |
 | 物理音频缓存/index/file | Cache store | Persistent / rebuildable |
-| Cache Coverage/read model | Cache query | Query / page projection |
+| Cache Coverage/组合 read model/内部失效解释 | Cache application owner | Query / process |
 | 主动缓存批次 | Active Cache coordinator | Background job |
 | 章节导出批次 | Export coordinator | Background job |
 | Speech Plan 补建 | Repair coordinator | Background job |
@@ -167,6 +170,10 @@ Shared/
 | 诊断会话 | Diagnostics session owner | Explicit diagnostic session |
 
 ViewModel 不复制 process/session/background owner 的 mutable truth。跨页面展示使用 immutable snapshot/read model。
+
+Playback 的低层音频播放器可以拥有设备资源和 low-level snapshot，但高层 session 不复制另一份需要双向同步的音频真值。低层结果必须携带可校验的 session identity，由 Playback runtime 接受为 effect result；面向 UI 的 `PlaybackSnapshot` 是 authoritative runtime 的纯投影。
+
+Cache 的 physical facts、Speech Plan、Coverage、repair 和 configuration invalidation 可以由多个内聚组件承担，但一致性解释留在 Cache 模块内。App 只消费场景化组合 read model 与“哪些书/章节展示已变化”的窄通知，不理解 PhysicalSummary/CatalogStructure/Coverage 等内部失效原因。
 
 Process lifetime owner 只维护当前 Process 的稳定退出原因，不承担日志持久化、Diagnostic Session 持久化或通用异常路由。平台异常入口负责把原始 fatal failure 交给该边界；各诊断 sink 消费同一稳定语义，不分别重新判断“这是不是崩溃”。
 
