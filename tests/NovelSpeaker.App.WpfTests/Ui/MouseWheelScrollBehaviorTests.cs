@@ -71,6 +71,61 @@ public sealed class MouseWheelScrollBehaviorTests
     }
 
     [Fact]
+    public void MouseWheelScrollBehavior_scrolls_virtualized_list_by_logical_lines()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var listBox = new ListBox
+            {
+                Width = 240,
+                Height = 180,
+                ItemsSource = Enumerable.Range(0, 100).Select(index => $"Chapter {index + 1}").ToArray()
+            };
+            ScrollViewer.SetCanContentScroll(listBox, true);
+            VirtualizingPanel.SetIsVirtualizing(listBox, true);
+            VirtualizingPanel.SetScrollUnit(listBox, ScrollUnit.Item);
+            VirtualizingPanel.SetVirtualizationMode(listBox, VirtualizationMode.Recycling);
+
+            var window = new Window
+            {
+                Width = 260,
+                Height = 220,
+                ShowInTaskbar = false,
+                WindowStyle = WindowStyle.None,
+                Content = listBox
+            };
+
+            try
+            {
+                WpfWindowHost.Show(window);
+                window.UpdateLayout();
+
+                var scrollViewer = Assert.IsAssignableFrom<ScrollViewer>(
+                    VisualTreeTestHelper.FindDescendant<ScrollViewer>(listBox));
+                Assert.True(scrollViewer.CanContentScroll);
+                Assert.True(scrollViewer.ScrollableHeight > 0);
+
+                var initialOffset = scrollViewer.VerticalOffset;
+                var handled = MouseWheelScrollBehavior.HandlePreviewMouseWheel(
+                    scrollViewer,
+                    listBox,
+                    -Mouse.MouseWheelDeltaForOneLine);
+                window.UpdateLayout();
+
+                var expectedLineCount = SystemParameters.WheelScrollLines < 0
+                    ? Math.Max(1d, Math.Round(scrollViewer.ViewportHeight * 0.9d))
+                    : Math.Max(1, SystemParameters.WheelScrollLines);
+                Assert.True(handled);
+                Assert.InRange(scrollViewer.VerticalOffset - initialOffset, expectedLineCount - 1d, expectedLineCount + 1d);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void MouseWheelScrollBehavior_is_enabled_application_wide()
     {
         WpfTestHost.RunInSta(() =>
