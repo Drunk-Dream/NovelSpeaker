@@ -73,11 +73,13 @@
 
 完成成果：Coordinator 的用户命令及 Books/Regex/Provider/Settings 已提交变化进入既有串行边界，以 PlaybackRuntime 唯一拥有 Book/Source、位置、配置、恢复位置、失败窗口和高层状态。目标内容与合成准备不停止旧音频、不保存目标或释放旧文件保护；验证合法目标与来源后一次 commit，随后退役旧 session/prefetch、保存 immutable checkpoint 并执行音频/预取 effects。准备失败、取消及忽略取消的迟到内容保留旧会话；commit 后 checkpoint 失败保留目标并允许恢复，不重拼旧字段。stop/clear/shutdown 保持稳定保存边界，metadata-only 不打断音频，Provider 与语速变化作用于下一句，Regex 按来源位置重新映射；连续跳过 3 段后暂停及显式恢复清零窗口由 runtime transition 维护。删除 StartNewSessionAsync、字段级 rollback、旧 session/Book/Provider/snapshot alias、自由拼装 snapshot 和 SegmentRunner 的合成播放一体入口；音频回调接入 runtime 的最小桥接恢复编译，AudioController/epoch 与低层回调最终收敛仍归 T006。保留并迁移 checkpoint、失败恢复、Source/Regex 与流水线核心测试，新增内容准备失败/取消、打开期间 removal/metadata、旧音频保护、Settings/Provider 提交与下一句、合成/checkpoint 等待期间的配置重验、Stop 后服务选择/清空与 Regex 刷新/取消、Regex 重映射保留音频回调、导航内容读取及 Settings/Provider 事实预取取消、跨句定时停止、捕获旧身份取消、结束 checkpoint 失败退役、损坏音频重生成取消和空内容异常覆盖，更新架构测试旧类型引用；Playback unit 68/68、相关 Integration 140/140、Architecture 26/26、Application Release build（0 warning/error）、format 与 diff 检查通过。完整 solution 门禁留给 T007；无持久化变化、一次性仓库产物、环境限制或长期文档冲突。
 
-## [ ] T006（P0）：收敛 Audio effect、异步回调与 Snapshot 投影
+## [x] T006（P0）：收敛 Audio effect、异步回调与 Snapshot 投影
 
 依赖：T005。
 
 目标：让低层音频只作为带稳定 session identity 的 effect/result 输入，Snapshot 由 authoritative runtime 纯投影；删除重复 audio state、冗余 epoch 判断及无价值代理层。
+
+完成成果：低层 completed/failed/snapshot 结果携带源快照、Playback session ID 与本地 AudioGeneration；Playback runtime 仅接纳当前 session 和当前音频 generation 的结果，保留 Regex 重映射期间有效音频回调。移除高层 EventEpoch 和无独立职责的 PlaybackAudioController，Coordinator/SegmentRunner 直接消费 local audio port。新增迟到旧 session 三类回调及完成回调身份覆盖；Application focused tests 47/47、PlaybackCoordinator integration 124/124、Release solution build（0 warning/error）、solution format verify 与 diff 检查通过。无持久化变化。
 
 ## [ ] T007（P0）：清理 Playback 旧状态体系并完成 Phase B 验收
 

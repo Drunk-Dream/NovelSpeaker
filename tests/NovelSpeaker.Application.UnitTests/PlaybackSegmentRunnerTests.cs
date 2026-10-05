@@ -16,9 +16,8 @@ public sealed class PlaybackSegmentRunnerTests
     {
         var audioProvider = new RecordingAudioProvider();
         audioProvider.Enqueue(new AudioGenerationResult("cached.mp3", true, null));
-        var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
-        await using var audioController = new PlaybackAudioController(localCoordinator);
-        var runner = new PlaybackSegmentRunner(audioProvider, audioController);
+        await using var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
+        var runner = new PlaybackSegmentRunner(audioProvider, localCoordinator);
 
         var request = new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 240, ForceInvalidate: false);
         var audio = await runner.PrepareAsync(request, null, CancellationToken.None);
@@ -36,9 +35,8 @@ public sealed class PlaybackSegmentRunnerTests
     {
         var audioProvider = new RecordingAudioProvider();
         audioProvider.Enqueue(new AudioGenerationResult("generated.mp3", false, null));
-        var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
-        await using var audioController = new PlaybackAudioController(localCoordinator);
-        var runner = new PlaybackSegmentRunner(audioProvider, audioController);
+        await using var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
+        var runner = new PlaybackSegmentRunner(audioProvider, localCoordinator);
 
         var request = new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: true);
         var audio = await runner.PrepareAsync(request, null, CancellationToken.None);
@@ -61,9 +59,8 @@ public sealed class PlaybackSegmentRunnerTests
             null,
             null);
         audioProvider.Enqueue(new AudioGenerationResult(null, false, failure));
-        var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
-        await using var audioController = new PlaybackAudioController(localCoordinator);
-        var runner = new PlaybackSegmentRunner(audioProvider, audioController);
+        await using var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
+        var runner = new PlaybackSegmentRunner(audioProvider, localCoordinator);
 
         var request = new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: false);
         var audio = await runner.PrepareAsync(request, null, CancellationToken.None);
@@ -82,9 +79,8 @@ public sealed class PlaybackSegmentRunnerTests
         {
             ExceptionToThrow = new OperationCanceledException(cancellation.Token)
         };
-        var runner = new PlaybackSegmentRunner(
-            audioProvider,
-            new PlaybackAudioController(new RecordingLocalAudioPlaybackCoordinator()));
+        await using var localCoordinator = new RecordingLocalAudioPlaybackCoordinator();
+        var runner = new PlaybackSegmentRunner(audioProvider, localCoordinator);
 
         await Assert.ThrowsAsync<OperationCanceledException>(() => runner.PrepareAsync(
             new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: false),
@@ -159,9 +155,9 @@ public sealed class PlaybackSegmentRunnerTests
 
         public event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
-        public event EventHandler? PlaybackCompleted { add { } remove { } }
+        public event EventHandler<LocalAudioPlaybackSnapshot>? PlaybackCompleted { add { } remove { } }
 
-        public event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed { add { } remove { } }
+        public event EventHandler<LocalAudioPlaybackFailure>? PlaybackFailed { add { } remove { } }
 
         public Task StartAsync(LocalAudioPlaybackRequest request, CancellationToken cancellationToken)
         {
@@ -175,7 +171,8 @@ public sealed class PlaybackSegmentRunnerTests
                 request.ResumePositionMilliseconds,
                 1000,
                 null,
-                request.IsUsingCache);
+                request.IsUsingCache,
+                PlaybackSessionId: request.PlaybackSessionId);
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
             return Task.CompletedTask;
         }

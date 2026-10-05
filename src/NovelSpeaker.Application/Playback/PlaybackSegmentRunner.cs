@@ -26,14 +26,14 @@ internal sealed record PlaybackSegmentRunResult(
 internal sealed class PlaybackSegmentRunner
 {
     private readonly IAudioGenerationProvider _audioProvider;
-    private readonly PlaybackAudioController _audioController;
+    private readonly ILocalAudioPlaybackCoordinator _localAudio;
 
     public PlaybackSegmentRunner(
         IAudioGenerationProvider audioProvider,
-        PlaybackAudioController audioController)
+        ILocalAudioPlaybackCoordinator localAudio)
     {
         _audioProvider = audioProvider;
-        _audioController = audioController;
+        _localAudio = localAudio;
     }
 
     public async Task<AudioGenerationResult> PrepareAsync(
@@ -63,14 +63,14 @@ internal sealed class PlaybackSegmentRunner
     {
         if (!audio.IsSuccess)
         {
-            return new PlaybackSegmentRunResult(audio, _audioController.CurrentSnapshot);
+            return new PlaybackSegmentRunResult(audio, _localAudio.CurrentSnapshot);
         }
 
         cancellationToken.ThrowIfCancellationRequested();
         if (request.ValidateContextAsync is not null)
             await request.ValidateContextAsync(cancellationToken).ConfigureAwait(false);
 
-        await _audioController.StartAsync(
+        await _localAudio.StartAsync(
             new LocalAudioPlaybackRequest(
                 audio.FilePath!,
                 request.DisplayTitle,
@@ -82,8 +82,6 @@ internal sealed class PlaybackSegmentRunner
                 request.AudioRequest.SessionId),
             cancellationToken).ConfigureAwait(false);
 
-        return new PlaybackSegmentRunResult(
-            audio,
-            _audioController.CurrentSnapshot);
+        return new PlaybackSegmentRunResult(audio, _localAudio.CurrentSnapshot);
     }
 }

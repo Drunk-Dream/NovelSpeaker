@@ -159,7 +159,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<ISourceContentReader>(provider.GetRequiredService<ISourceContentReader>());
                 Assert.IsAssignableFrom<IAudioPlayer>(provider.GetRequiredService<IAudioPlayer>());
                 Assert.IsType<LocalAudioPlaybackCoordinator>(provider.GetRequiredService<ILocalAudioPlaybackCoordinator>());
-                Assert.IsType<PlaybackAudioController>(provider.GetRequiredService<PlaybackAudioController>());
                 Assert.IsType<PlaybackCoordinator>(provider.GetRequiredService<PlaybackCoordinator>());
                 Assert.IsAssignableFrom<IMediaControlCoordinator>(
                     provider.GetRequiredService<IMediaControlCoordinator>());

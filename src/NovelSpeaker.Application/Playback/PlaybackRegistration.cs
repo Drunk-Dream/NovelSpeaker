@@ -19,8 +19,6 @@ public static class PlaybackRegistration
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, PlaybackContentResolver>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
-        services.TryAddSingleton<PlaybackAudioController>(serviceProvider =>
-            new PlaybackAudioController(serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>()));
         services.TryAddSingleton<PlaybackSegmentRunner>();
         services.TryAddSingleton<PlaybackRecoveryPolicy>();
         services.TryAddSingleton<PlaybackProgressController>();
@@ -32,7 +30,7 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<PlaybackSegmentRunner>(),
                 serviceProvider.GetRequiredService<PlaybackRecoveryPolicy>(),
                 serviceProvider.GetRequiredService<IAudioCacheProtectionRegistry>(),
-                serviceProvider.GetRequiredService<PlaybackAudioController>(),
+                serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>(),
                 serviceProvider.GetRequiredService<PlaybackProgressController>(),
                 serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
                 serviceProvider.GetRequiredService<IAppSettingsService>(),

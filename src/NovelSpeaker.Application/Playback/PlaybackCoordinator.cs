@@ -29,7 +29,7 @@ public sealed class PlaybackCoordinator :
     private readonly PlaybackSegmentRunner _segmentRunner;
     private readonly PlaybackRecoveryPolicy _recoveryPolicy;
     private readonly IAudioCacheProtectionRegistry _audioCacheProtectionRegistry;
-    private readonly PlaybackAudioController _audioController;
+    private readonly ILocalAudioPlaybackCoordinator _localAudio;
     private readonly PlaybackProgressController _progressController;
     private readonly IPlaybackPrefetchController _prefetchController;
     private readonly IAppSettingsService _appSettingsService;
@@ -56,7 +56,7 @@ public sealed class PlaybackCoordinator :
         PlaybackSegmentRunner segmentRunner,
         PlaybackRecoveryPolicy recoveryPolicy,
         IAudioCacheProtectionRegistry audioCacheProtectionRegistry,
-        PlaybackAudioController audioController,
+        ILocalAudioPlaybackCoordinator localAudio,
         PlaybackProgressController progressController,
         IPlaybackPrefetchController prefetchController,
         IAppSettingsService appSettingsService,
@@ -70,7 +70,7 @@ public sealed class PlaybackCoordinator :
         _segmentRunner = segmentRunner;
         _recoveryPolicy = recoveryPolicy;
         _audioCacheProtectionRegistry = audioCacheProtectionRegistry;
-        _audioController = audioController;
+        _localAudio = localAudio;
         _progressController = progressController;
         _prefetchController = prefetchController;
         _appSettingsService = appSettingsService;
@@ -82,22 +82,22 @@ public sealed class PlaybackCoordinator :
             ProcessEventCommandAsync,
             PublishEventCommandFailureSafely);
         var startupVolume = PlaybackVolume.Normalize(_appSettingsService.Current.PlaybackVolume);
-        _audioController.SetVolume(startupVolume);
+        _localAudio.SetVolume(startupVolume);
         _stopTimer = new PlaybackStopTimer(
             _timeProvider,
             PauseFromTimerAsync,
             PublishStopTimerFailureSafely);
 
-        _audioController.SnapshotChanged += OnLocalSnapshotChanged;
-        _audioController.PlaybackCompleted += OnLocalPlaybackCompleted;
-        _audioController.PlaybackFailed += OnLocalPlaybackFailed;
+        _localAudio.SnapshotChanged += OnLocalSnapshotChanged;
+        _localAudio.PlaybackCompleted += OnLocalPlaybackCompleted;
+        _localAudio.PlaybackFailed += OnLocalPlaybackFailed;
         _appSettingsService.Changed += OnSettingsChanged;
         _selectedProvider.Changed += OnProvidersChanged;
         if (_sourceChanges is not null) _sourceChanges.Changed += OnBookCommittedChange;
         if (_regexWorkspace is not null) _regexWorkspace.Changed += OnRegexRulesChanged;
     }
 
-    public PlaybackSnapshot CurrentSnapshot => PlaybackSnapshotProjector.Project(_runtime.Current, _audioController.Volume);
+    public PlaybackSnapshot CurrentSnapshot => PlaybackSnapshotProjector.Project(_runtime.Current, _localAudio.Volume);
 
     public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
@@ -216,17 +216,17 @@ public sealed class PlaybackCoordinator :
         lock (_volumePersistenceGate)
         {
             ThrowIfDisposed();
-            var previous = _audioController.Volume;
-            _audioController.SetVolume(volume);
+            var previous = _localAudio.Volume;
+            _localAudio.SetVolume(volume);
             PublishSnapshot();
-            if (_audioController.Volume != previous) ScheduleVolumePersistence(_audioController.Volume);
+            if (_localAudio.Volume != previous) ScheduleVolumePersistence(_localAudio.Volume);
         }
     }
 
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs change)
     {
         if (change.IsSnapshotReplacement || change.Previous.DefaultSpeakSpeed != change.Current.DefaultSpeakSpeed)
-            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.SettingsChanged, Guid.Empty, null, null, 0));
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.SettingsChanged, Guid.Empty, null, null));
         if (!change.IsSnapshotReplacement && change.Previous.PlaybackVolume == change.Current.PlaybackVolume) return;
         lock (_volumePersistenceGate)
         {
@@ -234,7 +234,7 @@ public sealed class PlaybackCoordinator :
             if (!change.IsSnapshotReplacement && _hasPendingVolumePersistence && _pendingVolume != change.Current.PlaybackVolume) return;
             _hasPendingVolumePersistence = false;
             _volumePersistenceCancellation?.Cancel();
-            _audioController.SetVolume(change.Current.PlaybackVolume);
+            _localAudio.SetVolume(change.Current.PlaybackVolume);
             PublishSnapshot();
         }
     }
@@ -242,7 +242,7 @@ public sealed class PlaybackCoordinator :
     private void OnProvidersChanged(object? sender, SpeechProvidersChangedEventArgs change)
     {
         if (!_disposed && change.AffectsSynthesis)
-            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.ProviderChanged, Guid.Empty, null, null, 0));
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.ProviderChanged, Guid.Empty, null, null));
     }
 
     public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken)
@@ -263,7 +263,7 @@ public sealed class PlaybackCoordinator :
         if (change is BookCommittedChange.MetadataCommitted)
         {
             // Metadata facts also apply to a Book whose opening command is still resolving.
-            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, Guid.Empty, null, null, 0, change));
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, Guid.Empty, null, null, change));
             return;
         }
         var preparation = _runtime.ActivePreparation;
@@ -272,14 +272,14 @@ public sealed class PlaybackCoordinator :
         if (current.Book?.BookId != change.BookId)
         {
             if (preparation is { IsActive: true } && preparation.Book.BookId == change.BookId)
-                _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, Guid.Empty, null, null, 0, change, preparation.Book.SourceContext));
+                _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, Guid.Empty, null, null, change, preparation.Book.SourceContext));
             return;
         }
         var invalidates = InvalidatesBookContext(change, current.Book.SourceContext);
         if (change is not BookCommittedChange.MetadataCommitted && !invalidates) return;
         if (invalidates) _runtime.CancelSession(current.Identity);
         _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged,
-            current.Identity?.SessionId ?? Guid.Empty, null, null, 0, change, current.Book.SourceContext));
+            current.Identity?.SessionId ?? Guid.Empty, null, null, change, current.Book.SourceContext));
     }
 
     private static bool InvalidatesBookContext(BookCommittedChange change, ActiveSourceContext? context) => change switch
@@ -294,16 +294,16 @@ public sealed class PlaybackCoordinator :
     private void OnRegexRulesChanged(object? sender, RegexReplacementRulesChangedEventArgs change)
     {
         if (!_disposed && change.AffectsSpeechProfile)
-            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.RegexChanged, Guid.Empty, null, null, 0));
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.RegexChanged, Guid.Empty, null, null));
     }
 
     private async Task DiscardSourceContextAsync(CancellationToken cancellationToken)
     {
         _stopTimer.Cancel();
-        var hadAudio = _runtime.Current.Audio.HasLoadedAudio;
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
         var transition = _runtime.Clear(cancellationToken);
         // The Source is already invalid: never checkpoint against its obsolete catalog.
-        await ExecuteRetirementAsync(transition, hadAudio).ConfigureAwait(false);
+        await ExecuteRetirementAsync(transition, stopAudio).ConfigureAwait(false);
         _runtime.ReportMessage("活动来源目录已更新，请重新打开书籍。");
         PublishSnapshot();
     }
@@ -327,9 +327,9 @@ public sealed class PlaybackCoordinator :
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _commandProcessor.BeginShutdown();
         _runtime.CancelSession(_runtime.Current.Identity);
-        _audioController.SnapshotChanged -= OnLocalSnapshotChanged;
-        _audioController.PlaybackCompleted -= OnLocalPlaybackCompleted;
-        _audioController.PlaybackFailed -= OnLocalPlaybackFailed;
+        _localAudio.SnapshotChanged -= OnLocalSnapshotChanged;
+        _localAudio.PlaybackCompleted -= OnLocalPlaybackCompleted;
+        _localAudio.PlaybackFailed -= OnLocalPlaybackFailed;
         Exception? failure = null;
         async Task ObserveAsync(Func<Task> effect)
         {
@@ -339,13 +339,13 @@ public sealed class PlaybackCoordinator :
         await ObserveAsync(FlushVolumePersistenceAsync).ConfigureAwait(false);
         await _commandProcessor.WaitForIdleAsync().ConfigureAwait(false);
         CaptureDevicePosition();
-        var hadAudio = _runtime.Current.Audio.HasLoadedAudio;
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
         var stop = _runtime.Stop("已停止当前播放。");
         await ObserveAsync(() => ExecuteCheckpointsAsync(stop, CancellationToken.None)).ConfigureAwait(false);
-        await ObserveAsync(() => ExecuteRetirementAsync(stop, hadAudio)).ConfigureAwait(false);
+        await ObserveAsync(() => ExecuteRetirementAsync(stop, stopAudio)).ConfigureAwait(false);
         _runtime.Dispose();
         await ObserveAsync(() => _commandProcessor.DisposeAsync().AsTask()).ConfigureAwait(false);
-        await ObserveAsync(() => _audioController.DisposeAsync().AsTask()).ConfigureAwait(false);
+        await ObserveAsync(() => _localAudio.DisposeAsync().AsTask()).ConfigureAwait(false);
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
@@ -391,8 +391,8 @@ public sealed class PlaybackCoordinator :
         if (current.Identity is null) return;
         if (current.Audio.HasLoadedAudio)
         {
-            await _audioController.PauseAsync(cancellationToken).ConfigureAwait(false);
-            AcceptDeviceSnapshot(_audioController.CurrentSnapshot);
+            await _localAudio.PauseAsync(cancellationToken).ConfigureAwait(false);
+            AcceptDeviceSnapshot(_localAudio.CurrentSnapshot);
         }
         cancellationToken.ThrowIfCancellationRequested();
         var transition = _runtime.Pause();
@@ -421,8 +421,8 @@ public sealed class PlaybackCoordinator :
         if (current.Book is null || current.Position is null) return;
         if (current.Audio.HasLoadedAudio)
         {
-            await _audioController.ResumeAsync(cancellationToken).ConfigureAwait(false);
-            AcceptDeviceSnapshot(_audioController.CurrentSnapshot);
+            await _localAudio.ResumeAsync(cancellationToken).ConfigureAwait(false);
+            AcceptDeviceSnapshot(_localAudio.CurrentSnapshot);
             _runtime.ResetFailureWindow();
             PublishSnapshot();
             await RefreshPrefetchWindowAsync(_runtime.Current, null, cancellationToken).ConfigureAwait(false);
@@ -452,9 +452,9 @@ public sealed class PlaybackCoordinator :
         // A checkpoint failure leaves the current session available for another attempt.
         await SaveCurrentAsync(cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
-        var hadAudio = _runtime.Current.Audio.HasLoadedAudio;
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
         var stop = _runtime.Stop("已停止当前播放。");
-        await ExecuteRetirementAsync(stop, hadAudio).ConfigureAwait(false);
+        await ExecuteRetirementAsync(stop, stopAudio).ConfigureAwait(false);
         PublishSnapshot();
     }
 
@@ -463,9 +463,9 @@ public sealed class PlaybackCoordinator :
         _stopTimer.Cancel();
         CaptureDevicePosition();
         await SaveCurrentAsync(cancellationToken).ConfigureAwait(false);
-        var hadAudio = _runtime.Current.Audio.HasLoadedAudio;
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
         var clear = _runtime.Clear(cancellationToken);
-        await ExecuteRetirementAsync(clear, hadAudio).ConfigureAwait(false);
+        await ExecuteRetirementAsync(clear, stopAudio).ConfigureAwait(false);
         PublishSnapshot();
     }
 
@@ -672,15 +672,14 @@ public sealed class PlaybackCoordinator :
             // A sentence has not started during synthesis. Reprepare on a committed
             // selection/configuration change rather than playing its obsolete audio.
             if (!HasSameSynthesisProvider(provider, latestProvider)) continue;
-            var hadAudio = _runtime.Current.Audio.HasLoadedAudio;
-            var device = _audioController.CurrentSnapshot;
+            var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
+            var device = _localAudio.CurrentSnapshot;
             var retiringPosition = MatchesDevice(_runtime.Current, device) && device.State is PlaybackState.Playing or PlaybackState.Paused
                 ? device.PositionMilliseconds : _runtime.Current.PositionForSave;
             var transition = _runtime.CommitReplacement(preparation.Replacement!, preparationToken, checkpoint, retiringPosition);
             if (!transition.IsAccepted) throw new OperationCanceledException(ct);
             if (cancelStopTimer) _stopTimer.Cancel();
-            _commandProcessor.AdvanceEventEpoch();
-            await ExecuteReplacementEffectsAsync(transition, hadAudio, request, audio, ct).ConfigureAwait(false);
+            await ExecuteReplacementEffectsAsync(transition, stopAudio, request, audio, ct).ConfigureAwait(false);
             return;
         }
     }
@@ -689,13 +688,13 @@ public sealed class PlaybackCoordinator :
         first is null ? second is null : second is not null && first.ProviderId == second.ProviderId &&
             ProviderSynthesisFingerprint.Create(first.Provider).Equals(ProviderSynthesisFingerprint.Create(second.Provider));
 
-    private async Task ExecuteReplacementEffectsAsync(PlaybackTransition transition, bool hadAudio,
+    private async Task ExecuteReplacementEffectsAsync(PlaybackTransition transition, bool stopAudio,
         PlaybackSegmentRunRequest? request, AudioGenerationResult? audio, CancellationToken ct)
     {
         // Retirement cannot be cancelled halfway by the caller after the replacement is
         // committed. Checkpoint/device failures never roll back a committed runtime.
         Exception? effectFailure = null;
-        try { await ExecuteRetirementAsync(transition, hadAudio).ConfigureAwait(false); }
+        try { await ExecuteRetirementAsync(transition, stopAudio).ConfigureAwait(false); }
         catch (Exception exception) { effectFailure = exception; }
         try { await ExecuteCheckpointsAsync(transition, ct).ConfigureAwait(false); }
         catch (Exception exception) { effectFailure ??= exception; }
@@ -743,7 +742,7 @@ public sealed class PlaybackCoordinator :
             effect.Lifetime.Cancel();
             try
             {
-                if (stopAudio) await _audioController.StopAsync(CancellationToken.None).ConfigureAwait(false);
+                if (stopAudio) await _localAudio.StopAsync(CancellationToken.None).ConfigureAwait(false);
             }
             catch (Exception exception) { failure ??= exception; }
             try { await _prefetchController.CancelAsync(effect.Lifetime.Identity.SessionId, CancellationToken.None).ConfigureAwait(false); }
@@ -835,10 +834,10 @@ public sealed class PlaybackCoordinator :
         var decision = _runtime.RecordFailure(_recoveryPolicy, failure.Kind, failure.Message, corruptAudio);
         if (decision.ShouldRetryCurrentSegment)
         {
-            if (current.Audio.HasLoadedAudio)
+            if (HasCurrentDeviceAudio(current))
             {
-                await _audioController.StopAsync(token).ConfigureAwait(false);
-                AcceptDeviceSnapshot(_audioController.CurrentSnapshot);
+                await _localAudio.StopAsync(token).ConfigureAwait(false);
+                AcceptDeviceSnapshot(_localAudio.CurrentSnapshot);
             }
             token.ThrowIfCancellationRequested();
             _runtime.BeginPlayback(false, recovering: true);
@@ -902,15 +901,19 @@ public sealed class PlaybackCoordinator :
         ct.ThrowIfCancellationRequested();
     }
 
-    // Audio callback wiring and epoch checks remain for the T006 effect/result cleanup.
-    // Their accepted data enters the same runtime; no session or snapshot mirror exists.
-    private void OnLocalPlaybackCompleted(object? sender, EventArgs e) => EnqueueAudioEvent(PlaybackEventCommandKind.Completed, _audioController.CurrentSnapshot);
-    private void OnLocalPlaybackFailed(object? sender, PlaybackErrorEventArgs error) => EnqueueAudioEvent(PlaybackEventCommandKind.Failed, _audioController.CurrentSnapshot, error);
+    private void OnLocalPlaybackCompleted(object? sender, LocalAudioPlaybackSnapshot snapshot) =>
+        EnqueueAudioEvent(PlaybackEventCommandKind.Completed, snapshot);
+
+    private void OnLocalPlaybackFailed(object? sender, LocalAudioPlaybackFailure failure) =>
+        EnqueueAudioEvent(PlaybackEventCommandKind.Failed, failure.Snapshot, failure.Error);
+
     private void OnLocalSnapshotChanged(object? sender, LocalAudioPlaybackSnapshot snapshot) => EnqueueAudioEvent(PlaybackEventCommandKind.SnapshotChanged, snapshot);
 
-    private void EnqueueAudioEvent(PlaybackEventCommandKind kind, LocalAudioPlaybackSnapshot snapshot, PlaybackErrorEventArgs? error = null) =>
-        _commandProcessor.Enqueue(new(kind, snapshot.PlaybackSessionId ?? _runtime.Current.Identity?.SessionId,
-            snapshot, error, _commandProcessor.CurrentEventEpoch));
+    private void EnqueueAudioEvent(PlaybackEventCommandKind kind, LocalAudioPlaybackSnapshot snapshot, PlaybackErrorEventArgs? error = null)
+    {
+        if (snapshot.PlaybackSessionId is not { } sessionId) return;
+        _commandProcessor.Enqueue(new(kind, sessionId, snapshot, error));
+    }
 
     private async Task ProcessEventCommandAsync(PlaybackEventCommand command, CancellationToken ct)
     {
@@ -958,8 +961,7 @@ public sealed class PlaybackCoordinator :
             }
             var current = _runtime.Current;
             if (current.Identity is not { } identity || !_runtime.IsCurrent(identity) || command.SessionId != identity.SessionId ||
-                command.EventEpoch != _commandProcessor.CurrentEventEpoch || command.Snapshot is not { } snapshot ||
-                snapshot != _audioController.CurrentSnapshot || !MatchesDevice(current, snapshot)) return;
+                command.Snapshot is not { } snapshot || !MatchesDevice(current, snapshot)) return;
             if (command.Kind == PlaybackEventCommandKind.SnapshotChanged)
             {
                 if (snapshot.State is PlaybackState.Playing or PlaybackState.Paused) { AcceptDeviceSnapshot(snapshot); PublishSnapshot(); }
@@ -990,24 +992,34 @@ public sealed class PlaybackCoordinator :
 
     private async Task FinishAsync(string message, CancellationToken ct)
     {
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
         var stop = _runtime.Stop(message);
         Exception? failure = null;
         try { await ExecuteCheckpointsAsync(stop, ct).ConfigureAwait(false); }
         catch (Exception exception) { failure = exception; }
-        try { await ExecuteRetirementAsync(stop, false).ConfigureAwait(false); }
+        try { await ExecuteRetirementAsync(stop, stopAudio).ConfigureAwait(false); }
         catch (Exception exception) { failure ??= exception; }
         PublishSnapshot();
         if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
-    private static bool MatchesDevice(PlaybackRuntimeState state, LocalAudioPlaybackSnapshot snapshot) =>
+    private bool MatchesDevice(PlaybackRuntimeState state, LocalAudioPlaybackSnapshot snapshot) =>
         state.Identity is not null && snapshot.PlaybackSessionId == state.Identity.SessionId &&
-        snapshot.BookId == state.Book?.BookId;
+        snapshot.BookId == state.Book?.BookId && state.Position is not null &&
+        snapshot.AudioGeneration == _localAudio.CurrentSnapshot.AudioGeneration;
+
+    private bool HasCurrentDeviceAudio(PlaybackRuntimeState state)
+    {
+        var device = _localAudio.CurrentSnapshot;
+        return state.Audio.HasLoadedAudio ||
+            MatchesDevice(state, device) &&
+            (device.State is PlaybackState.Preparing or PlaybackState.Playing or PlaybackState.Paused or PlaybackState.Faulted);
+    }
 
     private void CaptureDevicePosition()
     {
         var state = _runtime.Current;
-        var snapshot = _audioController.CurrentSnapshot;
+        var snapshot = _localAudio.CurrentSnapshot;
         if (MatchesDevice(state, snapshot))
             _runtime.CaptureCheckpointPosition(state.Identity!, snapshot.State is PlaybackState.Stopped or PlaybackState.Faulted
                 ? state.PositionForSave : snapshot.PositionMilliseconds);
@@ -1016,8 +1028,8 @@ public sealed class PlaybackCoordinator :
     private void AcceptDeviceSnapshot(LocalAudioPlaybackSnapshot snapshot)
     {
         var current = _runtime.Current;
-        if (!MatchesDevice(current, snapshot) || current.Position is not { } position) return;
-        _runtime.AcceptAudio(new(current.Identity!, position, snapshot.State,
+        if (!MatchesDevice(current, snapshot) || current.Identity is not { } identity || current.Position is not { } position) return;
+        _runtime.AcceptAudio(new(identity, position, snapshot.State,
             new(snapshot.State is PlaybackState.Playing or PlaybackState.Paused, snapshot.PositionMilliseconds,
                 snapshot.DurationMilliseconds, snapshot.IsUsingCache),
             snapshot.Message ?? (snapshot.State == PlaybackState.Paused && current.State == PlaybackState.Paused ? current.Message : null)));
@@ -1026,13 +1038,13 @@ public sealed class PlaybackCoordinator :
     private void PublishEventCommandFailureSafely()
     {
         if (_disposed) return;
-        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.EventProcessingFailed, Guid.Empty, null, null, 0));
+        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.EventProcessingFailed, Guid.Empty, null, null));
     }
 
     private void PublishStopTimerFailureSafely()
     {
         if (_disposed) return;
-        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.StopTimerFailed, Guid.Empty, null, null, 0));
+        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.StopTimerFailed, Guid.Empty, null, null));
     }
 
     private Task RunSerializedAsync(Func<CancellationToken, Task> action, CancellationToken ct) =>

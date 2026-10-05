@@ -16,6 +16,53 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed partial class PlaybackCoordinatorTests
 {
+    [Fact]
+    public async Task Late_audio_snapshot_completion_and_failure_from_replaced_session_are_ignored()
+    {
+        var local = new FakeLocalAudioPlaybackCoordinator();
+        var generation = new FakeAudioGenerationProvider();
+        var progress = new FakeReadingProgressStore();
+        await using var coordinator = CreateCoordinator(local, audioProvider: generation, readingProgressStore: progress);
+        await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
+        var oldAudio = local.CurrentSnapshot;
+
+        var pendingAudio = generation.EnqueuePendingSuccess("replacement.mp3");
+        var jump = coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
+        await pendingAudio.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        local.RaiseHistoricalSnapshot(oldAudio with { PositionMilliseconds = 700 });
+        local.RaiseHistoricalCompleted(oldAudio with { State = PlaybackState.Stopped, PositionMilliseconds = 1800 });
+        local.RaiseHistoricalFailed(oldAudio with { State = PlaybackState.Faulted }, PlaybackErrorKind.AudioDecode, "迟到的音频错误");
+        pendingAudio.CompleteSuccess();
+        await jump;
+
+        var newAudio = local.CurrentSnapshot;
+        Assert.NotEqual(oldAudio.PlaybackSessionId, newAudio.PlaybackSessionId);
+        Assert.Equal(1, newAudio.SegmentIndex);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+
+        var acceptedProgress = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnSnapshotChanged(object? _, PlaybackSnapshot snapshot)
+        {
+            if (snapshot.SegmentIndex == 1 && snapshot.PositionMilliseconds == 123)
+                acceptedProgress.TrySetResult();
+        }
+        coordinator.SnapshotChanged += OnSnapshotChanged;
+        try
+        {
+            local.PublishSnapshot(newAudio with { PositionMilliseconds = 123 });
+            await acceptedProgress.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally
+        {
+            coordinator.SnapshotChanged -= OnSnapshotChanged;
+        }
+
+        Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(123, coordinator.CurrentSnapshot.PositionMilliseconds);
+        Assert.DoesNotContain(progress.SavedProgress,
+            update => update.SegmentIndex == 0 && update.AudioPositionMilliseconds == 1800);
+    }
+
     [Theory]
     [InlineData("jump", true)]
     [InlineData("segment", true)]
@@ -488,7 +535,7 @@ public sealed partial class PlaybackCoordinatorTests
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.Message == "播放事件处理失败，请稍后重试。");
 
         Assert.False(protection.IsProtected(request.FilePath));
-        Assert.Contains(request.PlaybackSessionId!.Value, prefetch.CancelledSessions);
+        Assert.Contains(request.PlaybackSessionId, prefetch.CancelledSessions);
         progress.SaveFailure = null;
     }
 
@@ -576,7 +623,7 @@ public sealed partial class PlaybackCoordinatorTests
 
         Assert.False(protection.IsProtected(old.FilePath));
         Assert.True(protection.IsProtected(local.LastStartedRequest!.FilePath));
-        Assert.Contains(old.PlaybackSessionId!.Value, prefetch.CancelledSessions);
+        Assert.Contains(old.PlaybackSessionId, prefetch.CancelledSessions);
     }
 
     [Theory]

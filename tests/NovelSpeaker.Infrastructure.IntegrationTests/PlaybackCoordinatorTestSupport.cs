@@ -32,16 +32,15 @@ public sealed partial class PlaybackCoordinatorTests
         IRegexReplacementRuleWorkspaceService? regexWorkspace = null,
         IAudioCacheProtectionRegistry? protectionRegistry = null)
     {
-        var audioController = new PlaybackAudioController(localCoordinator);
         return new PlaybackCoordinator(
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
             selectedProviderProvider ?? new FakeCurrentSpeechProvider(CreateRuleSelection(1, "默认规则")),
             new PlaybackSegmentRunner(
                 audioProvider ?? new FakeAudioGenerationProvider(),
-                audioController),
+                localCoordinator),
             new PlaybackRecoveryPolicy(),
             protectionRegistry ?? new AudioCacheProtectionRegistry(),
-            audioController,
+            localCoordinator,
             new PlaybackProgressController(readingProgressStore ?? new FakeReadingProgressStore()),
             prefetchScheduler ?? new FakePrefetchScheduler(),
             appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default),
@@ -399,6 +398,8 @@ public sealed partial class PlaybackCoordinatorTests
     {
         public LocalAudioPlaybackSnapshot CurrentSnapshot { get; private set; } = LocalAudioPlaybackSnapshot.Idle;
 
+        private long _audioGeneration;
+
         public double Volume { get; private set; } = PlaybackVolume.Default;
 
         public LocalAudioPlaybackRequest? LastStartedRequest { get; private set; }
@@ -415,9 +416,9 @@ public sealed partial class PlaybackCoordinatorTests
 
         public event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
-        public event EventHandler? PlaybackCompleted;
+        public event EventHandler<LocalAudioPlaybackSnapshot>? PlaybackCompleted;
 
-        public event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed;
+        public event EventHandler<LocalAudioPlaybackFailure>? PlaybackFailed;
 
         public Task StartAsync(LocalAudioPlaybackRequest request, CancellationToken cancellationToken)
         {
@@ -434,7 +435,8 @@ public sealed partial class PlaybackCoordinatorTests
                 null,
                 request.IsUsingCache,
                 PlaybackVolume.Default,
-                request.PlaybackSessionId);
+                request.PlaybackSessionId,
+                ++_audioGeneration);
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
             if (StartCallCount == CompleteOnStartCall)
             {
@@ -497,7 +499,23 @@ public sealed partial class PlaybackCoordinatorTests
                 State = PlaybackState.Stopped,
                 Message = "当前音频已播放完成。"
             };
-            PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+            SnapshotChanged?.Invoke(this, CurrentSnapshot);
+            PlaybackCompleted?.Invoke(this, CurrentSnapshot);
+        }
+
+        public void RaiseHistoricalSnapshot(LocalAudioPlaybackSnapshot snapshot) =>
+            SnapshotChanged?.Invoke(this, snapshot);
+
+        public void RaiseHistoricalCompleted(LocalAudioPlaybackSnapshot snapshot) =>
+            PlaybackCompleted?.Invoke(this, snapshot);
+
+        public void RaiseHistoricalFailed(LocalAudioPlaybackSnapshot snapshot, PlaybackErrorKind kind, string message) =>
+            PlaybackFailed?.Invoke(this, new(snapshot, new PlaybackErrorEventArgs(kind, message)));
+
+        public void PublishSnapshot(LocalAudioPlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+            SnapshotChanged?.Invoke(this, snapshot);
         }
 
         public bool TryRaiseCompleted()
@@ -513,7 +531,9 @@ public sealed partial class PlaybackCoordinatorTests
 
         public void RaiseFailed(PlaybackErrorKind kind, string message)
         {
-            PlaybackFailed?.Invoke(this, new PlaybackErrorEventArgs(kind, message));
+            CurrentSnapshot = CurrentSnapshot with { State = PlaybackState.Faulted, Message = message };
+            SnapshotChanged?.Invoke(this, CurrentSnapshot);
+            PlaybackFailed?.Invoke(this, new(CurrentSnapshot, new PlaybackErrorEventArgs(kind, message)));
         }
 
         public void SetPosition(long positionMilliseconds)
