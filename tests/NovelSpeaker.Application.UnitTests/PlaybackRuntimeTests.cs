@@ -92,7 +92,10 @@ public sealed class PlaybackRuntimeTests
         Assert.Same(runtime.Current, result.State);
         Assert.False(oldToken.IsCancellationRequested);
         Assert.Equal(0, protection.DisposeCount);
-        var checkpoint = Assert.Single(result.Effects.OfType<PlaybackCheckpointEffect>()).Progress;
+        var checkpoints = result.Effects.OfType<PlaybackCheckpointEffect>().ToArray();
+        Assert.Equal(2, checkpoints.Length);
+        Assert.Equal(0, checkpoints[0].Progress.SegmentIndex);
+        var checkpoint = checkpoints[1].Progress;
         Assert.Equal(new PlaybackProgressUpdate("book-1", 4, 1, 6, 321, target.Book.SourceContext), checkpoint);
         Assert.Same(result.State, Assert.Single(result.Effects.OfType<PlaybackRefreshPrefetchEffect>()).Session);
 
@@ -369,6 +372,23 @@ public sealed class PlaybackRuntimeTests
         var runtime = new PlaybackRuntime();
         Assert.True(runtime.CommitReplacement(runtime.PrepareReplacement(Target()).Replacement!, CancellationToken.None).IsAccepted);
         return runtime;
+    }
+
+    [Fact]
+    public void Cancellation_of_a_captured_old_identity_cannot_cancel_the_replacement()
+    {
+        using var runtime = Open();
+        var captured = runtime.Current.Identity!;
+        var replacement = runtime.CommitReplacement(runtime.PrepareReplacement(Target() with
+        { Book = Target().Book with { BookId = "book-2" } }).Replacement!, CancellationToken.None);
+        var token = runtime.SessionToken;
+
+        runtime.CancelSession(captured);
+        runtime.CancelWork("book-1", null);
+
+        Assert.False(token.IsCancellationRequested);
+        Assert.True(runtime.IsCurrent(runtime.Current.Identity!));
+        Retire(replacement);
     }
 
     private static PlaybackSessionTarget Target() => new(

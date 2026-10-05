@@ -29,7 +29,8 @@ public sealed partial class PlaybackCoordinatorTests
         FakeAppSettingsStore? appSettingsStore = null,
         TimeProvider? timeProvider = null,
         IBookSourceChangeSource? sourceChanges = null,
-        IRegexReplacementRuleWorkspaceService? regexWorkspace = null)
+        IRegexReplacementRuleWorkspaceService? regexWorkspace = null,
+        IAudioCacheProtectionRegistry? protectionRegistry = null)
     {
         var audioController = new PlaybackAudioController(localCoordinator);
         return new PlaybackCoordinator(
@@ -39,7 +40,7 @@ public sealed partial class PlaybackCoordinatorTests
                 audioProvider ?? new FakeAudioGenerationProvider(),
                 audioController),
             new PlaybackRecoveryPolicy(),
-            new AudioCacheProtectionRegistry(),
+            protectionRegistry ?? new AudioCacheProtectionRegistry(),
             audioController,
             new PlaybackProgressController(readingProgressStore ?? new FakeReadingProgressStore()),
             prefetchScheduler ?? new FakePrefetchScheduler(),
@@ -221,6 +222,10 @@ public sealed partial class PlaybackCoordinatorTests
         }
 
         public Dictionary<int, int> GetChapterCallCounts { get; } = [];
+        public Exception? ChapterFailure { get; set; }
+        public TaskCompletionSource? ChapterGate { get; set; }
+        public TaskCompletionSource ChapterRequested { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IgnoreChapterCancellation { get; set; }
 
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -240,21 +245,32 @@ public sealed partial class PlaybackCoordinatorTests
             return Task.FromResult<PlaybackBookContent?>(metadataOnly);
         }
 
-        public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+        public async Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
         {
             GetChapterCallCounts[chapterIndex] = GetChapterCallCounts.GetValueOrDefault(chapterIndex) + 1;
+            ChapterRequested.TrySetResult();
+            if (ChapterGate is { } gate)
+                await gate.Task.WaitAsync(IgnoreChapterCancellation ? CancellationToken.None : cancellationToken);
+            if (ChapterFailure is { } failure) throw failure;
             if (bookId != Book.BookId)
             {
-                return Task.FromResult<PlaybackChapterContent?>(null);
+                return null;
             }
 
-            return Task.FromResult<PlaybackChapterContent?>(Book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex));
+            return Book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex);
         }
     }
 
     private sealed class FakeCurrentSpeechProvider : TestCurrentSpeechProvider
     {
         private readonly Dictionary<ProviderId, ResolvedSpeechProvider> _rules = [];
+        public override event EventHandler<SpeechProvidersChangedEventArgs>? Changed;
+
+        public void CommitProvider(ResolvedSpeechProvider? provider)
+        {
+            SelectedProvider = provider;
+            Changed?.Invoke(this, new(true));
+        }
 
         public FakeCurrentSpeechProvider(ResolvedSpeechProvider? selectedProvider)
         {
@@ -329,6 +345,8 @@ public sealed partial class PlaybackCoordinatorTests
             return new PendingAudioResult(completionSource, filePath, started.Task);
         }
 
+        public bool ObserveCancellation { get; set; }
+
         public Task<AudioGenerationResult> GetAudioAsync(
             AudioGenerationRequest request,
             AudioGenerationPriority priority,
@@ -339,7 +357,8 @@ public sealed partial class PlaybackCoordinatorTests
             ActivityChanged?.Invoke(this, EventArgs.Empty);
             if (_results.Count > 0)
             {
-                return _results.Dequeue().Invoke();
+                var result = _results.Dequeue().Invoke();
+                return ObserveCancellation ? result.WaitAsync(cancellationToken) : result;
             }
 
             return Task.FromResult(new AudioGenerationResult($"audio-{Requests.Count}.mp3", false, null));
@@ -628,7 +647,8 @@ public sealed partial class PlaybackCoordinatorTests
             var previous = Settings;
             Settings = (Settings with
             {
-                PlaybackVolume = update.PlaybackVolume ?? Settings.PlaybackVolume
+                PlaybackVolume = update.PlaybackVolume ?? Settings.PlaybackVolume,
+                PrefetchCount = update.PrefetchCount ?? Settings.PrefetchCount
             }).Normalize();
             Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, Settings));
             UpdateCompleted.TrySetResult(update);

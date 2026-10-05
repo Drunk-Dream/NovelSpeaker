@@ -54,6 +54,36 @@ internal sealed record PlaybackAudioResult(
     PlaybackAudioFacts Audio,
     string? Message = null);
 
+// A pending target owns only cancellable preparation work, never playback truth.
+internal sealed class PlaybackPreparationLifetime : IDisposable
+{
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly object _gate = new();
+    private readonly Action<PlaybackPreparationLifetime> _release;
+    private bool _disposed;
+    public PlaybackPreparationLifetime(Books.PlaybackBookContent book, Action<PlaybackPreparationLifetime> release)
+    {
+        Book = book;
+        Token = _cancellation.Token;
+        _release = release;
+    }
+    public Books.PlaybackBookContent Book { get; private set; }
+    public void SetBook(Books.PlaybackBookContent book) => Book = book;
+    public CancellationToken Token { get; }
+    public bool IsActive { get { lock (_gate) return !_disposed; } }
+    public void Cancel() { lock (_gate) { if (!_disposed) _cancellation.Cancel(); } }
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _cancellation.Dispose();
+        }
+        _release(this);
+    }
+}
+
 /// <summary>
 /// The runtime owns current session resources. After replacement the retire effect
 /// owns disposal, so old work/protection is released only after the new commit.
@@ -61,6 +91,7 @@ internal sealed record PlaybackAudioResult(
 internal sealed class PlaybackSessionLifetime : IDisposable
 {
     private readonly CancellationTokenSource _cancellation = new();
+    private readonly object _cancellationGate = new();
     private IDisposable? _audioProtection;
     private bool _disposed;
 
@@ -82,10 +113,18 @@ internal sealed class PlaybackSessionLifetime : IDisposable
         previous?.Dispose();
     }
 
+    public void Cancel()
+    {
+        lock (_cancellationGate) { if (!_disposed) _cancellation.Cancel(); }
+    }
+
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        lock (_cancellationGate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+        }
         try
         {
             _cancellation.Cancel();

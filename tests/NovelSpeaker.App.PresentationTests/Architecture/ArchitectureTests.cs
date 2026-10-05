@@ -411,7 +411,7 @@ public sealed class ArchitectureTests
             ArchitectureRules.FindPlaybackCoordinatorRegistrations(Repository.ReadProductSourceFiles()));
         Assert.Empty(ArchitectureRules.FindPlaybackSessionStateMutationViolations(
             Repository.ReadProductSourceFiles()));
-        Assert.False(typeof(PlaybackSessionState).IsPublic);
+        Assert.False(typeof(PlaybackRuntime).IsPublic);
         Assert.Equal(typeof(PlaybackSnapshot), typeof(IPlaybackSnapshotSource)
             .GetProperty(nameof(IPlaybackSnapshotSource.CurrentSnapshot))!.PropertyType);
         Assert.Null(typeof(IPlaybackSnapshotSource)

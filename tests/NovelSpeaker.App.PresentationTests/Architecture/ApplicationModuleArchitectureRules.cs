@@ -60,7 +60,7 @@ internal static partial class ArchitectureRules
         {
             "PlaybackCoordinator",
             "PlaybackCommandProcessor",
-            "PlaybackSessionState"
+            "PlaybackRuntime"
         };
 
     private static readonly IReadOnlySet<string> PlaybackCommandTypes =

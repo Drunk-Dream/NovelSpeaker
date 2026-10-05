@@ -41,6 +41,7 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(previous, coordinator.CurrentSnapshot);
         changes.Publish(new BookCommittedChange.ActiveSourceChanged("book-1", "source-1", clearSource ? null : "source-2"));
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookId is null);
+        await coordinator.StopAsync(CancellationToken.None);
         Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
         Assert.Equal(1, audio.StopCallCount);
     }

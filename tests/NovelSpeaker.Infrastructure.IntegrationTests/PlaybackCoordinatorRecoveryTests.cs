@@ -171,7 +171,7 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task JumpToSegmentAsync_when_new_checkpoint_fails_keeps_target_uncommitted()
+    public async Task JumpToSegmentAsync_when_committed_checkpoint_fails_keeps_target_and_can_resume()
     {
         var expected = new InvalidOperationException("checkpoint failed");
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
@@ -200,18 +200,18 @@ public sealed partial class PlaybackCoordinatorTests
             coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None));
 
         Assert.Same(expected, actual);
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
         Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
 
         await coordinator.ResumeAsync(CancellationToken.None);
 
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
     }
 
     [Fact]
-    public async Task JumpToSegmentAsync_when_new_checkpoint_is_cancelled_keeps_previous_session()
+    public async Task JumpToSegmentAsync_when_committed_checkpoint_is_cancelled_keeps_target()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var saveGate = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -245,19 +245,19 @@ public sealed partial class PlaybackCoordinatorTests
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jumpTask);
 
-        Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
 
         await coordinator.StopAsync(CancellationToken.None);
 
         Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(2, readingProgressStore.StoredProgress?.SegmentIndex);
     }
 
     [Fact]
-    public async Task Cancelled_jump_ignores_completion_queued_from_previous_session()
+    public async Task Cancelled_committed_checkpoint_ignores_completion_queued_from_previous_session()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var saveGate = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -286,8 +286,8 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StopAsync(CancellationToken.None);
 
         Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.Equal(2, readingProgressStore.StoredProgress?.SegmentIndex);
     }
 
     [Fact]
@@ -311,7 +311,8 @@ public sealed partial class PlaybackCoordinatorTests
             coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None));
 
         Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, localCoordinator.StopCallCount);
         Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
 
         await coordinator.ResumeAsync(CancellationToken.None);
@@ -348,7 +349,8 @@ public sealed partial class PlaybackCoordinatorTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => jumpTask);
 
         Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, localCoordinator.StopCallCount);
         Assert.Equal(0, readingProgressStore.StoredProgress?.SegmentIndex);
 
         await coordinator.ResumeAsync(CancellationToken.None);

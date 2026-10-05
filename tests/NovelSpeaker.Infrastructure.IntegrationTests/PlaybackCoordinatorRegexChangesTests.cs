@@ -34,6 +34,7 @@ public sealed partial class PlaybackCoordinatorTests
         await using var coordinator = CreateCoordinator(audio, bookContentService: content, audioProvider: generation, regexWorkspace: workspace);
         await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
         var expectedSpeech = "新语音";
+        var revision = coordinator.CurrentSnapshot.ContentRevision;
         switch (kind)
         {
             case RegexReplacementRulesChangeKind.Saved:
@@ -58,7 +59,7 @@ public sealed partial class PlaybackCoordinatorTests
                 workspace.NotifyConfigurationRestored();
                 break;
         }
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == 1 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == revision + 1 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
         Assert.Equal(2, generation.Requests.Count);
         Assert.Equal(expectedSpeech, generation.Requests.Last().SpeechText);
     }
@@ -76,6 +77,7 @@ public sealed partial class PlaybackCoordinatorTests
         await using var coordinator = CreateCoordinator(audio, bookContentService: CreateRegexContent(repository), audioProvider: generation, regexWorkspace: workspace);
         await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
         var originalAudio = audio.LastStartedRequest;
+        var revision = coordinator.CurrentSnapshot.ContentRevision;
         await workspace.SaveEditorAsync(Editor(rule, "新展示"), CancellationToken.None);
         await workspace.SetRuleEnabledAsync(rule.Id, false, CancellationToken.None);
         await workspace.DeleteRuleAsync(rule.Id, CancellationToken.None);
@@ -87,7 +89,7 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Same(originalAudio, audio.LastStartedRequest);
         Assert.Single(generation.Requests);
         Assert.Equal(0, audio.StopCallCount);
-        Assert.Equal(0, coordinator.CurrentSnapshot.ContentRevision);
+        Assert.Equal(revision, coordinator.CurrentSnapshot.ContentRevision);
     }
 
     [Theory]
@@ -121,10 +123,11 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
         var gate = content.BlockNextChapter();
         await workspace.SaveEditorAsync(Editor(rule, "中间语音"), CancellationToken.None);
+        var revision = coordinator.CurrentSnapshot.ContentRevision;
         await content.ChapterRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await workspace.SaveEditorAsync(Editor(rule, "最终语音"), CancellationToken.None);
         gate.SetResult();
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == 2 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == revision + 2 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
         Assert.Equal("最终语音", generation.Requests.Last().SpeechText);
         Assert.Equal(3, generation.Requests.Count);
     }
@@ -154,9 +157,10 @@ public sealed partial class PlaybackCoordinatorTests
             : coordinator.StartAsync(new(bookId, 0, 0, null, 10), CancellationToken.None);
         await content.ChapterRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await workspace.SaveEditorAsync(Editor(rule, "新语音"), CancellationToken.None);
+        var revision = coordinator.CurrentSnapshot.ContentRevision;
         gate.SetResult();
         await opening;
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == 1 &&
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == revision + 2 &&
             coordinator.CurrentSnapshot.State == (openPaused ? PlaybackState.Paused : PlaybackState.Playing));
         if (openPaused) await coordinator.ResumeAsync(CancellationToken.None);
         Assert.Equal(bookId, coordinator.CurrentSnapshot.BookId);

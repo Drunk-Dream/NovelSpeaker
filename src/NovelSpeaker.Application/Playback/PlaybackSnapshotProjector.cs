@@ -27,7 +27,7 @@ internal static class PlaybackSnapshotProjector
             state.Audio.IsUsingCache,
             state.CanRetry,
             state.Book?.BookAuthor,
-            state.Identity is null || state.Provider is not null,
+            state.Book is null || state.Provider is not null,
             state.ContentRevision,
             PlaybackVolume.Normalize(volume),
             state.Audio.HasLoadedAudio,

@@ -65,11 +65,13 @@
 
 中间态与后续迁移：T005 接续 Start/OpenPaused、Pause/Resume/Stop/Clear、jump/move/retry/skip、Provider/speed、Books/Regex 已提交变化、StartNewSessionAsync/字段级 rollback、checkpoint/prefetch 与 shutdown；T006 接续 local snapshot/completed/failed、ProcessEventCommandAsync、PublishSnapshot/BuildSnapshot、EventEpoch/重复身份判断、AudioController 代理职责、volume/stop-timer 的发布整合。以上旧调用仍引用已删除的 PlaybackSessionState/字段/旧 ProgressController 与 projector API，未经隔离的 Application build 因 Coordinator 的 PlaybackSessionState 引用报 CS0246，属于本窗口允许的中间破坏态；完整 solution 门禁由 T007 恢复。focused 验证使用仓库外一次性副本，仅排除 Coordinator、PlaybackRegistration 及依赖它的 Application DI composition 文件，不排除 Playback 单元测试，不新增持久化变更、产品语义或长期文档解释；无环境限制。
 
-## [ ] T005（P0）：迁移 Playback 命令与 session replacement 生命周期
+## [x] T005（P0）：迁移 Playback 命令与 session replacement 生命周期
 
 依赖：T004。
 
 目标：将 start/open/jump/move/provider/speed/stop/clear、失败回滚和 checkpoint 迁入统一 transition/commit 语义，删除平行字段和隐式提交路径。
+
+完成成果：Coordinator 的用户命令及 Books/Regex/Provider/Settings 已提交变化进入既有串行边界，以 PlaybackRuntime 唯一拥有 Book/Source、位置、配置、恢复位置、失败窗口和高层状态。目标内容与合成准备不停止旧音频、不保存目标或释放旧文件保护；验证合法目标与来源后一次 commit，随后退役旧 session/prefetch、保存 immutable checkpoint 并执行音频/预取 effects。准备失败、取消及忽略取消的迟到内容保留旧会话；commit 后 checkpoint 失败保留目标并允许恢复，不重拼旧字段。stop/clear/shutdown 保持稳定保存边界，metadata-only 不打断音频，Provider 与语速变化作用于下一句，Regex 按来源位置重新映射；连续跳过 3 段后暂停及显式恢复清零窗口由 runtime transition 维护。删除 StartNewSessionAsync、字段级 rollback、旧 session/Book/Provider/snapshot alias、自由拼装 snapshot 和 SegmentRunner 的合成播放一体入口；音频回调接入 runtime 的最小桥接恢复编译，AudioController/epoch 与低层回调最终收敛仍归 T006。保留并迁移 checkpoint、失败恢复、Source/Regex 与流水线核心测试，新增内容准备失败/取消、打开期间 removal/metadata、旧音频保护、Settings/Provider 提交与下一句、合成/checkpoint 等待期间的配置重验、Stop 后服务选择/清空与 Regex 刷新/取消、Regex 重映射保留音频回调、导航内容读取及 Settings/Provider 事实预取取消、跨句定时停止、捕获旧身份取消、结束 checkpoint 失败退役、损坏音频重生成取消和空内容异常覆盖，更新架构测试旧类型引用；Playback unit 68/68、相关 Integration 140/140、Architecture 26/26、Application Release build（0 warning/error）、format 与 diff 检查通过。完整 solution 门禁留给 T007；无持久化变化、一次性仓库产物、环境限制或长期文档冲突。
 
 ## [ ] T006（P0）：收敛 Audio effect、异步回调与 Snapshot 投影
 

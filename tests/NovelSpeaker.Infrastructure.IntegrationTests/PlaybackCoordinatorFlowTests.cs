@@ -312,7 +312,7 @@ public sealed partial class PlaybackCoordinatorTests
             ((IPlaybackStopTimer)coordinator).ScheduleAfter(TimeSpan.FromMinutes(1));
             clock.Advance(TimeSpan.FromMinutes(1));
             await progress.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            // Keep completion validation pending until the timer has projected its failure.
+            // Hold completion validation until the serialized pause has reported its failure.
             content.CurrentContextGate = terminalCheck;
             audio.RaiseCompleted();
             pauseCheckpoint.TrySetException(new InvalidOperationException("checkpoint-failure"));

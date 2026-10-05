@@ -36,13 +36,12 @@ internal sealed class PlaybackSegmentRunner
         _audioController = audioController;
     }
 
-    public async Task<PlaybackSegmentRunResult> RunAsync(
+    public async Task<AudioGenerationResult> PrepareAsync(
         PlaybackSegmentRunRequest request,
         Action<AudioGenerationProgress>? progressCallback,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-
         if (request.ForceInvalidate)
         {
             await _audioProvider.InvalidateAsync(
@@ -50,11 +49,18 @@ internal sealed class PlaybackSegmentRunner
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var audio = await _audioProvider.GetAudioAsync(
+        return await _audioProvider.GetAudioAsync(
             request.AudioRequest,
             AudioGenerationPriority.Current,
             progressCallback,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<PlaybackSegmentRunResult> PlayPreparedAsync(
+        PlaybackSegmentRunRequest request,
+        AudioGenerationResult audio,
+        CancellationToken cancellationToken)
+    {
         if (!audio.IsSuccess)
         {
             return new PlaybackSegmentRunResult(audio, _audioController.CurrentSnapshot);

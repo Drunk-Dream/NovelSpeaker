@@ -311,7 +311,8 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(1, content.GetChapterCallCounts[0]);
 
         localCoordinator.RaiseCompleted();
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped &&
+            coordinator.CurrentSnapshot.Message == "全书播放完成。");
 
         Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
         Assert.Equal(1, content.GetChapterCallCounts[0]);

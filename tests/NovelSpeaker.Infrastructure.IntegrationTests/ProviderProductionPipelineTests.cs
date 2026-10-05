@@ -241,8 +241,11 @@ public sealed class ProviderProductionPipelineTests
         Assert.Equal(0, playback.CurrentSnapshot.SpeakSpeed);
         Assert.True(File.Exists(fixture.Player.LoadedFile));
         await fixture.WaitForCoverageAsync();
+        // The original profile has exercised playback + prefetch. Quiesce that window
+        // before measuring the new profile's active-cache transport requests.
         await fixture.Services.GetRequiredService<IAppSettingsService>().UpdateAsync(
-            new AppSettingsUpdate { DefaultSpeakSpeed = 1 }, CancellationToken.None);
+            new AppSettingsUpdate { DefaultSpeakSpeed = 1, PrefetchCount = 0 }, CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.SpeakSpeed == 1);
         var active = fixture.Services.GetRequiredService<IActiveCacheCoordinator>();
         var start = await active.StartAsync(new StartActiveCacheRequest("book", [0], 1), CancellationToken.None);
         Assert.Equal(ActiveCacheStartStatus.Accepted, start.Status);

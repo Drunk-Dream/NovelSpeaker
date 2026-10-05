@@ -12,7 +12,7 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class PlaybackSegmentRunnerTests
 {
     [Fact]
-    public async Task RunAsync_starts_local_playback_for_a_cache_hit()
+    public async Task Preparation_and_playback_starts_local_playback_for_a_cache_hit()
     {
         var audioProvider = new RecordingAudioProvider();
         audioProvider.Enqueue(new AudioGenerationResult("cached.mp3", true, null));
@@ -20,10 +20,10 @@ public sealed class PlaybackSegmentRunnerTests
         await using var audioController = new PlaybackAudioController(localCoordinator);
         var runner = new PlaybackSegmentRunner(audioProvider, audioController);
 
-        var result = await runner.RunAsync(
-            new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 240, ForceInvalidate: false),
-            null,
-            CancellationToken.None);
+        var request = new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 240, ForceInvalidate: false);
+        var audio = await runner.PrepareAsync(request, null, CancellationToken.None);
+        Assert.Null(localCoordinator.LastRequest);
+        var result = await runner.PlayPreparedAsync(request, audio, CancellationToken.None);
 
         Assert.True(result.Audio.IsUsingCache);
         Assert.Equal("cached.mp3", localCoordinator.LastRequest?.FilePath);
@@ -32,7 +32,7 @@ public sealed class PlaybackSegmentRunnerTests
     }
 
     [Fact]
-    public async Task RunAsync_invalidates_before_generating_and_playing_when_requested()
+    public async Task Preparation_and_playback_invalidates_before_generating_and_playing_when_requested()
     {
         var audioProvider = new RecordingAudioProvider();
         audioProvider.Enqueue(new AudioGenerationResult("generated.mp3", false, null));
@@ -40,17 +40,17 @@ public sealed class PlaybackSegmentRunnerTests
         await using var audioController = new PlaybackAudioController(localCoordinator);
         var runner = new PlaybackSegmentRunner(audioProvider, audioController);
 
-        await runner.RunAsync(
-            new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: true),
-            null,
-            CancellationToken.None);
+        var request = new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: true);
+        var audio = await runner.PrepareAsync(request, null, CancellationToken.None);
+        Assert.Null(localCoordinator.LastRequest);
+        await runner.PlayPreparedAsync(request, audio, CancellationToken.None);
 
         Assert.Equal(["invalidate", "get"], audioProvider.Calls);
         Assert.Equal("generated.mp3", localCoordinator.LastRequest?.FilePath);
     }
 
     [Fact]
-    public async Task RunAsync_does_not_start_local_playback_when_audio_generation_fails()
+    public async Task Preparation_and_playback_does_not_start_local_playback_when_audio_generation_fails()
     {
         var audioProvider = new RecordingAudioProvider();
         var failure = new TtsExecutionFailure(
@@ -65,10 +65,9 @@ public sealed class PlaybackSegmentRunnerTests
         await using var audioController = new PlaybackAudioController(localCoordinator);
         var runner = new PlaybackSegmentRunner(audioProvider, audioController);
 
-        var result = await runner.RunAsync(
-            new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: false),
-            null,
-            CancellationToken.None);
+        var request = new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: false);
+        var audio = await runner.PrepareAsync(request, null, CancellationToken.None);
+        var result = await runner.PlayPreparedAsync(request, audio, CancellationToken.None);
 
         Assert.False(result.Audio.IsSuccess);
         Assert.Equal(TtsErrorKind.Unauthorized, result.Audio.Failure!.Kind);
@@ -76,7 +75,7 @@ public sealed class PlaybackSegmentRunnerTests
     }
 
     [Fact]
-    public async Task RunAsync_propagates_cancellation_without_projecting_failure()
+    public async Task Preparation_and_playback_propagates_cancellation_without_projecting_failure()
     {
         using var cancellation = new CancellationTokenSource();
         var audioProvider = new RecordingAudioProvider
@@ -87,7 +86,7 @@ public sealed class PlaybackSegmentRunnerTests
             audioProvider,
             new PlaybackAudioController(new RecordingLocalAudioPlaybackCoordinator()));
 
-        await Assert.ThrowsAsync<OperationCanceledException>(() => runner.RunAsync(
+        await Assert.ThrowsAsync<OperationCanceledException>(() => runner.PrepareAsync(
             new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: false),
             null,
             cancellation.Token));
