@@ -139,7 +139,11 @@ public sealed class LocalAudioPlaybackCoordinatorTests
     {
         var player = new FakeAudioPlayer();
         await using var coordinator = new LocalAudioPlaybackCoordinator(player);
-        var request = CreateRequest("完成回调身份");
+        var request = CreateRequest("完成回调身份") with
+        {
+            TargetRevision = 8,
+            PreparationAttemptId = Guid.NewGuid()
+        };
         var completed = new TaskCompletionSource<LocalAudioPlaybackSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
         coordinator.PlaybackCompleted += (_, snapshot) => completed.TrySetResult(snapshot);
 
@@ -149,6 +153,8 @@ public sealed class LocalAudioPlaybackCoordinatorTests
 
         Assert.Equal(request.PlaybackSessionId, result.PlaybackSessionId);
         Assert.Equal(coordinator.CurrentSnapshot.AudioGeneration, result.AudioGeneration);
+        Assert.Equal(request.TargetRevision, result.TargetRevision);
+        Assert.Equal(request.PreparationAttemptId, result.PreparationAttemptId);
         Assert.Equal(PlaybackState.Stopped, result.State);
     }
 

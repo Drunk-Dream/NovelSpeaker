@@ -703,7 +703,8 @@ public sealed class PlaybackCoordinator :
         {
             if (transition.State.Identity is { } identity && transition.State.Position is { } position)
                 _runtime.AcceptAudio(new(identity, position, PlaybackState.Stopped, PlaybackAudioFacts.Empty,
-                    "播放切换未完成，已保留当前目标。"));
+                    "播放切换未完成，已保留当前目标。", transition.State.Target?.Identity,
+                    transition.State.Preparation?.Identity));
             else _runtime.ReportMessage("播放切换未完成，已保留当前目标。");
             PublishSnapshot();
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(effectFailure).Throw();
@@ -777,13 +778,13 @@ public sealed class PlaybackCoordinator :
             segment.SpeechText, state.Provider!, state.SpeakSpeed, state.Identity!.SessionId)
         { ChapterId = chapter.ChapterId, StableSegmentIdentity = segment.StableIdentity },
             $"{state.Book.BookTitle} · {chapter.Title}", state.ResumePositionMilliseconds, forceInvalidate,
-            token => ValidateBookAsync(state.Book, token));
+            token => ValidateBookAsync(state.Book, token), state.Preparation?.Identity);
     }
 
     private async Task PlayPreparedSegmentAsync(PlaybackRuntimeState state, PlaybackSegmentRunRequest request,
         AudioGenerationResult audio, CancellationToken ct)
     {
-        if (!_runtime.IsCurrent(state.Identity!)) return;
+        if (!_runtime.IsCurrent(state.Identity!) || !IsCurrentPreparationRequest(request)) return;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runtime.SessionToken);
         var token = linked.Token;
         token.ThrowIfCancellationRequested();
@@ -798,8 +799,7 @@ public sealed class PlaybackCoordinator :
             _runtime.ChangeSpeechConfiguration(state.Identity, provider, state.SpeakSpeed);
             if (provider is null)
             {
-                _runtime.AcceptAudio(new(state.Identity!, state.Position!.Value, PlaybackState.Stopped,
-                    PlaybackAudioFacts.Empty, ProviderMissingMessage));
+                _runtime.ReportMessage(ProviderMissingMessage);
                 PublishSnapshot();
                 await RefreshPrefetchWindowAsync(_runtime.Current, null, token).ConfigureAwait(false);
                 return;
@@ -813,7 +813,11 @@ public sealed class PlaybackCoordinator :
             await HandleSegmentFailureAsync(audio.Failure!, false, ct).ConfigureAwait(false);
             return;
         }
+        var synthesisIdentity = request.AudioRequest.ToCacheIdentity();
         _runtime.BeginPlayback(false, request.ForceInvalidate);
+        state = _runtime.Current;
+        request = CreateSegmentRequest(state, request.ForceInvalidate);
+        if (request.AudioRequest.ToCacheIdentity() != synthesisIdentity || !IsCurrentPreparationRequest(request)) return;
         PublishSnapshot();
         var protection = _audioCacheProtectionRegistry.Protect(audio.FilePath!);
         if (!_runtime.TryProtectAudio(state.Identity!, protection)) { protection.Dispose(); return; }
@@ -976,7 +980,8 @@ public sealed class PlaybackCoordinator :
             }
             _runtime.ResetFailureWindow();
             var position = current.Position!.Value;
-            _runtime.CaptureCheckpointPosition(identity, snapshot.DurationMilliseconds);
+            _runtime.CaptureCheckpointPosition(identity, current.Target!.Identity,
+                snapshot.PreparationAttemptId!.Value, snapshot.DurationMilliseconds);
             var next = await ResolveRelativeSegmentAsync(current.Book!, position.ChapterIndex, position.SegmentIndex, 1, linked.Token).ConfigureAwait(false);
             if (next is null) { await FinishAsync("全书播放完成。", ct).ConfigureAwait(false); return; }
             var provider = await _selectedProvider.GetSelectedProviderAsync(ct).ConfigureAwait(false);
@@ -1004,8 +1009,13 @@ public sealed class PlaybackCoordinator :
 
     private bool MatchesDevice(PlaybackRuntimeState state, LocalAudioPlaybackSnapshot snapshot) =>
         state.Identity is not null && snapshot.PlaybackSessionId == state.Identity.SessionId &&
-        snapshot.BookId == state.Book?.BookId && state.Position is not null &&
-        snapshot.AudioGeneration == _localAudio.CurrentSnapshot.AudioGeneration;
+        snapshot.BookId == state.Book?.BookId && state.Target is { } target &&
+        snapshot.TargetRevision == target.Identity.Revision &&
+        snapshot.AudioGeneration == _localAudio.CurrentSnapshot.AudioGeneration &&
+        snapshot.PreparationAttemptId is { } attemptId &&
+        (state.Audio.PreparationIdentity?.AttemptId == attemptId ||
+            state.Preparation is { } preparation && preparation.Identity.AttemptId == attemptId &&
+            _runtime.IsCurrentPreparation(preparation.Identity));
 
     private bool HasCurrentDeviceAudio(PlaybackRuntimeState state)
     {
@@ -1019,8 +1029,13 @@ public sealed class PlaybackCoordinator :
     {
         var state = _runtime.Current;
         var snapshot = _localAudio.CurrentSnapshot;
-        if (MatchesDevice(state, snapshot))
-            _runtime.CaptureCheckpointPosition(state.Identity!, snapshot.State is PlaybackState.Stopped or PlaybackState.Faulted
+        if (!MatchesDevice(state, snapshot)) return;
+        AcceptDeviceSnapshot(snapshot);
+        state = _runtime.Current;
+        if (state.Identity is not { } identity || state.Target is not { } target ||
+            snapshot.PreparationAttemptId is not { } attemptId) return;
+        _runtime.CaptureCheckpointPosition(identity, target.Identity, attemptId,
+            snapshot.State is PlaybackState.Stopped or PlaybackState.Faulted
                 ? state.PositionForSave : snapshot.PositionMilliseconds);
     }
 
@@ -1028,11 +1043,20 @@ public sealed class PlaybackCoordinator :
     {
         var current = _runtime.Current;
         if (!MatchesDevice(current, snapshot) || current.Identity is not { } identity || current.Position is not { } position) return;
+        var preparation = current.Preparation?.Identity ?? current.Audio.PreparationIdentity;
+        if (preparation is null || preparation.AttemptId != snapshot.PreparationAttemptId) return;
         _runtime.AcceptAudio(new(identity, position, snapshot.State,
             new(snapshot.State is PlaybackState.Playing or PlaybackState.Paused, snapshot.PositionMilliseconds,
                 snapshot.DurationMilliseconds, snapshot.IsUsingCache),
-            snapshot.Message ?? (snapshot.State == PlaybackState.Paused && current.State == PlaybackState.Paused ? current.Message : null)));
+            snapshot.Message ?? (snapshot.State == PlaybackState.Paused && current.State == PlaybackState.Paused ? current.Message : null),
+            current.Target?.Identity, preparation));
     }
+
+    private bool IsCurrentPreparationRequest(PlaybackSegmentRunRequest request) =>
+        request.PreparationIdentity is { } identity &&
+        request.AudioRequest.SessionId == identity.Session.SessionId &&
+        request.AudioRequest.ToCacheIdentity() == identity.Synthesis &&
+        _runtime.IsCurrentPreparation(identity);
 
     private void PublishEventCommandFailureSafely()
     {

@@ -45,6 +45,9 @@ internal abstract record PlaybackEffect;
 internal sealed record PlaybackRetireSessionEffect(PlaybackSessionLifetime Lifetime) : PlaybackEffect;
 internal sealed record PlaybackCheckpointEffect(PlaybackProgressUpdate Progress) : PlaybackEffect;
 internal sealed record PlaybackPlaySegmentEffect(PlaybackRuntimeState Session) : PlaybackEffect;
+internal sealed record PlaybackStopTargetAudioEffect(PlaybackSessionIdentity Session, PlaybackTargetIdentity Target) : PlaybackEffect;
+internal sealed record PlaybackCancelPreparationEffect(PlaybackAudioPreparationIdentity Preparation) : PlaybackEffect;
+internal sealed record PlaybackPrepareTargetAudioEffect(PlaybackRuntimeState State, PlaybackAudioPreparation Preparation) : PlaybackEffect;
 internal sealed record PlaybackRefreshPrefetchEffect(PlaybackRuntimeState Session) : PlaybackEffect;
 
 internal sealed record PlaybackAudioResult(
@@ -52,7 +55,9 @@ internal sealed record PlaybackAudioResult(
     PlaybackPosition Position,
     PlaybackState State,
     PlaybackAudioFacts Audio,
-    string? Message = null);
+    string? Message = null,
+    PlaybackTargetIdentity? TargetIdentity = null,
+    PlaybackAudioPreparationIdentity? PreparationIdentity = null);
 
 // A pending target owns only cancellable preparation work, never playback truth.
 internal sealed class PlaybackPreparationLifetime : IDisposable

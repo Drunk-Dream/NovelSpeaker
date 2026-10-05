@@ -436,7 +436,9 @@ public sealed partial class PlaybackCoordinatorTests
                 request.IsUsingCache,
                 PlaybackVolume.Default,
                 request.PlaybackSessionId,
-                ++_audioGeneration);
+                ++_audioGeneration,
+                request.TargetRevision,
+                request.PreparationAttemptId);
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
             if (StartCallCount == CompleteOnStartCall)
             {

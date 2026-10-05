@@ -88,7 +88,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                 0,
                 "正在准备本地音频。",
                 request.IsUsingCache,
-                request.PlaybackSessionId));
+                request.PlaybackSessionId,
+                request.TargetRevision,
+                request.PreparationAttemptId));
 
             _audioPlayer.Stop();
             await _audioPlayer.LoadAsync(request.FilePath, linkedCancellation.Token);
@@ -110,7 +112,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                 ToMilliseconds(_audioPlayer.Duration),
                 null,
                 request.IsUsingCache,
-                request.PlaybackSessionId));
+                request.PlaybackSessionId,
+                request.TargetRevision,
+                request.PreparationAttemptId));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -378,7 +382,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             ToMilliseconds(_audioPlayer.Duration),
             error.Message,
             _currentRequest.IsUsingCache,
-            _currentRequest.PlaybackSessionId);
+            _currentRequest.PlaybackSessionId,
+            _currentRequest.TargetRevision,
+            _currentRequest.PreparationAttemptId);
         PublishSnapshot(snapshot);
         return snapshot;
     }
@@ -401,7 +407,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             ToMilliseconds(_audioPlayer.Duration),
             message,
             _currentRequest.IsUsingCache,
-            _currentRequest.PlaybackSessionId);
+            _currentRequest.PlaybackSessionId,
+            _currentRequest.TargetRevision,
+            _currentRequest.PreparationAttemptId);
         PublishSnapshot(snapshot);
         return snapshot;
     }
@@ -422,7 +430,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         long durationMilliseconds,
         string? message,
         bool isUsingCache,
-        Guid? playbackSessionId)
+        Guid? playbackSessionId,
+        long targetRevision,
+        Guid? preparationAttemptId)
     {
         return new LocalAudioPlaybackSnapshot(
             state,
@@ -436,7 +446,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             isUsingCache,
             _volume,
             playbackSessionId,
-            _playerGeneration);
+            _playerGeneration,
+            targetRevision,
+            preparationAttemptId);
     }
 
     private static long ToMilliseconds(TimeSpan timeSpan)

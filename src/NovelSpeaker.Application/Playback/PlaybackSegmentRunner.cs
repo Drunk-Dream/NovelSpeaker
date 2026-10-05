@@ -10,7 +10,8 @@ internal sealed record PlaybackSegmentRunRequest(
     string DisplayTitle,
     long ResumePositionMilliseconds,
     bool ForceInvalidate,
-    Func<CancellationToken, Task>? ValidateContextAsync = null);
+    Func<CancellationToken, Task>? ValidateContextAsync = null,
+    PlaybackAudioPreparationIdentity? PreparationIdentity = null);
 
 /// <summary>
 /// Captures the result of one segment execution without owning playback state or publishing events.
@@ -79,7 +80,9 @@ internal sealed class PlaybackSegmentRunner
                 request.AudioRequest.SegmentIndex,
                 request.ResumePositionMilliseconds,
                 audio.IsUsingCache,
-                request.AudioRequest.SessionId),
+                request.AudioRequest.SessionId,
+                request.PreparationIdentity?.Target.Revision ?? 0,
+                request.PreparationIdentity?.AttemptId),
             cancellationToken).ConfigureAwait(false);
 
         return new PlaybackSegmentRunResult(audio, _localAudio.CurrentSnapshot);

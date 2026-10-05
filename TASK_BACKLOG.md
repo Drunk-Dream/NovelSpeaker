@@ -93,11 +93,13 @@
 
 ### staged breaking migration window：T008–T010
 
-## [ ] T008（P0）：建立 Playback logical target 与 preparation 身份
+## [x] T008（P0）：建立 Playback logical target 与 preparation 身份
 
 依赖：T007。
 
 目标：保留单一 authoritative runtime，但把 Playback session context、logical target / target revision、播放意图与音频 preparation 分开；同一 Book/Source 内的切段切章不再通过“音频准备完成后才 commit session replacement”表达。
+
+完成成果：PlaybackRuntimeState 以带 Book/Source/session 身份和单调 TargetRevision 的 PlaybackLogicalTarget 作为逻辑位置 owner，Snapshot 与 checkpoint 从其投影；同一 session 的 target commit 无需音频 ready，即清除旧 target 音频事实、产生新 logical checkpoint，并输出停止旧音频、取消过期 preparation、准备新 target 与刷新 prefetch 的 effects。播放意图、preparation kind、含唯一 attempt ID 的 session/target/synthesis identity 独立建模；local audio request/snapshot 携带 target revision 与 attempt，音频结果、设备回调和 checkpoint 只接纳当前 target/preparation，旧 attempt、旧 target 与配置变更前的 preparation 被拒绝，transport Stopped 不覆盖用户 Play 意图。新增 runtime 与本地音频身份测试，PlaybackRuntime/LocalAudio focused tests 49/49、Infrastructure IntegrationTests Release build（0 warning/error）、solution format verify 和 diff 检查通过。实际导航与自动推进调用链迁移及完整门禁留给 T009/T010；无持久化变化或长期文档冲突。
 
 ## [ ] T009（P0）：迁移导航、自动推进与音频准备流水线
 

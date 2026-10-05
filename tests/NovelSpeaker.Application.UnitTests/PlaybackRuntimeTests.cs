@@ -139,8 +139,7 @@ public sealed class PlaybackRuntimeTests
     {
         using var runtime = Open();
         var prepared = runtime.PrepareReplacement(Target()).Replacement!;
-        runtime.AcceptAudio(new(runtime.Current.Identity!, runtime.Current.Position!.Value,
-            PlaybackState.Playing, new(true, 321, 1000, false)));
+        runtime.AcceptAudio(Audio(runtime.Current, PlaybackState.Playing, new(true, 321, 1000, false)));
         var before = runtime.Current;
 
         var result = runtime.CommitReplacement(prepared, CancellationToken.None);
@@ -167,6 +166,121 @@ public sealed class PlaybackRuntimeTests
         Assert.False(runtime.Current.Audio.HasLoadedAudio);
     }
 
+    [Fact]
+    public void Same_session_target_commit_advances_logical_position_before_audio_is_ready()
+    {
+        using var runtime = Open();
+        var before = runtime.Current;
+        var beforeIdentity = before.Identity!;
+
+        var result = runtime.CommitTarget(before.Book!, new(4, 1), PlaybackIntent.Play,
+            CancellationToken.None, "已跳转到目标段落，等待播放。");
+
+        Assert.True(result.IsAccepted);
+        Assert.Equal(beforeIdentity, runtime.Current.Identity);
+        Assert.Equal(new PlaybackPosition(4, 1), runtime.Current.Position);
+        Assert.Equal(before.TargetRevision + 1, runtime.Current.TargetRevision);
+        Assert.Equal(PlaybackIntent.Play, runtime.Current.Intent);
+        Assert.NotNull(runtime.Current.Preparation);
+        Assert.False(runtime.Current.Audio.HasLoadedAudio);
+        Assert.Equal(0, runtime.Current.PositionForSave);
+        Assert.Single(result.Effects.OfType<PlaybackStopTargetAudioEffect>());
+        var preparation = Assert.Single(result.Effects.OfType<PlaybackPrepareTargetAudioEffect>());
+        Assert.Equal(runtime.Current.Preparation, preparation.Preparation);
+        Assert.Equal(new PlaybackProgressUpdate("book-1", 4, 1, 6, 0, before.Book!.SourceContext),
+            result.Effects.OfType<PlaybackCheckpointEffect>().Last().Progress);
+
+        var second = runtime.CommitTarget(runtime.Current.Book!, new(4, 0), PlaybackIntent.Pause, CancellationToken.None);
+        Assert.True(second.IsAccepted);
+        Assert.Equal(beforeIdentity, runtime.Current.Identity);
+        Assert.Equal(new PlaybackPosition(4, 0), runtime.Current.Position);
+        Assert.Equal(before.TargetRevision + 2, runtime.Current.TargetRevision);
+        Assert.Null(runtime.Current.Preparation);
+    }
+
+    [Fact]
+    public void Target_revision_rejects_audio_facts_from_the_previous_target_in_the_same_session()
+    {
+        using var runtime = Open();
+        var previous = runtime.Current;
+        Assert.True(runtime.BeginPlayback(resetFailureWindow: false).IsAccepted);
+        var previousPreparation = runtime.Current.Preparation!.Identity;
+        previous = runtime.Current;
+        Assert.True(runtime.AcceptAudio(Audio(previous, PlaybackState.Playing, new(true, 321, 1000, false))).IsAccepted);
+
+        var transition = runtime.CommitTarget(runtime.Current.Book!, new(4, 1), PlaybackIntent.Play, CancellationToken.None);
+        Assert.True(transition.IsAccepted);
+        var committed = runtime.Current;
+        var stale = runtime.AcceptAudio(new(previous.Identity!, previous.Position!.Value, PlaybackState.Playing,
+            new(true, 900, 1000, false), TargetIdentity: previous.Target!.Identity));
+
+        Assert.Equal(PlaybackTransitionRejection.StaleSession, stale.Rejection);
+        Assert.Equal(previous.Identity, committed.Identity);
+        Assert.NotEqual(previous.Target!.Identity, committed.Target!.Identity);
+        Assert.False(runtime.IsCurrentPreparation(previousPreparation));
+        Assert.Equal(0, committed.PositionForSave);
+        Assert.False(committed.Audio.HasLoadedAudio);
+    }
+
+    [Fact]
+    public void Preparation_identity_binds_session_target_and_current_synthesis_profile()
+    {
+        using var runtime = Open();
+        var started = runtime.BeginPlayback(resetFailureWindow: false);
+        Assert.True(started.IsAccepted);
+        var original = runtime.Current.Preparation!;
+        Assert.True(runtime.IsCurrentPreparation(original.Identity));
+
+        runtime.ChangeSpeechConfiguration(runtime.Current.Identity, runtime.Current.Provider,
+            runtime.Current.SpeakSpeed + 1);
+
+        Assert.False(runtime.IsCurrentPreparation(original.Identity));
+        var sameTargetRetry = runtime.BeginPlayback(resetFailureWindow: false);
+        Assert.True(sameTargetRetry.IsAccepted);
+        var current = runtime.Current.Preparation!;
+        Assert.Equal(original.Identity.Session, current.Identity.Session);
+        Assert.Equal(original.Identity.Target, current.Identity.Target);
+        Assert.NotEqual(original.Identity.Synthesis, current.Identity.Synthesis);
+        Assert.True(runtime.IsCurrentPreparation(current.Identity));
+    }
+
+    [Fact]
+    public void Restarted_preparation_attempt_on_the_same_target_rejects_the_older_result()
+    {
+        using var runtime = Open();
+        var previous = runtime.Current;
+        var previousPreparation = previous.Preparation!.Identity;
+
+        Assert.True(runtime.BeginPlayback(resetFailureWindow: false).IsAccepted);
+        var current = runtime.Current;
+        Assert.Equal(previous.Target!.Identity, current.Target!.Identity);
+        Assert.NotEqual(previousPreparation.AttemptId, current.Preparation!.Identity.AttemptId);
+
+        var stale = runtime.AcceptAudio(Audio(previous, PlaybackState.Playing, new(true, 500, 1000, false)));
+
+        Assert.Equal(PlaybackTransitionRejection.StaleSession, stale.Rejection);
+        Assert.Same(current, runtime.Current);
+    }
+
+    [Fact]
+    public void Checkpoint_capture_rejects_audio_position_from_a_previous_target_revision()
+    {
+        using var runtime = Open();
+        var previous = runtime.Current;
+        Assert.True(runtime.AcceptAudio(Audio(previous, PlaybackState.Playing, new(true, 321, 1000, false))).IsAccepted);
+        previous = runtime.Current;
+        var previousPreparation = previous.Audio.PreparationIdentity!;
+
+        Assert.True(runtime.CommitTarget(runtime.Current.Book!, new(4, 1), PlaybackIntent.Play, CancellationToken.None).IsAccepted);
+        var committed = runtime.Current;
+        runtime.CaptureCheckpointPosition(previous.Identity!, previous.Target!.Identity,
+            previousPreparation.AttemptId, 900);
+
+        Assert.Equal(new PlaybackPosition(4, 1), runtime.Current.Position);
+        Assert.Equal(0, runtime.Current.PositionForSave);
+        Assert.Same(committed, runtime.Current);
+    }
+
     [Theory]
     [InlineData(PlaybackState.Playing, false, 0, 1000)]
     [InlineData(PlaybackState.Stopped, true, 0, 1000)]
@@ -178,8 +292,7 @@ public sealed class PlaybackRuntimeTests
         using var runtime = Open();
         var before = runtime.Current;
 
-        var result = runtime.AcceptAudio(new(before.Identity!, before.Position!.Value,
-            state, new(loaded, position, duration, false)));
+        var result = runtime.AcceptAudio(Audio(before, state, new(loaded, position, duration, false)));
 
         Assert.Equal(PlaybackTransitionRejection.InvalidTarget, result.Rejection);
         Assert.Same(before, runtime.Current);
@@ -189,14 +302,13 @@ public sealed class PlaybackRuntimeTests
     public void Terminal_audio_keeps_resume_checkpoint_when_device_position_resets()
     {
         using var runtime = Open();
-        runtime.AcceptAudio(new(runtime.Current.Identity!, runtime.Current.Position!.Value,
-            PlaybackState.Playing, new(true, 321, 1000, false)));
+        runtime.AcceptAudio(Audio(runtime.Current, PlaybackState.Playing, new(true, 321, 1000, false)));
 
-        var result = runtime.AcceptAudio(new(runtime.Current.Identity!, runtime.Current.Position!.Value,
-            PlaybackState.Stopped, PlaybackAudioFacts.Empty));
+        var result = runtime.AcceptAudio(Audio(runtime.Current, PlaybackState.Stopped, PlaybackAudioFacts.Empty));
 
         Assert.True(result.IsAccepted);
         Assert.Equal(321, runtime.Current.PositionForSave);
+        Assert.Equal(PlaybackIntent.Play, runtime.Current.Intent);
         Assert.Equal(0, PlaybackSnapshotProjector.Project(runtime.Current).PositionMilliseconds);
         Assert.False(runtime.Current.Audio.HasLoadedAudio);
     }
@@ -207,6 +319,7 @@ public sealed class PlaybackRuntimeTests
     [InlineData("source")]
     [InlineData("catalog")]
     [InlineData("position")]
+    [InlineData("target-revision")]
     public void Audio_result_requires_current_session_book_source_catalog_and_position(string mismatch)
     {
         using var runtime = Open();
@@ -220,9 +333,13 @@ public sealed class PlaybackRuntimeTests
             "catalog" => identity with { SourceContext = new("source-1", "other-catalog") },
             _ => identity
         };
+        var targetIdentity = mismatch == "target-revision"
+            ? before.Target!.Identity with { Revision = before.Target.Identity.Revision + 1 }
+            : before.Target!.Identity;
         var result = runtime.AcceptAudio(new(identity,
             mismatch == "position" ? new(4, 1) : before.Position!.Value,
-            PlaybackState.Playing, new(true, 321, 1000, true)));
+            PlaybackState.Playing, new(true, 321, 1000, true), TargetIdentity: targetIdentity,
+            PreparationIdentity: before.Preparation!.Identity));
 
         Assert.Equal(PlaybackTransitionRejection.StaleSession, result.Rejection);
         Assert.Empty(result.Effects);
@@ -240,7 +357,7 @@ public sealed class PlaybackRuntimeTests
 
         foreach (var state in new[] { PlaybackState.Playing, PlaybackState.Stopped, PlaybackState.Faulted })
         {
-            var result = runtime.AcceptAudio(new(old.Identity!, old.Position!.Value, state,
+            var result = runtime.AcceptAudio(Audio(old, state,
                 new(state == PlaybackState.Playing, 123, 1000, false)));
             Assert.Equal(PlaybackTransitionRejection.StaleSession, result.Rejection);
         }
@@ -254,8 +371,7 @@ public sealed class PlaybackRuntimeTests
     public void Projection_and_checkpoint_use_same_committed_audio_and_do_not_mutate_runtime()
     {
         using var runtime = Open();
-        Assert.True(runtime.AcceptAudio(new(runtime.Current.Identity!, runtime.Current.Position!.Value,
-            PlaybackState.Playing, new(true, 321, 1000, true))).IsAccepted);
+        Assert.True(runtime.AcceptAudio(Audio(runtime.Current, PlaybackState.Playing, new(true, 321, 1000, true))).IsAccepted);
         var before = runtime.Current;
 
         var first = PlaybackSnapshotProjector.Project(before, 0.25);
@@ -285,8 +401,7 @@ public sealed class PlaybackRuntimeTests
     public void Provider_and_speed_change_preserve_current_audio_and_refresh_next_segment_prefetch()
     {
         using var runtime = Open();
-        runtime.AcceptAudio(new(runtime.Current.Identity!, runtime.Current.Position!.Value,
-            PlaybackState.Playing, new(true, 321, 1000, false)));
+        runtime.AcceptAudio(Audio(runtime.Current, PlaybackState.Playing, new(true, 321, 1000, false)));
         var before = runtime.Current;
 
         var result = runtime.ChangeSpeechConfiguration(before.Identity!, null, int.MaxValue);
@@ -304,12 +419,14 @@ public sealed class PlaybackRuntimeTests
     public void Only_successful_playing_result_clears_failure_window()
     {
         using var runtime = new PlaybackRuntime();
-        runtime.CommitReplacement(runtime.PrepareReplacement(Target() with { ConsecutiveSegmentFailureCount = 2 }).Replacement!, CancellationToken.None);
-        runtime.AcceptAudio(new(runtime.Current.Identity!, runtime.Current.Position!.Value,
-            PlaybackState.Paused, new(true, 0, 1000, false)));
+        runtime.CommitReplacement(runtime.PrepareReplacement(Target() with
+        {
+            ConsecutiveSegmentFailureCount = 2,
+            State = PlaybackState.Preparing
+        }).Replacement!, CancellationToken.None);
+        runtime.AcceptAudio(Audio(runtime.Current, PlaybackState.Paused, new(true, 0, 1000, false)));
         Assert.Equal(2, runtime.Current.ConsecutiveSegmentFailureCount);
-        runtime.AcceptAudio(new(runtime.Current.Identity!, runtime.Current.Position!.Value,
-            PlaybackState.Playing, new(true, 0, 1000, false)));
+        runtime.AcceptAudio(Audio(runtime.Current, PlaybackState.Playing, new(true, 0, 1000, false)));
         Assert.Equal(0, runtime.Current.ConsecutiveSegmentFailureCount);
     }
 
@@ -370,9 +487,17 @@ public sealed class PlaybackRuntimeTests
     private static PlaybackRuntime Open()
     {
         var runtime = new PlaybackRuntime();
-        Assert.True(runtime.CommitReplacement(runtime.PrepareReplacement(Target()).Replacement!, CancellationToken.None).IsAccepted);
+        Assert.True(runtime.CommitReplacement(runtime.PrepareReplacement(Target() with { State = PlaybackState.Preparing }).Replacement!, CancellationToken.None).IsAccepted);
         return runtime;
     }
+
+    private static PlaybackAudioResult Audio(
+        PlaybackRuntimeState state,
+        PlaybackState playbackState,
+        PlaybackAudioFacts facts,
+        string? message = null) =>
+        new(state.Identity!, state.Position!.Value, playbackState, facts, message, state.Target!.Identity,
+            state.Preparation?.Identity ?? state.Audio.PreparationIdentity);
 
     [Fact]
     public void Cancellation_of_a_captured_old_identity_cannot_cancel_the_replacement()
