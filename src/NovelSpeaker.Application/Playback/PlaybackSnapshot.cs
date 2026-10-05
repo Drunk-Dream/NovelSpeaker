@@ -25,7 +25,8 @@ public sealed record PlaybackSnapshot(
     long ContentRevision = 0,
     double Volume = PlaybackVolume.Default,
     bool HasLoadedAudio = false,
-    NovelSpeaker.Application.Books.ActiveSourceContext? SourceContext = null)
+    NovelSpeaker.Application.Books.ActiveSourceContext? SourceContext = null,
+    long TargetRevision = 0)
 {
     public static PlaybackSnapshot Idle { get; } = new(
         PlaybackState.Idle,

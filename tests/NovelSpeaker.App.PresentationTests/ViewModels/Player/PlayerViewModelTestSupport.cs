@@ -284,6 +284,8 @@ public sealed partial class PlayerViewModelTests
 
         public int RetryCurrentSegmentCallCount { get; private set; }
 
+        public int PauseCallCount { get; private set; }
+
         public Func<PlayerAutoScrollState>? ReadAutoScrollStateDuringSegmentJump { get; set; }
 
         public PlayerAutoScrollState? AutoScrollStateObservedDuringLastJumpToSegment { get; private set; }
@@ -339,6 +341,7 @@ public sealed partial class PlayerViewModelTests
 
         public Task PauseAsync(CancellationToken cancellationToken)
         {
+            PauseCallCount++;
             Publish(CurrentSnapshot with { State = PlaybackState.Paused });
             return Task.CompletedTask;
         }

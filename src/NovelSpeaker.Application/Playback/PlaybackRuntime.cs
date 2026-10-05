@@ -330,12 +330,12 @@ internal sealed class PlaybackRuntime : IDisposable
         {
             Intent = PlaybackIntent.Play,
             Preparation = null,
-            State = recovering ? PlaybackState.Recovering : PlaybackState.Buffering,
+            State = recovering ? PlaybackState.Recovering : PlaybackState.Preparing,
             Audio = PlaybackAudioFacts.Empty,
             CanRetry = false,
             ConsecutiveSegmentFailureCount = resetFailureWindow ? 0 : Current.ConsecutiveSegmentFailureCount,
             LastFailureKind = resetFailureWindow ? null : Current.LastFailureKind,
-            Message = recovering ? "检测到音频损坏，正在重新生成。" : "正在加载当前段音频。"
+            Message = recovering ? "检测到音频损坏，正在重新生成。" : "正在准备当前段音频。"
         };
         var preparationKind = recovering
             ? PlaybackPreparationKind.Recovery
@@ -560,7 +560,7 @@ internal sealed class PlaybackRuntime : IDisposable
 
     private static PlaybackIntent IntentFor(PlaybackState state) => state switch
     {
-        PlaybackState.Preparing or PlaybackState.Buffering or PlaybackState.Recovering or PlaybackState.Playing => PlaybackIntent.Play,
+        PlaybackState.Preparing or PlaybackState.Recovering or PlaybackState.Playing => PlaybackIntent.Play,
         PlaybackState.Paused => PlaybackIntent.Pause,
         _ => PlaybackIntent.Stop
     };

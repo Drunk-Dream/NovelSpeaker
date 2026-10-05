@@ -282,6 +282,37 @@ public sealed class MiniPlayerWindowTests
         Saved_position_is_available_and_a_user_move_is_persisted();
     }
 
+    [Fact]
+    public void Mini_player_pause_action_is_available_while_target_audio_is_preparing()
+    {
+        WpfTestHost.RunInSta(() =>
+        {
+            var fixture = CreateWindow(PlaybackSnapshot.Idle with
+            {
+                State = PlaybackState.Preparing,
+                BookId = "book-1",
+                BookTitle = "示例小说",
+                ChapterTitle = "新目标章节",
+                TargetRevision = 2
+            });
+            try
+            {
+                Assert.True(fixture.ViewModel.CanTogglePlayback);
+                Assert.Equal("暂停", fixture.ViewModel.PlaybackActionText);
+                Assert.Equal("新目标章节", fixture.ViewModel.ChapterTitle);
+
+                fixture.ViewModel.TogglePlaybackCommand.ExecuteAsync(null).GetAwaiter().GetResult();
+
+                Assert.Equal(1, fixture.Playback.PauseCallCount);
+                Assert.Equal(0, fixture.Playback.ResumeCallCount);
+            }
+            finally
+            {
+                CloseFixture(fixture);
+            }
+        });
+    }
+
     private static void AssertControl<T>(MiniPlayerWindow window, string name, string automationName)
         where T : FrameworkElement
     {
@@ -305,7 +336,7 @@ public sealed class MiniPlayerWindowTests
         var window = new MiniPlayerWindow(
             viewModel,
             screenBoundsProvider ?? new FakeScreenBoundsProvider(new MiniPlayerScreenBounds(0, 0, 1920, 1080)));
-        return new MiniPlayerFixture(window, viewModel, settingsService);
+        return new MiniPlayerFixture(window, viewModel, settingsService, playback);
     }
 
     private static void CloseFixture(MiniPlayerFixture fixture)
@@ -324,7 +355,8 @@ public sealed class MiniPlayerWindowTests
     private sealed record MiniPlayerFixture(
         MiniPlayerWindow Window,
         MiniPlayerViewModel ViewModel,
-        FakeAppSettingsService Settings);
+        FakeAppSettingsService Settings,
+        FakePlaybackSession Playback);
 
     private sealed class FakeScreenBoundsProvider(MiniPlayerScreenBounds bounds) : IMiniPlayerScreenBoundsProvider
     {
@@ -374,6 +406,10 @@ public sealed class MiniPlayerWindowTests
     {
         public PlaybackSnapshot CurrentSnapshot { get; private set; } = snapshot;
 
+        public int PauseCallCount { get; private set; }
+
+        public int ResumeCallCount { get; private set; }
+
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
         public void Publish(PlaybackSnapshot nextSnapshot)
@@ -384,8 +420,17 @@ public sealed class MiniPlayerWindowTests
 
         public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+        public Task PauseAsync(CancellationToken cancellationToken)
+        {
+            PauseCallCount++;
+            return Task.CompletedTask;
+        }
+
+        public Task ResumeAsync(CancellationToken cancellationToken)
+        {
+            ResumeCallCount++;
+            return Task.CompletedTask;
+        }
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;

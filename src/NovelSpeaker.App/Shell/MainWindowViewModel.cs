@@ -212,7 +212,8 @@ public sealed partial class MainWindowViewModel : ObservableObject, IDisposable
             PlaybackState.Paused => "已暂停",
             PlaybackState.Stopped => "已停止",
             PlaybackState.Faulted => "播放出错",
-            PlaybackState.Buffering or PlaybackState.Preparing or PlaybackState.Recovering => "正在准备",
+            PlaybackState.Preparing => "正在准备音频",
+            PlaybackState.Recovering => "正在重新生成音频",
             _ => string.IsNullOrWhiteSpace(snapshot.Message) ? string.Empty : snapshot.Message
         };
     }

@@ -467,6 +467,26 @@ public sealed class PlaybackRuntimeTests
     }
 
     [Fact]
+    public void Snapshot_projects_the_revision_of_the_committed_logical_target()
+    {
+        using var runtime = Open();
+        var previousRevision = runtime.Current.TargetRevision;
+
+        var transition = runtime.CommitTarget(
+            runtime.Current.Book!,
+            new(4, 1),
+            PlaybackIntent.Play,
+            CancellationToken.None);
+
+        Assert.True(transition.IsAccepted);
+        var snapshot = PlaybackSnapshotProjector.Project(runtime.Current);
+        Assert.Equal(runtime.Current.TargetRevision, snapshot.TargetRevision);
+        Assert.True(snapshot.TargetRevision > previousRevision);
+        Assert.Equal(4, snapshot.ChapterIndex);
+        Assert.Equal(1, snapshot.SegmentIndex);
+    }
+
+    [Fact]
     public void Clear_rejects_late_results_and_retirement_releases_resources()
     {
         using var runtime = Open();

@@ -24,6 +24,8 @@ namespace NovelSpeaker.App.Features.Playback.Presentation;
 
 public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgressInteractionTarget, ITransientEscapeHandler
 {
+    private static readonly TimeSpan PreparationFeedbackDelay = TimeSpan.FromMilliseconds(275);
+
     private readonly IPlaybackSession _playbackCoordinator;
     private readonly IPlaybackStopTimer _stopTimer;
     private readonly IAppNavigator _navigator;
@@ -46,6 +48,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
     private long _lastAppliedStopTimerVersion = -1;
     private ITimer? _stopTimerDisplayTimer;
+    private ITimer? _preparationFeedbackTimer;
+    private PreparationFeedbackIdentity? _preparationFeedbackIdentity;
+    private long _preparationFeedbackGeneration;
     private CancellationTokenSource _pageEventCancellation = new();
     private bool _isPageEventsRegistered;
     private int _pageEventGeneration;
@@ -158,7 +163,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public string StopTimerPresetMinutesText { get; private set; } = string.Empty;
 
-    public PlaybackPrimaryAction PrimaryAction => CurrentPlaybackState == PlaybackState.Playing
+    public PlaybackPrimaryAction PrimaryAction => CurrentPlaybackState is PlaybackState.Playing or PlaybackState.Preparing or PlaybackState.Recovering
         ? PlaybackPrimaryAction.Pause
         : PlaybackPrimaryAction.Play;
 
@@ -172,13 +177,12 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public bool ShouldAutoCenterCurrentSegment => _interactionController.ShouldAutoCenterCurrentSegment;
 
-    public bool ShowInlineLoadingState => CurrentPlaybackState is PlaybackState.Preparing or PlaybackState.Buffering or PlaybackState.Recovering;
+    public bool ShowInlineLoadingState => IsPreparationFeedbackVisible;
 
     public string InlineLoadingText => CurrentPlaybackState switch
     {
-        PlaybackState.Preparing => "正在准备",
-        PlaybackState.Buffering => "正在加载",
-        PlaybackState.Recovering => "正在恢复",
+        PlaybackState.Preparing => "正在准备音频",
+        PlaybackState.Recovering => "正在重新生成音频",
         _ => string.Empty
     };
 
@@ -285,6 +289,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     [ObservableProperty]
     private bool isSegmentProgressDragging;
+
+    [ObservableProperty]
+    private bool isPreparationFeedbackVisible;
 
     [ObservableProperty]
     private double volume = PlaybackVolume.Default;
@@ -412,6 +419,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         Interlocked.Increment(ref _pageEventGeneration);
         _pageEventCancellation.Cancel();
+        ClearPreparationFeedback();
         _contentController.InvalidatePendingLoads();
         StopStopTimerDisplayTimer();
         _cacheDecorationController.Deactivate();
@@ -670,7 +678,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
-        if (CurrentPlaybackState == PlaybackState.Playing)
+        if (CurrentPlaybackState is PlaybackState.Playing or PlaybackState.Preparing or PlaybackState.Recovering)
         {
             await _playbackCoordinator.PauseAsync(cancellationToken);
             return;
@@ -1000,9 +1008,13 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     partial void OnCurrentPlaybackStateChanged(PlaybackState value)
     {
-        OnPropertyChanged(nameof(ShowInlineLoadingState));
         OnPropertyChanged(nameof(InlineLoadingText));
         OnPropertyChanged(nameof(PrimaryAction));
+    }
+
+    partial void OnIsPreparationFeedbackVisibleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowInlineLoadingState));
     }
 
     partial void OnHasAvailableProviderChanged(bool value)
@@ -1242,6 +1254,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private void ApplySnapshot(PlaybackSnapshot snapshot)
     {
+        UpdatePreparationFeedback(snapshot);
         _contentController.ApplyPosition(snapshot.ChapterIndex, snapshot.SegmentIndex, snapshot.SegmentCount);
         var projected = _playbackProjection.Project(
             snapshot,
@@ -1275,6 +1288,107 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         OnPropertyChanged(nameof(CanScheduleStopTimer));
     }
 
+    private void UpdatePreparationFeedback(PlaybackSnapshot snapshot)
+    {
+        if (!_isPageEventsRegistered || snapshot.State is not (PlaybackState.Preparing or PlaybackState.Recovering))
+        {
+            ClearPreparationFeedback();
+            return;
+        }
+
+        var identity = PreparationFeedbackIdentity.From(snapshot);
+        if (_preparationFeedbackIdentity == identity)
+        {
+            return;
+        }
+
+        ClearPreparationFeedback();
+        _preparationFeedbackIdentity = identity;
+        var generation = ++_preparationFeedbackGeneration;
+        var pageEventGeneration = Volatile.Read(ref _pageEventGeneration);
+        var cancellationToken = _pageEventCancellation.Token;
+        _preparationFeedbackTimer = _timeProvider.CreateTimer(
+            _ => OnPreparationFeedbackDelayElapsed(generation, pageEventGeneration, cancellationToken),
+            null,
+            PreparationFeedbackDelay,
+            Timeout.InfiniteTimeSpan);
+    }
+
+    private void OnPreparationFeedbackDelayElapsed(
+        long generation,
+        int pageEventGeneration,
+        CancellationToken cancellationToken)
+    {
+        void RevealFeedback()
+        {
+            if (cancellationToken.IsCancellationRequested ||
+                generation != _preparationFeedbackGeneration ||
+                !IsCurrentPageEvent(pageEventGeneration) ||
+                _preparationFeedbackIdentity is null)
+            {
+                return;
+            }
+
+            var currentIdentity = PreparationFeedbackIdentity.From(_playbackCoordinator.CurrentSnapshot);
+            if (currentIdentity != _preparationFeedbackIdentity)
+            {
+                return;
+            }
+
+            _preparationFeedbackTimer?.Dispose();
+            _preparationFeedbackTimer = null;
+            IsPreparationFeedbackVisible = true;
+        }
+
+        if (_uiScheduler.CheckAccess())
+        {
+            RevealFeedback();
+            return;
+        }
+
+        try
+        {
+            _pageTasks.Register(
+                _uiScheduler.InvokeAsync(RevealFeedback, cancellationToken),
+                exception => ReportViewOperationFailure("更新播放等待状态失败", exception));
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void ClearPreparationFeedback()
+    {
+        _preparationFeedbackGeneration++;
+        _preparationFeedbackTimer?.Dispose();
+        _preparationFeedbackTimer = null;
+        _preparationFeedbackIdentity = null;
+        IsPreparationFeedbackVisible = false;
+    }
+
+    private readonly record struct PreparationFeedbackIdentity(
+        long TargetRevision,
+        string? BookId,
+        NovelSpeaker.Application.Books.ActiveSourceContext? SourceContext,
+        int ChapterIndex,
+        int SegmentIndex,
+        ProviderId? ProviderId,
+        int SpeakSpeed,
+        long ContentRevision,
+        PlaybackState State)
+    {
+        public static PreparationFeedbackIdentity From(PlaybackSnapshot snapshot) => new(
+            snapshot.TargetRevision,
+            snapshot.BookId,
+            snapshot.SourceContext,
+            snapshot.ChapterIndex,
+            snapshot.SegmentIndex,
+            snapshot.ProviderId,
+            snapshot.SpeakSpeed,
+            snapshot.ContentRevision,
+            snapshot.State);
+    }
+
     private void ApplyProviderSelection(ProviderId? selectedProviderId)
     {
         foreach (var provider in Providers)
@@ -1286,7 +1400,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private void UpdateProviderAvailability(PlaybackSnapshot snapshot)
     {
         HasAvailableProvider = snapshot.HasLoadedAudio && snapshot.HasAvailableProvider &&
-            snapshot.State is PlaybackState.Playing or PlaybackState.Paused or PlaybackState.Buffering or PlaybackState.Recovering ||
+            snapshot.State is PlaybackState.Playing or PlaybackState.Paused or PlaybackState.Preparing or PlaybackState.Recovering ||
             _settingsService.Current.CurrentProviderId is { } id && Providers.Any(item => item.Id == id);
     }
 

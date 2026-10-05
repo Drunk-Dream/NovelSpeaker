@@ -13,7 +13,7 @@ internal static class MediaControlMetadataProjector
             snapshot.BookTitle ?? string.Empty,
             snapshot.State switch
             {
-                PlaybackState.Playing => MediaControlPlaybackStatus.Playing,
+                PlaybackState.Preparing or PlaybackState.Recovering or PlaybackState.Playing => MediaControlPlaybackStatus.Playing,
                 PlaybackState.Paused => MediaControlPlaybackStatus.Paused,
                 _ => MediaControlPlaybackStatus.Stopped
             });

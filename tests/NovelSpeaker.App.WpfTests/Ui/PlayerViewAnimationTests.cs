@@ -341,7 +341,7 @@ public sealed partial class PlayerViewTests
 
                 coordinator.Publish(coordinator.CurrentSnapshot with
                 {
-                    State = PlaybackState.Buffering,
+                    State = PlaybackState.Preparing,
                     SegmentIndex = 88,
                     SegmentCount = 120
                 });

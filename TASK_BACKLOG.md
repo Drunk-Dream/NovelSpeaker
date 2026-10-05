@@ -109,11 +109,13 @@
 
 完成成果：Start、同 Book/Source 导航、自动下一段、失败跳过/重试与 Regex 位置重映射已切换为逻辑 target 先提交、发布快照后异步准备音频；普通导航保留 session，Book/Source 变化仍走窄 session replacement。Preparation 取消与结果提交生命周期分离，避免失败后切换 target 时误取消新目标的 checkpoint；停止态 Regex 更新保留最新内容并在 Resume 时建立新 session。Provider/speed 在启动前复核；target 切换以 revision 替换旧预取，仅保留新 current target 的可复用 active key，目标为空时提交空窗；checkpoint 失败时不保留旧预取，Source 失效取消目标 checkpoint；Pause/Resume 和异步准备生命周期保持一致。新增语速 checkpoint 竞态、Pause→Resume→Navigate、关闭期间取消 preparation、active prefetch 保留、全 Regex 删除内容清空预取窗、Source 失效取消 checkpoint 回归覆盖。Playback Application focused tests 78/78、Infrastructure Integration playback focused tests 150/150 通过；无持久化变化或长期文档冲突。完整门禁留给 T010。
 
-## [ ] T010（P0）：收敛 Playback 等待体验并完成 Phase B2 验收
+## [x] T010（P0）：收敛 Playback 等待体验并完成 Phase B2 验收
 
 依赖：T009。
 
 目标：统一 Preparing/Recovering/Playing/Paused 等用户语义，消除只用于瞬时本地交接的伪 Buffering；Player 对真实可感知的音频等待延迟显示“正在准备音频”，短等待不闪烁，并完成 target-driven Playback 的测试与旧 replacement 路径清理。
+
+完成成果：删除 Playback 高层 `Buffering` 状态并保留其它 enum 数值；新 target commit 和当前 target 的准备/重试均投影为 Preparing，损坏音频恢复显示明确的重新生成语义。PlaybackSnapshot 投影已提交 TargetRevision，Player 在页面 activation 内延迟显示紧凑音频准备提示，短等待不显示、播放/暂停/失败/停止或换 target 后及时隐藏；可控 TimeProvider 测试覆盖延迟、快速跳转重置、页面离开与恢复语义。Preparing/Recovering 的 Player、MiniPlayer、桌面切换和 SMTC 操作映射到暂停意图；active preparation 上重复 Resume 不重启合成。普通同 Book/Source 导航及自动推进继续先 CommitTarget，`PrepareReplacement/CommitReplacement` 仅保留 Book/Source session replacement。迁移集成测试等待稳定播放状态并验证最终 Regex target；新增 Player 延迟反馈、target revision、暂停命令、SMTC 映射与准备期间重复 Resume 覆盖。Phase B2 搜索确认无 Buffering 引用且普通 target flow 不调用 replacement；locked restore、format verify、Release build（0 warning/error）、完整 tests 1181/1181（含 isolated Desktop WPF 101/101）与 diff 检查通过。无持久化变化、环境限制或长期文档冲突。
 
 ## 6. Phase C：把 Cache 一致性收回 Cache 模块
 

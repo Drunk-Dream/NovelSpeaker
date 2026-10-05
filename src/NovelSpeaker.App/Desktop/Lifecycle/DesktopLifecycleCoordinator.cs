@@ -270,7 +270,7 @@ internal sealed class DesktopLifecycleCoordinator :
                 await RestoreMainWindowAsync(cancellationToken).ConfigureAwait(false);
                 break;
             case DesktopLifecycleCommand.TogglePlayback:
-                if (_playbackSession.CurrentSnapshot.State == PlaybackState.Playing)
+                if (_playbackSession.CurrentSnapshot.State is PlaybackState.Playing or PlaybackState.Preparing or PlaybackState.Recovering)
                 {
                     await _playbackSession.PauseAsync(cancellationToken).ConfigureAwait(false);
                 }

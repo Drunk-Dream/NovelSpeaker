@@ -229,6 +229,7 @@ public sealed partial class PlaybackCoordinatorTests
             prefetchScheduler: prefetchScheduler);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         await coordinator.ChangeProviderAsync(TestSpeechProviders.Id(2), CancellationToken.None);
 
         Assert.Equal("默认规则", coordinator.CurrentSnapshot.ProviderName);
@@ -253,6 +254,7 @@ public sealed partial class PlaybackCoordinatorTests
         await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: bookContentService, sourceChanges: changes);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         if (stopBeforeMutation) await coordinator.StopAsync(CancellationToken.None);
         await metadata.UpdateMetadataAsync(new("book-1", "已更新书名", "已更新作者"), CancellationToken.None);
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookTitle == "已更新书名");

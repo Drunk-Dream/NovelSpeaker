@@ -40,7 +40,8 @@ public sealed class ProviderProductionPipelineTests
         { Configuration = fixture.HttpConfiguration(path) }, false, CancellationToken.None);
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
-        Assert.Equal(expectedState, playback.CurrentSnapshot.State);
+        await WaitForSnapshotAsync(playback, snapshot =>
+            snapshot.State == expectedState && snapshot.SegmentIndex == 1);
         Assert.Equal(1, playback.CurrentSnapshot.SegmentIndex);
         Assert.Equal(2, fixture.Server.GetRequestCount("/" + path));
         if (expectedState == PlaybackState.Playing)
@@ -72,6 +73,7 @@ public sealed class ProviderProductionPipelineTests
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 1, null, 0), CancellationToken.None)
             .WaitAsync(TimeSpan.FromSeconds(10));
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         await gate.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(TtsErrorKind.Cancelled, (await prefetch).Failure!.Kind);
@@ -287,6 +289,7 @@ public sealed class ProviderProductionPipelineTests
         var store = fixture.Services.GetRequiredService<IProviderStore>();
         var workspace = fixture.Services.GetRequiredService<SpeechProviderWorkspace>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         var loaded = fixture.Player.LoadedFile;
         var expectedId = fixture.Provider.Id;
         if (change == "switch")
@@ -306,6 +309,7 @@ public sealed class ProviderProductionPipelineTests
             await settings.UpdateAsync(new AppSettingsUpdate { ClearCurrentProvider = true }, CancellationToken.None);
         else
             await workspace.SetEdgeEnabledAsync(false, CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing && snapshot.HasLoadedAudio);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(loaded, fixture.Player.LoadedFile);
 
@@ -326,6 +330,9 @@ public sealed class ProviderProductionPipelineTests
             Assert.Equal(PlaybackState.Stopped, playback.CurrentSnapshot.State);
             Assert.False(playback.CurrentSnapshot.HasAvailableProvider);
             Assert.Equal(1, fixture.RequestCount);
+            // Completion publishes the new logical target before running its checkpoint effect.
+            // A serialized stop command drains that effect before reading durable progress.
+            await playback.StopAsync(CancellationToken.None);
             var progress = await fixture.Services.GetRequiredService<IReadingProgressStore>().GetAsync("book", CancellationToken.None);
             Assert.Equal(1, progress!.SegmentIndex);
         }

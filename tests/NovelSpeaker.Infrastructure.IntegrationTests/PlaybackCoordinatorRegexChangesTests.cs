@@ -33,6 +33,7 @@ public sealed partial class PlaybackCoordinatorTests
         var generation = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(audio, bookContentService: content, audioProvider: generation, regexWorkspace: workspace);
         await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         var expectedSpeech = "新语音";
         var revision = coordinator.CurrentSnapshot.ContentRevision;
         switch (kind)
@@ -146,25 +147,30 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task A_second_commit_during_refresh_survives_audio_session_replacement()
+    public async Task A_second_commit_during_refresh_uses_the_latest_speech()
     {
         var rule = SpeechRule("^第一段$", "原语音");
         var repository = new PlaybackRegexRepository([rule]);
         var workspace = CreateRegexWorkspace(repository);
         var content = CreateRegexContent(repository);
+        var localAudio = new FakeLocalAudioPlaybackCoordinator();
         var generation = new FakeAudioGenerationProvider();
-        await using var coordinator = CreateCoordinator(new FakeLocalAudioPlaybackCoordinator(),
+        await using var coordinator = CreateCoordinator(localAudio,
             bookContentService: content, audioProvider: generation, regexWorkspace: workspace);
         await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         var gate = content.BlockNextChapter();
         await workspace.SaveEditorAsync(Editor(rule, "中间语音"), CancellationToken.None);
         var revision = coordinator.CurrentSnapshot.ContentRevision;
         await content.ChapterRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await workspace.SaveEditorAsync(Editor(rule, "最终语音"), CancellationToken.None);
         gate.SetResult();
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == revision + 2 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+        await WaitForAsync(generation, () => generation.Requests.Any(request => request.SpeechText == "最终语音"));
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == revision + 2 &&
+            coordinator.CurrentSnapshot.State == PlaybackState.Playing &&
+            localAudio.CurrentSnapshot.State == PlaybackState.Playing &&
+            localAudio.CurrentSnapshot.TargetRevision == coordinator.CurrentSnapshot.TargetRevision);
         Assert.Equal("最终语音", generation.Requests.Last().SpeechText);
-        Assert.Equal(3, generation.Requests.Count);
     }
 
     [Theory]

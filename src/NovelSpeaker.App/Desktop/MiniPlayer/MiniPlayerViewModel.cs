@@ -63,10 +63,10 @@ public sealed partial class MiniPlayerViewModel :
     public bool HasPlaybackContext => !string.IsNullOrWhiteSpace(_playbackSession.CurrentSnapshot.BookId);
 
     public bool CanTogglePlayback =>
-        CurrentPlaybackState is PlaybackState.Playing or PlaybackState.Paused;
+        CurrentPlaybackState is PlaybackState.Playing or PlaybackState.Preparing or PlaybackState.Recovering or PlaybackState.Paused;
 
     public string PlaybackActionText =>
-        CurrentPlaybackState == PlaybackState.Playing ? "暂停" : "播放";
+        CurrentPlaybackState is PlaybackState.Playing or PlaybackState.Preparing or PlaybackState.Recovering ? "暂停" : "播放";
 
     public string VolumePercentText => $"{Math.Round(Volume * 100d):0}%";
 
@@ -142,7 +142,7 @@ public sealed partial class MiniPlayerViewModel :
     [RelayCommand(AllowConcurrentExecutions = false)]
     private async Task TogglePlaybackAsync(CancellationToken cancellationToken)
     {
-        if (CurrentPlaybackState == PlaybackState.Playing)
+        if (CurrentPlaybackState is PlaybackState.Playing or PlaybackState.Preparing or PlaybackState.Recovering)
         {
             await _playbackSession.PauseAsync(cancellationToken);
         }

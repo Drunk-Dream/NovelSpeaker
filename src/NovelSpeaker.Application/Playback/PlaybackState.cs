@@ -5,12 +5,11 @@ namespace NovelSpeaker.Application.Playback;
 /// </summary>
 public enum PlaybackState
 {
-    Idle,
-    Preparing,
-    Buffering,
-    Playing,
-    Paused,
-    Stopped,
-    Recovering,
-    Faulted
+    Idle = 0,
+    Preparing = 1,
+    Playing = 3,
+    Paused = 4,
+    Stopped = 5,
+    Recovering = 6,
+    Faulted = 7
 }

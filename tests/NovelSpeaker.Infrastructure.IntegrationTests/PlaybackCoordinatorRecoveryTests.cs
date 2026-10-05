@@ -316,12 +316,14 @@ public sealed partial class PlaybackCoordinatorTests
             new PlaybackStartRequest("book-1", 0, 0, null, 10),
             CancellationToken.None);
         await WaitForPlayingAsync(coordinator);
+        var previousTargetRevision = coordinator.CurrentSnapshot.TargetRevision;
         audioProvider.EnqueueException(new IOException("audio preparation failed"));
 
         await coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None);
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Faulted);
 
         Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+        Assert.True(coordinator.CurrentSnapshot.TargetRevision > previousTargetRevision);
         Assert.True(coordinator.CurrentSnapshot.CanRetry);
         Assert.Equal(1, localCoordinator.StopCallCount);
         Assert.Equal(2, readingProgressStore.StoredProgress?.SegmentIndex);
@@ -332,6 +334,40 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(2, localCoordinator.LastStartedRequest?.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task Resume_while_current_target_is_preparing_does_not_restart_its_preparation()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var audioProvider = new FakeAudioGenerationProvider();
+        await using var coordinator = CreateCoordinator(
+            localCoordinator,
+            audioProvider: audioProvider,
+            book: CreateThreeSegmentBook());
+
+        await coordinator.StartAsync(
+            new PlaybackStartRequest("book-1", 0, 0, null, 10),
+            CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
+
+        var pendingAudio = audioProvider.EnqueuePendingSuccess("target.mp3");
+        var jumpTask = coordinator.JumpToSegmentAsync(0, 2, CancellationToken.None);
+        await pendingAudio.Started.WaitAsync(TimeSpan.FromSeconds(5));
+        await jumpTask.WaitAsync(TimeSpan.FromSeconds(5));
+        var requestCount = audioProvider.Requests.Count;
+        var targetRevision = coordinator.CurrentSnapshot.TargetRevision;
+
+        Assert.Equal(PlaybackState.Preparing, coordinator.CurrentSnapshot.State);
+        await coordinator.ResumeAsync(CancellationToken.None);
+
+        Assert.Equal(requestCount, audioProvider.Requests.Count);
+        Assert.Equal(targetRevision, coordinator.CurrentSnapshot.TargetRevision);
+        Assert.Equal(PlaybackState.Preparing, coordinator.CurrentSnapshot.State);
+
+        pendingAudio.CompleteSuccess();
+        await WaitForPlayingAsync(coordinator);
+        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
     }
 
     [Fact]

@@ -58,11 +58,23 @@ public sealed class MediaControlCoordinatorTests
             "第二章",
             "示例书"));
         await platform.WaitForUpdatesAsync(2);
+        playback.Publish(CreateSnapshot(
+            PlaybackState.Preparing,
+            "第三章",
+            "示例书"));
+        await platform.WaitForUpdatesAsync(3);
+        playback.Publish(CreateSnapshot(
+            PlaybackState.Recovering,
+            "第四章",
+            "示例书"));
+        await platform.WaitForUpdatesAsync(4);
 
         Assert.Equal(
             [
                 new MediaControlMetadata("第一章", "示例书", MediaControlPlaybackStatus.Paused),
-                new MediaControlMetadata("第二章", "示例书", MediaControlPlaybackStatus.Playing)
+                new MediaControlMetadata("第二章", "示例书", MediaControlPlaybackStatus.Playing),
+                new MediaControlMetadata("第三章", "示例书", MediaControlPlaybackStatus.Playing),
+                new MediaControlMetadata("第四章", "示例书", MediaControlPlaybackStatus.Playing)
             ],
             platform.Updates);
     }

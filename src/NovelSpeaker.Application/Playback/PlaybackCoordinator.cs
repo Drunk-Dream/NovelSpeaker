@@ -455,6 +455,9 @@ public sealed class PlaybackCoordinator :
     {
         var current = _runtime.Current;
         if (current.Book is null || current.Position is null) return;
+        if (current.Intent == PlaybackIntent.Play &&
+            current.State is PlaybackState.Preparing or PlaybackState.Recovering or PlaybackState.Playing)
+            return;
         if (current.Audio.HasLoadedAudio)
         {
             await _localAudio.ResumeAsync(cancellationToken).ConfigureAwait(false);

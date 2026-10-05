@@ -636,7 +636,7 @@ public sealed partial class PlayerViewModelTests
 
         coordinator.Publish(coordinator.CurrentSnapshot with
         {
-            State = PlaybackState.Buffering,
+            State = PlaybackState.Preparing,
             SegmentIndex = 1,
             SegmentCount = 3
         });

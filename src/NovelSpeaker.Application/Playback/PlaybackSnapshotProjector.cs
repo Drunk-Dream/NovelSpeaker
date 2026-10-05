@@ -31,6 +31,7 @@ internal static class PlaybackSnapshotProjector
             state.ContentRevision,
             PlaybackVolume.Normalize(volume),
             state.Audio.HasLoadedAudio,
-            state.Book?.SourceContext);
+            state.Book?.SourceContext,
+            state.TargetRevision);
     }
 }
