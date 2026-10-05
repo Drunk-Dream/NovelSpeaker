@@ -226,7 +226,7 @@ public sealed class PlaybackCoordinator :
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs change)
     {
         if (change.IsSnapshotReplacement || change.Previous.DefaultSpeakSpeed != change.Current.DefaultSpeakSpeed)
-            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.SettingsChanged, Guid.Empty, null, null));
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.SettingsChanged, null, null));
         if (!change.IsSnapshotReplacement && change.Previous.PlaybackVolume == change.Current.PlaybackVolume) return;
         lock (_volumePersistenceGate)
         {
@@ -242,7 +242,7 @@ public sealed class PlaybackCoordinator :
     private void OnProvidersChanged(object? sender, SpeechProvidersChangedEventArgs change)
     {
         if (!_disposed && change.AffectsSynthesis)
-            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.ProviderChanged, Guid.Empty, null, null));
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.ProviderChanged, null, null));
     }
 
     public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken)
@@ -263,7 +263,7 @@ public sealed class PlaybackCoordinator :
         if (change is BookCommittedChange.MetadataCommitted)
         {
             // Metadata facts also apply to a Book whose opening command is still resolving.
-            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, Guid.Empty, null, null, change));
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, null, null, change));
             return;
         }
         var preparation = _runtime.ActivePreparation;
@@ -272,14 +272,14 @@ public sealed class PlaybackCoordinator :
         if (current.Book?.BookId != change.BookId)
         {
             if (preparation is { IsActive: true } && preparation.Book.BookId == change.BookId)
-                _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, Guid.Empty, null, null, change, preparation.Book.SourceContext));
+                _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, null, null, change, preparation.Book.SourceContext));
             return;
         }
         var invalidates = InvalidatesBookContext(change, current.Book.SourceContext);
         if (change is not BookCommittedChange.MetadataCommitted && !invalidates) return;
         if (invalidates) _runtime.CancelSession(current.Identity);
         _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged,
-            current.Identity?.SessionId ?? Guid.Empty, null, null, change, current.Book.SourceContext));
+            null, null, change, current.Book.SourceContext));
     }
 
     private static bool InvalidatesBookContext(BookCommittedChange change, ActiveSourceContext? context) => change switch
@@ -294,7 +294,7 @@ public sealed class PlaybackCoordinator :
     private void OnRegexRulesChanged(object? sender, RegexReplacementRulesChangedEventArgs change)
     {
         if (!_disposed && change.AffectsSpeechProfile)
-            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.RegexChanged, Guid.Empty, null, null));
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.RegexChanged, null, null));
     }
 
     private async Task DiscardSourceContextAsync(CancellationToken cancellationToken)
@@ -911,8 +911,7 @@ public sealed class PlaybackCoordinator :
 
     private void EnqueueAudioEvent(PlaybackEventCommandKind kind, LocalAudioPlaybackSnapshot snapshot, PlaybackErrorEventArgs? error = null)
     {
-        if (snapshot.PlaybackSessionId is not { } sessionId) return;
-        _commandProcessor.Enqueue(new(kind, sessionId, snapshot, error));
+        _commandProcessor.Enqueue(new(kind, snapshot, error));
     }
 
     private async Task ProcessEventCommandAsync(PlaybackEventCommand command, CancellationToken ct)
@@ -960,7 +959,7 @@ public sealed class PlaybackCoordinator :
                 return;
             }
             var current = _runtime.Current;
-            if (current.Identity is not { } identity || !_runtime.IsCurrent(identity) || command.SessionId != identity.SessionId ||
+            if (current.Identity is not { } identity || !_runtime.IsCurrent(identity) ||
                 command.Snapshot is not { } snapshot || !MatchesDevice(current, snapshot)) return;
             if (command.Kind == PlaybackEventCommandKind.SnapshotChanged)
             {
@@ -1038,13 +1037,13 @@ public sealed class PlaybackCoordinator :
     private void PublishEventCommandFailureSafely()
     {
         if (_disposed) return;
-        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.EventProcessingFailed, Guid.Empty, null, null));
+        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.EventProcessingFailed, null, null));
     }
 
     private void PublishStopTimerFailureSafely()
     {
         if (_disposed) return;
-        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.StopTimerFailed, Guid.Empty, null, null));
+        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.StopTimerFailed, null, null));
     }
 
     private Task RunSerializedAsync(Func<CancellationToken, Task> action, CancellationToken ct) =>

@@ -53,7 +53,7 @@
 
 ## 4. Phase B：重建 Playback 单一运行态
 
-### staged breaking migration window：T004–T007
+### staged breaking migration window：T004–T007（已结束，完整门禁恢复）
 
 ## [x] T004（P0）：建立 Playback authoritative runtime 与 transition 模型
 
@@ -81,11 +81,13 @@
 
 完成成果：低层 completed/failed/snapshot 结果携带源快照、Playback session ID 与本地 AudioGeneration；Playback runtime 仅接纳当前 session 和当前音频 generation 的结果，保留 Regex 重映射期间有效音频回调。移除高层 EventEpoch 和无独立职责的 PlaybackAudioController，Coordinator/SegmentRunner 直接消费 local audio port。新增迟到旧 session 三类回调及完成回调身份覆盖；Application focused tests 47/47、PlaybackCoordinator integration 124/124、Release solution build（0 warning/error）、solution format verify 与 diff 检查通过。无持久化变化。
 
-## [ ] T007（P0）：清理 Playback 旧状态体系并完成 Phase B 验收
+## [x] T007（P0）：清理 Playback 旧状态体系并完成 Phase B 验收
 
 依赖：T006。
 
 目标：删除旧接口、alias、wrapper、重复状态与过渡测试，验证核心播放、失败恢复、Source/Regex 变化和迟到回调，结束本窗口并执行完整门禁。
+
+完成成果：PlaybackRuntimeState 仍只由内部 PlaybackRuntime 持有和替换；PlaybackCoordinator 继续作为命令/effect façade，Snapshot 为 runtime 投影，local audio 保留设备快照与本地 generation。PlaybackEventCommand 删除重复 SessionId 副本，事件去重与接纳均从原始 audio snapshot 读取身份；删除针对旧 PlaybackSessionState mutator 名称的失效架构扫描和旧接口形状/迁移负断言，改为验证 runtime/state 非 public、Current 仅 private set，并保留各 Playback role 共享同一 coordinator 的 DI 验证。Provider production pipeline 测试改为等待稳定 Playing/Stopped，而非中间 Preparing，并验证 next-position checkpoint；保留 runtime commit、失败恢复、Source/Regex 与迟到回调核心行为覆盖。仓库搜索确认 T001–T006 旧 Playback 类型/API/状态字段已清除；locked restore、format verify、Release build（0 warning/error）、完整 tests 1157/1157（含 WPF isolated Desktop 100/100）及 diff 检查通过。无持久化变化、环境限制或长期文档冲突。
 
 ## 5. Phase C：把 Cache 一致性收回 Cache 模块
 

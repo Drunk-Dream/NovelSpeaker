@@ -53,7 +53,7 @@ internal sealed class PlaybackCommandProcessor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(command);
         if (!_accepting ||
             ((command.Kind is PlaybackEventCommandKind.Completed or PlaybackEventCommandKind.Failed or PlaybackEventCommandKind.SnapshotChanged) &&
-             command.SessionId is null))
+             command.Snapshot?.PlaybackSessionId is null))
         {
             return;
         }
@@ -206,7 +206,6 @@ internal enum PlaybackEventCommandKind
 
 internal sealed record PlaybackEventCommand(
     PlaybackEventCommandKind Kind,
-    Guid? SessionId,
     LocalAudioPlaybackSnapshot? Snapshot,
     PlaybackErrorEventArgs? Error,
     BookCommittedChange? BookChange = null,
@@ -214,7 +213,7 @@ internal sealed record PlaybackEventCommand(
 {
     public PlaybackEventKey Key => new(
         Kind,
-        SessionId ?? Guid.Empty,
+        Snapshot?.PlaybackSessionId ?? Guid.Empty,
         Snapshot?.BookId,
         Snapshot?.ChapterIndex ?? -1,
         Snapshot?.SegmentIndex ?? -1,

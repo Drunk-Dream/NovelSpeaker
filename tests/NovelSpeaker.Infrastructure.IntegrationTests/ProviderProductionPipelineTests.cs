@@ -305,7 +305,8 @@ public sealed class ProviderProductionPipelineTests
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(loaded, fixture.Player.LoadedFile);
 
-        var completed = WaitForSnapshotAsync(playback, snapshot => snapshot.SegmentIndex == 1 && snapshot.State != PlaybackState.Buffering);
+        var nextState = change is "switch" or "edit" ? PlaybackState.Playing : PlaybackState.Stopped;
+        var completed = WaitForSnapshotAsync(playback, snapshot => snapshot.SegmentIndex == 1 && snapshot.State == nextState);
         fixture.Player.Complete();
         await completed;
         if (change is "switch" or "edit")
@@ -322,7 +323,7 @@ public sealed class ProviderProductionPipelineTests
             Assert.False(playback.CurrentSnapshot.HasAvailableProvider);
             Assert.Equal(1, fixture.RequestCount);
             var progress = await fixture.Services.GetRequiredService<IReadingProgressStore>().GetAsync("book", CancellationToken.None);
-            Assert.Equal(0, progress!.SegmentIndex);
+            Assert.Equal(1, progress!.SegmentIndex);
         }
     }
 

@@ -409,9 +409,10 @@ public sealed class ArchitectureTests
         Assert.Equal(
             ["src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs: Singleton"],
             ArchitectureRules.FindPlaybackCoordinatorRegistrations(Repository.ReadProductSourceFiles()));
-        Assert.Empty(ArchitectureRules.FindPlaybackSessionStateMutationViolations(
-            Repository.ReadProductSourceFiles()));
         Assert.False(typeof(PlaybackRuntime).IsPublic);
+        Assert.False(typeof(PlaybackRuntimeState).IsPublic);
+        var runtimeState = typeof(PlaybackRuntime).GetProperty(nameof(PlaybackRuntime.Current))!;
+        Assert.True(runtimeState.GetSetMethod(nonPublic: true)!.IsPrivate);
         Assert.Equal(typeof(PlaybackSnapshot), typeof(IPlaybackSnapshotSource)
             .GetProperty(nameof(IPlaybackSnapshotSource.CurrentSnapshot))!.PropertyType);
         Assert.Null(typeof(IPlaybackSnapshotSource)
