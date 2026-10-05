@@ -117,11 +117,13 @@
 
 完成成果：删除 Playback 高层 `Buffering` 状态并保留其它 enum 数值；新 target commit 和当前 target 的准备/重试均投影为 Preparing，损坏音频恢复显示明确的重新生成语义。PlaybackSnapshot 投影已提交 TargetRevision，Player 在页面 activation 内延迟显示紧凑音频准备提示，短等待不显示、播放/暂停/失败/停止或换 target 后及时隐藏；可控 TimeProvider 测试覆盖延迟、快速跳转重置、页面离开与恢复语义。Preparing/Recovering 的 Player、MiniPlayer、桌面切换和 SMTC 操作映射到暂停意图；active preparation 上重复 Resume 不重启合成。普通同 Book/Source 导航及自动推进继续先 CommitTarget，`PrepareReplacement/CommitReplacement` 仅保留 Book/Source session replacement。迁移集成测试等待稳定播放状态并验证最终 Regex target；新增 Player 延迟反馈、target revision、暂停命令、SMTC 映射与准备期间重复 Resume 覆盖。Phase B2 搜索确认无 Buffering 引用且普通 target flow 不调用 replacement；locked restore、format verify、Release build（0 warning/error）、完整 tests 1181/1181（含 isolated Desktop WPF 101/101）与 diff 检查通过。无持久化变化、环境限制或长期文档冲突。
 
-## [ ] T010A（P1）：Playback 架构收口与减法
+## [x] T010A（P1）：Playback 架构收口与减法
 
 依赖：T010。
 
 目标：在不改变 target-driven 用户行为、不重新打开并发架构的前提下，清理 T008–T010 迁移后的重复 effect 表达、session replacement 命名和无价值残留；审计 `PlaybackCoordinator` 职责，只在存在明确独立 owner 时做小型提取，并以净删除、边界更清楚和完整门禁通过作为完成标准。
+
+完成成果：删除 Runtime 从未执行的 `PlaybackStopTargetAudioEffect` / `PlaybackRefreshPrefetchEffect` 及全部产生路径、测试断言；target 停止仍由 Coordinator 根据当前设备身份在 target commit 前执行，prefetch 刷新仍由 Coordinator 显式调度。剩余 prepare/cancel/checkpoint/session-retire effects 分别由唯一 Coordinator helper 执行。将 session 候选、准备/提交方法、拒绝值和 Coordinator helper 改为明确的 session replacement 命名；该路径只创建新 session（Book/ActiveSource context 改变或当前 session 不存在），同 session 导航、自动 next、retry/skip 继续走 target transition。PlaybackCoordinator 保留命令 façade、已提交变化消费、session/target 编排、音频准备、prefetch、设备回调、ReadingProgress、stop timer、volume persistence 与内容/位置解析职责；未提取职责，因为它们共享 serialized command/process 生命周期，且已有 Runtime、local audio、segment runner、position resolver owner，单独搬移不会移除 Coordinator 的 state/orchestration。Production code 净删除 effect 类型及重复表达，无新增抽象；保留既有 Playback 行为测试，仅更新 session replacement 内部命名并删除过期 effect 形状断言。locked restore、format verify、Release build（0 warning/error）、完整 tests 1181/1181 与 diff 检查通过；无持久化变化、环境限制或长期文档冲突。未发现本任务范围外仍需立即处理的问题；serialized local audio start 与 checkpoint/preparation 时序保持原样。
 
 ## 6. Phase C：把 Cache 一致性收回 Cache 模块
 

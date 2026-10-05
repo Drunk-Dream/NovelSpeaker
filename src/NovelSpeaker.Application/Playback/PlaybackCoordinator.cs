@@ -410,7 +410,7 @@ public sealed class PlaybackCoordinator :
             await ExecuteTargetTransitionAsync(transition, stopAudio, cancellationToken).ConfigureAwait(false);
             return;
         }
-        await ReplaceSessionAsync(new(targetBook, targetPosition, provider,
+        await ReplacePlaybackSessionAsync(new(targetBook, targetPosition, provider,
             speed ?? _appSettingsService.Current.DefaultSpeakSpeed,
             play && provider is not null ? PlaybackState.Preparing : provider is null ? PlaybackState.Stopped : PlaybackState.Paused,
             resolved.Value.ResumePositionMilliseconds, Message: message),
@@ -479,7 +479,7 @@ public sealed class PlaybackCoordinator :
         }
         if (current.Identity is null)
         {
-            await ReplaceSessionAsync(new(current.Book, current.Position, provider, current.SpeakSpeed,
+            await ReplacePlaybackSessionAsync(new(current.Book, current.Position, provider, current.SpeakSpeed,
                 provider is null ? PlaybackState.Stopped : PlaybackState.Preparing,
                 current.ResumePositionMilliseconds,
                 Message: provider is null ? ProviderMissingMessage : "已恢复当前段落，正在准备音频。"),
@@ -662,7 +662,7 @@ public sealed class PlaybackCoordinator :
                 PlaybackIntent.Pause => PlaybackState.Paused,
                 _ => PlaybackState.Stopped
             };
-            await ReplaceSessionAsync(new(book, new(chapter, segment), provider, current.SpeakSpeed,
+            await ReplacePlaybackSessionAsync(new(book, new(chapter, segment), provider, current.SpeakSpeed,
                 state, Message: provider is null ? ProviderMissingMessage : "已跳转到目标段落，等待播放。"),
                 true, false, ct).ConfigureAwait(false);
             return;
@@ -738,7 +738,7 @@ public sealed class PlaybackCoordinator :
         SchedulePrefetchRefresh(_runtime.Current, null);
     }
 
-    private async Task ReplaceSessionAsync(PlaybackSessionTarget target, bool checkpoint, bool forceInvalidate, CancellationToken ct,
+    private async Task ReplacePlaybackSessionAsync(PlaybackSessionTarget target, bool checkpoint, bool forceInvalidate, CancellationToken ct,
         bool cancelStopTimer = true)
     {
         await ValidateBookAsync(target.Book, ct).ConfigureAwait(false);
@@ -752,7 +752,7 @@ public sealed class PlaybackCoordinator :
                 State = provider is null && requestedState == PlaybackState.Preparing ? PlaybackState.Stopped : requestedState,
                 Message = provider is null ? ProviderMissingMessage : target.Message
             };
-            var preparation = _runtime.PrepareReplacement(target);
+            var preparation = _runtime.PrepareSessionReplacement(target);
             if (!preparation.IsAccepted) throw new InvalidOperationException("无效的播放目标。");
             await ValidateBookAsync(target.Book, ct).ConfigureAwait(false);
             var latestProvider = await _selectedProvider.GetSelectedProviderAsync(ct).ConfigureAwait(false);
@@ -762,10 +762,10 @@ public sealed class PlaybackCoordinator :
             var device = _localAudio.CurrentSnapshot;
             var retiringPosition = MatchesDevice(_runtime.Current, device) && device.State is PlaybackState.Playing or PlaybackState.Paused
                 ? device.PositionMilliseconds : _runtime.Current.PositionForSave;
-            var transition = _runtime.CommitReplacement(preparation.Replacement!, ct, checkpoint, retiringPosition);
+            var transition = _runtime.CommitSessionReplacement(preparation.Replacement!, ct, checkpoint, retiringPosition);
             if (!transition.IsAccepted) throw new OperationCanceledException(ct);
             if (cancelStopTimer) _stopTimer.Cancel();
-            await ExecuteReplacementEffectsAsync(transition, stopAudio, forceInvalidate, ct).ConfigureAwait(false);
+            await ExecuteSessionReplacementEffectsAsync(transition, stopAudio, forceInvalidate, ct).ConfigureAwait(false);
             return;
         }
     }
@@ -774,7 +774,7 @@ public sealed class PlaybackCoordinator :
         first is null ? second is null : second is not null && first.ProviderId == second.ProviderId &&
             ProviderSynthesisFingerprint.Create(first.Provider).Equals(ProviderSynthesisFingerprint.Create(second.Provider));
 
-    private async Task ExecuteReplacementEffectsAsync(PlaybackTransition transition, bool stopAudio,
+    private async Task ExecuteSessionReplacementEffectsAsync(PlaybackTransition transition, bool stopAudio,
         bool forceInvalidate, CancellationToken ct)
     {
         Exception? effectFailure = null;

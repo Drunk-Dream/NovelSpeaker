@@ -91,7 +91,7 @@ internal sealed class PlaybackRuntime : IDisposable
         });
     }
 
-    public PlaybackPreparation PrepareReplacement(PlaybackSessionTarget target)
+    public PlaybackSessionReplacementPreparation PrepareSessionReplacement(PlaybackSessionTarget target)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(target);
@@ -120,7 +120,7 @@ internal sealed class PlaybackRuntime : IDisposable
         return new(PlaybackTransitionRejection.None, new(_runtimeId, _revision, state));
     }
 
-    public PlaybackTransition CommitReplacement(PlaybackReplacement replacement, CancellationToken cancellationToken,
+    public PlaybackTransition CommitSessionReplacement(PlaybackSessionReplacement replacement, CancellationToken cancellationToken,
         bool checkpointNewPosition = true, long? retiringPositionMilliseconds = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -128,7 +128,7 @@ internal sealed class PlaybackRuntime : IDisposable
         if (cancellationToken.IsCancellationRequested)
             return Reject(PlaybackTransitionRejection.Cancelled);
         if (replacement.RuntimeId != _runtimeId || replacement.ExpectedRevision != _revision)
-            return Reject(PlaybackTransitionRejection.StalePreparation);
+            return Reject(PlaybackTransitionRejection.StaleSessionReplacement);
 
         var next = replacement.State;
         // Revalidate at the commit boundary, including the resolved content/position.
@@ -158,8 +158,6 @@ internal sealed class PlaybackRuntime : IDisposable
         if (checkpointNewPosition) AddCheckpoint(effects, next);
         if (next.Preparation is { } preparation)
             effects.Add(new PlaybackPrepareTargetAudioEffect(next, preparation));
-        effects.Add(new PlaybackRefreshPrefetchEffect(next));
-
         _lifetime = new PlaybackSessionLifetime(next.Identity);
         Commit(next);
         return Accepted(effects.AsReadOnly());
@@ -234,7 +232,7 @@ internal sealed class PlaybackRuntime : IDisposable
         }
         Commit(next);
         // Current audio stays intact; the next segment/prefetch consumes this configuration.
-        return Accepted([new PlaybackRefreshPrefetchEffect(Current)]);
+        return Accepted([]);
     }
 
     public PlaybackTransition Clear(CancellationToken cancellationToken)
@@ -301,7 +299,6 @@ internal sealed class PlaybackRuntime : IDisposable
         var effects = new List<PlaybackEffect>();
         if (activePreparation is not null) effects.Add(new PlaybackCancelPreparationEffect(activePreparation.Identity));
         AddCheckpoint(effects, Current);
-        effects.Add(new PlaybackRefreshPrefetchEffect(Current));
         return Accepted(effects.AsReadOnly());
     }
 
@@ -398,14 +395,10 @@ internal sealed class PlaybackRuntime : IDisposable
         var effects = new List<PlaybackEffect>();
         AddCheckpoint(effects, previous);
         AddCheckpoint(effects, next);
-        if (previous.Target is { } previousTarget)
-            effects.Add(new PlaybackStopTargetAudioEffect(session, previousTarget.Identity));
         if (previous.Preparation is { } obsolete)
             effects.Add(new PlaybackCancelPreparationEffect(obsolete.Identity));
         if (next.Preparation is { } preparation)
             effects.Add(new PlaybackPrepareTargetAudioEffect(next, preparation));
-        effects.Add(new PlaybackRefreshPrefetchEffect(next));
-
         Commit(next);
         return Accepted(effects.AsReadOnly());
     }
@@ -462,15 +455,12 @@ internal sealed class PlaybackRuntime : IDisposable
         {
             AddCheckpoint(effects, previous);
             if (next.Position is not null) AddCheckpoint(effects, next);
-            if (previous.Identity is { } session && previous.Target is { } oldTarget)
-                effects.Add(new PlaybackStopTargetAudioEffect(session, oldTarget.Identity));
             if (previous.Preparation is { } obsolete)
                 effects.Add(new PlaybackCancelPreparationEffect(obsolete.Identity));
             if (next.Preparation is { } preparation)
                 effects.Add(new PlaybackPrepareTargetAudioEffect(next, preparation));
         }
         Commit(next);
-        effects.Add(new PlaybackRefreshPrefetchEffect(Current));
         return Accepted(effects.AsReadOnly());
     }
 

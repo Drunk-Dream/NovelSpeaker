@@ -4,15 +4,15 @@ internal enum PlaybackTransitionRejection
 {
     None,
     InvalidTarget,
-    StalePreparation,
+    StaleSessionReplacement,
     StaleSession,
     Cancelled
 }
 
-/// <summary>A preparation has no cancellation resources and does not change current state.</summary>
-internal sealed class PlaybackReplacement
+/// <summary>A session replacement candidate has no cancellation resources and does not change current state.</summary>
+internal sealed class PlaybackSessionReplacement
 {
-    internal PlaybackReplacement(Guid runtimeId, long expectedRevision, PlaybackRuntimeState state)
+    internal PlaybackSessionReplacement(Guid runtimeId, long expectedRevision, PlaybackRuntimeState state)
     {
         RuntimeId = runtimeId;
         ExpectedRevision = expectedRevision;
@@ -24,9 +24,9 @@ internal sealed class PlaybackReplacement
     public PlaybackRuntimeState State { get; }
 }
 
-internal sealed record PlaybackPreparation(
+internal sealed record PlaybackSessionReplacementPreparation(
     PlaybackTransitionRejection Rejection,
-    PlaybackReplacement? Replacement)
+    PlaybackSessionReplacement? Replacement)
 {
     public bool IsAccepted => Rejection == PlaybackTransitionRejection.None;
 }
@@ -39,15 +39,13 @@ internal sealed record PlaybackTransition(
     public bool IsAccepted => Rejection == PlaybackTransitionRejection.None;
 }
 
-// Playback-specific intents for the existing audio, progress and prefetch roles.
+// Playback-specific intents for the existing audio and progress roles.
 // Executors receive committed identity/data, not delegates or a mutable runtime.
 internal abstract record PlaybackEffect;
 internal sealed record PlaybackRetireSessionEffect(PlaybackSessionLifetime Lifetime) : PlaybackEffect;
 internal sealed record PlaybackCheckpointEffect(PlaybackProgressUpdate Progress) : PlaybackEffect;
-internal sealed record PlaybackStopTargetAudioEffect(PlaybackSessionIdentity Session, PlaybackTargetIdentity Target) : PlaybackEffect;
 internal sealed record PlaybackCancelPreparationEffect(PlaybackAudioPreparationIdentity Preparation) : PlaybackEffect;
 internal sealed record PlaybackPrepareTargetAudioEffect(PlaybackRuntimeState State, PlaybackAudioPreparation Preparation) : PlaybackEffect;
-internal sealed record PlaybackRefreshPrefetchEffect(PlaybackRuntimeState Session) : PlaybackEffect;
 
 internal sealed record PlaybackAudioResult(
     PlaybackSessionIdentity Identity,

@@ -16,7 +16,7 @@ public sealed class PlaybackRuntimeTests
     }
 
     [Fact]
-    public void Preparation_does_not_publish_target_or_cancel_or_release_current_session()
+    public void Session_replacement_preparation_does_not_publish_target_or_cancel_or_release_current_session()
     {
         using var runtime = Open();
         var oldState = runtime.Current;
@@ -24,7 +24,7 @@ public sealed class PlaybackRuntimeTests
         var protection = new TrackingDisposable();
         Assert.True(runtime.TryProtectAudio(oldState.Identity!, protection));
 
-        var preparation = runtime.PrepareReplacement(Target() with { Position = new(4, 1) });
+        var preparation = runtime.PrepareSessionReplacement(Target() with { Position = new(4, 1) });
 
         Assert.True(preparation.IsAccepted);
         Assert.Same(oldState, runtime.Current);
@@ -46,7 +46,7 @@ public sealed class PlaybackRuntimeTests
         using var runtime = Open();
         var before = runtime.Current;
 
-        var result = runtime.PrepareReplacement(Target() with { Position = new(chapter, segment) });
+        var result = runtime.PrepareSessionReplacement(Target() with { Position = new(chapter, segment) });
 
         Assert.Equal(PlaybackTransitionRejection.InvalidTarget, result.Rejection);
         Assert.Null(result.Replacement);
@@ -61,9 +61,9 @@ public sealed class PlaybackRuntimeTests
         var oldToken = runtime.SessionToken;
         var protection = new TrackingDisposable();
         runtime.TryProtectAudio(before.Identity!, protection);
-        var replacement = runtime.PrepareReplacement(Target() with { Position = new(4, 1) }).Replacement!;
+        var replacement = runtime.PrepareSessionReplacement(Target() with { Position = new(4, 1) }).Replacement!;
 
-        var result = runtime.CommitReplacement(replacement, new CancellationToken(true));
+        var result = runtime.CommitSessionReplacement(replacement, new CancellationToken(true));
 
         Assert.Equal(PlaybackTransitionRejection.Cancelled, result.Rejection);
         Assert.Empty(result.Effects);
@@ -82,7 +82,7 @@ public sealed class PlaybackRuntimeTests
         runtime.TryProtectAudio(before.Identity!, protection);
         var target = Target() with { Position = new(4, 1), ResumePositionMilliseconds = 321 };
 
-        var result = runtime.CommitReplacement(runtime.PrepareReplacement(target).Replacement!, CancellationToken.None);
+        var result = runtime.CommitSessionReplacement(runtime.PrepareSessionReplacement(target).Replacement!, CancellationToken.None);
 
         Assert.True(result.IsAccepted);
         Assert.Equal(new PlaybackPosition(4, 1), runtime.Current.Position);
@@ -97,8 +97,6 @@ public sealed class PlaybackRuntimeTests
         Assert.Equal(0, checkpoints[0].Progress.SegmentIndex);
         var checkpoint = checkpoints[1].Progress;
         Assert.Equal(new PlaybackProgressUpdate("book-1", 4, 1, 6, 321, target.Book.SourceContext), checkpoint);
-        Assert.Same(result.State, Assert.Single(result.Effects.OfType<PlaybackRefreshPrefetchEffect>()).Session);
-
         var retirement = Assert.Single(result.Effects.OfType<PlaybackRetireSessionEffect>());
         retirement.Lifetime.Dispose();
         retirement.Lifetime.Dispose();
@@ -108,43 +106,43 @@ public sealed class PlaybackRuntimeTests
     }
 
     [Fact]
-    public void Superseded_or_replayed_preparation_cannot_commit()
+    public void Superseded_or_replayed_session_replacement_cannot_commit()
     {
         using var runtime = Open();
-        var older = runtime.PrepareReplacement(Target()).Replacement!;
-        var newer = runtime.PrepareReplacement(Target() with { Position = new(4, 1) }).Replacement!;
-        Retire(runtime.CommitReplacement(newer, CancellationToken.None));
+        var older = runtime.PrepareSessionReplacement(Target()).Replacement!;
+        var newer = runtime.PrepareSessionReplacement(Target() with { Position = new(4, 1) }).Replacement!;
+        Retire(runtime.CommitSessionReplacement(newer, CancellationToken.None));
         var before = runtime.Current;
 
-        Assert.Equal(PlaybackTransitionRejection.StalePreparation, runtime.CommitReplacement(older, CancellationToken.None).Rejection);
-        Assert.Equal(PlaybackTransitionRejection.StalePreparation, runtime.CommitReplacement(newer, CancellationToken.None).Rejection);
+        Assert.Equal(PlaybackTransitionRejection.StaleSessionReplacement, runtime.CommitSessionReplacement(older, CancellationToken.None).Rejection);
+        Assert.Equal(PlaybackTransitionRejection.StaleSessionReplacement, runtime.CommitSessionReplacement(newer, CancellationToken.None).Rejection);
         Assert.Same(before, runtime.Current);
     }
 
     [Fact]
-    public void Preparation_from_another_runtime_is_rejected()
+    public void Session_replacement_from_another_runtime_is_rejected()
     {
         using var runtime = Open();
         using var other = Open();
         var before = runtime.Current;
 
-        var result = runtime.CommitReplacement(other.PrepareReplacement(Target()).Replacement!, CancellationToken.None);
+        var result = runtime.CommitSessionReplacement(other.PrepareSessionReplacement(Target()).Replacement!, CancellationToken.None);
 
-        Assert.Equal(PlaybackTransitionRejection.StalePreparation, result.Rejection);
+        Assert.Equal(PlaybackTransitionRejection.StaleSessionReplacement, result.Rejection);
         Assert.Same(before, runtime.Current);
     }
 
     [Fact]
-    public void Audio_progress_invalidates_preparation_instead_of_overwriting_newer_resume_position()
+    public void Audio_progress_invalidates_session_replacement_instead_of_overwriting_newer_resume_position()
     {
         using var runtime = Open();
-        var prepared = runtime.PrepareReplacement(Target()).Replacement!;
+        var prepared = runtime.PrepareSessionReplacement(Target()).Replacement!;
         runtime.AcceptAudio(Audio(runtime.Current, PlaybackState.Playing, new(true, 321, 1000, false)));
         var before = runtime.Current;
 
-        var result = runtime.CommitReplacement(prepared, CancellationToken.None);
+        var result = runtime.CommitSessionReplacement(prepared, CancellationToken.None);
 
-        Assert.Equal(PlaybackTransitionRejection.StalePreparation, result.Rejection);
+        Assert.Equal(PlaybackTransitionRejection.StaleSessionReplacement, result.Rejection);
         Assert.Same(before, runtime.Current);
         Assert.Equal(321, runtime.Current.PositionForSave);
     }
@@ -154,12 +152,12 @@ public sealed class PlaybackRuntimeTests
     {
         using var runtime = new PlaybackRuntime();
         var target = Target() with { State = PlaybackState.Preparing };
-        Assert.False(runtime.PrepareReplacement(target with { Provider = null }).IsAccepted);
-        Assert.False(runtime.PrepareReplacement(target with { Position = null }).IsAccepted);
-        Assert.False(runtime.PrepareReplacement(target with { ResumePositionMilliseconds = -1 }).IsAccepted);
-        Assert.False(runtime.PrepareReplacement(target with { ConsecutiveSegmentFailureCount = -1 }).IsAccepted);
+        Assert.False(runtime.PrepareSessionReplacement(target with { Provider = null }).IsAccepted);
+        Assert.False(runtime.PrepareSessionReplacement(target with { Position = null }).IsAccepted);
+        Assert.False(runtime.PrepareSessionReplacement(target with { ResumePositionMilliseconds = -1 }).IsAccepted);
+        Assert.False(runtime.PrepareSessionReplacement(target with { ConsecutiveSegmentFailureCount = -1 }).IsAccepted);
 
-        var result = runtime.CommitReplacement(runtime.PrepareReplacement(target).Replacement!, CancellationToken.None);
+        var result = runtime.CommitSessionReplacement(runtime.PrepareSessionReplacement(target).Replacement!, CancellationToken.None);
 
         Assert.True(result.IsAccepted);
         var preparation = Assert.Single(result.Effects.OfType<PlaybackPrepareTargetAudioEffect>());
@@ -186,7 +184,6 @@ public sealed class PlaybackRuntimeTests
         Assert.NotNull(runtime.Current.Preparation);
         Assert.False(runtime.Current.Audio.HasLoadedAudio);
         Assert.Equal(0, runtime.Current.PositionForSave);
-        Assert.Single(result.Effects.OfType<PlaybackStopTargetAudioEffect>());
         var preparation = Assert.Single(result.Effects.OfType<PlaybackPrepareTargetAudioEffect>());
         Assert.Equal(runtime.Current.Preparation, preparation.Preparation);
         Assert.Equal(new PlaybackProgressUpdate("book-1", 4, 1, 6, 0, before.Book!.SourceContext),
@@ -215,7 +212,6 @@ public sealed class PlaybackRuntimeTests
         Assert.Equal(session, runtime.Current.Identity);
         Assert.Equal(new PlaybackPosition(4, 1), runtime.Current.Position);
         Assert.Single(transition.Effects.OfType<PlaybackPrepareTargetAudioEffect>());
-        Assert.Empty(transition.Effects.OfType<PlaybackStopTargetAudioEffect>());
     }
 
     [Fact]
@@ -371,7 +367,7 @@ public sealed class PlaybackRuntimeTests
     {
         using var runtime = Open();
         var old = runtime.Current;
-        Retire(runtime.CommitReplacement(runtime.PrepareReplacement(Target()).Replacement!, CancellationToken.None));
+        Retire(runtime.CommitSessionReplacement(runtime.PrepareSessionReplacement(Target()).Replacement!, CancellationToken.None));
         var before = runtime.Current;
         var protection = new TrackingDisposable();
 
@@ -432,14 +428,13 @@ public sealed class PlaybackRuntimeTests
         Assert.Same(before.Audio, runtime.Current.Audio);
         Assert.Equal(before.Position, runtime.Current.Position);
         Assert.Equal(PlaybackState.Playing, runtime.Current.State);
-        Assert.Single(result.Effects.OfType<PlaybackRefreshPrefetchEffect>());
     }
 
     [Fact]
     public void Only_successful_playing_result_clears_failure_window()
     {
         using var runtime = new PlaybackRuntime();
-        runtime.CommitReplacement(runtime.PrepareReplacement(Target() with
+        runtime.CommitSessionReplacement(runtime.PrepareSessionReplacement(Target() with
         {
             ConsecutiveSegmentFailureCount = 2,
             State = PlaybackState.Preparing
@@ -456,7 +451,7 @@ public sealed class PlaybackRuntimeTests
         using var runtime = new PlaybackRuntime();
         var target = Target() with { Book = new("book-1", "测试小说", []), Position = null, State = PlaybackState.Stopped };
 
-        var result = runtime.CommitReplacement(runtime.PrepareReplacement(target).Replacement!, CancellationToken.None);
+        var result = runtime.CommitSessionReplacement(runtime.PrepareSessionReplacement(target).Replacement!, CancellationToken.None);
 
         Assert.True(result.IsAccepted);
         Assert.Null(runtime.Current.Position);
@@ -521,13 +516,13 @@ public sealed class PlaybackRuntimeTests
         Assert.True(token.IsCancellationRequested);
         Assert.Equal(1, protection.DisposeCount);
         Assert.False(runtime.IsCurrent(new(Guid.NewGuid(), "book-1", null)));
-        Assert.Throws<ObjectDisposedException>(() => runtime.PrepareReplacement(Target()));
+        Assert.Throws<ObjectDisposedException>(() => runtime.PrepareSessionReplacement(Target()));
     }
 
     private static PlaybackRuntime Open()
     {
         var runtime = new PlaybackRuntime();
-        Assert.True(runtime.CommitReplacement(runtime.PrepareReplacement(Target() with { State = PlaybackState.Preparing }).Replacement!, CancellationToken.None).IsAccepted);
+        Assert.True(runtime.CommitSessionReplacement(runtime.PrepareSessionReplacement(Target() with { State = PlaybackState.Preparing }).Replacement!, CancellationToken.None).IsAccepted);
         return runtime;
     }
 
@@ -544,7 +539,7 @@ public sealed class PlaybackRuntimeTests
     {
         using var runtime = Open();
         var captured = runtime.Current.Identity!;
-        var replacement = runtime.CommitReplacement(runtime.PrepareReplacement(Target() with
+        var replacement = runtime.CommitSessionReplacement(runtime.PrepareSessionReplacement(Target() with
         { Book = Target().Book with { BookId = "book-2" } }).Replacement!, CancellationToken.None);
         var token = runtime.SessionToken;
 
