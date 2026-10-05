@@ -44,7 +44,6 @@ internal sealed record PlaybackTransition(
 internal abstract record PlaybackEffect;
 internal sealed record PlaybackRetireSessionEffect(PlaybackSessionLifetime Lifetime) : PlaybackEffect;
 internal sealed record PlaybackCheckpointEffect(PlaybackProgressUpdate Progress) : PlaybackEffect;
-internal sealed record PlaybackPlaySegmentEffect(PlaybackRuntimeState Session) : PlaybackEffect;
 internal sealed record PlaybackStopTargetAudioEffect(PlaybackSessionIdentity Session, PlaybackTargetIdentity Target) : PlaybackEffect;
 internal sealed record PlaybackCancelPreparationEffect(PlaybackAudioPreparationIdentity Preparation) : PlaybackEffect;
 internal sealed record PlaybackPrepareTargetAudioEffect(PlaybackRuntimeState State, PlaybackAudioPreparation Preparation) : PlaybackEffect;
@@ -66,17 +65,54 @@ internal sealed class PlaybackPreparationLifetime : IDisposable
     private readonly object _gate = new();
     private readonly Action<PlaybackPreparationLifetime> _release;
     private bool _disposed;
-    public PlaybackPreparationLifetime(Books.PlaybackBookContent book, Action<PlaybackPreparationLifetime> release)
+    public PlaybackPreparationLifetime(
+        Books.PlaybackBookContent book,
+        PlaybackAudioPreparationIdentity identity,
+        Action<PlaybackPreparationLifetime> release)
     {
         Book = book;
+        Identity = identity;
         Token = _cancellation.Token;
         _release = release;
     }
-    public Books.PlaybackBookContent Book { get; private set; }
-    public void SetBook(Books.PlaybackBookContent book) => Book = book;
+    public Books.PlaybackBookContent Book { get; }
+    public PlaybackAudioPreparationIdentity Identity { get; }
     public CancellationToken Token { get; }
     public bool IsActive { get { lock (_gate) return !_disposed; } }
     public void Cancel() { lock (_gate) { if (!_disposed) _cancellation.Cancel(); } }
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _cancellation.Dispose();
+        }
+        _release(this);
+    }
+}
+
+/// <summary>Owns cancellable content resolution without changing playback state.</summary>
+internal sealed class PlaybackContentWorkLifetime : IDisposable
+{
+    private readonly CancellationTokenSource _cancellation = new();
+    private readonly object _gate = new();
+    private readonly Action<PlaybackContentWorkLifetime> _release;
+    private bool _disposed;
+
+    public PlaybackContentWorkLifetime(Books.PlaybackBookContent book, Action<PlaybackContentWorkLifetime> release)
+    {
+        Book = book;
+        _release = release;
+        Token = _cancellation.Token;
+    }
+
+    public Books.PlaybackBookContent Book { get; private set; }
+    public CancellationToken Token { get; }
+    public bool IsActive { get { lock (_gate) return !_disposed; } }
+    public void SetBook(Books.PlaybackBookContent book) { lock (_gate) Book = book; }
+    public void Cancel() { lock (_gate) { if (!_disposed) _cancellation.Cancel(); } }
+
     public void Dispose()
     {
         lock (_gate)

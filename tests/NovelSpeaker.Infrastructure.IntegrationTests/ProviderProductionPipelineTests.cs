@@ -89,6 +89,7 @@ public sealed class ProviderProductionPipelineTests
         Assert.False(playback.CurrentSnapshot.HasLoadedAudio);
         Assert.Equal(0, fixture.RequestCount);
         await playback.ResumeAsync(CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         await playback.PauseAsync(CancellationToken.None);
         Assert.Equal(PlaybackState.Paused, playback.CurrentSnapshot.State);
         Assert.True(playback.CurrentSnapshot.HasLoadedAudio);
@@ -104,6 +105,7 @@ public sealed class ProviderProductionPipelineTests
         { Configuration = fixture.HttpConfiguration("rate-limited") }, false, CancellationToken.None);
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(2, fixture.Server.GetRequestCount("/rate-limited"));
         Assert.True(File.Exists(fixture.Player.LoadedFile));
@@ -119,6 +121,7 @@ public sealed class ProviderProductionPipelineTests
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
 
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(3, fixture.Edge.Calls.Count);
     }
@@ -237,6 +240,7 @@ public sealed class ProviderProductionPipelineTests
         await using var fixture = await Fixture.CreateAsync(edge, prefetchCount: 1);
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(0, playback.CurrentSnapshot.SpeakSpeed);
         Assert.True(File.Exists(fixture.Player.LoadedFile));

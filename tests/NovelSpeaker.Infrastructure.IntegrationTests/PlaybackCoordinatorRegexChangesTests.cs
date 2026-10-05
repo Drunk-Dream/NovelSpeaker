@@ -76,6 +76,7 @@ public sealed partial class PlaybackCoordinatorTests
         var generation = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(audio, bookContentService: CreateRegexContent(repository), audioProvider: generation, regexWorkspace: workspace);
         await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         var originalAudio = audio.LastStartedRequest;
         var revision = coordinator.CurrentSnapshot.ContentRevision;
         await workspace.SaveEditorAsync(Editor(rule, "新展示"), CancellationToken.None);
@@ -108,6 +109,40 @@ public sealed partial class PlaybackCoordinatorTests
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.SegmentIndex == 1 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
         Assert.Equal(2, generation.Requests.Count);
         Assert.Equal("第二段", generation.Requests.Last().SpeechText);
+    }
+
+    [Fact]
+    public async Task Removing_all_speech_targets_clears_the_session_prefetch_window()
+    {
+        var repository = new PlaybackRegexRepository([]);
+        var workspace = CreateRegexWorkspace(repository);
+        var prefetchScheduler = new FakePrefetchScheduler();
+        var coordinator = CreateCoordinator(new FakeLocalAudioPlaybackCoordinator(),
+            bookContentService: CreateRegexContent(repository), regexWorkspace: workspace,
+            prefetchScheduler: prefetchScheduler);
+        await using (coordinator)
+        {
+            await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
+            await WaitForPlayingAsync(coordinator);
+            await WaitForAsync(prefetchScheduler, () => prefetchScheduler.ScheduleCalls.Count > 0 &&
+                prefetchScheduler.ScheduleCalls.Last().Requests.Count > 0);
+            var priorWindow = prefetchScheduler.ScheduleCalls.Last();
+            var priorRevision = prefetchScheduler.Revisions.Last();
+
+            var rule = SpeechRule(".*", "");
+            await workspace.SaveEditorAsync(Editor(rule, "") with { Id = null }, CancellationToken.None);
+            await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped &&
+                coordinator.CurrentSnapshot.BookId == "book-1" &&
+                coordinator.CurrentSnapshot.Message == "正则替换后没有可播放的段落。");
+            await WaitForAsync(prefetchScheduler, () => prefetchScheduler.ScheduleCalls.Count > 1 &&
+                prefetchScheduler.ScheduleCalls.Last().Requests.Count == 0 &&
+                prefetchScheduler.Revisions.Last() > priorRevision);
+
+            var emptyWindow = prefetchScheduler.ScheduleCalls.Last();
+            Assert.Equal(priorWindow.SessionId, emptyWindow.SessionId);
+            Assert.Empty(emptyWindow.Requests);
+            Assert.True(prefetchScheduler.Revisions.Last() > priorRevision);
+        }
     }
 
     [Fact]
@@ -148,6 +183,7 @@ public sealed partial class PlaybackCoordinatorTests
         if (switchBook)
         {
             await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
+            await WaitForPlayingAsync(coordinator);
             content.Source.Book = content.Source.Book with { BookId = "book-2", SourceContext = new("source-2", "catalog-2") };
         }
         var bookId = content.Source.Book.BookId;
@@ -162,7 +198,11 @@ public sealed partial class PlaybackCoordinatorTests
         await opening;
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == revision + 2 &&
             coordinator.CurrentSnapshot.State == (openPaused ? PlaybackState.Paused : PlaybackState.Playing));
-        if (openPaused) await coordinator.ResumeAsync(CancellationToken.None);
+        if (openPaused)
+        {
+            await coordinator.ResumeAsync(CancellationToken.None);
+            await WaitForPlayingAsync(coordinator);
+        }
         Assert.Equal(bookId, coordinator.CurrentSnapshot.BookId);
         Assert.Equal("新语音", generation.Requests.Last().SpeechText);
     }

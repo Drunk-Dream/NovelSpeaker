@@ -18,6 +18,7 @@ internal sealed class PlaybackRuntime : IDisposable
     private long _revision;
     private bool _disposed;
     private PlaybackPreparationLifetime? _preparation;
+    private PlaybackContentWorkLifetime? _contentWork;
     private long _targetRevision;
 
     public PlaybackRuntimeState Current { get; private set; } = PlaybackRuntimeState.Idle;
@@ -26,11 +27,35 @@ internal sealed class PlaybackRuntime : IDisposable
 
     public PlaybackPreparationLifetime? ActivePreparation => _preparation;
 
-    public PlaybackPreparationLifetime BeginPreparation(PlaybackBookContent book)
+    public PlaybackContentWorkLifetime? ActiveContentWork => _contentWork;
+
+    public PlaybackContentWorkLifetime BeginContentWork(PlaybackBookContent book)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        _preparation = new(book, EndPreparation);
+        _contentWork?.Cancel();
+        _contentWork = new(book, EndContentWork);
+        return _contentWork;
+    }
+
+    private void EndContentWork(PlaybackContentWorkLifetime work)
+    {
+        if (ReferenceEquals(_contentWork, work)) _contentWork = null;
+    }
+
+    public PlaybackPreparationLifetime BeginPreparation(
+        PlaybackBookContent book,
+        PlaybackAudioPreparationIdentity identity)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _preparation?.Cancel();
+        _preparation = new(book, identity, EndPreparation);
         return _preparation;
+    }
+
+    public void CancelPreparation(PlaybackAudioPreparationIdentity identity)
+    {
+        ArgumentNullException.ThrowIfNull(identity);
+        if (_preparation?.Identity == identity) _preparation.Cancel();
     }
 
     private void EndPreparation(PlaybackPreparationLifetime preparation)
@@ -45,6 +70,10 @@ internal sealed class PlaybackRuntime : IDisposable
         var preparation = _preparation;
         if (preparation?.Book.BookId == bookId &&
             (sourceId is null || preparation.Book.SourceContext is null || preparation.Book.SourceContext.SourceId == sourceId)) preparation.Cancel();
+        var contentWork = _contentWork;
+        if (contentWork?.Book.BookId == bookId &&
+            (sourceId is null || contentWork.Book.SourceContext is null || contentWork.Book.SourceContext.SourceId == sourceId))
+            contentWork.Cancel();
     }
 
     public void CaptureCheckpointPosition(
@@ -112,6 +141,8 @@ internal sealed class PlaybackRuntime : IDisposable
             return Reject(PlaybackTransitionRejection.InvalidTarget);
 
         var effects = new List<PlaybackEffect>();
+        if (Current.Preparation is { } obsoletePreparation)
+            effects.Add(new PlaybackCancelPreparationEffect(obsoletePreparation.Identity));
         if (_lifetime is not null)
         {
             var previous = retiringPositionMilliseconds is { } position
@@ -125,7 +156,8 @@ internal sealed class PlaybackRuntime : IDisposable
         }
         if (_lifetime is not null) effects.Add(new PlaybackRetireSessionEffect(_lifetime));
         if (checkpointNewPosition) AddCheckpoint(effects, next);
-        if (next.State == PlaybackState.Preparing) effects.Add(new PlaybackPlaySegmentEffect(next));
+        if (next.Preparation is { } preparation)
+            effects.Add(new PlaybackPrepareTargetAudioEffect(next, preparation));
         effects.Add(new PlaybackRefreshPrefetchEffect(next));
 
         _lifetime = new PlaybackSessionLifetime(next.Identity);
@@ -133,7 +165,7 @@ internal sealed class PlaybackRuntime : IDisposable
         return Accepted(effects.AsReadOnly());
     }
 
-    public PlaybackTransition AcceptAudio(PlaybackAudioResult result)
+    public PlaybackTransition AcceptAudio(PlaybackAudioResult result, bool authoritativeTransportChange = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(result);
@@ -149,6 +181,11 @@ internal sealed class PlaybackRuntime : IDisposable
             (result.State is PlaybackState.Playing or PlaybackState.Paused) && !result.Audio.HasLoadedAudio ||
             (result.State is PlaybackState.Stopped or PlaybackState.Faulted) && result.Audio.HasLoadedAudio)
             return Reject(PlaybackTransitionRejection.InvalidTarget);
+        if (!authoritativeTransportChange &&
+            ((Current.State == PlaybackState.Playing && Current.Intent == PlaybackIntent.Play && result.State == PlaybackState.Paused) ||
+            (Current.State == PlaybackState.Paused && Current.Intent == PlaybackIntent.Pause && result.State == PlaybackState.Playing))
+           )
+            return Reject(PlaybackTransitionRejection.StaleSession);
 
         Commit(Current with
         {
@@ -177,12 +214,24 @@ internal sealed class PlaybackRuntime : IDisposable
         if (identity is null ? Current.Identity is not null : !IsCurrent(identity))
             return Reject(PlaybackTransitionRejection.StaleSession);
         var next = Current with { Provider = provider, SpeakSpeed = AppSettings.NormalizeSpeakSpeed(speakSpeed) };
-        if (Current.Preparation is { } preparation &&
-            CreateSynthesisIdentity(next) != preparation.Identity.Synthesis)
-            next = next with
+        if (Current.Intent == PlaybackIntent.Play && !Current.Audio.HasLoadedAudio)
+        {
+            var previousSynthesis = Current.Preparation?.Identity.Synthesis;
+            var nextSynthesis = CreateSynthesisIdentity(next);
+            var previousProviderId = Current.Provider?.ProviderId;
+            var nextProviderId = provider?.ProviderId;
+            if (!Equals(previousSynthesis, nextSynthesis) || previousProviderId != nextProviderId ||
+                Current.Preparation is null && nextSynthesis is not null)
             {
-                Preparation = CreatePreparation(next, preparation.Kind)
-            };
+                var kind = Current.Preparation?.Kind ?? PlaybackPreparationKind.Initial;
+                next = next with
+                {
+                    Preparation = CreatePreparation(next, kind),
+                    State = provider is null ? PlaybackState.Stopped : PlaybackState.Preparing,
+                    Message = provider is null ? null : "语音配置已更新，正在准备当前段音频。"
+                };
+            }
+        }
         Commit(next);
         // Current audio stays intact; the next segment/prefetch consumes this configuration.
         return Accepted([new PlaybackRefreshPrefetchEffect(Current)]);
@@ -192,11 +241,13 @@ internal sealed class PlaybackRuntime : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (cancellationToken.IsCancellationRequested) return Reject(PlaybackTransitionRejection.Cancelled);
-        IReadOnlyList<PlaybackEffect> effects = _lifetime is null
-            ? [] : [new PlaybackRetireSessionEffect(_lifetime)];
+        var effects = new List<PlaybackEffect>();
+        if (Current.Preparation is { } preparation)
+            effects.Add(new PlaybackCancelPreparationEffect(preparation.Identity));
+        if (_lifetime is not null) effects.Add(new PlaybackRetireSessionEffect(_lifetime));
         _lifetime = null;
         Commit(PlaybackRuntimeState.Idle with { ContentRevision = checked(Current.ContentRevision + 1) });
-        return Accepted(effects);
+        return Accepted(effects.AsReadOnly());
     }
 
     // Cancellation may be signalled by a committed Source change while a serialized
@@ -208,12 +259,16 @@ internal sealed class PlaybackRuntime : IDisposable
         // captured matching owner, never whichever owner is current later.
         var lifetime = _lifetime;
         if (identity is not null && lifetime?.Identity == identity) lifetime.Cancel();
+        var preparation = _preparation;
+        if (identity is not null && preparation?.Identity.Session == identity) preparation.Cancel();
     }
 
     public PlaybackTransition Stop(string message)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         var effects = new List<PlaybackEffect>();
+        if (Current.Preparation is { } preparation)
+            effects.Add(new PlaybackCancelPreparationEffect(preparation.Identity));
         if (_lifetime is not null) AddCheckpoint(effects, Current);
         if (_lifetime is not null) effects.Add(new PlaybackRetireSessionEffect(_lifetime));
         _lifetime = null;
@@ -250,6 +305,22 @@ internal sealed class PlaybackRuntime : IDisposable
         return Accepted(effects.AsReadOnly());
     }
 
+    public PlaybackTransition ResumeLoadedAudio()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (Current.Identity is not { } identity || !IsCurrent(identity) || !Current.Audio.HasLoadedAudio)
+            return Reject(PlaybackTransitionRejection.StaleSession);
+
+        Commit(Current with
+        {
+            Intent = PlaybackIntent.Play,
+            State = PlaybackState.Playing,
+            Message = null,
+            CanRetry = false
+        });
+        return Accepted([]);
+    }
+
     public PlaybackTransition BeginPlayback(bool resetFailureWindow, bool recovering = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
@@ -271,7 +342,9 @@ internal sealed class PlaybackRuntime : IDisposable
             : PlaybackPreparationKind.Initial;
         next = next with { Preparation = CreatePreparation(next, preparationKind) };
         Commit(next);
-        return Accepted([new PlaybackPlaySegmentEffect(Current)]);
+        return Accepted(Current.Preparation is { } preparation
+            ? [new PlaybackPrepareTargetAudioEffect(Current, preparation)]
+            : []);
     }
 
     /// <summary>
@@ -283,13 +356,16 @@ internal sealed class PlaybackRuntime : IDisposable
         PlaybackPosition position,
         PlaybackIntent intent,
         CancellationToken cancellationToken,
-        string? message = null)
+        string? message = null,
+        long resumePositionMilliseconds = 0,
+        bool canRetry = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(book);
         if (cancellationToken.IsCancellationRequested) return Reject(PlaybackTransitionRejection.Cancelled);
-        if (Current.Identity is not { } session || Current.Target is not { } previousTarget || !IsCurrent(session) ||
+        if (Current.Identity is not { } session || !IsCurrent(session) ||
             book.BookId != session.BookId || book.SourceContext != session.SourceContext ||
+            resumePositionMilliseconds < 0 ||
             !IsValidTarget(new(book, position, Current.Provider, Current.SpeakSpeed, PlaybackState.Paused)))
             return Reject(PlaybackTransitionRejection.InvalidTarget);
 
@@ -308,10 +384,13 @@ internal sealed class PlaybackRuntime : IDisposable
                 PlaybackIntent.Pause => PlaybackState.Paused,
                 _ => PlaybackState.Stopped
             },
-            ResumePositionMilliseconds = 0,
+            ResumePositionMilliseconds = resumePositionMilliseconds,
             Audio = PlaybackAudioFacts.Empty,
             Message = message,
-            CanRetry = false
+            CanRetry = canRetry,
+            ContentRevision = ReferenceEquals(book, Current.Book)
+                ? Current.ContentRevision
+                : checked(Current.ContentRevision + 1)
         };
         if (intent == PlaybackIntent.Play && next.Provider is not null)
             next = next with { Preparation = CreatePreparation(next, PlaybackPreparationKind.Initial) };
@@ -319,7 +398,8 @@ internal sealed class PlaybackRuntime : IDisposable
         var effects = new List<PlaybackEffect>();
         AddCheckpoint(effects, previous);
         AddCheckpoint(effects, next);
-        effects.Add(new PlaybackStopTargetAudioEffect(session, previousTarget.Identity));
+        if (previous.Target is { } previousTarget)
+            effects.Add(new PlaybackStopTargetAudioEffect(session, previousTarget.Identity));
         if (previous.Preparation is { } obsolete)
             effects.Add(new PlaybackCancelPreparationEffect(obsolete.Identity));
         if (next.Preparation is { } preparation)
@@ -345,13 +425,14 @@ internal sealed class PlaybackRuntime : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (book.BookId != Current.Book?.BookId || book.SourceContext != Current.Book.SourceContext ||
             position is { } p && !IsValidTarget(new(book, p, Current.Provider, Current.SpeakSpeed, PlaybackState.Paused)) ||
-            position is not null && Current.Identity is null)
+            position is not null && Current.Identity is null && Current.Target is null)
             return Reject(PlaybackTransitionRejection.InvalidTarget);
         var previous = Current;
         var targetChanged = position != Current.Position;
+        var sessionId = Current.Identity?.SessionId ?? Current.Target?.Identity.SessionId ?? Guid.NewGuid();
         var target = position is { } resolved
             ? new PlaybackLogicalTarget(targetChanged
-                ? new PlaybackTargetIdentity(Current.Identity!.SessionId, book.BookId, book.SourceContext, checked(_targetRevision + 1))
+                ? new PlaybackTargetIdentity(sessionId, book.BookId, book.SourceContext, checked(_targetRevision + 1))
                 : Current.Target!.Identity, resolved)
             : null;
         var next = Current with
@@ -359,20 +440,28 @@ internal sealed class PlaybackRuntime : IDisposable
             Book = book,
             Target = target,
             Preparation = targetChanged ? null : Current.Preparation,
-            State = targetChanged && Current.Intent == PlaybackIntent.Play ? PlaybackState.Preparing : Current.State,
+            Intent = targetChanged && position is null ? PlaybackIntent.Stop : Current.Intent,
+            State = targetChanged
+                ? position is null ? PlaybackState.Stopped : Current.Intent switch
+                {
+                    PlaybackIntent.Play when Current.Provider is not null => PlaybackState.Preparing,
+                    PlaybackIntent.Pause => PlaybackState.Paused,
+                    _ => PlaybackState.Stopped
+                }
+                : Current.State,
             ResumePositionMilliseconds = targetChanged ? 0 : Current.ResumePositionMilliseconds,
             Audio = targetChanged ? PlaybackAudioFacts.Empty : Current.Audio,
             ContentRevision = checked(Current.ContentRevision + 1),
             Message = message ?? Current.Message
         };
-        if (targetChanged && next.Intent == PlaybackIntent.Play)
+        if (targetChanged && next.Intent == PlaybackIntent.Play && next.Provider is not null)
             next = next with { Preparation = CreatePreparation(next, PlaybackPreparationKind.Initial) };
 
         var effects = new List<PlaybackEffect>();
         if (targetChanged)
         {
             AddCheckpoint(effects, previous);
-            AddCheckpoint(effects, next);
+            if (next.Position is not null) AddCheckpoint(effects, next);
             if (previous.Identity is { } session && previous.Target is { } oldTarget)
                 effects.Add(new PlaybackStopTargetAudioEffect(session, oldTarget.Identity));
             if (previous.Preparation is { } obsolete)
@@ -450,11 +539,13 @@ internal sealed class PlaybackRuntime : IDisposable
         try
         {
             _preparation?.Cancel();
+            _contentWork?.Cancel();
             _lifetime?.Dispose();
         }
         finally
         {
             _lifetime = null;
+            _contentWork = null;
         }
     }
 

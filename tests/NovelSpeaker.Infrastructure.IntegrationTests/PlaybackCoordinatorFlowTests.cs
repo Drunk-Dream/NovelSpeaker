@@ -92,6 +92,7 @@ public sealed partial class PlaybackCoordinatorTests
             audioProvider: audioProvider);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 12), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
 
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal("示例小说", coordinator.CurrentSnapshot.BookTitle);
@@ -115,6 +116,7 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StartAsync(
             new PlaybackStartRequest("book-1", null, null, null, 10),
             CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         localCoordinator.SetPosition(512);
 
         await coordinator.ClearAsync(CancellationToken.None);
@@ -143,6 +145,7 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StartAsync(
             new PlaybackStartRequest("book-1", null, null, null, 10),
             CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => coordinator.ClearAsync(CancellationToken.None));
@@ -162,6 +165,7 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StartAsync(
             new PlaybackStartRequest("book-1", null, null, null, 10),
             CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         using var cancellationSource = new CancellationTokenSource();
         cancellationSource.Cancel();
 
@@ -188,6 +192,7 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StartAsync(
             new PlaybackStartRequest("book-1", null, null, null, 10),
             CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         var clearTask = coordinator.ClearAsync(CancellationToken.None);
         await readingProgressStore.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
@@ -205,6 +210,7 @@ public sealed partial class PlaybackCoordinatorTests
         await using var coordinator = CreateCoordinator(localCoordinator);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         localCoordinator.RaiseCompleted();
 
         await WaitForAsync(coordinator, () =>
@@ -229,6 +235,7 @@ public sealed partial class PlaybackCoordinatorTests
             book: CreateTwoChapterBook());
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        if (completeOnStartCall != 1) await WaitForPlayingAsync(coordinator);
         if (completeOnStartCall != 1)
         {
             localCoordinator.RaiseCompleted();
@@ -260,8 +267,10 @@ public sealed partial class PlaybackCoordinatorTests
         var timer = (IPlaybackStopTimer)coordinator;
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         timer.ScheduleAfter(TimeSpan.FromMinutes(15));
         await coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
 
         timeProvider.Advance(TimeSpan.FromHours(1));
 
@@ -281,6 +290,7 @@ public sealed partial class PlaybackCoordinatorTests
         var timer = (IPlaybackStopTimer)coordinator;
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         timer.ScheduleAfter(TimeSpan.FromMinutes(30));
 
         timeProvider.Advance(TimeSpan.FromMinutes(30));
@@ -309,6 +319,7 @@ public sealed partial class PlaybackCoordinatorTests
         try
         {
             await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+            await WaitForPlayingAsync(coordinator);
             ((IPlaybackStopTimer)coordinator).ScheduleAfter(TimeSpan.FromMinutes(1));
             clock.Advance(TimeSpan.FromMinutes(1));
             await progress.SaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -384,7 +395,7 @@ public sealed partial class PlaybackCoordinatorTests
             appSettingsStore: new FakeAppSettingsStore(AppSettings.Default with { PrefetchCount = configuredPrefetchCount }));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-
+        await WaitForAsync(prefetchScheduler, () => prefetchScheduler.ScheduleCalls.Count > 0);
         var scheduleCall = Assert.Single(prefetchScheduler.ScheduleCalls);
         Assert.Equal(expectedRequests, scheduleCall.Requests.Count);
     }
@@ -401,10 +412,34 @@ public sealed partial class PlaybackCoordinatorTests
             appSettingsStore: new FakeAppSettingsStore(AppSettings.Default with { PrefetchCount = 1 }));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-
+        await WaitForAsync(prefetchScheduler, () => prefetchScheduler.ScheduleCalls.Count > 0);
         var request = Assert.Single(Assert.Single(prefetchScheduler.ScheduleCalls).Requests);
         Assert.Equal(1, request.ChapterIndex);
         Assert.Equal(0, request.SegmentIndex);
+    }
+
+    [Fact]
+    public async Task Automatic_advance_preserves_the_new_current_target_prefetch_key()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var prefetchScheduler = new FakePrefetchScheduler();
+        await using var coordinator = CreateCoordinator(localCoordinator, prefetchScheduler: prefetchScheduler);
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", 0, 0, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
+        await WaitForAsync(prefetchScheduler, () => prefetchScheduler.ScheduleCalls.Count > 0 &&
+            prefetchScheduler.ScheduleCalls.Last().Requests.Any(request => request.SegmentIndex == 1));
+
+        var prefetchedTarget = prefetchScheduler.ScheduleCalls.Last().Requests.Single(request => request.SegmentIndex == 1);
+        var currentTargetKey = prefetchedTarget.ToCacheKey();
+        var previousRevision = prefetchScheduler.Revisions.Last();
+        localCoordinator.RaiseCompleted();
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.SegmentIndex == 1 &&
+            coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+        await WaitForAsync(prefetchScheduler, () => prefetchScheduler.Revisions
+            .Select((revision, index) => revision > previousRevision && prefetchScheduler.KeepActiveKeys[index] == currentTargetKey)
+            .Any(preservesCurrentTarget => preservesCurrentTarget));
+
+        Assert.Contains(prefetchScheduler.KeepActiveKeys, key => key == currentTargetKey);
     }
 
     [Fact]
@@ -415,6 +450,7 @@ public sealed partial class PlaybackCoordinatorTests
         await using var coordinator = CreateCoordinator(localCoordinator, readingProgressStore: readingProgressStore);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         localCoordinator.SetPosition(420);
 
         await coordinator.PauseAsync(CancellationToken.None);
@@ -423,7 +459,28 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(420, Assert.Single(readingProgressStore.SavedProgress).AudioPositionMilliseconds);
 
         await coordinator.ResumeAsync(CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+    }
+
+    [Fact]
+    public async Task Pause_resume_then_navigate_keeps_play_intent_for_the_new_target()
+    {
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        await using var coordinator = CreateCoordinator(localCoordinator);
+
+        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
+        await coordinator.PauseAsync(CancellationToken.None);
+        await coordinator.ResumeAsync(CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
+
+        await coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
+        await WaitForAsync(coordinator, () =>
+            coordinator.CurrentSnapshot.SegmentIndex == 1 && coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+
+        Assert.Equal(2, localCoordinator.StartCallCount);
+        Assert.Equal(1, localCoordinator.LastStartedRequest?.SegmentIndex);
     }
 
     [Fact]
@@ -437,6 +494,7 @@ public sealed partial class PlaybackCoordinatorTests
             readingProgressStore: readingProgressStore);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
 
         var actual = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             coordinator.PauseAsync(CancellationToken.None));
@@ -458,6 +516,7 @@ public sealed partial class PlaybackCoordinatorTests
             appSettingsStore: new FakeAppSettingsStore(AppSettings.Default with { PrefetchCount = 2 }));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         await coordinator.PauseAsync(CancellationToken.None);
 
         Assert.Equal(2, prefetchScheduler.ScheduleCalls.Count);

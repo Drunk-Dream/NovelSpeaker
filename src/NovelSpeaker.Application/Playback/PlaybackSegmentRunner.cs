@@ -57,10 +57,11 @@ internal sealed class PlaybackSegmentRunner
             cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<PlaybackSegmentRunResult> PlayPreparedAsync(
+    public async Task<PlaybackSegmentRunResult?> PlayPreparedAsync(
         PlaybackSegmentRunRequest request,
         AudioGenerationResult audio,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task<bool>>? validateLatestConfigurationAsync = null)
     {
         if (!audio.IsSuccess)
         {
@@ -70,6 +71,9 @@ internal sealed class PlaybackSegmentRunner
         cancellationToken.ThrowIfCancellationRequested();
         if (request.ValidateContextAsync is not null)
             await request.ValidateContextAsync(cancellationToken).ConfigureAwait(false);
+        if (validateLatestConfigurationAsync is not null &&
+            !await validateLatestConfigurationAsync(cancellationToken).ConfigureAwait(false))
+            return null;
 
         await _localAudio.StartAsync(
             new LocalAudioPlaybackRequest(

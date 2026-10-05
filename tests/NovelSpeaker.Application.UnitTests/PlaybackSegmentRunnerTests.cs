@@ -22,7 +22,7 @@ public sealed class PlaybackSegmentRunnerTests
         var request = new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 240, ForceInvalidate: false);
         var audio = await runner.PrepareAsync(request, null, CancellationToken.None);
         Assert.Null(localCoordinator.LastRequest);
-        var result = await runner.PlayPreparedAsync(request, audio, CancellationToken.None);
+        var result = (await runner.PlayPreparedAsync(request, audio, CancellationToken.None))!;
 
         Assert.True(result.Audio.IsUsingCache);
         Assert.Equal("cached.mp3", localCoordinator.LastRequest?.FilePath);
@@ -64,7 +64,7 @@ public sealed class PlaybackSegmentRunnerTests
 
         var request = new PlaybackSegmentRunRequest(CreateRequest(), "示例小说 · 第一章", 0, ForceInvalidate: false);
         var audio = await runner.PrepareAsync(request, null, CancellationToken.None);
-        var result = await runner.PlayPreparedAsync(request, audio, CancellationToken.None);
+        var result = (await runner.PlayPreparedAsync(request, audio, CancellationToken.None))!;
 
         Assert.False(result.Audio.IsSuccess);
         Assert.Equal(TtsErrorKind.Unauthorized, result.Audio.Failure!.Kind);

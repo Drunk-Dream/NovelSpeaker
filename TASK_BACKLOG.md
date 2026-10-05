@@ -101,11 +101,13 @@
 
 完成成果：PlaybackRuntimeState 以带 Book/Source/session 身份和单调 TargetRevision 的 PlaybackLogicalTarget 作为逻辑位置 owner，Snapshot 与 checkpoint 从其投影；同一 session 的 target commit 无需音频 ready，即清除旧 target 音频事实、产生新 logical checkpoint，并输出停止旧音频、取消过期 preparation、准备新 target 与刷新 prefetch 的 effects。播放意图、preparation kind、含唯一 attempt ID 的 session/target/synthesis identity 独立建模；local audio request/snapshot 携带 target revision 与 attempt，音频结果、设备回调和 checkpoint 只接纳当前 target/preparation，旧 attempt、旧 target 与配置变更前的 preparation 被拒绝，transport Stopped 不覆盖用户 Play 意图。新增 runtime 与本地音频身份测试，PlaybackRuntime/LocalAudio focused tests 49/49、Infrastructure IntegrationTests Release build（0 warning/error）、solution format verify 和 diff 检查通过。实际导航与自动推进调用链迁移及完整门禁留给 T009/T010；无持久化变化或长期文档冲突。
 
-## [ ] T009（P0）：迁移导航、自动推进与音频准备流水线
+## [x] T009（P0）：迁移导航、自动推进与音频准备流水线
 
 依赖：T008。
 
 目标：显式切段/切章在必要的逻辑目标解析完成后立即 commit target 并发布 Snapshot，随后停止旧音频、异步准备新音频；音频失败或取消不回退用户已经提交的 target，迟到结果通过 session + target/preparation identity 拒绝。
+
+完成成果：Start、同 Book/Source 导航、自动下一段、失败跳过/重试与 Regex 位置重映射已切换为逻辑 target 先提交、发布快照后异步准备音频；普通导航保留 session，Book/Source 变化仍走窄 session replacement。Preparation 取消与结果提交生命周期分离，避免失败后切换 target 时误取消新目标的 checkpoint；停止态 Regex 更新保留最新内容并在 Resume 时建立新 session。Provider/speed 在启动前复核；target 切换以 revision 替换旧预取，仅保留新 current target 的可复用 active key，目标为空时提交空窗；checkpoint 失败时不保留旧预取，Source 失效取消目标 checkpoint；Pause/Resume 和异步准备生命周期保持一致。新增语速 checkpoint 竞态、Pause→Resume→Navigate、关闭期间取消 preparation、active prefetch 保留、全 Regex 删除内容清空预取窗、Source 失效取消 checkpoint 回归覆盖。Playback Application focused tests 78/78、Infrastructure Integration playback focused tests 150/150 通过；无持久化变化或长期文档冲突。完整门禁留给 T010。
 
 ## [ ] T010（P0）：收敛 Playback 等待体验并完成 Phase B2 验收
 

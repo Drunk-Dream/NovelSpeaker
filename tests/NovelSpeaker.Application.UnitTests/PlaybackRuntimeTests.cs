@@ -162,7 +162,9 @@ public sealed class PlaybackRuntimeTests
         var result = runtime.CommitReplacement(runtime.PrepareReplacement(target).Replacement!, CancellationToken.None);
 
         Assert.True(result.IsAccepted);
-        Assert.Same(runtime.Current, Assert.Single(result.Effects.OfType<PlaybackPlaySegmentEffect>()).Session);
+        var preparation = Assert.Single(result.Effects.OfType<PlaybackPrepareTargetAudioEffect>());
+        Assert.Same(runtime.Current, preparation.State);
+        Assert.Equal(runtime.Current.Preparation, preparation.Preparation);
         Assert.False(runtime.Current.Audio.HasLoadedAudio);
     }
 
@@ -196,6 +198,24 @@ public sealed class PlaybackRuntimeTests
         Assert.Equal(new PlaybackPosition(4, 0), runtime.Current.Position);
         Assert.Equal(before.TargetRevision + 2, runtime.Current.TargetRevision);
         Assert.Null(runtime.Current.Preparation);
+    }
+
+    [Fact]
+    public void Same_session_can_commit_a_target_after_content_refresh_removed_the_previous_target()
+    {
+        using var runtime = Open();
+        var book = runtime.Current.Book!;
+        var session = runtime.Current.Identity!;
+        Assert.True(runtime.UpdateContent(book, null).IsAccepted);
+        Assert.Null(runtime.Current.Target);
+
+        var transition = runtime.CommitTarget(book, new(4, 1), PlaybackIntent.Play, CancellationToken.None);
+
+        Assert.True(transition.IsAccepted);
+        Assert.Equal(session, runtime.Current.Identity);
+        Assert.Equal(new PlaybackPosition(4, 1), runtime.Current.Position);
+        Assert.Single(transition.Effects.OfType<PlaybackPrepareTargetAudioEffect>());
+        Assert.Empty(transition.Effects.OfType<PlaybackStopTargetAudioEffect>());
     }
 
     [Fact]

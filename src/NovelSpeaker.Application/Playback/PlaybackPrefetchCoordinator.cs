@@ -43,7 +43,7 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
         }
 
         var state = _sessions.GetOrAdd(window.SessionId, static _ => new SessionState());
-        state.ReplacePending(window.Requests);
+        if (!state.ReplacePending(window.Revision, window.Requests, window.KeepActiveKey)) return Task.CompletedTask;
         state.EnsureWorkerStarted(() => RunSessionAsync(state));
         return Task.CompletedTask;
     }
@@ -114,6 +114,7 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
         private AudioCacheKey? _activeKey;
         private CancellationTokenSource? _activeRequestCts;
         private bool _workerRunning;
+        private long _windowRevision = -1;
 
         public bool HasPendingWork
         {
@@ -137,14 +138,20 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
             }
         }
 
-        public void ReplacePending(IReadOnlyList<AudioGenerationRequest> requests)
+        public bool ReplacePending(
+            long revision,
+            IReadOnlyList<AudioGenerationRequest> requests,
+            AudioCacheKey? keepActiveKey)
         {
             lock (_syncRoot)
             {
+                if (revision < _windowRevision) return false;
+                _windowRevision = revision;
                 var desired = Deduplicate(requests);
                 if (_activeKey is not null)
                 {
-                    var keepActive = desired.Any(request => request.ToCacheKey() == _activeKey);
+                    var keepActive = keepActiveKey == _activeKey ||
+                        desired.Any(request => request.ToCacheKey() == _activeKey);
                     if (!keepActive)
                     {
                         _activeRequestCts?.Cancel();
@@ -156,6 +163,7 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
                 }
 
                 _pendingRequests = desired;
+                return true;
             }
         }
 

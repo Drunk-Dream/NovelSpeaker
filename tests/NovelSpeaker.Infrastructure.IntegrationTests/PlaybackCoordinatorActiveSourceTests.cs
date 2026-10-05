@@ -16,6 +16,7 @@ public sealed partial class PlaybackCoordinatorTests
         await using var coordinator = CreateCoordinator(audio,
             book: CreateBook() with { SourceContext = new("source-1", "catalog-1") }, sourceChanges: changes);
         await coordinator.StartAsync(new("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         await coordinator.StopAsync(CancellationToken.None);
         changes.Publish(removal
             ? new BookCommittedChange.SourceRemoved("book-1", "source-1")
@@ -34,6 +35,7 @@ public sealed partial class PlaybackCoordinatorTests
         await using var coordinator = CreateCoordinator(audio,
             book: CreateBook() with { SourceContext = new("source-1", "catalog-1") }, sourceChanges: changes);
         await coordinator.StartAsync(new("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         var previous = coordinator.CurrentSnapshot;
         changes.Publish(new BookCommittedChange.ActiveSourceChanged("other-book", "source-1", "source-2"));
         changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "other-source", "new-catalog"));
@@ -47,6 +49,34 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
+    public async Task Source_invalidation_cancels_target_transition_checkpoints()
+    {
+        var content = new FakeBookPlaybackContentService(CreateBook() with
+        { SourceContext = new("source-1", "catalog-1") });
+        var changes = new SourceChanges();
+        var progress = new FakeReadingProgressStore
+        {
+            SaveGate = new(TaskCreationOptions.RunContinuationsAsynchronously),
+            SaveGateCall = 2
+        };
+        await using var coordinator = CreateCoordinator(new FakeLocalAudioPlaybackCoordinator(),
+            bookContentService: content, readingProgressStore: progress, sourceChanges: changes);
+        await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
+        var savedBeforeNavigation = progress.SavedProgress.Count;
+
+        var navigation = coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
+        await progress.SecondSaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        content.Book = content.Book with { SourceContext = new("source-1", "catalog-2") };
+        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source-1", "catalog-2"));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => navigation.WaitAsync(TimeSpan.FromSeconds(5)));
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookId is null);
+
+        Assert.Equal(savedBeforeNavigation, progress.SavedProgress.Count);
+        Assert.Null(coordinator.CurrentSnapshot.SourceContext);
+    }
+
+    [Fact]
     public async Task Removal_quiesces_active_source_and_rejects_late_audio_without_stopping_other_source()
     {
         var audio = new FakeLocalAudioPlaybackCoordinator();
@@ -56,11 +86,12 @@ public sealed partial class PlaybackCoordinatorTests
         var book = CreateBook() with { SourceContext = new("local:book-1", "chapter") };
         await using var coordinator = CreateCoordinator(audio, book: book, audioProvider: audioProvider, readingProgressStore: progress);
         var start = coordinator.StartAsync(new("book-1", null, null, null, 10), CancellationToken.None);
+        await pending.Started.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Single(audioProvider.Requests);
+        await start;
         var removal = coordinator.StopForRemovalAsync("book-1", "local:book-1", CancellationToken.None);
-        pending.CompleteSuccess();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start);
         await removal.WaitAsync(TimeSpan.FromSeconds(5));
+        pending.CompleteSuccess();
         Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
         Assert.Null(coordinator.CurrentSnapshot.BookId);
         Assert.Null(coordinator.CurrentSnapshot.SourceContext);
@@ -124,15 +155,17 @@ public sealed partial class PlaybackCoordinatorTests
             if (snapshot.State == PlaybackState.Idle && snapshot.BookId is null) discarded.TrySetResult();
         };
         var start = coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await pending.Started.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.Single(audioProvider.Requests);
+        await start;
         content.Book = CreateTwoChapterBook() with { SourceContext = new("local:book-1", "new-chapter") };
         changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "local:book-1", "new-chapter"));
-        pending.CompleteSuccess();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start);
         await discarded.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        pending.CompleteSuccess();
         Assert.Equal(0, audio.StartCallCount);
         Assert.Empty(progress.SavedProgress);
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", 1, 0, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         Assert.Equal(content.Book.SourceContext, coordinator.CurrentSnapshot.SourceContext);
         Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
         Assert.Equal(1, audio.StartCallCount);

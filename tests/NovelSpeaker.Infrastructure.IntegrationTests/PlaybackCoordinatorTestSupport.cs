@@ -169,6 +169,9 @@ public sealed partial class PlaybackCoordinatorTests
         }
     }
 
+    private static Task WaitForPlayingAsync(PlaybackCoordinator coordinator) =>
+        WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+
     private static async Task WaitForAsync(
         FakeAudioGenerationProvider audioProvider,
         Func<bool> condition)
@@ -203,6 +206,24 @@ public sealed partial class PlaybackCoordinatorTests
         }
     }
 
+    private static async Task WaitForAsync(FakePrefetchScheduler prefetchScheduler, Func<bool> condition)
+    {
+        if (condition()) return;
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler? handler = null;
+        handler = (_, _) =>
+        {
+            if (condition()) completion.TrySetResult();
+        };
+        prefetchScheduler.ActivityChanged += handler;
+        try
+        {
+            if (condition()) return;
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { prefetchScheduler.ActivityChanged -= handler; }
+    }
+
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
         public FakeBookPlaybackContentService(PlaybackBookContent book)
@@ -214,9 +235,15 @@ public sealed partial class PlaybackCoordinatorTests
 
         public TaskCompletionSource? CurrentContextGate { get; set; }
 
+        public TaskCompletionSource? CurrentContextRequested { get; set; }
+
         public async Task<bool> IsCurrentAsync(PlaybackBookContent book, CancellationToken cancellationToken)
         {
-            if (CurrentContextGate is { } gate) await gate.Task.WaitAsync(cancellationToken);
+            if (CurrentContextGate is { } gate)
+            {
+                CurrentContextRequested?.TrySetResult();
+                await gate.Task.WaitAsync(cancellationToken);
+            }
             return book.BookId == Book.BookId && book.SourceContext == Book.SourceContext;
         }
 
@@ -624,17 +651,31 @@ public sealed partial class PlaybackCoordinatorTests
     {
         public List<(Guid SessionId, IReadOnlyList<AudioGenerationRequest> Requests)> ScheduleCalls { get; } = [];
 
+        public List<long> Revisions { get; } = [];
+
+        public List<AudioCacheKey?> KeepActiveKeys { get; } = [];
+
         public List<Guid> CancelledSessions { get; } = [];
+
+        private long _latestRevision = -1;
+
+        public event EventHandler? ActivityChanged;
 
         public Task SubmitAsync(PlaybackPrefetchWindow window, CancellationToken cancellationToken)
         {
+            if (window.Revision < _latestRevision) return Task.CompletedTask;
+            _latestRevision = window.Revision;
             ScheduleCalls.Add((window.SessionId, window.Requests.ToArray()));
+            Revisions.Add(window.Revision);
+            KeepActiveKeys.Add(window.KeepActiveKey);
+            ActivityChanged?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         }
 
         public Task CancelAsync(Guid sessionId, CancellationToken cancellationToken)
         {
             CancelledSessions.Add(sessionId);
+            ActivityChanged?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         }
     }
