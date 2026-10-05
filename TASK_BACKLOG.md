@@ -117,13 +117,19 @@
 
 完成成果：删除 Playback 高层 `Buffering` 状态并保留其它 enum 数值；新 target commit 和当前 target 的准备/重试均投影为 Preparing，损坏音频恢复显示明确的重新生成语义。PlaybackSnapshot 投影已提交 TargetRevision，Player 在页面 activation 内延迟显示紧凑音频准备提示，短等待不显示、播放/暂停/失败/停止或换 target 后及时隐藏；可控 TimeProvider 测试覆盖延迟、快速跳转重置、页面离开与恢复语义。Preparing/Recovering 的 Player、MiniPlayer、桌面切换和 SMTC 操作映射到暂停意图；active preparation 上重复 Resume 不重启合成。普通同 Book/Source 导航及自动推进继续先 CommitTarget，`PrepareReplacement/CommitReplacement` 仅保留 Book/Source session replacement。迁移集成测试等待稳定播放状态并验证最终 Regex target；新增 Player 延迟反馈、target revision、暂停命令、SMTC 映射与准备期间重复 Resume 覆盖。Phase B2 搜索确认无 Buffering 引用且普通 target flow 不调用 replacement；locked restore、format verify、Release build（0 warning/error）、完整 tests 1181/1181（含 isolated Desktop WPF 101/101）与 diff 检查通过。无持久化变化、环境限制或长期文档冲突。
 
+## [ ] T010A（P1）：Playback 架构收口与减法
+
+依赖：T010。
+
+目标：在不改变 target-driven 用户行为、不重新打开并发架构的前提下，清理 T008–T010 迁移后的重复 effect 表达、session replacement 命名和无价值残留；审计 `PlaybackCoordinator` 职责，只在存在明确独立 owner 时做小型提取，并以净删除、边界更清楚和完整门禁通过作为完成标准。
+
 ## 6. Phase C：把 Cache 一致性收回 Cache 模块
 
 ### staged breaking migration window：T011–T014
 
 ## [ ] T011（P0）：建立 Cache-owned read model 与内部 repair 流水线
 
-依赖：T010。
+依赖：T010A。
 
 目标：Cache 内部组合 physical facts、catalog、coverage、configuration invalidation 与 speech-plan repair，对 App 暴露已组合的场景化 read model 和窄变化通知。
 

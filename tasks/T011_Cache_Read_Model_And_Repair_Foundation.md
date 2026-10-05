@@ -2,7 +2,7 @@
 
 ## 依赖与阶段性质
 
-依赖 T010。从本任务开始进入 T011–T014 staged breaking migration window。
+依赖 T010A。从本任务开始进入 T011–T014 staged breaking migration window。
 
 允许结束时 CacheManagement、BookDetails、Player、CacheAndData 仍引用旧 `ICacheCatalog`/`ICacheCoverageQuery`/invalidation aspect，solution 暂时不能完整 build。不得建立旧新双发布或 forwarding adapter；T012–T013 迁移调用方，T014 收口。
 
