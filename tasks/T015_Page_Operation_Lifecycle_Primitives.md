@@ -1,8 +1,8 @@
-# T012：补齐 activation 与 latest-wins 小型生命周期原语
+# T015：补齐 activation 与 latest-wins 小型生命周期原语
 
 ## 依赖与阶段性质
 
-依赖 T011。本任务不在 staged breaking window 内，结束时仓库必须保持可构建、focused tests 通过。
+依赖 T014。本任务不在 staged breaking window 内，结束时仓库必须保持可构建、focused tests 通过。
 
 ## 目标
 

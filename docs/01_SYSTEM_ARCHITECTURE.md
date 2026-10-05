@@ -154,7 +154,7 @@ Shared/
 |---|---|---|
 | Book / Source / Catalog 持久事实 | Books persistence/use case | Persistent |
 | 当前 Book ActiveSourceId | Books use case + persistence | Persistent |
-| 当前播放会话、逻辑位置与高层播放状态 | Playback runtime/session owner | Playback session / process |
+| 当前 Playback session context、logical target / target revision、播放意图与准备状态 | Playback runtime/session owner | Playback session / process |
 | 当前 Speech Provider Id | Settings process service | Persistent |
 | Provider 列表、排序与类型配置 | Speech Provider persistence/use case | Persistent |
 | ReadingProgress checkpoint | Application progress use case + persistence | Persistent |
@@ -171,7 +171,11 @@ Shared/
 
 ViewModel 不复制 process/session/background owner 的 mutable truth。跨页面展示使用 immutable snapshot/read model。
 
-Playback 的低层音频播放器可以拥有设备资源和 low-level snapshot，但高层 session 不复制另一份需要双向同步的音频真值。低层结果必须携带可校验的 session identity，由 Playback runtime 接受为 effect result；面向 UI 的 `PlaybackSnapshot` 是 authoritative runtime 的纯投影。
+Playback session 表示当前 Book / Source context 的生命周期，不把每次切段、切章等同于完整 session replacement。同一 session 内，用户选择首先提交新的 logical target 并增加 target revision；`PlaybackSnapshot` 必须立即反映这个 target，而不是等待网络 TTS、缓存读取或音频解码完成。
+
+音频 preparation 与 low-level transport 是 target 的异步 effect。Playback runtime 仍是唯一高层 mutable owner，负责播放意图、preparation/failure 状态和 accepted audio facts；低层音频播放器只拥有设备资源和 low-level snapshot。低层结果必须至少携带可校验的 session identity + target/preparation identity，并在需要时结合 local audio generation 拒绝迟到结果。
+
+音频准备失败、取消或迟到不得回滚用户已经提交的 logical target。只有 Book/ActiveSource context 真正失效、切换或关闭时才替换/结束 Playback session。面向 UI 的 `PlaybackSnapshot` 始终是 authoritative runtime 的纯投影。
 
 Cache 的 physical facts、Speech Plan、Coverage、repair 和 configuration invalidation 可以由多个内聚组件承担，但一致性解释留在 Cache 模块内。App 只消费场景化组合 read model 与“哪些书/章节展示已变化”的窄通知，不理解 PhysicalSummary/CatalogStructure/Coverage 等内部失效原因。
 

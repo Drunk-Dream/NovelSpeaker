@@ -1,10 +1,10 @@
-# T008：建立 Cache-owned read model 与内部 repair 流水线
+# T011：建立 Cache-owned read model 与内部 repair 流水线
 
 ## 依赖与阶段性质
 
-依赖 T007。从本任务开始进入 T008–T011 staged breaking migration window。
+依赖 T010。从本任务开始进入 T011–T014 staged breaking migration window。
 
-允许结束时 CacheManagement、BookDetails、Player、CacheAndData 仍引用旧 `ICacheCatalog`/`ICacheCoverageQuery`/invalidation aspect，solution 暂时不能完整 build。不得建立旧新双发布或 forwarding adapter；T009–T010 迁移调用方，T011 收口。
+允许结束时 CacheManagement、BookDetails、Player、CacheAndData 仍引用旧 `ICacheCatalog`/`ICacheCoverageQuery`/invalidation aspect，solution 暂时不能完整 build。不得建立旧新双发布或 forwarding adapter；T012–T013 迁移调用方，T014 收口。
 
 ## 目标
 
@@ -51,7 +51,7 @@ App 只查询已经组合的场景化 immutable read model，并观察 book/chap
 - Coverage 发现 PlanMissing/PlanStale 时返回当前状态，不等待 repair。
 - 同一次 Cache-owned projection/orchestration 自动向 `ISpeechPlanRepairCoordinator` 登记需要补建的章节。
 - repair 仍是 process background owner，保持 in-flight dedupe、并发限制、shutdown 和完成后最窄 invalidation。
-- 删除“由页面读取 statuses 后再调用 repair requestor”的协议；T011 最终删除 public `ICachePlanRepairRequestor`。
+- 删除“由页面读取 statuses 后再调用 repair requestor”的协议；T014 最终删除 public `ICachePlanRepairRequestor`。
 
 ## 强制验证
 
@@ -59,6 +59,6 @@ App 只查询已经组合的场景化 immutable read model，并观察 book/chap
 - missing/stale 只登记一次等价 repair，不阻塞 query；repair 完成后产生最窄 read-model change。
 - unrelated book/chapter 不被错误标脏；mutation commit 前不通知。
 - change coalescing、observer isolation、shutdown drain 保持。
-- 执行 Cache Application/Infrastructure focused tests 与必要静态检查；完整 solution gate 留给 T011。
+- 执行 Cache Application/Infrastructure focused tests 与必要静态检查；完整 solution gate 留给 T014。
 
 完成后更新 `TASK_BACKLOG.md` 并删除本文件。

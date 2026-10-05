@@ -1,12 +1,12 @@
-# T016：收敛 Provider 工作台并完成本轮架构验收
+# T019：收敛 Provider 工作台并完成本轮架构验收
 
 ## 依赖与阶段性质
 
-依赖 T015。本任务是本轮最终 Closure，必须执行标准完整门禁。
+依赖 T018。本任务是本轮最终 Closure，必须执行标准完整门禁。
 
 ## 目标
 
-让 Speech Provider 工作台复用 T015 中确实通用的编辑/交换/排序/management 行为，同时保留 HTTP 与 Microsoft Edge 的 typed editor、试听和 Voice Catalog 差异；随后对五个阶段目标做一次完整架构审计和清理。
+让 Speech Provider 工作台复用 T018 中确实通用的编辑/交换/排序/management 行为，同时保留 HTTP 与 Microsoft Edge 的 typed editor、试听和 Voice Catalog 差异；随后对五个阶段目标做一次完整架构审计和清理。
 
 ## 必读
 
@@ -36,8 +36,8 @@
 
 ### Playback
 
-- 一个 authoritative runtime；Snapshot 是纯投影；audio callback 通过 session identity 接受；
-- 没有 old/new runtime、平行状态或纯转发 wrapper。
+- 一个 authoritative runtime；Session context 与 logical target 分离；Snapshot 是纯投影；audio callback 通过 session + target/preparation identity 接受；
+- 同一 Book/Source 内切段切章不再依赖 audio-ready session replacement；没有 old/new runtime、平行 target owner 或纯转发 wrapper。
 
 ### Cache
 
@@ -61,6 +61,6 @@
 
 ## 完整门禁
 
-执行 `AGENTS.md` 标准完整门禁、architecture tests，并检查 `git diff --check`、LF 与无临时产物。若环境限制无法执行，记录真实限制；代码/测试失败不得将 T016 标记完成。
+执行 `AGENTS.md` 标准完整门禁、architecture tests，并检查 `git diff --check`、LF 与无临时产物。若环境限制无法执行，记录真实限制；代码/测试失败不得将 T019 标记完成。
 
 完成后在 `TASK_BACKLOG.md` 汇总五项架构成果、主要净删除、核心测试变化和剩余风险，并删除本文件。

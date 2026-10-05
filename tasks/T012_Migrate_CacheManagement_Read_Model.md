@@ -1,8 +1,8 @@
-# T009：迁移 CacheManagement 到 Cache-owned read model
+# T012：迁移 CacheManagement 到 Cache-owned read model
 
 ## 依赖与阶段性质
 
-依赖 T008。处于 T008–T011 staged breaking migration window。
+依赖 T011。处于 T011–T014 staged breaking migration window。
 
 ## 目标
 
@@ -51,6 +51,6 @@
 - 0% cached chapter 仍按产品合同显示；普通目录百分比合同不受影响。
 - 大目录只更新 window/affected rows，选择与滚动 identity 稳定。
 - 页面不直接引用 Cache internal aspect 或 repair requestor。
-- 运行 CacheManagement presentation/core WPF behavior focused tests、format；完整门禁留给 T011。
+- 运行 CacheManagement presentation/core WPF behavior focused tests、format；完整门禁留给 T014。
 
 完成后更新 `TASK_BACKLOG.md` 并删除本文件。

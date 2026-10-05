@@ -5,7 +5,7 @@
 | 层级 | 典型状态 | Owner |
 |---|---|---|
 | Process | Shell、Settings、导航、托盘、长期基础设施 | Process service/coordinator |
-| Playback session | 当前书/章/段、音频、prefetch、snapshot | Playback session owner |
+| Playback session | 当前 Book/Source context、logical target、播放意图、audio preparation/transport、prefetch、snapshot | Playback session owner |
 | Page activation | 页面加载、filter、selection、draft、locator | Transient Page/ViewModel |
 | Background job | 主动缓存、章节导出、Speech Plan repair | 对应 coordinator |
 | Diagnostic session | 问题复现期间的诊断现场 | Diagnostics session owner |
@@ -99,11 +99,41 @@ Dispatcher 只承担小型 UI 提交、WPF interaction 和 layout。
 
 ## 7. Playback session 生命周期
 
-Playback session 是当前活动播放状态唯一 owner。新书、显式章节/段落跳转和需要重建播放语义的配置变化通过受控 command/session generation 处理。
+Playback session 是当前活动 Book / ActiveSource context 的长期 owner；同一本书同一来源内的显式切段、切章、自动推进不再创建完整的新 session。
 
-迟到的 HTTP、cache、audio callback、page projection 不得覆盖更新后的 session。
+高层 runtime 至少区分：
 
-改变 session 的命令进入受控串行化边界；失败或取消不能提前提交目标位置。
+```text
+Session Context
++ Logical Target (position + monotonically increasing target revision)
++ Playback Intent
++ Audio Preparation / Failure
++ Accepted Audio Facts
+```
+
+用户命令遵守 **target-first** 顺序：
+
+```text
+resolve/validate logical target
+→ commit target + target revision
+→ publish PlaybackSnapshot
+→ stop/retire obsolete audio work when needed
+→ prepare audio asynchronously
+→ accept result only if identity is still current
+→ start low-level audio
+```
+
+- 显式切段/切章只等待必要的逻辑位置解析，不等待 TTS、cache lookup、音频生成或解码完成；target commit 后 UI 立即切换。
+- 用户显式跳转时旧音频立即停止，避免“UI 已到新段但声音仍读旧段”的认知错位。
+- 音频准备失败只改变当前 target 的 preparation/failure 状态，不把 target 回滚到旧位置；Retry 继续作用于当前 target。
+- 自动下一段复用同一 target transition；prefetch/cache 命中时可以几乎无等待，没有命中时进入可感知的 preparation。
+- Pause 可以取消当前 target 的未完成 preparation 并保留 target；Resume 从同一 target 重新准备/继续。
+- Provider/语速等“下一句生效”的配置变化不替换 session；已经开始播放的当前音频继续，尚未开始的 preparation 必须校验配置身份并拒绝旧结果。
+- Book/ActiveSource 切换、Source/Catalog context 失效、关闭播放上下文才建立/结束 session identity。
+
+迟到的 HTTP、cache、audio callback 和 page projection 必须通过 session identity + target/preparation identity（必要时再加 low-level audio generation）拒绝，不能覆盖更新后的 logical target。
+
+ReadingProgress 的逻辑位置可以在 target commit 后 checkpoint；音频毫秒位置只在 accepted audio 确实绑定当前 target 时更新。失败/取消的音频准备不撤销已经提交的用户导航。
 
 ## 8. Background job
 

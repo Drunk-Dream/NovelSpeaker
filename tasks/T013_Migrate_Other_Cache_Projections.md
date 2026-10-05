@@ -1,12 +1,12 @@
-# T010：迁移 Player、BookDetails 与 CacheAndData 的缓存投影
+# T013：迁移 Player、BookDetails 与 CacheAndData 的缓存投影
 
 ## 依赖与阶段性质
 
-依赖 T009。处于 T008–T011 staged breaking migration window。
+依赖 T012。处于 T011–T014 staged breaking migration window。
 
 ## 目标
 
-让所有非 CacheManagement 页面使用 T008 的同一 Cache-owned read model/change source，删除每页各自对 internal invalidation 与 coverage refresh 的解释。
+让所有非 CacheManagement 页面使用 T011 的同一 Cache-owned read model/change source，删除每页各自对 internal invalidation 与 coverage refresh 的解释。
 
 ## 必读
 
@@ -45,6 +45,6 @@
 - CacheAndData overview 在 cleanup/write 后追上真值且不因纯 coverage change无谓重查。
 - 快速切 Book/离开页面后迟到 query 不提交。
 - App 生产代码不再解释 `CacheInvalidationAspect`。
-- 运行相关 presentation/Application focused tests 与必要 build；完整门禁留给 T011。
+- 运行相关 presentation/Application focused tests 与必要 build；完整门禁留给 T014。
 
 完成后更新 `TASK_BACKLOG.md` 并删除本文件。

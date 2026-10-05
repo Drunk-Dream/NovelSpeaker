@@ -2,12 +2,12 @@
 
 ## 1. 当前阶段：核心状态、生命周期与工作流收敛
 
-本轮规划基线为 `dev` 的 `f1696a5faefcdf078016f0765f87a5b62fe93911`。上一轮 T001–T009 已完成，成果保留在 Git 历史中；当前计划按用户要求清空后从 T001 重新编号。
+本轮规划基线更新为 `dev` 的 `a7639f1f8209a8222c9784fbea75a8e6a315919b`。T001–T007 已完成并恢复完整门禁；以下规划在该提交的 Playback 重构结果上继续推进。
 
 本轮只处理五类已经由源码证明的结构性问题：
 
 1. 跨系统业务变更的后果仍由 UI 调用者传播；
-2. Playback 运行态存在多份可变副本和复杂的事件有效性判断；
+2. Playback 已收敛为单一 runtime，但段落/章节 target 提交仍被音频准备阻塞，导致 UI 响应依赖网络/缓存时延；
 3. Cache 内部失效、repair、coverage 与 read model 一致性泄漏到 App；
 4. Page activation、latest-wins operation 与页面私有 CTS/version/generation 尚未收敛；
 5. Rule/Provider 编辑工作台重复维护相同的编辑、交换、排序与批量管理流程。
@@ -23,7 +23,7 @@
 
 默认按编号串行执行。每项任务以对应 `tasks/Txxx_*.md` 为权威实施合同；完成后在此记录成果并删除 task spec。
 
-本 Backlog 明确授权三个 **staged breaking migration window**：T001–T003、T004–T007、T008–T011。窗口内的任务可以在 task spec 列出的中间破坏态结束，不为临时可编译而保留旧/新双轨、转发 wrapper 或兼容构造器；各窗口的 Closure 任务必须恢复标准完整门禁。T012–T016 默认保持每个任务结束时可构建、可测试。
+本 Backlog 明确授权四个 **staged breaking migration window**：T001–T003、T004–T007、T008–T010、T011–T014。窗口内的任务可以在 task spec 列出的中间破坏态结束，不为临时可编译而保留旧/新双轨、转发 wrapper 或兼容构造器；各窗口的 Closure 任务必须恢复标准完整门禁。T015–T019 默认保持每个任务结束时可构建、可测试。
 
 ## 3. Phase A：让业务变更后果回到模块 owner
 
@@ -89,69 +89,91 @@
 
 完成成果：PlaybackRuntimeState 仍只由内部 PlaybackRuntime 持有和替换；PlaybackCoordinator 继续作为命令/effect façade，Snapshot 为 runtime 投影，local audio 保留设备快照与本地 generation。PlaybackEventCommand 删除重复 SessionId 副本，事件去重与接纳均从原始 audio snapshot 读取身份；删除针对旧 PlaybackSessionState mutator 名称的失效架构扫描和旧接口形状/迁移负断言，改为验证 runtime/state 非 public、Current 仅 private set，并保留各 Playback role 共享同一 coordinator 的 DI 验证。Provider production pipeline 测试改为等待稳定 Playing/Stopped，而非中间 Preparing，并验证 next-position checkpoint；保留 runtime commit、失败恢复、Source/Regex 与迟到回调核心行为覆盖。仓库搜索确认 T001–T006 旧 Playback 类型/API/状态字段已清除；locked restore、format verify、Release build（0 warning/error）、完整 tests 1157/1157（含 WPF isolated Desktop 100/100）及 diff 检查通过。无持久化变化、环境限制或长期文档冲突。
 
-## 5. Phase C：把 Cache 一致性收回 Cache 模块
+## 5. Phase B2：把 Playback 改为 target-driven 流程
 
-### staged breaking migration window：T008–T011
+### staged breaking migration window：T008–T010
 
-## [ ] T008（P0）：建立 Cache-owned read model 与内部 repair 流水线
+## [ ] T008（P0）：建立 Playback logical target 与 preparation 身份
 
 依赖：T007。
 
-目标：Cache 内部组合 physical facts、catalog、coverage、configuration invalidation 与 speech-plan repair，对 App 暴露已组合的场景化 read model 和窄变化通知。
+目标：保留单一 authoritative runtime，但把 Playback session context、logical target / target revision、播放意图与音频 preparation 分开；同一 Book/Source 内的切段切章不再通过“音频准备完成后才 commit session replacement”表达。
 
-## [ ] T009（P0）：迁移 CacheManagement 到 Cache read model
+## [ ] T009（P0）：迁移导航、自动推进与音频准备流水线
 
 依赖：T008。
 
-目标：删除 CacheManagement 对 PhysicalSummary/CatalogStructure/Coverage、repair request、epoch/generation 刷新算法的理解，只保留页面选择、窗口和投影。
+目标：显式切段/切章在必要的逻辑目标解析完成后立即 commit target 并发布 Snapshot，随后停止旧音频、异步准备新音频；音频失败或取消不回退用户已经提交的 target，迟到结果通过 session + target/preparation identity 拒绝。
 
-## [ ] T010（P1）：迁移 Player、BookDetails 与 CacheAndData 的缓存投影
+## [ ] T010（P0）：收敛 Playback 等待体验并完成 Phase B2 验收
 
 依赖：T009。
 
-目标：其它页面消费相同 Cache read model/change source，不再直接订阅 Cache 内部 invalidation aspect 或自行驱动 coverage/repair。
+目标：统一 Preparing/Recovering/Playing/Paused 等用户语义，消除只用于瞬时本地交接的伪 Buffering；Player 对真实可感知的音频等待延迟显示“正在准备音频”，短等待不闪烁，并完成 target-driven Playback 的测试与旧 replacement 路径清理。
 
-## [ ] T011（P0）：删除 Cache 泄漏接口并完成 Phase C 验收
+## 6. Phase C：把 Cache 一致性收回 Cache 模块
+
+### staged breaking migration window：T011–T014
+
+## [ ] T011（P0）：建立 Cache-owned read model 与内部 repair 流水线
 
 依赖：T010。
 
-目标：删除 App-facing `ICachePlanRepairRequestor`、内部失效语义和重复刷新 controller，收敛测试，结束本窗口并执行完整门禁。
+目标：Cache 内部组合 physical facts、catalog、coverage、configuration invalidation 与 speech-plan repair，对 App 暴露已组合的场景化 read model 和窄变化通知。
 
-## 6. Phase D：统一页面异步生命周期
-
-## [ ] T012（P1）：补齐 activation 与 latest-wins 小型生命周期原语
+## [ ] T012（P0）：迁移 CacheManagement 到 Cache read model
 
 依赖：T011。
 
-目标：区分 page activation、latest-wins operation 与真正的业务 revision，扩展现有设施而不是建立异步框架；用代表性测试固定取消、迟到提交和释放语义。
+目标：删除 CacheManagement 对 PhysicalSummary/CatalogStructure/Coverage、repair request、epoch/generation 刷新算法的理解，只保留页面选择、窗口和投影。
 
-## [ ] T013（P1）：迁移 Library 与 BookDetails 的页面异步状态
+## [ ] T013（P1）：迁移 Player、BookDetails 与 CacheAndData 的缓存投影
 
 依赖：T012。
 
-目标：用 activation/operation owner 替换两页中重复的 CTS/version/OwnedTaskRegistry 样板；保留真正需要的目录、播放与布局 revision。
+目标：其它页面消费相同 Cache read model/change source，不再直接订阅 Cache 内部 invalidation aspect 或自行驱动 coverage/repair。
 
-## [ ] T014（P1）：迁移其余高收益页面并完成生命周期验收
+## [ ] T014（P0）：删除 Cache 泄漏接口并完成 Phase C 验收
 
 依赖：T013。
 
-目标：迁移 Cache/Player/Settings/SpeechServices 中与共享模式等价的手写生命周期，删除不再需要的设施，执行完整门禁；不强行统一语义不同的操作。
+目标：删除 App-facing `ICachePlanRepairRequestor`、内部失效语义和重复刷新 controller，收敛测试，结束本窗口并执行完整门禁。
 
-## 7. Phase E：编辑工作台做减法
+## 7. Phase D：统一页面异步生命周期
 
-## [ ] T015（P2）：提取 Rules 编辑工作台的明确行为 owner
+## [ ] T015（P1）：补齐 activation 与 latest-wins 小型生命周期原语
 
 依赖：T014。
 
-目标：围绕现有 `EditorSession`、`RuleImportSession`、`RuleReorderController`、`ManagementSelectionController` 收敛 Chapter/Regex/Metadata 的编辑、交换、排序和批量管理流程，不建立通用泛型 ViewModel。
+目标：区分 page activation、latest-wins operation 与真正的业务 revision，扩展现有设施而不是建立异步框架；用代表性测试固定取消、迟到提交和释放语义。
 
-## [ ] T016（P2）：收敛 Provider 工作台并完成本轮架构验收
+## [ ] T016（P1）：迁移 Library 与 BookDetails 的页面异步状态
 
 依赖：T015。
 
-目标：让 Provider 复用真正相同的工作台行为，同时保留 HTTP/Edge typed editor 差异；删除重复 orchestration，审计五项结构目标并执行完整门禁。
+目标：用 activation/operation owner 替换两页中重复的 CTS/version/OwnedTaskRegistry 样板；保留真正需要的目录、播放与布局 revision。
 
-## 8. 本轮明确不处理
+## [ ] T017（P1）：迁移其余高收益页面并完成生命周期验收
+
+依赖：T016。
+
+目标：迁移 Cache/Player/Settings/SpeechServices 中与共享模式等价的手写生命周期，删除不再需要的设施，执行完整门禁；不强行统一语义不同的操作。
+
+## 8. Phase E：编辑工作台做减法
+
+## [ ] T018（P2）：提取 Rules 编辑工作台的明确行为 owner
+
+依赖：T017。
+
+目标：围绕现有 `EditorSession`、`RuleImportSession`、`RuleReorderController`、`ManagementSelectionController` 收敛 Chapter/Regex/Metadata 的编辑、交换、排序和批量管理流程，不建立通用泛型 ViewModel。
+
+## [ ] T019（P2）：收敛 Provider 工作台并完成本轮架构验收
+
+依赖：T018。
+
+目标：让 Provider 复用真正相同的工作台行为，同时保留 HTTP/Edge typed editor 差异；删除重复 orchestration，审计五类结构目标并执行完整门禁。
+
+## 9. 本轮明确不处理
 
 - 不重新拆分 Domain/Application/Infrastructure/App 四个工程。
 - 不因 `PlaybackCoordinator`、Diagnostics store 或 ViewModel 行数大而机械拆类。

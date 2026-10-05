@@ -1,8 +1,8 @@
-# T011：删除 Cache 泄漏接口并完成 Phase C 验收
+# T014：删除 Cache 泄漏接口并完成 Phase C 验收
 
 ## 依赖与阶段性质
 
-依赖 T010。本任务结束 T008–T011 staged breaking migration window，必须恢复标准完整门禁。
+依赖 T013。本任务结束 T011–T014 staged breaking migration window，必须恢复标准完整门禁。
 
 ## 目标
 

@@ -1,12 +1,12 @@
-# T014：迁移其余高收益页面并完成生命周期验收
+# T017：迁移其余高收益页面并完成生命周期验收
 
 ## 依赖与阶段性质
 
-依赖 T013。任务结束时执行标准完整门禁。
+依赖 T016。任务结束时执行标准完整门禁。
 
 ## 目标
 
-迁移 Cache/Player/Settings/SpeechServices 中与 T012 模式真正等价的手写生命周期，删除残留重复设施；不以“所有 version 都消失”为目标，不统一语义不同的 state owner。
+迁移 Cache/Player/Settings/SpeechServices 中与 T015 模式真正等价的手写生命周期，删除残留重复设施；不以“所有 version 都消失”为目标，不统一语义不同的 state owner。
 
 ## 必读
 
@@ -17,7 +17,7 @@
 
 ## 优先调用点
 
-按收益和 T008–T011 后的实际代码重新核对：
+按收益和 T011–T014 后的实际代码重新核对：
 
 - CacheManagement/CacheAndData 的 load、selection replacement、decoration window；
 - PlayerViewModel/PlayerContentController 的 book/chapter load 与 page activation；
@@ -28,7 +28,7 @@
 ## 保留边界
 
 - Playback session、Active Cache、Export、Speech Plan repair、Provider preview audio 等非 page owner 保持自己的 lifetime。
-- Catalog revision、selected Book identity、audio session identity、layout/viewport readiness 不是 cancellation 的别名时继续保留。
+- Catalog revision、selected Book identity、playback session/target identity、layout/viewport readiness 不是 cancellation 的别名时继续保留。
 - WPF code-behind 只桥接 Loaded/Unloaded/viewport/focus，不把业务 operation 搬回 code-behind。
 - `OwnedTaskRegistry` 若仍被非-activation owner 合理使用可以保留；若所有用途已被更明确 owner 替代则删除。
 

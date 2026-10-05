@@ -1,12 +1,12 @@
-# T013：迁移 Library 与 BookDetails 的页面异步状态
+# T016：迁移 Library 与 BookDetails 的页面异步状态
 
 ## 依赖与阶段性质
 
-依赖 T012。任务结束时仓库必须保持可构建、相关 focused tests 通过。
+依赖 T015。任务结束时仓库必须保持可构建、相关 focused tests 通过。
 
 ## 目标
 
-让 Library/BookDetails 的 page lifetime 由 activation scope 唯一拥有，让真正 latest-wins 的操作使用 T012 primitive；删除只重复表达 cancellation/currentness 的 CTS、version、OwnedTaskRegistry 与手工 dispose。
+让 Library/BookDetails 的 page lifetime 由 activation scope 唯一拥有，让真正 latest-wins 的操作使用 T015 primitive；删除只重复表达 cancellation/currentness 的 CTS、version、OwnedTaskRegistry 与手工 dispose。
 
 ## 必读
 
