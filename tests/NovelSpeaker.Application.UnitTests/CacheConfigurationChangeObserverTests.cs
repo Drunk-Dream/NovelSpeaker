@@ -15,6 +15,24 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class CacheConfigurationChangeObserverTests
 {
     [Fact]
+    public void Book_commits_invalidate_only_that_book_and_limit_changes_update_overview()
+    {
+        var settings = new FakeSettingsService(AppSettings.Default);
+        var books = new BookSourceChanges();
+        var invalidations = new List<CacheInvalidation>();
+        using var observer = new CacheConfigurationChangeObserver(settings, null, invalidations.Add, books: books);
+        books.Publish(new BookCommittedChange.MetadataCommitted("book-1"));
+        books.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-2", "source", "catalog"));
+        Assert.Equal("book-1", Assert.IsType<CacheInvalidationScope.Book>(invalidations[0].Scope).BookId);
+        Assert.Equal("book-2", Assert.IsType<CacheInvalidationScope.Book>(invalidations[1].Scope).BookId);
+        settings.Raise(settings.Current with { CacheLimitBytes = settings.Current.CacheLimitBytes + 1024 });
+        Assert.IsType<CacheInvalidationScope.Global>(invalidations[2].Scope);
+        observer.Dispose();
+        books.Publish(new BookCommittedChange.BookRemoved("book-2"));
+        Assert.Equal(3, invalidations.Count);
+    }
+
+    [Fact]
     public void Observer_maps_only_cache_relevant_settings_and_current_provider_changes()
     {
         var selectedProvider = ProviderId.New();

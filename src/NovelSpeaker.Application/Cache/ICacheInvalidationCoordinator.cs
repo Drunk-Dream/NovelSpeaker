@@ -5,6 +5,8 @@ namespace NovelSpeaker.Application.Cache;
 /// </summary>
 public interface ICacheInvalidationCoordinator : IAsyncDisposable
 {
+    long Revision { get; }
+
     event EventHandler<CacheInvalidationBatch>? BatchPublished;
 
     void Publish(CacheInvalidation invalidation);

@@ -60,7 +60,7 @@ public sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
             var repair = _repairs.GetOrAdd(
                 new RepairKey(request.BookId, request.ChapterIndex),
                 _ => new Lazy<Task>(
-                    () => RunRepairAsync(request),
+                    () => Task.Run(() => RunRepairAsync(request)),
                     LazyThreadSafetyMode.ExecutionAndPublication));
             repairTask = repair.Value;
         }

@@ -129,11 +129,13 @@
 
 ### staged breaking migration window：T011–T014
 
-## [ ] T011（P0）：建立 Cache-owned read model 与内部 repair 流水线
+## [x] T011（P0）：建立 Cache-owned read model 与内部 repair 流水线
 
 依赖：T010A。
 
 目标：Cache 内部组合 physical facts、catalog、coverage、configuration invalidation 与 speech-plan repair，对 App 暴露已组合的场景化 read model 和窄变化通知。
+
+完成成果：新增 Cache-owned overview、book list/catalog 与稀疏 chapter window read model，组合 physical facts、current-configuration coverage 和 export availability；提交时增加内存 revision，查询在 Cache 内拒绝混合 revision，合并通知仅暴露 Global/Book/Chapters 与 revision。missing/stale plan 在组合查询内登记 process repair，实际补建在后台运行并保持 in-flight dedupe、并发限制与 shutdown；完成后发布最窄章节变化。Cache integration 接收 Books committed changes 与 cache limit/configuration changes。新增组合状态、查询竞态、repair 去重/完成通知、observer isolation/drain 与 Books/limit 变更核心回归，保留原 Cache 持久化测试；旧页面接口按窗口合同留至 T012–T014。Cache Application focused tests、Infrastructure focused tests、架构检查与 format verify 通过；无持久化变化或长期文档冲突，完整门禁留给 T014。
 
 ## [ ] T012（P0）：迁移 CacheManagement 到 Cache read model
 

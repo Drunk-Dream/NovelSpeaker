@@ -726,6 +726,7 @@ public sealed class BookDetailsViewModelTests
 
     private sealed class FakeCacheDetailsDependencies : IAudioCacheStore, ICacheCoverageQuery, ICacheInvalidationCoordinator
     {
+        public long Revision { get; private set; }
         private EventHandler<CacheInvalidationBatch>? _batchPublished;
 
         public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
@@ -838,8 +839,11 @@ public sealed class BookDetailsViewModelTests
 
         public Task RunStartupMaintenanceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public void Publish(CacheInvalidation invalidation) =>
-            _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation]));
+        public void Publish(CacheInvalidation invalidation)
+        {
+            Revision++;
+            _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation], Revision));
+        }
 
         public Task FlushPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

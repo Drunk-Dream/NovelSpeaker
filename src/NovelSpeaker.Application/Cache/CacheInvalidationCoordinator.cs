@@ -15,6 +15,9 @@ public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator
     private Task? _scheduledFlush;
     private bool _stopping;
     private int _disposed;
+    private long _revision;
+
+    public long Revision => Interlocked.Read(ref _revision);
 
     public CacheInvalidationCoordinator(TimeProvider? timeProvider = null)
     {
@@ -54,6 +57,7 @@ public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator
             }
 
             _pending.Add(invalidation);
+            Interlocked.Increment(ref _revision);
             _scheduledFlush ??= FlushAfterWindowAsync();
         }
     }
@@ -171,7 +175,7 @@ public sealed class CacheInvalidationCoordinator : ICacheInvalidationCoordinator
 
         var pending = _pending;
         _pending = [];
-        return new CacheInvalidationBatch(Coalesce(pending));
+        return new CacheInvalidationBatch(Coalesce(pending), _revision);
     }
 
     private void PublishBatch(CacheInvalidationBatch batch)

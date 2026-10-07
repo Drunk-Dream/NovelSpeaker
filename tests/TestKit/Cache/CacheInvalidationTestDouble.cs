@@ -5,6 +5,7 @@ namespace NovelSpeaker.TestKit.Cache;
 internal sealed class CacheInvalidationTestDouble : ICacheInvalidationCoordinator
 {
     private EventHandler<CacheInvalidationBatch>? _batchPublished;
+    public long Revision { get; private set; }
 
     public int InvalidationSubscriptionCount => _batchPublished?.GetInvocationList().Length ?? 0;
 
@@ -16,8 +17,11 @@ internal sealed class CacheInvalidationTestDouble : ICacheInvalidationCoordinato
         remove => _batchPublished -= value;
     }
 
-    public void Publish(CacheInvalidation invalidation) =>
-        _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation]));
+    public void Publish(CacheInvalidation invalidation)
+    {
+        Revision++;
+        _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation], Revision));
+    }
 
     public Task FlushPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 

@@ -30,11 +30,13 @@ public static class CacheRegistration
                     provider.GetRequiredService<IAppSettingsService>(),
                     regexWorkspace,
                     coordinator.Publish,
-                    provider.GetService<ICurrentSpeechProvider>()));
+                    provider.GetService<ICurrentSpeechProvider>(),
+                    provider.GetService<IBookSourceChangeSource>()));
             return coordinator;
         });
         services.TryAddSingleton<ICacheCatalog, CacheCatalog>();
         services.TryAddSingleton<ICacheCoverageQuery, CacheCoverageQuery>();
+        services.TryAddSingleton<ICacheReadModel, CacheReadModel>();
         services.TryAddSingleton<IChapterSpeechPlanService, ChapterSpeechPlanService>();
         services.TryAddSingleton<ISpeechPlanRepairCoordinator, SpeechPlanRepairCoordinator>();
         services.TryAddSingleton<ICachePlanRepairRequestor, SpeechPlanRepairRequestor>();

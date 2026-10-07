@@ -65,6 +65,7 @@ public sealed partial class PlayerViewModelTests
     {
         private readonly CacheCoverageTestDouble _coverage = new();
         private readonly CacheInvalidationTestDouble _invalidation = new();
+        public long Revision => _invalidation.Revision;
 
         public IReadOnlyList<ChapterCacheStatus> Statuses
         {

@@ -14,18 +14,22 @@ internal sealed class CacheConfigurationChangeObserver : IDisposable
     private readonly IRegexReplacementRuleWorkspaceService? _regexWorkspace;
     private readonly Action<CacheInvalidation> _publish;
     private readonly ICurrentSpeechProvider? _providers;
+    private readonly IBookSourceChangeSource? _books;
     private bool _disposed;
 
     public CacheConfigurationChangeObserver(
         IAppSettingsService settingsService,
         IRegexReplacementRuleWorkspaceService? regexWorkspace,
         Action<CacheInvalidation> publish,
-        ICurrentSpeechProvider? providers = null)
+        ICurrentSpeechProvider? providers = null,
+        IBookSourceChangeSource? books = null)
     {
         _settingsService = settingsService;
         _regexWorkspace = regexWorkspace;
         _publish = publish;
         _providers = providers;
+        _books = books;
+        if (_books is not null) _books.Changed += OnBookChanged;
         if (providers is not null) providers.Changed += OnProvidersChanged;
 
         _settingsService.Changed += OnSettingsChanged;
@@ -44,6 +48,7 @@ internal sealed class CacheConfigurationChangeObserver : IDisposable
 
         _disposed = true;
         _settingsService.Changed -= OnSettingsChanged;
+        if (_books is not null) _books.Changed -= OnBookChanged;
         if (_providers is not null) _providers.Changed -= OnProvidersChanged;
         if (_regexWorkspace is not null)
         {
@@ -58,11 +63,22 @@ internal sealed class CacheConfigurationChangeObserver : IDisposable
 
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs e)
     {
+        if (e.Previous.CacheLimitBytes != e.Current.CacheLimitBytes)
+        {
+            _publish(CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary));
+        }
+
         if (AffectsCoverage(e.Previous, e.Current))
         {
             PublishCoverageInvalidation();
         }
     }
+
+    private void OnBookChanged(object? sender, BookCommittedChange change) =>
+        _publish(CacheInvalidation.ForBook(change.BookId,
+            change is BookCommittedChange.MetadataCommitted
+                ? CacheInvalidationAspect.CatalogStructure
+                : CacheInvalidationAspect.PhysicalSummary | CacheInvalidationAspect.CatalogStructure | CacheInvalidationAspect.Coverage));
 
     private void OnRegexRulesChanged(object? sender, RegexReplacementRulesChangedEventArgs e)
     {

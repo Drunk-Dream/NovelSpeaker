@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <Compile Include="..\TestKit\Cache\CacheCatalogTestDouble.cs" Link="TestKit\Cache\CacheCatalogTestDouble.cs" />
+    <Compile Include="..\TestKit\Cache\CacheCoverageTestDouble.cs" Link="TestKit\Cache\CacheCoverageTestDouble.cs" />
     <ProjectReference Include="..\..\src\NovelSpeaker.Application\NovelSpeaker.Application.csproj" />
   </ItemGroup>
   <ItemGroup>
