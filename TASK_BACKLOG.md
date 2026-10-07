@@ -137,11 +137,13 @@
 
 完成成果：新增 Cache-owned overview、book list/catalog 与稀疏 chapter window read model，组合 physical facts、current-configuration coverage 和 export availability；提交时增加内存 revision，查询在 Cache 内拒绝混合 revision，合并通知仅暴露 Global/Book/Chapters 与 revision。missing/stale plan 在组合查询内登记 process repair，实际补建在后台运行并保持 in-flight dedupe、并发限制与 shutdown；完成后发布最窄章节变化。Cache integration 接收 Books committed changes 与 cache limit/configuration changes。新增组合状态、查询竞态、repair 去重/完成通知、observer isolation/drain 与 Books/limit 变更核心回归，保留原 Cache 持久化测试；旧页面接口按窗口合同留至 T012–T014。Cache Application focused tests、Infrastructure focused tests、架构检查与 format verify 通过；无持久化变化或长期文档冲突，完整门禁留给 T014。
 
-## [ ] T012（P0）：迁移 CacheManagement 到 Cache read model
+## [x] T012（P0）：迁移 CacheManagement 到 Cache read model
 
 依赖：T011。
 
 目标：删除 CacheManagement 对 PhysicalSummary/CatalogStructure/Coverage、repair request、epoch/generation 刷新算法的理解，只保留页面选择、窗口和投影。
+
+完成成果：CacheManagement 只消费 `ICacheReadModel` 的 book/catalog/sparse chapter views 与 Global/Book/Chapters 通知；删除旧 invalidation aspect 解释、repair requestor、多 query 拼装、pending dirty 集合、book epoch/generation 和 stale requeue worker。保留页面 activation/selected-book/latest-window identity、Extended Selection、增量 collection delta 与稀疏 decoration；行使用 read-model revision 拒绝迟到覆盖，导出可用性直接投影 Cache 结果。普通章节变化只查询明确 affected indices，目录增删后台计算 delta，保留有效选择且不全量 Clear/Add；书籍列表增删/重排映射在后台构建并与 UI 原子应用。保留并迁移原加载/清理/大目录与真实 WPF 生命周期核心测试，新增窗口/0%、目录增删、selected-book 清空、无关书籍、book-scope、书籍重排及迟到结果回归；全局通知在后台计算书籍差异，10,000 本未变化书籍保持 row identity，较大真实变更复用 staged projection 并保留选择；重排期间复用 loading 交互门并拒绝迟到点击，受控暂停回归验证无重复/遗漏 BookId。后台投影期间换书时以实际投影选择标记清除已删除书籍，并在排队章节加载获得投影门后重建窗口请求，受控并发回归验证无残留选择或占位行。CacheManagement presentation 16/16、WPF 页面/DI focused 8/8、架构 26/26、Release App build 与 format verify 通过；并行构建曾出现 CS2012 文件锁冲突，串行重试通过，无遗留环境限制。无持久化变化或长期文档冲突；其它页面与旧接口按 T013–T014 继续收口，完整门禁留给 T014。
 
 ## [ ] T013（P1）：迁移 Player、BookDetails 与 CacheAndData 的缓存投影
 

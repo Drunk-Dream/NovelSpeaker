@@ -28,8 +28,20 @@ internal sealed record CachedChapterDecoration(
     int EntryCount,
     long TotalSizeBytes,
     int? CurrentConfigurationSegmentCount,
-    ChapterCacheStatusKind CurrentConfigurationStatus)
+    ChapterCacheStatusKind CurrentConfigurationStatus,
+    bool IsExportable,
+    long Revision)
 {
+    public static CachedChapterDecoration From(CacheChapterView view, string title, long revision) => new(
+        view.Physical?.Title ?? title,
+        view.Coverage.CachedSegmentCount,
+        view.Physical?.EntryCount ?? 0,
+        view.Physical?.TotalSizeBytes ?? 0,
+        view.Coverage.TotalSegmentCount,
+        view.Coverage.Kind,
+        view.IsExportable,
+        revision);
+
     public static CachedChapterDecoration Placeholder(string title) =>
         new(
             title,
@@ -37,6 +49,8 @@ internal sealed record CachedChapterDecoration(
             0,
             0,
             null,
-            ChapterCacheStatusKind.ConfigurationUnavailable);
+            ChapterCacheStatusKind.ConfigurationUnavailable,
+            false,
+            -1);
 
 }

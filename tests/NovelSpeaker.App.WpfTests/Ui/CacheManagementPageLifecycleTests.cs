@@ -11,27 +11,24 @@ namespace NovelSpeaker.App.WpfTests.Ui;
 public sealed class CacheManagementPageLifecycleTests
 {
     [Fact]
-    public async Task Cache_management_page_lifecycle_owns_invalidation_subscription()
+    public async Task Cache_management_page_lifecycle_owns_read_model_subscription()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
             var store = new CacheStoreTestDouble();
-            var catalog = new CacheCatalogTestDouble
+            var readModel = new CacheReadModelTestDouble
             {
                 Books = [new CachedBookSummary("book-1", "第一本", null, 1, 1, 1024)]
             };
-            var invalidation = new CacheInvalidationTestDouble();
             var page = new CacheManagementPage(CreateViewModel(
                 store,
-                catalog,
-                new CacheCoverageTestDouble(),
-                invalidation));
+                readModel));
 
             await page.OnNavigatedToAsync();
-            Assert.Equal(1, invalidation.InvalidationSubscriptionCount);
+            Assert.Equal(1, readModel.SubscriberCount);
 
             await page.OnNavigatedFromAsync();
-            Assert.Equal(0, invalidation.InvalidationSubscriptionCount);
+            Assert.Equal(0, readModel.SubscriberCount);
         });
     }
 
@@ -41,19 +38,14 @@ public sealed class CacheManagementPageLifecycleTests
         await WpfTestHost.RunInStaAsync(async () =>
         {
             var store = new CacheStoreTestDouble();
-            var catalog = new CacheCatalogTestDouble
+            var readModel = new CacheReadModelTestDouble
             {
                 Books = [new CachedBookSummary("book-1", "第一本", "作者甲", 1, 1, 1024)],
             };
-            catalog.ChaptersByBook["book-1"] =
-            [new CachedChapterSummary("book-1", 0, "第一章", 1, 1, 1024)];
-            var coverage = new CacheCoverageTestDouble
-            {
-                Statuses = [new ChapterCacheStatus(0, 1, 1)]
-            };
-            var invalidation = new CacheInvalidationTestDouble();
+            readModel.ChaptersByBook["book-1"] =
+            [new CacheChapterView(0, new CachedChapterSummary("book-1", 0, "第一章", 1, 1, 1024), new ChapterCacheStatus(0, 1, 1))];
             var feedback = new CachePageFeedback();
-            var viewModel = CreateViewModel(store, catalog, coverage, invalidation, feedback);
+            var viewModel = CreateViewModel(store, readModel, feedback);
             var page = new CacheManagementPage(viewModel);
             page.Measure(new System.Windows.Size(1280, 820));
             page.Arrange(new System.Windows.Rect(0, 0, 1280, 820));
@@ -69,15 +61,11 @@ public sealed class CacheManagementPageLifecycleTests
 
     private static CacheManagementViewModel CreateViewModel(
         CacheStoreTestDouble store,
-        CacheCatalogTestDouble catalog,
-        CacheCoverageTestDouble coverage,
-        CacheInvalidationTestDouble invalidation,
+        CacheReadModelTestDouble readModel,
         CachePageFeedback? feedback = null) =>
         new(
             store,
-            catalog,
-            coverage,
-            invalidation,
+            readModel,
             feedback ?? new CachePageFeedback(),
             new CachePageDialog(),
             new CachePageNavigator(),
