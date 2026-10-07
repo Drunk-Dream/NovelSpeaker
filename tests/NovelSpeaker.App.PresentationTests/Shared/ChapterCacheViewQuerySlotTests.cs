@@ -1,3 +1,4 @@
+using NovelSpeaker.TestKit.Cache;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
@@ -7,7 +8,7 @@ using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.Shared;
 
-public sealed class ChapterCacheStatusRefreshControllerTests
+public sealed class ChapterCacheViewQuerySlotTests
 {
     [Fact]
     public async Task Requests_arriving_during_a_refresh_are_coalesced_into_one_follow_up_query()
@@ -16,9 +17,9 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         var releaseFirstRequest = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var bothResultsApplied = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var requestedBatches = new List<int[]>();
-        var service = new FakeCacheCoverageQuery
+        var service = new CacheReadModelTestDouble
         {
-            StatusHandler = async (_, chapterIndices, cancellationToken) =>
+            CoverageHandler = async (_, chapterIndices, cancellationToken) =>
             {
                 requestedBatches.Add([.. chapterIndices.Order()]);
                 if (requestedBatches.Count == 1)
@@ -33,7 +34,7 @@ public sealed class ChapterCacheStatusRefreshControllerTests
             }
         };
         var appliedBatches = new List<int[]>();
-        var controller = new ChapterCacheStatusRefreshController(
+        var controller = new ChapterCacheViewQuerySlot(
             service,
             new ImmediateUiScheduler(),
             (_, chapterIndices, _) =>
@@ -61,17 +62,38 @@ public sealed class ChapterCacheStatusRefreshControllerTests
     }
 
     [Fact]
+    public void New_catalog_activation_rejects_the_previous_result_even_when_book_identity_matches()
+    {
+        var scheduler = new QueuedUiScheduler();
+        var service = new CacheReadModelTestDouble { Statuses = [new(0, 1, 4)] };
+        var applied = new List<CacheChapterView>();
+        var controller = new ChapterCacheViewQuerySlot(service, scheduler,
+            (_, _, views) => applied.AddRange(views), _ => { });
+        controller.Activate(CancellationToken.None);
+        controller.Request("book-1", [0]);
+
+        controller.Activate(CancellationToken.None);
+        service.Statuses = [new(0, 4, 4)];
+        controller.Request("book-1", [0]);
+        scheduler.RunNext();
+        Assert.Empty(applied);
+        scheduler.RunNext();
+        Assert.Equal(4, Assert.Single(applied).Coverage.CachedSegmentCount);
+        controller.Deactivate();
+    }
+
+    [Fact]
     public void Deactivate_discards_a_result_waiting_to_reach_the_ui()
     {
         var scheduler = new QueuedUiScheduler();
-        var service = new FakeCacheCoverageQuery
+        var service = new CacheReadModelTestDouble
         {
-            StatusHandler = (_, chapterIndices, _) =>
+            CoverageHandler = (_, chapterIndices, _) =>
                 Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
                     chapterIndices.Select(static index => new ChapterCacheStatus(index, 1, 1)).ToArray())
         };
         var applyCount = 0;
-        var controller = new ChapterCacheStatusRefreshController(
+        var controller = new ChapterCacheViewQuerySlot(
             service,
             scheduler,
             (_, _, _) => applyCount++,
@@ -85,25 +107,6 @@ public sealed class ChapterCacheStatusRefreshControllerTests
         scheduler.RunNext();
 
         Assert.Equal(0, applyCount);
-    }
-
-    private sealed class FakeCacheCoverageQuery : ICacheCoverageQuery
-    {
-        public Func<string, IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlyList<ChapterCacheStatus>>> StatusHandler { get; init; } =
-            (_, _, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>([]);
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            StatusHandler(bookId, chapterIndices, cancellationToken);
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            IReadOnlyCollection<PlaybackChapterMetadata> chapters,
-            CancellationToken cancellationToken) =>
-            StatusHandler(bookId, chapterIndices, cancellationToken);
     }
 
     private sealed class ImmediateUiScheduler : IUiScheduler

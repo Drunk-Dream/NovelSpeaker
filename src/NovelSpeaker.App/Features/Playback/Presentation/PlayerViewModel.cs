@@ -66,8 +66,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         IAppFeedbackService feedbackService,
         IAppNavigator navigator,
         IPlayerAutoScrollCoordinator autoScrollCoordinator,
-        ICacheCoverageQuery cacheCoverageQuery,
-        ICacheInvalidationCoordinator invalidationCoordinator,
+        ICacheReadModel readModel,
         IMiniPlayerLauncher miniPlayerLauncher,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
@@ -94,9 +93,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             _timeProvider);
         _cacheDecorationController = new PlayerCacheDecorationController(
             activeCacheCoordinator,
-            cacheCoverageQuery,
-            invalidationCoordinator,
-            settingsService,
+            readModel,
             _contentController,
             _uiScheduler,
             ReportViewOperationFailure);
@@ -1173,13 +1170,6 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             }
             if (previousSnapshot.ChapterIndex != snapshot.ChapterIndex &&
                 string.Equals(previousSnapshot.BookId, snapshot.BookId, StringComparison.Ordinal))
-            {
-                _cacheDecorationController.RequestStatusRefresh(chapterIndex: null);
-            }
-
-            if (previousSnapshot.ProviderId != snapshot.ProviderId ||
-                previousSnapshot.SpeakSpeed != snapshot.SpeakSpeed ||
-                previousSnapshot.ContentRevision != snapshot.ContentRevision)
             {
                 _cacheDecorationController.RequestStatusRefresh(chapterIndex: null);
             }

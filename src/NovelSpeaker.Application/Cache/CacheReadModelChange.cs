@@ -1,7 +1,10 @@
 namespace NovelSpeaker.Application.Cache;
 
 /// <summary>A committed display change, without Cache-internal invalidation reasons.</summary>
-public sealed record CacheReadModelChange(long Revision, IReadOnlyList<CacheReadModelScope> Scopes);
+public sealed record CacheReadModelChange(
+    long Revision,
+    IReadOnlyList<CacheReadModelScope> Scopes,
+    bool OverviewChanged = false);
 
 public abstract record CacheReadModelScope
 {

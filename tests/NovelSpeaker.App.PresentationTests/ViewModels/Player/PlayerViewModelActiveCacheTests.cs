@@ -196,7 +196,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Chapter_cache_percentages_refresh_on_initial_load_and_matching_cache_changes()
     {
-        var cacheDependencies = new PlayerCacheTestDouble
+        var cacheDependencies = new CacheReadModelTestDouble
         {
             Statuses =
             [
@@ -221,14 +221,12 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(1, cacheDependencies.SubscriberCount);
 
         cacheDependencies.Statuses = [new ChapterCacheStatus(1, 3, 4)];
-        cacheDependencies.Publish(CacheInvalidation.ForChapters(
-            "book-1", [1], CacheInvalidationAspect.Coverage));
+        cacheDependencies.Publish(new CacheReadModelScope.Chapters("book-1", [1]));
 
         Assert.Equal("75%", viewModel.Chapters[1].CachePercentageText);
         Assert.Equal(2, cacheDependencies.StatusCallCount);
 
-        cacheDependencies.Publish(CacheInvalidation.ForChapters(
-            "another-book", [1], CacheInvalidationAspect.Coverage));
+        cacheDependencies.Publish(new CacheReadModelScope.Chapters("another-book", [1]));
         Assert.Equal(2, cacheDependencies.StatusCallCount);
 
         cacheDependencies.Statuses =
@@ -238,6 +236,8 @@ public sealed partial class PlayerViewModelTests
             new ChapterCacheStatus(2, 0, 4)
         ];
         settingsService.Publish(settingsService.Current with { DefaultSpeakSpeed = 11 });
+        Assert.Equal("25%", viewModel.Chapters[0].CachePercentageText);
+        cacheDependencies.Publish(new CacheReadModelScope.Global());
         Assert.Equal("100%", viewModel.Chapters[0].CachePercentageText);
         Assert.Equal("100%", viewModel.Chapters[1].CachePercentageText);
         Assert.Equal(string.Empty, viewModel.Chapters[2].CachePercentageText);
@@ -247,8 +247,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal(0, cacheDependencies.SubscriberCount);
 
         cacheDependencies.Statuses = [new ChapterCacheStatus(1, 4, 4)];
-        cacheDependencies.Publish(CacheInvalidation.ForChapters(
-            "book-1", [1], CacheInvalidationAspect.Coverage));
+        cacheDependencies.Publish(new CacheReadModelScope.Chapters("book-1", [1]));
         Assert.Equal("100%", viewModel.Chapters[1].CachePercentageText);
         Assert.Equal(3, cacheDependencies.StatusCallCount);
     }
@@ -256,7 +255,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Page_leave_discards_cache_status_projection_that_reaches_the_ui_late()
     {
-        var cacheDependencies = new PlayerCacheTestDouble
+        var cacheDependencies = new CacheReadModelTestDouble
         {
             Statuses = []
         };
@@ -283,7 +282,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Reactivation_refreshes_cache_window_for_playback_position_advanced_off_page()
     {
-        var cacheDependencies = new PlayerCacheTestDouble();
+        var cacheDependencies = new CacheReadModelTestDouble();
         var playback = CreatePlaybackCoordinator();
         var viewModel = CreateViewModel(
             playback,
@@ -309,7 +308,7 @@ public sealed partial class PlayerViewModelTests
     [Fact]
     public async Task Moving_current_chapter_refreshes_the_new_cache_window_for_a_10000_chapter_catalog()
     {
-        var cacheDependencies = new PlayerCacheTestDouble
+        var cacheDependencies = new CacheReadModelTestDouble
         {
             CoverageHandler = (_, indices, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
                 indices.Contains(9_999)
@@ -345,6 +344,18 @@ public sealed partial class PlayerViewModelTests
 
         Assert.True(cacheDependencies.StatusCallCount > initialStatusCallCount);
         Assert.Equal("100%", viewModel.Chapters[9_999].CachePercentageText);
+        viewModel.RequestCacheDecorationWindow(100, 8);
+        cacheDependencies.Publish(new CacheReadModelScope.Book("book-1"));
+        Assert.All(Enumerable.Range(100, 8), index => Assert.Contains(index, cacheDependencies.LastRequestedChapterIndices));
+        Assert.Contains(9_999, cacheDependencies.LastRequestedChapterIndices);
+        Assert.True(cacheDependencies.LastRequestedChapterIndices.Count <= 9);
+        var queriesBeforeConfigurationChange = cacheDependencies.StatusCallCount;
+        playback.Publish(playback.CurrentSnapshot with { SpeakSpeed = 11, ProviderId = TestSpeechProviders.Id(2) });
+        Assert.Equal(queriesBeforeConfigurationChange, cacheDependencies.StatusCallCount);
+        cacheDependencies.Publish(new CacheReadModelScope.Global());
+        Assert.All(Enumerable.Range(100, 8), index => Assert.Contains(index, cacheDependencies.LastRequestedChapterIndices));
+        Assert.Contains(9_999, cacheDependencies.LastRequestedChapterIndices);
+        Assert.True(cacheDependencies.LastRequestedChapterIndices.Count <= 9);
     }
 
     private static FakePlaybackCoordinator CreatePlaybackCoordinator() =>

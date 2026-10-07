@@ -25,8 +25,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     private readonly IAppSettingsService _settingsService;
     private readonly IAudioCacheStore _cacheStore;
-    private readonly ICacheCatalog _cacheCatalog;
-    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
+    private readonly ICacheReadModel _readModel;
     private readonly IAppDiagnosticsService _diagnosticsService;
     private readonly IAppNavigator _navigator;
     private readonly IAppDialogService _dialogService;
@@ -46,7 +45,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private bool _overviewRefreshRequested;
     private int _overviewRefreshVersion;
     private int _overviewAppliedVersion;
-    private bool _isInvalidationRegistered;
+    private bool _isReadModelRegistered;
     private bool _isLoading;
     private int _cacheLimitVersion;
     private long _savedCacheLimitBytes = AppSettings.DefaultCacheLimitBytes;
@@ -54,8 +53,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public CacheAndDataViewModel(
         IAppSettingsService settingsService,
         IAudioCacheStore cacheStore,
-        ICacheCatalog cacheCatalog,
-        ICacheInvalidationCoordinator invalidationCoordinator,
+        ICacheReadModel readModel,
         IAppDiagnosticsService diagnosticsService,
         IAppNavigator navigator,
         IAppDialogService dialogService,
@@ -69,8 +67,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     {
         _settingsService = settingsService;
         _cacheStore = cacheStore;
-        _cacheCatalog = cacheCatalog;
-        _invalidationCoordinator = invalidationCoordinator;
+        _readModel = readModel;
         _diagnosticsService = diagnosticsService;
         _navigator = navigator;
         _dialogService = dialogService;
@@ -209,7 +206,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
-        RegisterInvalidationSubscription();
+        RegisterReadModelSubscription();
         _isLoading = true;
         NotifyClearAllCommandState();
         HasLoadError = false;
@@ -253,7 +250,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     {
         CancelPendingSave();
         RetireCacheLimitCommits();
-        UnregisterInvalidationSubscription();
+        UnregisterReadModelSubscription();
         TaskCompletionSource? retiredRefresh;
         lock (_overviewRefreshSync)
         {
@@ -486,6 +483,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         var startRefresh = false;
         lock (_overviewRefreshSync)
         {
+            _overviewRefreshVersion++;
             _overviewRefreshRequested = true;
             if (_overviewRefreshCompletion is null)
             {
@@ -530,7 +528,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                     requestVersion = _overviewRefreshVersion;
                 }
 
-                var overview = await _cacheCatalog
+                var overview = await _readModel
                     .GetOverviewAsync(cancellationToken)
                     .ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -547,7 +545,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                             }
 
                             _overviewAppliedVersion = requestVersion;
-                            ApplyOverview(overview);
+                            ApplyOverview(overview.Value);
                         }
                     },
                     cancellationToken).ConfigureAwait(false);
@@ -567,7 +565,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 {
                     _overviewRefreshCompletion = null;
                     restart = _overviewRefreshRequested &&
-                              _isInvalidationRegistered &&
+                              _isReadModelRegistered &&
                               IsCurrentActivation(cancellationToken);
                 }
             }
@@ -638,10 +636,6 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         int previousOverviewVersion,
         CancellationToken cancellationToken)
     {
-        await _invalidationCoordinator
-            .FlushPendingAsync(cancellationToken)
-            .ConfigureAwait(false);
-
         var refreshRequired = false;
         lock (_overviewRefreshSync)
         {
@@ -655,39 +649,38 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         }
     }
 
-    private void RegisterInvalidationSubscription()
+    private void RegisterReadModelSubscription()
     {
-        if (_isInvalidationRegistered)
+        if (_isReadModelRegistered)
         {
             return;
         }
 
-        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
-        _isInvalidationRegistered = true;
+        _readModel.Changed += OnCacheReadModelChanged;
+        _isReadModelRegistered = true;
     }
 
-    private void UnregisterInvalidationSubscription()
+    private void UnregisterReadModelSubscription()
     {
-        if (!_isInvalidationRegistered)
+        if (!_isReadModelRegistered)
         {
             return;
         }
 
-        _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
-        _isInvalidationRegistered = false;
+        _readModel.Changed -= OnCacheReadModelChanged;
+        _isReadModelRegistered = false;
     }
 
-    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
+    private void OnCacheReadModelChanged(object? sender, CacheReadModelChange change)
     {
-        if (!batch.Changes.Any(static change =>
-                change.Aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary)))
+        if (!change.OverviewChanged)
         {
             return;
         }
 
         lock (_overviewRefreshSync)
         {
-            if (!_isInvalidationRegistered || !IsCurrentActivation(ActivationToken))
+            if (!_isReadModelRegistered || !IsCurrentActivation(ActivationToken))
             {
                 return;
             }
@@ -706,7 +699,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     private void ReportOverviewRefreshFailure(Exception exception, CancellationToken refreshCancellationToken)
     {
-        if (_isInvalidationRegistered && IsCurrentActivation(refreshCancellationToken))
+        if (_isReadModelRegistered && IsCurrentActivation(refreshCancellationToken))
         {
             _feedbackService.ShowProjectedNotification(
                 "刷新缓存总览失败",

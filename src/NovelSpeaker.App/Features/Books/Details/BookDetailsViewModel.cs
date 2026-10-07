@@ -23,8 +23,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private readonly IBookMetadataUpdateService _bookMetadataUpdateService;
     private readonly IBookDeletionService _bookDeletionService;
     private readonly IAudioCacheStore _cacheStore;
-    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
-    private readonly IAppSettingsService _settingsService;
+    private readonly ICacheReadModel _readModel;
     private readonly IUiScheduler _uiScheduler;
     private readonly IBookCoverGenerator _bookCoverGenerator;
     private readonly IAppFeedbackService _feedbackService;
@@ -36,7 +35,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private Task? _criticalLoadTask;
     private readonly IAppNavigator _navigator;
     private readonly IPlaybackSnapshotSource _playbackCoordinator;
-    private readonly ChapterCacheStatusRefreshController _cacheStatusRefresh;
+    private readonly ChapterCacheViewQuerySlot _cacheStatusRefresh;
     private readonly BookDetailsProjectionController _projection = new();
     private readonly OwnedTaskRegistry _pageTasks = new();
     private CancellationTokenSource? _activeLoadCancellationTokenSource;
@@ -58,9 +57,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IBookMetadataUpdateService bookMetadataUpdateService,
         IBookDeletionService bookDeletionService,
         IAudioCacheStore cacheStore,
-        ICacheCoverageQuery cacheCoverageQuery,
-        ICacheInvalidationCoordinator invalidationCoordinator,
-        IAppSettingsService settingsService,
+        ICacheReadModel readModel,
         IBookCoverGenerator bookCoverGenerator,
         IAppFeedbackService feedbackService,
         IAppDialogService dialogService,
@@ -74,8 +71,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _bookMetadataUpdateService = bookMetadataUpdateService;
         _bookDeletionService = bookDeletionService;
         _cacheStore = cacheStore;
-        _invalidationCoordinator = invalidationCoordinator;
-        _settingsService = settingsService;
+        _readModel = readModel;
         _uiScheduler = uiScheduler ?? new WpfUiScheduler();
         _bookCoverGenerator = bookCoverGenerator;
         _feedbackService = feedbackService;
@@ -84,11 +80,16 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _bookChanges = bookChanges;
         _playbackCoordinator = playbackCoordinator;
         _navigator = navigator;
-        _cacheStatusRefresh = new ChapterCacheStatusRefreshController(
-            cacheCoverageQuery,
+        _cacheStatusRefresh = new ChapterCacheViewQuerySlot(
+            readModel,
             _uiScheduler,
-            (_, requestedChapterIndices, statuses) =>
-                ApplyChapterCacheStatuses(requestedChapterIndices, statuses),
+            (bookId, requestedChapterIndices, views) =>
+            {
+                if (string.Equals(_bookId, bookId, StringComparison.Ordinal))
+                {
+                    ApplyChapterCacheStatuses(requestedChapterIndices, views.Select(static view => view.Coverage).ToArray());
+                }
+            },
             ReportCacheStatusRefreshFailure);
         Cover = _bookCoverGenerator.Generate("未命名书籍");
     }
@@ -759,8 +760,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         DeactivateCacheStatusUpdates();
         _cacheStatusCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _cacheStatusRefresh.Activate(_cacheStatusCancellationTokenSource.Token);
-        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
-        _settingsService.Changed += OnSettingsChanged;
+        _readModel.Changed += OnCacheReadModelChanged;
         _isCacheStatusUpdatesActive = true;
     }
 
@@ -768,8 +768,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     {
         if (_isCacheStatusUpdatesActive)
         {
-            _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
-            _settingsService.Changed -= OnSettingsChanged;
+            _readModel.Changed -= OnCacheReadModelChanged;
             _isCacheStatusUpdatesActive = false;
         }
 
@@ -779,31 +778,37 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         _cacheStatusRefresh.Deactivate();
     }
 
-    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
+    private void OnCacheReadModelChanged(object? sender, CacheReadModelChange change)
+    {
+        var cancellationToken = _cacheStatusCancellationTokenSource?.Token ?? new CancellationToken(canceled: true);
+        _pageTasks.Register(_uiScheduler.InvokeAsync(() =>
+        {
+            if (_cacheStatusCancellationTokenSource?.Token == cancellationToken && !cancellationToken.IsCancellationRequested)
+            {
+                ApplyCacheReadModelChange(change);
+            }
+        }, cancellationToken), ReportCacheStatusRefreshFailure);
+    }
+
+    private void ApplyCacheReadModelChange(CacheReadModelChange change)
     {
         if (string.IsNullOrWhiteSpace(_bookId))
         {
             return;
         }
 
-        foreach (var change in batch.Changes)
+        foreach (var scope in change.Scopes)
         {
-            if (!change.Aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) &&
-                !change.Aspects.HasFlag(CacheInvalidationAspect.Coverage))
+            switch (scope)
             {
-                continue;
-            }
-
-            switch (change.Scope)
-            {
-                case CacheInvalidationScope.Global:
-                    ScheduleCacheStatusRefresh(chapterIndex: null);
+                case CacheReadModelScope.Global:
+                    RefreshObservedCacheWindow(_bookId);
                     break;
-                case CacheInvalidationScope.Book book
+                case CacheReadModelScope.Book book
                     when string.Equals(book.BookId, _bookId, StringComparison.Ordinal):
-                    ScheduleCacheStatusRefresh(chapterIndex: null);
+                    RefreshObservedCacheWindow(_bookId);
                     break;
-                case CacheInvalidationScope.Chapters chapters
+                case CacheReadModelScope.Chapters chapters
                     when string.Equals(chapters.BookId, _bookId, StringComparison.Ordinal):
                     foreach (var chapterIndex in chapters.ChapterIndices)
                     {
@@ -815,18 +820,22 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         }
     }
 
-    private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs eventArgs)
+    private void RefreshObservedCacheWindow(string bookId)
     {
-        if (eventArgs.Previous.DefaultSpeakSpeed == eventArgs.Current.DefaultSpeakSpeed &&
-            eventArgs.Previous.CurrentProviderId == eventArgs.Current.CurrentProviderId &&
-            eventArgs.Previous.EnableLongParagraphSplitting == eventArgs.Current.EnableLongParagraphSplitting &&
-            eventArgs.Previous.LongParagraphThreshold == eventArgs.Current.LongParagraphThreshold &&
-            eventArgs.Previous.ReadChapterTitle == eventArgs.Current.ReadChapterTitle)
+        if (_projection.CacheDecorationWindow.Count == 0)
         {
+            QueueCacheStatusRefresh(chapterIndex: null);
             return;
         }
 
-        ScheduleCacheStatusRefresh(chapterIndex: null);
+        var indices = _projection.CacheDecorationWindow.ToHashSet();
+        if (_projection.CurrentChapterItem is { } current)
+        {
+            indices.Add(current.ChapterIndex);
+            _projection.MarkExplicitCacheStatusRequest(current.ChapterIndex);
+        }
+
+        _cacheStatusRefresh.Request(bookId, indices);
     }
 
     private void ScheduleCacheStatusRefresh(int? chapterIndex)

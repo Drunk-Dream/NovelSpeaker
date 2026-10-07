@@ -1,3 +1,4 @@
+using NovelSpeaker.TestKit.Cache;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.TestKit.Books;
 using NovelSpeaker.TestKit.Speech;
@@ -20,6 +21,44 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class BookDetailsViewModelTests
 {
+    [Fact]
+    public async Task Cache_changes_update_only_the_window_or_explicit_chapters_and_preserve_catalog()
+    {
+        var cache = new FakeCacheDetailsDependencies();
+        cache.ReadModel.Statuses = [new(0, 1, 4), new(1, 0, 4), new(2, 1, null)];
+        var service = new FakeBookManagementService { Details = CreateDetails(10_000, 0) };
+        var viewModel = CreateViewModel(managementService: service, cacheDependencies: cache);
+        await viewModel.LoadAsync("book-1", CancellationToken.None);
+        viewModel.RequestCacheDecorationWindow(0, 32);
+        Assert.Equal("25%", viewModel.Chapters[0].CachePercentageText);
+        Assert.Empty(viewModel.Chapters[1].CachePercentageText);
+        Assert.Empty(viewModel.Chapters[2].CachePercentageText);
+        Assert.Equal(32, cache.ReadModel.LastRequestedChapterIndices.Count);
+        var catalogQueries = service.GetBookDetailsCallCount;
+        var cacheQueries = cache.ReadModel.StatusCallCount;
+
+        cache.ReadModel.Publish(new CacheReadModelScope.Book("another-book"));
+        Assert.Equal(cacheQueries, cache.ReadModel.StatusCallCount);
+        cache.ReadModel.Statuses = [new(9000, 3, 4)];
+        cache.ReadModel.Publish(new CacheReadModelScope.Chapters("book-1", [9000]));
+        Assert.Equal([9000], cache.ReadModel.LastRequestedChapterIndices);
+        Assert.Equal("75%", viewModel.Chapters[9000].CachePercentageText);
+        Assert.Equal(catalogQueries, service.GetBookDetailsCallCount);
+
+        cache.ReadModel.Statuses = [new(100, 4, 4)];
+        viewModel.RequestCacheDecorationWindow(100, 8);
+        Assert.Equal(Enumerable.Range(100, 8), cache.ReadModel.LastRequestedChapterIndices);
+        Assert.Equal("100%", viewModel.Chapters[100].CachePercentageText);
+        Assert.Empty(viewModel.Chapters[0].CachePercentageText);
+        cache.ReadModel.Statuses = [new(100, 1, 4)];
+        cache.ReadModel.Publish(new CacheReadModelScope.Book("book-1"));
+        Assert.Equal("25%", viewModel.Chapters[100].CachePercentageText);
+        Assert.All(Enumerable.Range(100, 8), index => Assert.Contains(index, cache.ReadModel.LastRequestedChapterIndices));
+        Assert.True(cache.ReadModel.LastRequestedChapterIndices.Count <= 9);
+        viewModel.HandleNavigatedFrom();
+        Assert.Equal(0, cache.ReadModel.SubscriberCount);
+    }
+
     [Fact]
     public async Task Book_refresh_failure_after_leave_does_not_notify_the_next_page()
     {
@@ -498,7 +537,6 @@ public sealed class BookDetailsViewModelTests
     private static BookDetailsViewModel CreateViewModel(
         FakeBookManagementService? managementService = null,
         FakeCacheDetailsDependencies? cacheDependencies = null,
-        FakeAppSettingsService? settingsService = null,
         IAppFeedbackService? feedbackService = null,
         FakeAppDialogService? dialogService = null,
         FakeBookDeleteDialogService? deleteDialogService = null,
@@ -514,9 +552,7 @@ public sealed class BookDetailsViewModelTests
             managementService,
             managementService,
             cacheDependencies,
-            cacheDependencies,
-            cacheDependencies,
-            settingsService ?? new FakeAppSettingsService(),
+            cacheDependencies.ReadModel,
             new BookCoverGenerator(),
             feedbackService ?? new FakeFeedbackService(),
             dialogService ?? new FakeAppDialogService(),
@@ -724,24 +760,9 @@ public sealed class BookDetailsViewModelTests
         }
     }
 
-    private sealed class FakeCacheDetailsDependencies : IAudioCacheStore, ICacheCoverageQuery, ICacheInvalidationCoordinator
+    private sealed class FakeCacheDetailsDependencies : IAudioCacheStore
     {
-        public long Revision { get; private set; }
-        private EventHandler<CacheInvalidationBatch>? _batchPublished;
-
-        public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
-
-        public Func<IReadOnlyCollection<int>, IReadOnlyList<ChapterCacheStatus>>? StatusHandler { get; set; }
-
-        public int StatusCallCount { get; private set; }
-
-        public int SubscriberCount => _batchPublished?.GetInvocationList().Length ?? 0;
-
-        public event EventHandler<CacheInvalidationBatch>? BatchPublished
-        {
-            add => _batchPublished += value;
-            remove => _batchPublished -= value;
-        }
+        public CacheReadModelTestDouble ReadModel { get; } = new();
 
         public AudioCacheStoreCleanupResult ClearBookResult { get; set; } = new(2048, 1, 0, 0);
 
@@ -781,22 +802,6 @@ public sealed class BookDetailsViewModelTests
             IReadOnlyCollection<AudioCacheKey> keys,
             CancellationToken cancellationToken) =>
             throw new NotSupportedException();
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken)
-        {
-            StatusCallCount++;
-            return Task.FromResult(StatusHandler?.Invoke(chapterIndices) ?? Statuses);
-        }
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            IReadOnlyCollection<PlaybackChapterMetadata> chapters,
-            CancellationToken cancellationToken) =>
-            GetAsync(bookId, chapterIndices, cancellationToken);
 
         public Task<AudioCacheStoreCleanupResult> ClearBookAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -839,17 +844,6 @@ public sealed class BookDetailsViewModelTests
 
         public Task RunStartupMaintenanceAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public void Publish(CacheInvalidation invalidation)
-        {
-            Revision++;
-            _batchPublished?.Invoke(this, new CacheInvalidationBatch([invalidation], Revision));
-        }
-
-        public Task FlushPendingAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
     private sealed class FakeAppSettingsService : IAppSettingsService

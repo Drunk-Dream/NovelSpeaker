@@ -4,14 +4,14 @@ using NovelSpeaker.App.Shared.Presentation.Platform;
 namespace NovelSpeaker.App.Shared.Presentation.Cache;
 
 /// <summary>
-/// Coalesces chapter cache status refresh requests within one page activation.
-/// The page remains responsible for deciding which book and chapters are affected.
+/// Coalesces page-owned chapter window queries within one catalog activation.
+/// Cache owns composition, invalidation and repair; callers own the display window.
 /// </summary>
-internal sealed class ChapterCacheStatusRefreshController
+internal sealed class ChapterCacheViewQuerySlot
 {
-    private readonly ICacheCoverageQuery _cacheCoverageQuery;
+    private readonly ICacheReadModel _readModel;
     private readonly IUiScheduler _uiScheduler;
-    private readonly Action<string, IReadOnlyCollection<int>, IReadOnlyCollection<ChapterCacheStatus>> _applyStatuses;
+    private readonly Action<string, IReadOnlyCollection<int>, IReadOnlyList<CacheChapterView>> _applyViews;
     private readonly Action<Exception> _reportFailure;
     private readonly OwnedTaskRegistry _tasks = new();
     private readonly object _syncRoot = new();
@@ -22,15 +22,15 @@ internal sealed class ChapterCacheStatusRefreshController
     private bool _isRefreshRunning;
     private int _activationGeneration;
 
-    public ChapterCacheStatusRefreshController(
-        ICacheCoverageQuery cacheCoverageQuery,
+    public ChapterCacheViewQuerySlot(
+        ICacheReadModel readModel,
         IUiScheduler uiScheduler,
-        Action<string, IReadOnlyCollection<int>, IReadOnlyCollection<ChapterCacheStatus>> applyStatuses,
+        Action<string, IReadOnlyCollection<int>, IReadOnlyList<CacheChapterView>> applyViews,
         Action<Exception> reportFailure)
     {
-        _cacheCoverageQuery = cacheCoverageQuery;
+        _readModel = readModel;
         _uiScheduler = uiScheduler;
-        _applyStatuses = applyStatuses;
+        _applyViews = applyViews;
         _reportFailure = reportFailure;
     }
 
@@ -135,7 +135,7 @@ internal sealed class ChapterCacheStatusRefreshController
                     _pendingChapterIndices.Clear();
                 }
 
-                var statuses = await _cacheCoverageQuery.GetAsync(
+                var result = await _readModel.GetChaptersAsync(
                     bookId,
                     chapterIndices,
                     cancellationToken);
@@ -146,7 +146,7 @@ internal sealed class ChapterCacheStatusRefreshController
                     {
                         if (IsCurrentGeneration(generation))
                         {
-                            _applyStatuses(bookId, chapterIndices, statuses);
+                            _applyViews(bookId, chapterIndices, result.Value);
                         }
                     },
                     cancellationToken);

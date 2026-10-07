@@ -18,13 +18,12 @@ internal sealed class PlayerCacheDecorationController
     private const int SelectionDecorationResetThreshold = 64;
 
     private readonly IActiveCacheCoordinator _activeCacheCoordinator;
-    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
-    private readonly IAppSettingsService _settingsService;
+    private readonly ICacheReadModel _readModel;
     private readonly PlayerContentController _contentController;
     private readonly IUiScheduler _uiScheduler;
     private readonly Action<string, Exception> _reportFailure;
     private readonly PlayerChapterManagementController _selectionController;
-    private readonly ChapterCacheStatusRefreshController _statusRefreshController;
+    private readonly ChapterCacheViewQuerySlot _statusRefreshController;
     private readonly OwnedTaskRegistry _pageTasks = new();
     private readonly HashSet<int> _explicitStatusRequests = [];
 
@@ -37,23 +36,20 @@ internal sealed class PlayerCacheDecorationController
 
     public PlayerCacheDecorationController(
         IActiveCacheCoordinator activeCacheCoordinator,
-        ICacheCoverageQuery cacheCoverageQuery,
-        ICacheInvalidationCoordinator invalidationCoordinator,
-        IAppSettingsService settingsService,
+        ICacheReadModel readModel,
         PlayerContentController contentController,
         IUiScheduler uiScheduler,
         Action<string, Exception> reportFailure)
     {
         _activeCacheCoordinator = activeCacheCoordinator ?? throw new ArgumentNullException(nameof(activeCacheCoordinator));
-        _invalidationCoordinator = invalidationCoordinator ?? throw new ArgumentNullException(nameof(invalidationCoordinator));
-        _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _readModel = readModel ?? throw new ArgumentNullException(nameof(readModel));
         _contentController = contentController ?? throw new ArgumentNullException(nameof(contentController));
         _uiScheduler = uiScheduler ?? throw new ArgumentNullException(nameof(uiScheduler));
         _reportFailure = reportFailure ?? throw new ArgumentNullException(nameof(reportFailure));
         _selectionController = new PlayerChapterManagementController(activeCacheCoordinator);
         _selectionController.StateChanged += OnSelectionStateChanged;
-        _statusRefreshController = new ChapterCacheStatusRefreshController(
-            cacheCoverageQuery,
+        _statusRefreshController = new ChapterCacheViewQuerySlot(
+            readModel,
             uiScheduler,
             ApplyChapterCacheStatuses,
             exception => reportFailure("刷新章节缓存进度失败", exception));
@@ -81,8 +77,7 @@ internal sealed class PlayerCacheDecorationController
         _isActive = true;
         _statusRefreshController.Activate(cancellationToken);
         _activeCacheCoordinator.SnapshotChanged += OnActiveCacheSnapshotChanged;
-        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
-        _settingsService.Changed += OnSettingsChanged;
+        _readModel.Changed += OnCacheReadModelChanged;
         _selectionController.ApplySnapshot(_activeCacheCoordinator.CurrentSnapshot);
     }
 
@@ -92,8 +87,7 @@ internal sealed class PlayerCacheDecorationController
         if (_isActive)
         {
             _activeCacheCoordinator.SnapshotChanged -= OnActiveCacheSnapshotChanged;
-            _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
-            _settingsService.Changed -= OnSettingsChanged;
+            _readModel.Changed -= OnCacheReadModelChanged;
             _isActive = false;
         }
 
@@ -111,6 +105,9 @@ internal sealed class PlayerCacheDecorationController
             return;
         }
 
+        _statusRefreshController.Activate(_activationToken);
+        _initializedBookId = null;
+        _explicitStatusRequests.Clear();
         _selectionController.SetIndexedItems(
             _contentController.ChapterIndices,
             _contentController.ChapterPositions,
@@ -252,7 +249,7 @@ internal sealed class PlayerCacheDecorationController
     private void ApplyChapterCacheStatuses(
         string bookId,
         IReadOnlyCollection<int> requestedChapterIndices,
-        IReadOnlyCollection<ChapterCacheStatus> statuses)
+        IReadOnlyList<CacheChapterView> views)
     {
         if (!IsCurrentActivation(_activationVersion) ||
             !string.Equals(_contentController.LoadedBook?.BookId, bookId, StringComparison.Ordinal))
@@ -260,7 +257,7 @@ internal sealed class PlayerCacheDecorationController
             return;
         }
 
-        var statusesByChapter = statuses.ToDictionary(static status => status.ChapterIndex);
+        var statusesByChapter = views.ToDictionary(static view => view.ChapterIndex, static view => view.Coverage);
         foreach (var chapterIndex in requestedChapterIndices)
         {
             if (!_contentController.IsChapterCacheDecorationRequested(chapterIndex) &&
@@ -310,7 +307,12 @@ internal sealed class PlayerCacheDecorationController
             "更新主动缓存状态失败");
     }
 
-    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
+    private void OnCacheReadModelChanged(object? sender, CacheReadModelChange change)
+    {
+        RunOnUi(() => ApplyCacheReadModelChange(change), _activationVersion, "刷新章节缓存进度失败");
+    }
+
+    private void ApplyCacheReadModelChange(CacheReadModelChange change)
     {
         var loadedBookId = _contentController.LoadedBook?.BookId;
         if (string.IsNullOrWhiteSpace(loadedBookId))
@@ -318,24 +320,18 @@ internal sealed class PlayerCacheDecorationController
             return;
         }
 
-        foreach (var change in batch.Changes)
+        foreach (var scope in change.Scopes)
         {
-            if (!change.Aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary) &&
-                !change.Aspects.HasFlag(CacheInvalidationAspect.Coverage))
+            switch (scope)
             {
-                continue;
-            }
-
-            switch (change.Scope)
-            {
-                case CacheInvalidationScope.Global:
-                    RequestStatusRefresh(chapterIndex: null);
+                case CacheReadModelScope.Global:
+                    RefreshObservedWindow(loadedBookId);
                     break;
-                case CacheInvalidationScope.Book book
+                case CacheReadModelScope.Book book
                     when string.Equals(book.BookId, loadedBookId, StringComparison.Ordinal):
-                    RequestStatusRefresh(chapterIndex: null);
+                    RefreshObservedWindow(loadedBookId);
                     break;
-                case CacheInvalidationScope.Chapters chapters
+                case CacheReadModelScope.Chapters chapters
                     when string.Equals(chapters.BookId, loadedBookId, StringComparison.Ordinal):
                     foreach (var chapterIndex in chapters.ChapterIndices)
                     {
@@ -347,18 +343,22 @@ internal sealed class PlayerCacheDecorationController
         }
     }
 
-    private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs eventArgs)
+    private void RefreshObservedWindow(string bookId)
     {
-        if (eventArgs.Previous.DefaultSpeakSpeed == eventArgs.Current.DefaultSpeakSpeed &&
-            eventArgs.Previous.CurrentProviderId == eventArgs.Current.CurrentProviderId &&
-            eventArgs.Previous.EnableLongParagraphSplitting == eventArgs.Current.EnableLongParagraphSplitting &&
-            eventArgs.Previous.LongParagraphThreshold == eventArgs.Current.LongParagraphThreshold &&
-            eventArgs.Previous.ReadChapterTitle == eventArgs.Current.ReadChapterTitle)
+        if (_contentController.CacheDecorationWindow.Count == 0)
         {
+            QueueStatusRefresh(chapterIndex: null);
             return;
         }
 
-        RequestStatusRefresh(chapterIndex: null);
+        var indices = _contentController.CacheDecorationWindow.ToHashSet();
+        if (_contentController.GetChapterPosition(_currentChapterIndex) is not null)
+        {
+            indices.Add(_currentChapterIndex);
+            _explicitStatusRequests.Add(_currentChapterIndex);
+        }
+
+        _statusRefreshController.Request(bookId, indices);
     }
 
     private void RunOnUi(Action action, int activationVersion, string failureTitle)

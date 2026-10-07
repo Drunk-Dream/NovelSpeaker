@@ -16,11 +16,30 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class CacheAndDataViewModelTests
 {
     [Fact]
+    public async Task Coverage_only_change_does_not_requery_overview_and_leaving_unsubscribes()
+    {
+        var store = new CacheStoreTestDouble();
+        var readModel = new CacheReadModelTestDouble();
+        var viewModel = CreateViewModel(cacheStore: store, readModel: readModel);
+        await viewModel.LoadAsync(CancellationToken.None);
+        var initialQueries = store.SummaryQueryCallCount;
+
+        readModel.Publish(new CacheReadModelScope.Global());
+        readModel.Publish(new CacheReadModelScope.Chapters("book-1", [1]));
+        Assert.Equal(initialQueries, store.SummaryQueryCallCount);
+
+        viewModel.Deactivate();
+        Assert.Equal(0, readModel.SubscriberCount);
+        readModel.PublishOverviewChange(new CacheReadModelScope.Global());
+        Assert.Equal(initialQueries, store.SummaryQueryCallCount);
+    }
+
+    [Fact]
     public async Task Restore_retires_incomplete_focus_save_before_replacing_settings_without_trimming_cache()
     {
         var settings = new FakeAppSettingsService(AppSettings.Default);
         var store = new CacheStoreTestDouble();
-        var invalidation = new CacheInvalidationTestDouble();
+        var invalidation = new CacheReadModelTestDouble();
         var restored = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var backup = new BackupTestDouble
         {
@@ -35,7 +54,7 @@ public sealed class CacheAndDataViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
         var overview = new TaskCompletionSource<AudioCacheStoreSummary>(TaskCreationOptions.RunContinuationsAsynchronously);
         store.PendingSummaryTasks.Enqueue(overview);
-        invalidation.Publish(CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary));
+        invalidation.PublishOverviewChange(new CacheReadModelScope.Global());
         await store.SummaryLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
         viewModel.CacheLimitValueText = "1";
         var focusSave = viewModel.CommitCacheLimitAsync(CancellationToken.None);
@@ -171,11 +190,11 @@ public sealed class CacheAndDataViewModelTests
                 4L * 1024 * 1024 * 1024,
                 false)
         };
-        var invalidation = new CacheInvalidationTestDouble();
+        var invalidation = new CacheReadModelTestDouble();
         var viewModel = CreateViewModel(
             settingsService,
             cacheStore,
-            invalidationCoordinator: invalidation);
+            readModel: invalidation);
         await viewModel.LoadAsync(CancellationToken.None);
 
         var liveOverview = new TaskCompletionSource<AudioCacheStoreSummary>(
@@ -187,8 +206,8 @@ public sealed class CacheAndDataViewModelTests
             4L * 1024 * 1024 * 1024,
             false);
         cacheStore.StoreSummary = actualOverview;
-        invalidation.Publish(
-            CacheInvalidation.ForGlobal(CacheInvalidationAspect.PhysicalSummary));
+        invalidation.PublishOverviewChange(
+            new CacheReadModelScope.Global());
         await cacheStore.SummaryLoadStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         viewModel.CacheLimitValueText = "2";
@@ -235,10 +254,10 @@ public sealed class CacheAndDataViewModelTests
             NextConfirmationDecision = AppConfirmationDecision.Confirm
         };
         var feedbackService = new FakeFeedbackService();
-        var invalidation = new CacheInvalidationTestDouble();
+        var invalidation = new CacheReadModelTestDouble();
         var viewModel = CreateViewModel(
             cacheStore: cacheStore,
-            invalidationCoordinator: invalidation,
+            readModel: invalidation,
             dialogService: dialogService,
             feedbackService: feedbackService);
         await viewModel.LoadAsync(CancellationToken.None);
@@ -262,17 +281,14 @@ public sealed class CacheAndDataViewModelTests
                 new AudioCacheStoreSummary(1024, 1, AppSettings.DefaultCacheLimitBytes, false)
             ]
         };
-        var invalidation = new CacheInvalidationTestDouble();
+        var invalidation = new CacheReadModelTestDouble();
         var viewModel = CreateViewModel(
             cacheStore: cacheStore,
-            invalidationCoordinator: invalidation);
+            readModel: invalidation);
 
         await viewModel.LoadAsync(CancellationToken.None);
-        invalidation.Publish(
-            CacheInvalidation.ForChapters(
-                "book-1",
-                [0],
-                CacheInvalidationAspect.PhysicalSummary));
+        invalidation.PublishOverviewChange(
+            new CacheReadModelScope.Chapters("book-1", [0]));
 
         Assert.Equal("1 KB", viewModel.TotalCacheSizeText);
         Assert.Equal("1 项缓存", viewModel.CacheEntryCountText);
@@ -305,7 +321,7 @@ public sealed class CacheAndDataViewModelTests
     private static CacheAndDataViewModel CreateViewModel(
         FakeAppSettingsService? settingsService = null,
         CacheStoreTestDouble? cacheStore = null,
-        CacheInvalidationTestDouble? invalidationCoordinator = null,
+        CacheReadModelTestDouble? readModel = null,
         FakeAppDialogService? dialogService = null,
         FakeFeedbackService? feedbackService = null,
         FakeDiagnosticsService? diagnosticsService = null,
@@ -314,12 +330,12 @@ public sealed class CacheAndDataViewModelTests
         BackupFilesTestDouble? files = null)
     {
         var store = cacheStore ?? new CacheStoreTestDouble();
-        var invalidation = invalidationCoordinator ?? new CacheInvalidationTestDouble();
+        var cacheReadModel = readModel ?? new CacheReadModelTestDouble();
+        cacheReadModel.OverviewHandler = store.GetOverviewAsync;
         return new CacheAndDataViewModel(
             settingsService ?? new FakeAppSettingsService(AppSettings.Default),
             store,
-            new CacheCatalogTestDouble(store.GetOverviewAsync),
-            invalidation,
+            cacheReadModel,
             diagnosticsService ?? new FakeDiagnosticsService(),
             new FakeNavigationService(),
             dialogService ?? new FakeAppDialogService(),

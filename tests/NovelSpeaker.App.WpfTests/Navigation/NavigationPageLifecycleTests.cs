@@ -54,8 +54,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession);
@@ -101,8 +100,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel)
             {

@@ -42,6 +42,8 @@ internal sealed class BookDetailsProjectionController
 
     public bool IsCatalogReady { get; private set; }
 
+    public IReadOnlyCollection<int> CacheDecorationWindow => _cacheDecorationWindow;
+
     public void Reset()
     {
         _catalog = new BookDetailsChapterCatalog([]);

@@ -33,6 +33,7 @@ public sealed class CacheReadModelTests
         Assert.Equal([1L, 2L], changes.Select(change => change.Revision));
         Assert.Equal(["book-A", "book-B"], changes.Select(change =>
             Assert.IsType<CacheReadModelScope.Book>(Assert.Single(change.Scopes)).BookId));
+        Assert.All(changes, change => Assert.False(change.OverviewChanged));
     }
 
     [Fact]
@@ -148,6 +149,7 @@ public sealed class CacheReadModelTests
         Assert.Equal("book", scope.BookId);
         Assert.Equal([1, 3], scope.ChapterIndices);
         Assert.Equal(model.Revision, change.Revision);
+        Assert.True(change.OverviewChanged);
     }
 
     private sealed class Metadata : IBookPlaybackMetadataQuery

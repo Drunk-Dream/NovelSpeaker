@@ -63,8 +63,7 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
 
             viewModel.OnPageNavigatedTo(CancellationToken.None);

@@ -121,6 +121,8 @@ internal sealed class PlayerContentController
     public bool IsChapterCacheDecorationRequested(int chapterIndex) =>
         _cacheDecorationWindow.Contains(chapterIndex);
 
+    public IReadOnlyCollection<int> CacheDecorationWindow => _cacheDecorationWindow;
+
     public IReadOnlyList<int> GetChapterIndices(int start, int count) =>
         _chapterCatalog
             .Slice(start, count)

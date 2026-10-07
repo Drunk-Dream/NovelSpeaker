@@ -145,11 +145,13 @@
 
 完成成果：CacheManagement 只消费 `ICacheReadModel` 的 book/catalog/sparse chapter views 与 Global/Book/Chapters 通知；删除旧 invalidation aspect 解释、repair requestor、多 query 拼装、pending dirty 集合、book epoch/generation 和 stale requeue worker。保留页面 activation/selected-book/latest-window identity、Extended Selection、增量 collection delta 与稀疏 decoration；行使用 read-model revision 拒绝迟到覆盖，导出可用性直接投影 Cache 结果。普通章节变化只查询明确 affected indices，目录增删后台计算 delta，保留有效选择且不全量 Clear/Add；书籍列表增删/重排映射在后台构建并与 UI 原子应用。保留并迁移原加载/清理/大目录与真实 WPF 生命周期核心测试，新增窗口/0%、目录增删、selected-book 清空、无关书籍、book-scope、书籍重排及迟到结果回归；全局通知在后台计算书籍差异，10,000 本未变化书籍保持 row identity，较大真实变更复用 staged projection 并保留选择；重排期间复用 loading 交互门并拒绝迟到点击，受控暂停回归验证无重复/遗漏 BookId。后台投影期间换书时以实际投影选择标记清除已删除书籍，并在排队章节加载获得投影门后重建窗口请求，受控并发回归验证无残留选择或占位行。CacheManagement presentation 16/16、WPF 页面/DI focused 8/8、架构 26/26、Release App build 与 format verify 通过；并行构建曾出现 CS2012 文件锁冲突，串行重试通过，无遗留环境限制。无持久化变化或长期文档冲突；其它页面与旧接口按 T013–T014 继续收口，完整门禁留给 T014。
 
-## [ ] T013（P1）：迁移 Player、BookDetails 与 CacheAndData 的缓存投影
+## [x] T013（P1）：迁移 Player、BookDetails 与 CacheAndData 的缓存投影
 
 依赖：T012。
 
 目标：其它页面消费相同 Cache read model/change source，不再直接订阅 Cache 内部 invalidation aspect 或自行驱动 coverage/repair。
+
+完成成果：Player、BookDetails 和 CacheAndData 全部消费 `ICacheReadModel`；页面不再订阅 invalidation aspect 或根据配置变化自行驱动 coverage，Cache-owned 通知明确标识 overview 是否变化，纯 coverage 通知不重查物理总览。删除旧 `ChapterCacheStatusRefreshController`，保留只负责 activation 内稀疏窗口查询合并的 presentation slot；Player 在 catalog 切换时取消旧查询，BookDetails 按 activation/book 身份拒绝迟到结果。整书/全局通知保留 viewport 并补查 current，章节通知只查明确 affected indices；Active Cache snapshot 与 management selection 仍由原 owner 负责。保留并迁移原页面与 WPF 核心测试，新增/扩充大目录窗口、无关书籍、overview scope、目录 activation 与退出迟到结果回归。修复真实 WPF 测试宿主意外运行生产 App startup 的既有问题：从生产 App.xaml 按原顺序加载实际资源与输入桥接，不启动 shell/tray、不放宽 Desktop 隔离；原基线单测也复现超时，转储定位到生产托盘失败后的 modal MessageBox，修复后 WPF focused 20/20 通过。Presentation/architecture focused 92/92、Cache Application focused 36/36、Release build（0 warning/error）、format verify 和 diff 检查通过；临时转储、工具与基线 worktree 已清理，无遗留环境限制、持久化变化或长期文档冲突。完整门禁留给 T014。
 
 ## [ ] T014（P0）：删除 Cache 泄漏接口并完成 Phase C 验收
 

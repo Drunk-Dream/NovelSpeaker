@@ -117,7 +117,10 @@ internal sealed class CacheReadModel : ICacheReadModel, IDisposable
                 chapters.BookId, Array.AsReadOnly(chapters.ChapterIndices.ToArray())),
             _ => throw new InvalidOperationException("Unknown Cache scope.")
         }).Distinct().ToArray();
-        var change = new CacheReadModelChange(batch.Revision, Array.AsReadOnly(scopes));
+        var change = new CacheReadModelChange(
+            batch.Revision,
+            Array.AsReadOnly(scopes),
+            batch.Changes.Any(static change => change.Aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary)));
         foreach (EventHandler<CacheReadModelChange> handler in Changed?.GetInvocationList() ?? [])
         {
             try
