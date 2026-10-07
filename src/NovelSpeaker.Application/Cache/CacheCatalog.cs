@@ -5,7 +5,7 @@ namespace NovelSpeaker.Application.Cache;
 /// <summary>
 /// Composes physical cache facts with detached book metadata without calculating Coverage.
 /// </summary>
-public sealed class CacheCatalog : ICacheCatalog
+internal sealed class CacheCatalog : ICacheCatalog
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _bookMetadataQuery;

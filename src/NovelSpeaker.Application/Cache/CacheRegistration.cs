@@ -34,12 +34,14 @@ public static class CacheRegistration
                     provider.GetService<IBookSourceChangeSource>()));
             return coordinator;
         });
+        services.TryAddSingleton<ICacheInvalidationSink>(provider => provider.GetRequiredService<ICacheInvalidationCoordinator>());
+        services.TryAddSingleton<ICacheChangeLifetime>(provider => provider.GetRequiredService<ICacheInvalidationCoordinator>());
         services.TryAddSingleton<ICacheCatalog, CacheCatalog>();
         services.TryAddSingleton<ICacheCoverageQuery, CacheCoverageQuery>();
         services.TryAddSingleton<ICacheReadModel, CacheReadModel>();
         services.TryAddSingleton<IChapterSpeechPlanService, ChapterSpeechPlanService>();
         services.TryAddSingleton<ISpeechPlanRepairCoordinator, SpeechPlanRepairCoordinator>();
-        services.TryAddSingleton<ICachePlanRepairRequestor, SpeechPlanRepairRequestor>();
+        services.TryAddSingleton<ISpeechPlanRepairLifetime>(provider => provider.GetRequiredService<ISpeechPlanRepairCoordinator>());
         services.TryAddSingleton<IAudioCacheLimitProvider, SettingsCacheLimitProvider>();
         services.TryAddSingleton<IAudioGenerationProvider, CacheAudioGenerationProvider>();
         services.TryAddSingleton<ExportFileNameSanitizer>();

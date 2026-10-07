@@ -15,7 +15,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore, IBookRem
     private readonly AudioCacheMaintenance _maintenance;
     private readonly IAudioCacheProtectionRegistry _protectionRegistry;
     private readonly AudioProbe _audioProbe;
-    private readonly ICacheInvalidationCoordinator? _invalidationCoordinator;
+    private readonly ICacheInvalidationSink? _invalidationSink;
     private readonly SemaphoreSlim _mutex = new(1, 1);
 
     public AudioCacheFacade(
@@ -24,14 +24,14 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore, IBookRem
         AudioCacheMaintenance maintenance,
         IAudioCacheProtectionRegistry protectionRegistry,
         AudioProbe audioProbe,
-        ICacheInvalidationCoordinator? invalidationCoordinator = null)
+        ICacheInvalidationSink? invalidationSink = null)
     {
         _index = index;
         _fileStore = fileStore;
         _maintenance = maintenance;
         _protectionRegistry = protectionRegistry;
         _audioProbe = audioProbe;
-        _invalidationCoordinator = invalidationCoordinator;
+        _invalidationSink = invalidationSink;
     }
 
     public async Task<AudioCacheEntry?> TryGetAsync(AudioCacheKey key, CancellationToken cancellationToken)
@@ -702,7 +702,7 @@ internal sealed class AudioCacheFacade : IAudioCache, IAudioCacheStore, IBookRem
 
     private void OnCommitted(CacheInvalidation invalidation)
     {
-        _invalidationCoordinator?.Publish(invalidation);
+        _invalidationSink?.Publish(invalidation);
     }
 
     private static CacheInvalidation CreateEntryInvalidation(AudioCacheIndexEntry entry) =>

@@ -4,13 +4,6 @@ namespace NovelSpeaker.TestKit.Cache;
 
 internal sealed class CacheCatalogTestDouble : ICacheCatalog
 {
-    private readonly Func<CancellationToken, Task<CacheOverviewModel>>? _overviewFactory;
-
-    public CacheCatalogTestDouble(Func<CancellationToken, Task<CacheOverviewModel>>? overviewFactory = null)
-    {
-        _overviewFactory = overviewFactory;
-    }
-
     public CacheOverviewModel Overview { get; set; } = new(0, 0, 0, false);
 
     public IReadOnlyList<CachedBookSummary> Books { get; set; } = [];
@@ -19,9 +12,7 @@ internal sealed class CacheCatalogTestDouble : ICacheCatalog
         new(StringComparer.Ordinal);
 
     public Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken) =>
-        _overviewFactory is null
-            ? Task.FromResult(Overview)
-            : _overviewFactory(cancellationToken);
+        Task.FromResult(Overview);
 
     public Task<IReadOnlyList<CachedBookSummary>> GetCachedBooksAsync(CancellationToken cancellationToken) =>
         Task.FromResult(Books);

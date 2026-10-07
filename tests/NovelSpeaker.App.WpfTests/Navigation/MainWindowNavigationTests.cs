@@ -411,7 +411,7 @@ public sealed class MainWindowNavigationTests
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
-            var provider = WpfTestHost.BuildServiceProvider();
+            var provider = await WpfTestHost.BuildInitializedServiceProviderAsync();
             var window = provider.GetRequiredService<MainWindow>();
             try
             {
@@ -444,7 +444,7 @@ public sealed class MainWindowNavigationTests
         {
             var themeRuntime = new WpfUiThemeRuntime();
             themeRuntime.ApplySystemTheme();
-            var provider = WpfTestHost.BuildServiceProvider();
+            var provider = await WpfTestHost.BuildInitializedServiceProviderAsync();
             var window = provider.GetRequiredService<MainWindow>();
             Exception? dispatcherException = null;
             DispatcherUnhandledExceptionEventHandler handler = (_, args) =>
@@ -494,7 +494,7 @@ public sealed class MainWindowNavigationTests
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
-            var provider = WpfTestHost.BuildServiceProvider();
+            var provider = await WpfTestHost.BuildInitializedServiceProviderAsync();
             var window = provider.GetRequiredService<MainWindow>();
             try
             {

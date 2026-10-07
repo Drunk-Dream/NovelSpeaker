@@ -3,19 +3,15 @@ namespace NovelSpeaker.Application.Cache;
 /// <summary>
 /// Process-scoped owner for Cache-local invalidation coalescing.
 /// </summary>
-public interface ICacheInvalidationCoordinator : IAsyncDisposable
+internal interface ICacheInvalidationCoordinator : ICacheInvalidationSink, ICacheChangeLifetime, IAsyncDisposable
 {
     long Revision { get; }
 
     event EventHandler<CacheInvalidationBatch>? BatchPublished;
-
-    void Publish(CacheInvalidation invalidation);
 
     /// <summary>
     /// Publishes currently pending changes immediately. Production callers normally let the
     /// coordinator's short coalescing window do this; the explicit drain is also used at shutdown.
     /// </summary>
     Task FlushPendingAsync(CancellationToken cancellationToken);
-
-    Task StopAsync(CancellationToken cancellationToken);
 }

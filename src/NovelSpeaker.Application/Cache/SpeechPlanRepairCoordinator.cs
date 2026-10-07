@@ -9,7 +9,7 @@ namespace NovelSpeaker.Application.Cache;
 /// <summary>
 /// Deduplicates chapter plan repairs and drains them as one process-owned background lifetime.
 /// </summary>
-public sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
+internal sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
 {
     private const int MaximumConcurrency = 2;
     private readonly IBookPlaybackContentService? _contentService;

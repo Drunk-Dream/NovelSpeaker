@@ -298,10 +298,9 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         IsClearingAll = true;
         try
         {
-            var overviewVersion = GetOverviewRefreshVersion();
             var result = await _cacheStore.ClearAllAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            await RefreshOverviewAfterCacheMutationAsync(overviewVersion, cancellationToken);
+            await RequestOverviewRefreshAsync(cancellationToken);
             ShowCleanupFeedback(result);
         }
         catch (OperationCanceledException)
@@ -435,10 +434,9 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
             if (requiresTrim)
             {
-                var overviewVersion = GetOverviewRefreshVersion();
                 await _cacheStore.RunMaintenanceAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
-                await RefreshOverviewAfterCacheMutationAsync(overviewVersion, cancellationToken);
+                await RequestOverviewRefreshAsync(cancellationToken);
             }
 
             if (!requiresTrim)
@@ -589,14 +587,6 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         NotifyClearAllCommandState();
     }
 
-    private int GetOverviewRefreshVersion()
-    {
-        lock (_overviewRefreshSync)
-        {
-            return _overviewRefreshVersion;
-        }
-    }
-
     private Task EnsureOverviewCurrentAsync(CancellationToken cancellationToken)
     {
         lock (_overviewRefreshSync)
@@ -629,23 +619,6 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                     return _overview;
                 }
             }
-        }
-    }
-
-    private async Task RefreshOverviewAfterCacheMutationAsync(
-        int previousOverviewVersion,
-        CancellationToken cancellationToken)
-    {
-        var refreshRequired = false;
-        lock (_overviewRefreshSync)
-        {
-            refreshRequired = _overviewRefreshVersion == previousOverviewVersion ||
-                              _overviewAppliedVersion < _overviewRefreshVersion;
-        }
-
-        if (refreshRequired)
-        {
-            await RequestOverviewRefreshAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 

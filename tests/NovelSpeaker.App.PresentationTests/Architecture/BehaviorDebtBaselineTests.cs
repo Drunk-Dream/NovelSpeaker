@@ -9,6 +9,22 @@ public sealed class BehaviorDebtBaselineTests
     private static readonly ArchitectureTestRepository Repository = ArchitectureTestRepository.Locate();
 
     [Fact]
+    public void App_consumes_cache_views_without_invalidation_or_repair_protocols()
+    {
+        var forbidden = new Regex(@"\b(?:ICacheInvalidationSink|ICacheInvalidationCoordinator|CacheInvalidationCoordinator|CacheInvalidationAspect|CacheInvalidationScope|CacheInvalidationBatch|CacheInvalidation|ICacheCatalog|ICacheCoverageQuery|ICachePlanRepairRequestor|SpeechPlanRepairRequestor|ISpeechPlanRepairCoordinator|SpeechPlanRepairCoordinator|SpeechPlanRepairRequest)\b");
+        foreach (var file in Repository.ReadProductSourceFiles()
+                     .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.App"))
+        {
+            Assert.False(forbidden.IsMatch(file.Content), file.RelativePath);
+            if (!file.RelativePath.StartsWith("src/NovelSpeaker.App/Bootstrap/", StringComparison.Ordinal))
+            {
+                Assert.DoesNotContain("ICacheChangeLifetime", file.Content, StringComparison.Ordinal);
+                Assert.DoesNotContain("ISpeechPlanRepairLifetime", file.Content, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
     public void Restore_graph_always_includes_the_release_runtime_identifier()
     {
         var buildProperties = XDocument.Load(Absolute("Directory.Build.props"));

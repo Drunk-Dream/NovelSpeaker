@@ -127,7 +127,7 @@
 
 ## 6. Phase C：把 Cache 一致性收回 Cache 模块
 
-### staged breaking migration window：T011–T014
+### staged breaking migration window：T011–T014（已结束，完整门禁恢复）
 
 ## [x] T011（P0）：建立 Cache-owned read model 与内部 repair 流水线
 
@@ -153,11 +153,13 @@
 
 完成成果：Player、BookDetails 和 CacheAndData 全部消费 `ICacheReadModel`；页面不再订阅 invalidation aspect 或根据配置变化自行驱动 coverage，Cache-owned 通知明确标识 overview 是否变化，纯 coverage 通知不重查物理总览。删除旧 `ChapterCacheStatusRefreshController`，保留只负责 activation 内稀疏窗口查询合并的 presentation slot；Player 在 catalog 切换时取消旧查询，BookDetails 按 activation/book 身份拒绝迟到结果。整书/全局通知保留 viewport 并补查 current，章节通知只查明确 affected indices；Active Cache snapshot 与 management selection 仍由原 owner 负责。保留并迁移原页面与 WPF 核心测试，新增/扩充大目录窗口、无关书籍、overview scope、目录 activation 与退出迟到结果回归。修复真实 WPF 测试宿主意外运行生产 App startup 的既有问题：从生产 App.xaml 按原顺序加载实际资源与输入桥接，不启动 shell/tray、不放宽 Desktop 隔离；原基线单测也复现超时，转储定位到生产托盘失败后的 modal MessageBox，修复后 WPF focused 20/20 通过。Presentation/architecture focused 92/92、Cache Application focused 36/36、Release build（0 warning/error）、format verify 和 diff 检查通过；临时转储、工具与基线 worktree 已清理，无遗留环境限制、持久化变化或长期文档冲突。完整门禁留给 T014。
 
-## [ ] T014（P0）：删除 Cache 泄漏接口并完成 Phase C 验收
+## [x] T014（P0）：删除 Cache 泄漏接口并完成 Phase C 验收
 
 依赖：T013。
 
 目标：删除 App-facing `ICachePlanRepairRequestor`、内部失效语义和重复刷新 controller，收敛测试，结束本窗口并执行完整门禁。
+
+完成成果：删除旧 repair requestor/interface 和未使用的 invalidation 测试替身，移除旧 catalog 测试包装入口；catalog、coverage、invalidation batch/coordinator、repair request/coordinator 全部内收 Application。Infrastructure 仅通过物理提交 sink 发布事实，Bootstrap 仅依赖 repair/change 的窄 Stop 生命周期角色；各角色复用同一 process owner，不增加一致性状态。App 只消费 `ICacheReadModel` 场景化投影与窄变化，删除 CacheAndData mutation 前后比较刷新版本的旧一致性 helper；Player/BookDetails 只保留页面 activation、稀疏窗口与查询合并，CacheManagement 无 pending aspect/epoch/repair worker。新增 App Cache 边界架构检查，扩充原 shutdown/DI 测试验证 drain 顺序、导出超时后继续关闭和 owner 身份；保留 identity、atomic write、coverage、repair、scope、稀疏窗口/增量、background owner、Book/Source removal 与 lease 核心测试。全量验收首次暴露四个真实导航测试未初始化隔离数据库（SQLite no such table: Books）；改用现有异步初始化测试工厂后 WPF 102/102 通过，未放宽 Desktop 隔离或修改生产数据库。locked restore、format verify、Release build（0 warning/error）、完整 tests 1205/1205（含 architecture 与 isolated Desktop WPF）及 App 禁止类型搜索、diff 检查通过，Phase C 窗口结束。无持久化变化、遗留环境限制或长期文档冲突。
 
 ## 7. Phase D：统一页面异步生命周期
 

@@ -3,7 +3,7 @@ namespace NovelSpeaker.Application.Cache;
 /// <summary>
 /// Immutable, coalesced cache invalidations delivered to active consumers.
 /// </summary>
-public sealed record CacheInvalidationBatch
+internal sealed record CacheInvalidationBatch
 {
     public CacheInvalidationBatch(IReadOnlyList<CacheInvalidation> changes, long revision = 0)
     {

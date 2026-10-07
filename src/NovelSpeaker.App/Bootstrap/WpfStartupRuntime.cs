@@ -163,7 +163,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         _serviceProvider = BuildValidatedServiceProvider(services);
         _observability = _serviceProvider.GetRequiredService<IObservability>();
         _startupOperation = _observability.StartOperation(OperationCatalog.AppStartup);
-        _serviceProvider.GetRequiredService<ICacheInvalidationCoordinator>();
+        _serviceProvider.GetRequiredService<ICacheReadModel>();
         cancellationToken.ThrowIfCancellationRequested();
         return Task.CompletedTask;
     }
@@ -335,16 +335,16 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         {
             await WaitForBackgroundTasksAsync(
                 _serviceProvider.GetRequiredService<IChapterExportCoordinator>(),
-                _serviceProvider.GetRequiredService<ISpeechPlanRepairCoordinator>(),
-                _serviceProvider.GetRequiredService<ICacheInvalidationCoordinator>(),
+                _serviceProvider.GetRequiredService<ISpeechPlanRepairLifetime>(),
+                _serviceProvider.GetRequiredService<ICacheChangeLifetime>(),
                 cancellationToken).ConfigureAwait(false);
         }
     }
 
     internal async Task WaitForBackgroundTasksAsync(
         IChapterExportCoordinator chapterExportCoordinator,
-        ISpeechPlanRepairCoordinator speechPlanRepairCoordinator,
-        ICacheInvalidationCoordinator? invalidationCoordinator,
+        ISpeechPlanRepairLifetime speechPlanRepairCoordinator,
+        ICacheChangeLifetime? cacheChangeLifetime,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(chapterExportCoordinator);
@@ -353,14 +353,14 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         await WaitForBackgroundTasksCoreAsync(
             chapterExportCoordinator,
             speechPlanRepairCoordinator.StopAsync,
-            invalidationCoordinator,
+            cacheChangeLifetime,
             cancellationToken).ConfigureAwait(false);
     }
 
     private async Task WaitForBackgroundTasksCoreAsync(
         IChapterExportCoordinator chapterExportCoordinator,
         Func<CancellationToken, Task> stopSpeechPlanRepairsAsync,
-        ICacheInvalidationCoordinator? invalidationCoordinator,
+        ICacheChangeLifetime? cacheChangeLifetime,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(chapterExportCoordinator);
@@ -395,11 +395,11 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
                 exception);
         }
 
-        if (invalidationCoordinator is not null)
+        if (cacheChangeLifetime is not null)
         {
             try
             {
-                await invalidationCoordinator
+                await cacheChangeLifetime
                     .StopAsync(cancellationToken)
                     .WaitAsync(_backgroundShutdownTimeout, TimeProvider.System, cancellationToken)
                     .ConfigureAwait(false);

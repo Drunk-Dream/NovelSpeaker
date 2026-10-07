@@ -187,8 +187,10 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<ICacheInvalidationCoordinator>());
                 Assert.IsAssignableFrom<ISpeechPlanRepairCoordinator>(
                     provider.GetRequiredService<ISpeechPlanRepairCoordinator>());
-                Assert.IsAssignableFrom<ICachePlanRepairRequestor>(
-                    provider.GetRequiredService<ICachePlanRepairRequestor>());
+                Assert.IsAssignableFrom<ICacheReadModel>(provider.GetRequiredService<ICacheReadModel>());
+                Assert.Same(provider.GetRequiredService<ICacheInvalidationCoordinator>(), provider.GetRequiredService<ICacheInvalidationSink>());
+                Assert.Same(provider.GetRequiredService<ICacheInvalidationCoordinator>(), provider.GetRequiredService<ICacheChangeLifetime>());
+                Assert.Same(provider.GetRequiredService<ISpeechPlanRepairCoordinator>(), provider.GetRequiredService<ISpeechPlanRepairLifetime>());
                 Assert.IsAssignableFrom<IExportChaptersService>(provider.GetRequiredService<IExportChaptersService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                 Assert.IsType<PlaybackPrefetchCoordinator>(provider.GetRequiredService<IPlaybackPrefetchController>());
@@ -378,7 +380,10 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(ICacheCoverageQuery),
             typeof(ICacheInvalidationCoordinator),
             typeof(ISpeechPlanRepairCoordinator),
-            typeof(ICachePlanRepairRequestor),
+            typeof(ICacheReadModel),
+            typeof(ICacheInvalidationSink),
+            typeof(ICacheChangeLifetime),
+            typeof(ISpeechPlanRepairLifetime),
             typeof(IAudioGenerationProvider),
             typeof(IActiveCacheCoordinator),
             typeof(IChapterExportCoordinator),
