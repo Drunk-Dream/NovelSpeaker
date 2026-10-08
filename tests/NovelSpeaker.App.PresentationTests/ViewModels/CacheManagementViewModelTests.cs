@@ -5,6 +5,7 @@ using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.TestKit.Cache;
 using Xunit;
@@ -13,6 +14,60 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class CacheManagementViewModelTests
 {
+    [Fact]
+    public async Task Returning_to_page_rejects_old_selected_book_failure_and_drains_all_page_work()
+    {
+        var fixture = CreateCache();
+        var oldCatalog = new TaskCompletionSource<CacheReadResult<CachedBookCatalog>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.ReadModel.BookHandler = (_, _) => oldCatalog.Task;
+        using var owner = new PageActivationController();
+        var oldActivation = owner.Activate();
+        var viewModel = CreateViewModel(fixture);
+        viewModel.HandleNavigatedTo(oldActivation);
+        await viewModel.LoadAsync(oldActivation.CancellationToken);
+        var oldSelection = viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+
+        owner.Deactivate();
+        Assert.Equal(0, fixture.ReadModel.SubscriberCount);
+        var next = owner.Activate();
+        viewModel.HandleNavigatedTo(next);
+        var load = viewModel.LoadAsync(next.CancellationToken);
+        fixture.ReadModel.BookHandler = null;
+        oldCatalog.SetException(new IOException("late catalog failure"));
+        await Task.WhenAll(oldSelection, load);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        await oldActivation.WaitForPendingOperationsAsync();
+        await next.WaitForPendingOperationsAsync();
+        Assert.Equal(2, viewModel.Chapters.Count);
+        Assert.False(viewModel.IsLoadingChapters);
+        Assert.True(viewModel.HasSelection);
+        Assert.Null(fixture.Feedback.LastTitle);
+        Assert.Equal(1, fixture.ReadModel.SubscriberCount);
+    }
+
+    [Fact]
+    public async Task Replaced_decoration_window_failure_is_silent_and_latest_window_is_committed()
+    {
+        var fixture = CreateCache(chapterCount: 64);
+        var pending = new TaskCompletionSource<CacheReadResult<IReadOnlyList<CacheChapterView>>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.ReadModel.ChapterHandler = (_, _, _) => pending.Task;
+        using var owner = new PageActivationController();
+        var activation = owner.Activate();
+        var viewModel = CreateViewModel(fixture);
+        viewModel.HandleNavigatedTo(activation);
+        await viewModel.LoadAsync(activation.CancellationToken);
+        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
+        viewModel.RequestChapterDecorationWindow(32, 32);
+        fixture.ReadModel.ChapterHandler = null;
+        pending.SetException(new IOException("old window failure"));
+        await activation.WaitForPendingOperationsAsync();
+        Assert.Null(fixture.Feedback.LastTitle);
+        Assert.Equal(Enumerable.Range(32, 32), fixture.ReadModel.LastRequestedChapterIndices);
+        Assert.Equal("1 条缓存", viewModel.Chapters[32].EntryCountText);
+        owner.Deactivate();
+        Assert.Equal(0, fixture.ReadModel.SubscriberCount);
+    }
+
     [Fact]
     public async Task Switching_to_removed_book_during_background_projection_clears_actual_projected_selection()
     {

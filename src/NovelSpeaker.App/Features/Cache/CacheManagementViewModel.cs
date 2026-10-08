@@ -9,6 +9,7 @@ using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shell.Activation;
 
 namespace NovelSpeaker.App.Features.Cache;
 
@@ -36,18 +37,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private readonly HashSet<int> _chapterDecorationWindow = [];
     private readonly HashSet<int> _pendingChapterRowRefreshes = [];
     private readonly SemaphoreSlim _chapterDecorationQueryGate = new(1, 1);
-    private readonly OwnedTaskRegistry _pageTasks = new();
     private readonly object _pageSync = new();
     private readonly SemaphoreSlim _projectionGate = new(1, 1);
-    private CancellationTokenSource? _chapterLoadCts;
-    private CancellationTokenSource? _chapterDecorationCts;
-    private CancellationTokenSource? _bookProjectionCts;
-    private CancellationTokenSource? _pageCancellation;
-    private int _bookLoadVersion;
-    private int _chapterLoadVersion;
-    private int _chapterDecorationRequestVersion;
-    private bool _isPageActive;
-    private bool _isReadModelSubscribed;
+    private readonly LatestOperationSlot _bookLoad = new();
+    private readonly LatestOperationSlot _selectedBook = new();
+    private readonly LatestOperationSlot _chapterDecoration = new();
+    private PageActivationScope? _activation;
     private bool _chapterCatalogProjectionPending;
     private string? _selectedBookId;
     private string? _selectedBookDecoration;
@@ -126,11 +121,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             return;
         }
 
-        var cancellationToken = _pageCancellation?.Token ?? new CancellationToken(canceled: true);
+        var cancellationToken = _activation?.CancellationToken ?? new CancellationToken(canceled: true);
         void Request()
         {
-            if (!_isPageActive ||
-                _pageCancellation is not { IsCancellationRequested: false } ||
+            if (_activation is not { IsCurrent: true } ||
                 string.IsNullOrWhiteSpace(_selectedBookId) ||
                 _chapterCatalog.Count == 0)
             {
@@ -146,7 +140,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
         if (!_uiScheduler.CheckAccess())
         {
-            _pageTasks.Register(
+            _activation?.Register(
                 _uiScheduler.InvokeAsync(Request, cancellationToken),
                 exception => ReportChapterDecorationRefreshFailure(exception, cancellationToken));
             return;
@@ -160,8 +154,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         CancellationToken cancellationToken,
         bool forceRefresh = false)
     {
-        if (!_isPageActive ||
-            _pageCancellation is not { IsCancellationRequested: false } ||
+        if (_activation is not { IsCurrent: true } ||
             string.IsNullOrWhiteSpace(_selectedBookId) ||
             _chapterCatalog.Count == 0)
         {
@@ -182,18 +175,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         _chapterDecorationWindow.Clear();
         _chapterDecorationWindow.UnionWith(chapterIndices);
         ClearStaleChapterDecorations(chapterIndices);
-        var requestVersion = Interlocked.Increment(ref _chapterDecorationRequestVersion);
-        var decorationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        var previousDecorationCts = _chapterDecorationCts;
-        _chapterDecorationCts = decorationCts;
-        previousDecorationCts?.Cancel();
-        _pageTasks.Register(
-            RefreshChapterDecorationsOwnedAsync(
-                bookId,
-                chapterIndices,
-                requestVersion,
-                decorationCts),
-            exception => ReportChapterDecorationRefreshFailure(exception, cancellationToken));
+        var operation = _chapterDecoration.Begin(cancellationToken, _activation);
+        _activation?.Register(operation.RunAsync(
+            current => RefreshChapterDecorationsAsync(bookId, chapterIndices, current),
+            exception => ReportChapterDecorationRefreshFailure(exception, cancellationToken)));
     }
 
     public string ChapterSelectionSummary => $"已选择 {_chapterSelection.Count} 章";
@@ -238,32 +223,32 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         }
     }
 
-    public async Task LoadAsync(CancellationToken cancellationToken)
+    public Task LoadAsync(CancellationToken cancellationToken)
     {
-        ActivatePage(cancellationToken);
-        var activationToken = _pageCancellation!.Token;
-        await _projectionGate.WaitAsync(activationToken);
-        try
+        if (_activation is not { IsCurrent: true })
         {
-            await LoadBooksAsync(activationToken);
-            activationToken.ThrowIfCancellationRequested();
-            ClearSelection();
+            var activation = new PageActivationController().Activate();
+            HandleNavigatedTo(activation);
+            activation.Register(cancellationToken.Register(activation.Dispose));
         }
-        finally
-        {
-            _projectionGate.Release();
-        }
+        var task = LoadBooksAsync(cancellationToken);
+        _activation?.Register(task);
+        return task;
     }
 
     public void HandleNavigatedFrom()
     {
-        Interlocked.Increment(ref _bookLoadVersion);
-        Interlocked.Increment(ref _chapterLoadVersion);
-        _bookProjectionCts?.Cancel();
-        _bookProjectionCts = null;
+        var activation = _activation;
+        _activation = null;
+        activation?.Dispose();
+        _bookLoad.Cancel();
         CancelChapterLoad();
+        IsLoadingBooks = false;
         IsLoadingChapters = false;
-        DeactivatePage();
+        _exportController.Deactivate();
+        InvalidateChapterDecorationRequests();
+        _pendingChapterRowRefreshes.Clear();
+        _chapterCatalogProjectionPending = false;
         _chapterSelection.Clear();
         NotifyVisibilityStateChanged();
     }
@@ -429,26 +414,24 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
     private async Task LoadBooksAsync(CancellationToken cancellationToken)
     {
-        var version = Interlocked.Increment(ref _bookLoadVersion);
-        var projectionCts = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            _pageCancellation?.Token ?? CancellationToken.None);
-        var previousProjectionCts = _bookProjectionCts;
-        _bookProjectionCts = projectionCts;
-        previousProjectionCts?.Cancel();
+        using var operation = _bookLoad.Begin(cancellationToken, _activation);
+        var token = operation.CancellationToken;
+        var projectionEntered = false;
         IsLoadingBooks = true;
         try
         {
-            var books = (await _readModel.GetBooksAsync(projectionCts.Token)).Value;
-            projectionCts.Token.ThrowIfCancellationRequested();
-            if (version != Volatile.Read(ref _bookLoadVersion) || !IsCurrentPageActivation(cancellationToken))
+            await _projectionGate.WaitAsync(token);
+            projectionEntered = true;
+            var books = (await _readModel.GetBooksAsync(token)).Value;
+            token.ThrowIfCancellationRequested();
+            if (!operation.IsCurrent)
             {
                 return;
             }
 
             var selectedBookId = _selectedBookId;
             Func<bool> projectionIsCurrent = () =>
-                version == Volatile.Read(ref _bookLoadVersion) && IsCurrentPageActivation(cancellationToken);
+                operation.IsCurrent;
             var bookPositions = books.Count < 512
                 ? books
                     .Select((book, index) => (book.BookId, index))
@@ -457,7 +440,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                     () => books
                         .Select((book, index) => (book.BookId, index))
                         .ToDictionary(item => item.BookId, item => item.index, StringComparer.Ordinal),
-                    projectionCts.Token);
+                    token);
 
             await _books.ReplaceWithInBatchesAsync(
                 books,
@@ -465,14 +448,14 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                     book,
                 string.Equals(book.BookId, selectedBookId, StringComparison.Ordinal)),
                 _uiScheduler,
-                projectionCts.Token,
+                token,
                 preservePreviousItemsOnCancel: true,
                 isCurrent: projectionIsCurrent,
                 beforeComplete: () =>
                 {
                     if (!projectionIsCurrent())
                     {
-                        throw new OperationCanceledException(projectionCts.Token);
+                        throw new OperationCanceledException(token);
                     }
 
                     _bookPositions = bookPositions;
@@ -488,6 +471,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                     }
                 });
 
+            operation.TryCommit(ClearSelection);
             NotifyVisibilityStateChanged();
             NotifyCommandStateChanged();
         }
@@ -496,38 +480,35 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _bookLoadVersion) && _isPageActive)
+            if (operation.IsCurrent)
             {
                 _feedbackService.ShowProjectedNotification("加载缓存书籍失败", _feedbackService.Project(exception));
             }
         }
         finally
         {
-            if (version == Volatile.Read(ref _bookLoadVersion))
+            if (operation.IsCurrent)
             {
                 IsLoadingBooks = false;
             }
 
-            if (ReferenceEquals(_bookProjectionCts, projectionCts))
-            {
-                _bookProjectionCts = null;
-            }
-
-            projectionCts.Dispose();
+            if (projectionEntered) _projectionGate.Release();
         }
     }
 
-    private async Task LoadChaptersAsync(string bookId, CancellationToken cancellationToken)
+    private Task LoadChaptersAsync(string bookId, CancellationToken cancellationToken)
     {
-        CancelChapterLoad();
-        _chapterLoadCts = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            _pageCancellation?.Token ?? CancellationToken.None);
-        var localCts = _chapterLoadCts;
-        var version = Interlocked.Increment(ref _chapterLoadVersion);
+        var task = LoadChaptersCoreAsync(bookId, cancellationToken);
+        _activation?.Register(task);
+        return task;
+    }
+
+    private async Task LoadChaptersCoreAsync(string bookId, CancellationToken cancellationToken)
+    {
+        var operation = _selectedBook.Begin(cancellationToken, _activation);
+        var token = operation.CancellationToken;
         InvalidateChapterDecorationRequests();
-        Func<bool> projectionIsCurrent = () =>
-            IsCurrentSelectedBook(bookId, version, localCts.Token);
+        Func<bool> projectionIsCurrent = () => IsCurrentSelectedBook(bookId, operation, token);
 
         var projectionEntered = false;
         IsLoadingChapters = true;
@@ -544,12 +525,11 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
         try
         {
-            await _projectionGate.WaitAsync(localCts.Token);
+            await _projectionGate.WaitAsync(token);
             projectionEntered = true;
             InvalidateChapterDecorationRequests();
-            var chapters = (await _readModel.GetBookAsync(bookId, localCts.Token)).Value.Chapters;
-            if (version != Volatile.Read(ref _chapterLoadVersion) ||
-                !projectionIsCurrent())
+            var chapters = (await _readModel.GetBookAsync(bookId, token)).Value.Chapters;
+            if (!projectionIsCurrent())
             {
                 return;
             }
@@ -558,10 +538,9 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 ? CreateChapterProjection(chapters)
                 : await Task.Run(
                     () => CreateChapterProjection(chapters),
-                    localCts.Token);
-            localCts.Token.ThrowIfCancellationRequested();
-            if (version != Volatile.Read(ref _chapterLoadVersion) ||
-                !projectionIsCurrent())
+                    token);
+            token.ThrowIfCancellationRequested();
+            if (!projectionIsCurrent())
             {
                 return;
             }
@@ -582,14 +561,14 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                     selectionSnapshot,
                     decorationSnapshot),
                 _uiScheduler,
-                localCts.Token,
+                token,
                 preservePreviousItemsOnCancel: true,
                 isCurrent: projectionIsCurrent,
                 beforeComplete: () =>
                 {
                     if (!projectionIsCurrent())
                     {
-                        throw new OperationCanceledException(localCts.Token);
+                        throw new OperationCanceledException(token);
                     }
 
                     _chapterCatalog = catalog;
@@ -607,12 +586,14 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
             }
             finally
             {
-                _chapterCatalogProjectionPending = false;
-                NotifyCommandStateChanged();
+                if (operation.IsCurrent)
+                {
+                    _chapterCatalogProjectionPending = false;
+                    NotifyCommandStateChanged();
+                }
             }
 
-            if (version != Volatile.Read(ref _chapterLoadVersion) ||
-                !projectionIsCurrent())
+            if (!projectionIsCurrent())
             {
                 return;
             }
@@ -626,7 +607,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         }
         catch (Exception exception)
         {
-            if (version == Volatile.Read(ref _chapterLoadVersion))
+            if (operation.IsCurrent)
             {
                 _feedbackService.ShowProjectedNotification("加载章节缓存失败", _feedbackService.Project(exception));
             }
@@ -634,13 +615,11 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         finally
         {
             if (projectionEntered) _projectionGate.Release();
-            if (version == Volatile.Read(ref _chapterLoadVersion))
+            if (operation.IsCurrent)
             {
                 IsLoadingChapters = false;
                 NotifyVisibilityStateChanged();
             }
-            if (ReferenceEquals(_chapterLoadCts, localCts)) _chapterLoadCts = null;
-            localCts.Dispose();
         }
     }
 
@@ -655,9 +634,9 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private async Task RefreshChapterDecorationsAsync(
         string bookId,
         IReadOnlyCollection<int> chapterIndices,
-        int requestVersion,
-        CancellationToken cancellationToken)
+        LatestOperationSlot.Operation operation)
     {
+        var cancellationToken = operation.CancellationToken;
         if (chapterIndices.Count == 0)
         {
             return;
@@ -666,11 +645,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         await _chapterDecorationQueryGate.WaitAsync(cancellationToken);
         try
         {
-            var chapterLoadVersion = Volatile.Read(ref _chapterLoadVersion);
+            var selectedBook = _selectedBook.Current;
             var result = await _readModel.GetChaptersAsync(bookId, chapterIndices, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (!IsCurrentSelectedBook(bookId, chapterLoadVersion, cancellationToken) ||
-                requestVersion != Volatile.Read(ref _chapterDecorationRequestVersion))
+            if (!IsCurrentSelectedBook(bookId, selectedBook, cancellationToken) || !operation.IsCurrent)
             {
                 return;
             }
@@ -695,31 +673,6 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         finally
         {
             _chapterDecorationQueryGate.Release();
-        }
-    }
-
-    private async Task RefreshChapterDecorationsOwnedAsync(
-        string bookId,
-        IReadOnlyCollection<int> chapterIndices,
-        int requestVersion,
-        CancellationTokenSource decorationCts)
-    {
-        try
-        {
-            await RefreshChapterDecorationsAsync(
-                bookId,
-                chapterIndices,
-                requestVersion,
-                decorationCts.Token);
-        }
-        finally
-        {
-            if (ReferenceEquals(_chapterDecorationCts, decorationCts))
-            {
-                _chapterDecorationCts = null;
-            }
-
-            decorationCts.Dispose();
         }
     }
 
@@ -771,6 +724,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
 
     private void ClearSelection()
     {
+        CancelChapterLoad();
         _selectedBookId = null;
         HasSelection = false;
         SelectedBookHasCache = false;
@@ -817,58 +771,31 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         _books.ReplaceAt(position, _books[position].WithSelection(isSelected));
     }
 
-    private void CancelChapterLoad()
-    {
-        _chapterLoadCts?.Cancel();
-        _chapterLoadCts = null;
-    }
+    private void CancelChapterLoad() => _selectedBook.Cancel();
 
-    private void ActivatePage(CancellationToken cancellationToken)
+    public void HandleNavigatedTo(PageActivationScope activation)
     {
-        DeactivatePage();
-        lock (_pageSync)
+        HandleNavigatedFrom();
+        lock (_pageSync) { _activation = activation; }
+        activation.Register(() =>
         {
-            _pageCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            _isPageActive = true;
-        }
+            if (ReferenceEquals(_activation, activation)) HandleNavigatedFrom();
+        });
         _readModel.Changed += OnReadModelChanged;
-        _isReadModelSubscribed = true;
-        _exportController.Activate(_pageCancellation.Token);
-    }
-
-    private void DeactivatePage()
-    {
-        if (_isReadModelSubscribed)
-        {
-            _readModel.Changed -= OnReadModelChanged;
-            _isReadModelSubscribed = false;
-        }
-        _exportController.Deactivate();
-        CancellationTokenSource? pageCancellation;
-        lock (_pageSync)
-        {
-            pageCancellation = _pageCancellation;
-            _pageCancellation = null;
-            _isPageActive = false;
-        }
-        InvalidateChapterDecorationRequests();
-        _pendingChapterRowRefreshes.Clear();
-        _chapterCatalogProjectionPending = false;
-        pageCancellation?.Cancel();
-        pageCancellation?.Dispose();
+        activation.Register(() => _readModel.Changed -= OnReadModelChanged);
+        _exportController.Activate(activation);
     }
 
     private void InvalidateChapterDecorationRequests()
     {
-        Interlocked.Increment(ref _chapterDecorationRequestVersion);
+        _chapterDecoration.Cancel();
         _chapterDecorationWindow.Clear();
-        _chapterDecorationCts?.Cancel();
     }
 
     private void OnReadModelChanged(object? sender, CacheReadModelChange change)
     {
         if (!TryGetActivePageCancellationToken(out var activationToken)) return;
-        _pageTasks.Register(ProjectReadModelChangeAsync(change, activationToken),
+        _activation?.Register(ProjectReadModelChangeAsync(change, activationToken),
             exception => ReportCacheRefreshFailure(exception, activationToken));
     }
 
@@ -892,13 +819,13 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 await RefreshBookSummariesAsync(global ? null : bookIds, activationToken);
                 if (!IsCurrentPageActivation(activationToken) || _selectedBookId is not { } bookId) return;
 
-                var version = Volatile.Read(ref _chapterLoadVersion);
+                var selectedBook = _selectedBook.Current;
                 if (global || change.Scopes.Any(scope => scope is CacheReadModelScope.Book book && book.BookId == bookId))
                 {
                     var catalog = (await _readModel.GetBookAsync(bookId, activationToken)).Value;
-                    if (!IsCurrentSelectedBook(bookId, version, activationToken)) return;
-                    await ReconcileChapterCatalogAsync(catalog.Chapters, bookId, version, activationToken);
-                    if (IsCurrentSelectedBook(bookId, version, activationToken)) RefreshCurrentWindow(activationToken);
+                    if (!IsCurrentSelectedBook(bookId, selectedBook, activationToken)) return;
+                    await ReconcileChapterCatalogAsync(catalog.Chapters, bookId, selectedBook, activationToken);
+                    if (IsCurrentSelectedBook(bookId, selectedBook, activationToken)) RefreshCurrentWindow(activationToken);
                 }
                 else
                 {
@@ -907,8 +834,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                         .SelectMany(static scope => scope.ChapterIndices).Distinct().ToArray();
                     if (indices.Length == 0) return;
                     var result = await _readModel.GetChaptersAsync(bookId, indices, activationToken);
-                    if (!IsCurrentSelectedBook(bookId, version, activationToken)) return;
-                    await ReconcileAffectedChaptersAsync(result, bookId, version, activationToken);
+                    if (!IsCurrentSelectedBook(bookId, selectedBook, activationToken)) return;
+                    await ReconcileAffectedChaptersAsync(result, bookId, selectedBook, activationToken);
                 }
             }, activationToken).ConfigureAwait(false);
         }
@@ -928,7 +855,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     }
 
     private async Task ReconcileAffectedChaptersAsync(
-        CacheReadResult<IReadOnlyList<CacheChapterView>> result, string bookId, int version, CancellationToken activationToken)
+        CacheReadResult<IReadOnlyList<CacheChapterView>> result, string bookId, LatestOperationSlot.Operation? selectedBook, CancellationToken activationToken)
     {
         var views = result.Value;
         var previous = _chapterCatalog;
@@ -945,10 +872,10 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
                 .OrderBy(static entry => entry.ChapterIndex)
                 .Select(entry => new CachedChapterCatalogEntry(entry.BookId, entry.ChapterIndex, entry.Title))
                 .ToArray(), activationToken);
-            if (!IsCurrentSelectedBook(bookId, version, activationToken)) return;
-            await ReconcileChapterCatalogAsync(entries, bookId, version, activationToken);
+            if (!IsCurrentSelectedBook(bookId, selectedBook, activationToken)) return;
+            await ReconcileChapterCatalogAsync(entries, bookId, selectedBook, activationToken);
         }
-        if (!IsCurrentSelectedBook(bookId, version, activationToken)) return;
+        if (!IsCurrentSelectedBook(bookId, selectedBook, activationToken)) return;
         foreach (var view in views)
         {
             if (_chapterDecorationWindow.Contains(view.ChapterIndex) &&
@@ -964,12 +891,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     }
 
     private async Task ReconcileChapterCatalogAsync(
-        IReadOnlyList<CachedChapterCatalogEntry> chapters, string bookId, int version, CancellationToken activationToken)
+        IReadOnlyList<CachedChapterCatalogEntry> chapters, string bookId, LatestOperationSlot.Operation? selectedBook, CancellationToken activationToken)
     {
         var previous = _chapterCatalog;
         var delta = await Task.Run(() => CreateChapterCatalogDelta(previous, CreateChapterProjection(chapters)), activationToken);
-        if (!IsCurrentSelectedBook(bookId, version, activationToken)) return;
-        await ApplyChapterCatalogDeltaAsync(delta, () => IsCurrentSelectedBook(bookId, version, activationToken), activationToken);
+        if (!IsCurrentSelectedBook(bookId, selectedBook, activationToken)) return;
+        await ApplyChapterCatalogDeltaAsync(delta, () => IsCurrentSelectedBook(bookId, selectedBook, activationToken), activationToken);
         SelectedBookHasCache = _chapterCatalog.Count > 0;
         NotifyVisibilityStateChanged();
         NotifyCommandStateChanged();
@@ -1150,9 +1077,9 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         int Position,
         CachedChapterCatalogItem Item);
 
-    private bool IsCurrentSelectedBook(string bookId, int version, CancellationToken cancellationToken) =>
-        !cancellationToken.IsCancellationRequested && _isPageActive &&
-        version == Volatile.Read(ref _chapterLoadVersion) && bookId == _selectedBookId;
+    private bool IsCurrentSelectedBook(string bookId, LatestOperationSlot.Operation? selectedBook, CancellationToken cancellationToken) =>
+        !cancellationToken.IsCancellationRequested && _activation is { IsCurrent: true } &&
+        selectedBook is { IsCurrent: true } && bookId == _selectedBookId;
 
     private async Task RefreshBookSummariesAsync(IReadOnlyCollection<string>? bookIds, CancellationToken activationToken)
     {
@@ -1498,14 +1425,12 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     {
         lock (_pageSync)
         {
-            if (!_isPageActive ||
-                _pageCancellation is not { IsCancellationRequested: false } pageCancellation)
+            if (_activation is not { IsCurrent: true } activation)
             {
                 cancellationToken = default;
                 return false;
             }
-
-            cancellationToken = pageCancellation.Token;
+            cancellationToken = activation.CancellationToken;
             return true;
         }
     }
@@ -1514,9 +1439,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     {
         lock (_pageSync)
         {
-            return _isPageActive &&
-                   _pageCancellation is { IsCancellationRequested: false } pageCancellation &&
-                   pageCancellation.Token == activationToken;
+            return _activation is { IsCurrent: true } activation &&
+                   activation.CancellationToken == activationToken;
         }
     }
 

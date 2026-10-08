@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.App.Features.Diagnostics;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.TestKit.Cache;
 using NovelSpeaker.TestKit.Common;
@@ -15,6 +16,58 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class CacheAndDataViewModelTests
 {
+    [Fact]
+    public async Task Cleanup_completed_after_page_leave_finishes_without_a_refresh_or_late_notification()
+    {
+        var cleanup = new TaskCompletionSource<AudioCacheStoreCleanupResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new CacheStoreTestDouble
+        {
+            StoreSummary = new(1024, 1, AppSettings.DefaultCacheLimitBytes, false),
+            ClearAllHandler = _ => cleanup.Task
+        };
+        var feedback = new FakeFeedbackService();
+        var viewModel = CreateViewModel(cacheStore: store, feedbackService: feedback);
+        await viewModel.LoadAsync(CancellationToken.None);
+        var clearing = viewModel.ClearAllCommand.ExecuteAsync(null);
+        viewModel.Deactivate();
+        cleanup.SetResult(new(1024, 1, 0, 0));
+        await clearing.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.False(viewModel.IsClearingAll);
+        Assert.Equal(1, store.SummaryQueryCallCount);
+        Assert.Null(feedback.LastTitle);
+    }
+
+    [Fact]
+    public async Task Reverting_input_after_a_replaced_save_commits_persists_the_final_value()
+    {
+        var settings = new FakeAppSettingsService(AppSettings.Default);
+        var committed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        settings.AfterUpdate = async () =>
+        {
+            settings.AfterUpdate = null;
+            committed.TrySetResult();
+            await release.Task;
+        };
+        var feedback = new FakeFeedbackService();
+        using var owner = new PageActivationController();
+        var activation = owner.Activate();
+        var viewModel = CreateViewModel(settingsService: settings, feedbackService: feedback, timeProvider: new ManualTimeProvider());
+        viewModel.Activate(activation);
+        await viewModel.LoadAsync(activation.CancellationToken);
+        viewModel.CacheLimitValueText = "3";
+        var oldSave = viewModel.CommitCacheLimitAsync(CancellationToken.None);
+        await committed.Task;
+        viewModel.CacheLimitValueText = "2";
+        var finalSave = viewModel.CommitCacheLimitAsync(CancellationToken.None);
+        release.SetResult();
+        await Task.WhenAll(oldSave, finalSave);
+        await activation.WaitForPendingOperationsAsync();
+        Assert.Equal(AppSettings.DefaultCacheLimitBytes, settings.Current.CacheLimitBytes);
+        Assert.Equal("2", viewModel.CacheLimitValueText);
+        Assert.Null(feedback.LastTitle);
+    }
+
     [Fact]
     public async Task Coverage_only_change_does_not_requery_overview_and_leaving_unsubscribes()
     {
@@ -376,18 +429,20 @@ public sealed class CacheAndDataViewModelTests
         public AppSettings Current => CurrentSettings;
         public void ReplaceSnapshot(AppSettings settings) => CurrentSettings = settings.Normalize();
         public Task UpdateCompleted => _updateCompleted.Task;
+        public Func<Task>? AfterUpdate { get; set; }
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
 
         private readonly TaskCompletionSource _updateCompleted = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
+        public async Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken)
         {
             CurrentSettings = (CurrentSettings with
             {
                 CacheLimitBytes = update.CacheLimitBytes ?? CurrentSettings.CacheLimitBytes
             }).Normalize();
             _updateCompleted.TrySetResult();
-            return Task.FromResult(CurrentSettings);
+            if (AfterUpdate is { } afterUpdate) await afterUpdate();
+            return CurrentSettings;
         }
     }
 

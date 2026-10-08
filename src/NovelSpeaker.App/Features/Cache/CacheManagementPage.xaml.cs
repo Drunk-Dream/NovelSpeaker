@@ -36,7 +36,7 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
     {
         using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiCacheLoad);
         var activation = _activation.Activate();
-        activation.Register(ViewModel.HandleNavigatedFrom);
+        ViewModel.HandleNavigatedTo(activation);
         try
         {
             await ViewModel.LoadAsync(activation.CancellationToken);
