@@ -361,6 +361,16 @@ internal static class WpfTestHost
                     _desktop = desktop;
                     _desktopInfo = desktop.Info;
                     desktop.InitializeSta();
+
+                    if (!AllowVisibleWindows)
+                    {
+                        // OS IME helpers can outlive the STA and retain its isolated Desktop.
+                        // These fixtures exercise WPF focus/keyboard routing, without IME composition.
+                        System.Windows.Input.InputMethod.IsInputMethodEnabledProperty.OverrideMetadata(
+                            typeof(UIElement), new PropertyMetadata(false));
+                        System.Windows.Input.InputMethod.IsInputMethodSuspendedProperty.OverrideMetadata(
+                            typeof(UIElement), new PropertyMetadata(true));
+                    }
                     dispatcher = Dispatcher.CurrentDispatcher;
 
                     // Use the production resource source without constructing App:

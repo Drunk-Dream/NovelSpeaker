@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
+using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Execution;
@@ -193,7 +194,16 @@ public sealed partial class PlaybackCoordinatorTests
             SaveGate = new(TaskCreationOptions.RunContinuationsAsynchronously),
             SaveGateCall = 2
         };
-        var generation = new FakeAudioGenerationProvider();
+        var requests = new ConcurrentBag<AudioGenerationRequest>();
+        var generation = new FakeAudioGenerationProvider
+        {
+            GetAudioHandler = request =>
+            {
+                requests.Add(request);
+                return Task.FromResult(new AudioGenerationResult(
+                    $"audio-{request.SegmentIndex}-{request.SpeakSpeed}.mp3", false, null));
+            }
+        };
         var local = new FakeLocalAudioPlaybackCoordinator();
         await using var coordinator = CreateCoordinator(local, audioProvider: generation,
             readingProgressStore: progress, appSettingsStore: settings);
@@ -208,7 +218,8 @@ public sealed partial class PlaybackCoordinatorTests
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Playing &&
             coordinator.CurrentSnapshot.SegmentIndex == 1 && coordinator.CurrentSnapshot.SpeakSpeed == 55);
 
-        Assert.Equal(55, generation.Requests.Last().SpeakSpeed);
+        Assert.Contains(requests, request => request.SegmentIndex == 1 && request.SpeakSpeed == 55);
+        Assert.Equal("audio-1-55.mp3", local.LastStartedRequest?.FilePath);
         Assert.Equal(2, local.StartCallCount);
         Assert.Equal(1, local.LastStartedRequest?.SegmentIndex);
     }
@@ -236,7 +247,18 @@ public sealed partial class PlaybackCoordinatorTests
     {
         var providers = new FakeCurrentSpeechProvider(CreateRuleSelection(1, "原服务"));
         var latest = clear ? null : CreateRuleSelection(2, "新服务");
-        var generation = new FakeAudioGenerationProvider();
+        var requests = new ConcurrentBag<AudioGenerationRequest>();
+        var originalRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var generation = new FakeAudioGenerationProvider
+        {
+            GetAudioHandler = request =>
+            {
+                requests.Add(request);
+                var isLatest = ReferenceEquals(latest, request.Provider);
+                if (!isLatest) originalRequested.TrySetResult();
+                return Task.FromResult(new AudioGenerationResult(isLatest ? "latest.mp3" : "obsolete.mp3", false, null));
+            }
+        };
         var local = new FakeLocalAudioPlaybackCoordinator();
         var progress = new FakeReadingProgressStore { SaveGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
         await using var coordinator = CreateCoordinator(local, selectedProviderProvider: providers,
@@ -246,15 +268,20 @@ public sealed partial class PlaybackCoordinatorTests
         providers.CommitProvider(latest);
         progress.SaveGate.SetResult(null);
         await starting;
+        await originalRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         if (clear) await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
         else await WaitForPlayingAsync(coordinator);
 
         Assert.Equal(clear ? PlaybackState.Stopped : PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal(clear ? 0 : 1, local.StartCallCount);
-        Assert.Equal(clear ? 1 : 2, generation.Requests.Count);
+        Assert.Equal(clear ? 1 : 2, requests.Count);
         Assert.Equal(!clear, coordinator.CurrentSnapshot.HasAvailableProvider);
-        if (!clear) Assert.Same(latest, generation.Requests.Last().Provider);
+        if (!clear)
+        {
+            Assert.Same(latest, Assert.Single(requests, request => ReferenceEquals(latest, request.Provider)).Provider);
+            Assert.Equal("latest.mp3", local.LastStartedRequest?.FilePath);
+        }
     }
 
     [Theory]

@@ -1,5 +1,6 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Books.TextProcessing;
+using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Books;
 using Xunit;
@@ -154,7 +155,16 @@ public sealed partial class PlaybackCoordinatorTests
         var workspace = CreateRegexWorkspace(repository);
         var content = CreateRegexContent(repository);
         var localAudio = new FakeLocalAudioPlaybackCoordinator();
-        var generation = new FakeAudioGenerationProvider();
+        var finalRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var generation = new FakeAudioGenerationProvider
+        {
+            GetAudioHandler = request =>
+            {
+                var isLatest = request.SpeechText == "最终语音";
+                if (isLatest) finalRequested.TrySetResult();
+                return Task.FromResult(new AudioGenerationResult(isLatest ? "latest.mp3" : "obsolete.mp3", false, null));
+            }
+        };
         await using var coordinator = CreateCoordinator(localAudio,
             bookContentService: content, audioProvider: generation, regexWorkspace: workspace);
         await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
@@ -165,12 +175,12 @@ public sealed partial class PlaybackCoordinatorTests
         await content.ChapterRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await workspace.SaveEditorAsync(Editor(rule, "最终语音"), CancellationToken.None);
         gate.SetResult();
-        await WaitForAsync(generation, () => generation.Requests.Any(request => request.SpeechText == "最终语音"));
+        await finalRequested.Task.WaitAsync(TimeSpan.FromSeconds(5));
         await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.ContentRevision == revision + 2 &&
             coordinator.CurrentSnapshot.State == PlaybackState.Playing &&
             localAudio.CurrentSnapshot.State == PlaybackState.Playing &&
             localAudio.CurrentSnapshot.TargetRevision == coordinator.CurrentSnapshot.TargetRevision);
-        Assert.Equal("最终语音", generation.Requests.Last().SpeechText);
+        Assert.Equal("latest.mp3", localAudio.LastStartedRequest?.FilePath);
     }
 
     [Theory]

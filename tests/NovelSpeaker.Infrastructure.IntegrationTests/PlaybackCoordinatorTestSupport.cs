@@ -331,6 +331,7 @@ public sealed partial class PlaybackCoordinatorTests
         private readonly Queue<Func<Task<AudioGenerationResult>>> _results = [];
 
         public List<AudioGenerationRequest> Requests { get; } = [];
+        public Func<AudioGenerationRequest, Task<AudioGenerationResult>>? GetAudioHandler { get; init; }
 
         public event EventHandler? ActivityChanged;
 
@@ -379,6 +380,7 @@ public sealed partial class PlaybackCoordinatorTests
             Action<AudioGenerationProgress>? progressCallback,
             CancellationToken cancellationToken)
         {
+            if (GetAudioHandler is { } handler) return handler(request);
             Requests.Add(request);
             ActivityChanged?.Invoke(this, EventArgs.Empty);
             if (_results.Count > 0)

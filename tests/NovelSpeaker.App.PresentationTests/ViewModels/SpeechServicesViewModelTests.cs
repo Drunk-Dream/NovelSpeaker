@@ -7,6 +7,7 @@ using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.PresentationTests.TestDoubles;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech.Providers;
 using Xunit;
@@ -396,6 +397,181 @@ public sealed class SpeechServicesViewModelTests
         await fixture.ViewModel.FinishDeactivationAsync();
     }
 
+    [Fact]
+    public async Task Replaced_voice_search_rejects_queued_old_result_and_editor_replacement_drains_it()
+    {
+        var scheduler = new ControlledScheduler();
+        var fixture = new Fixture(scheduler);
+        var edge = await fixture.EnableEdgeAsync(null);
+        var vm = fixture.ViewModel;
+        var scope = new PageActivationController().Activate();
+        vm.HandleNavigatedTo(scope);
+        await vm.LoadAsync(scope.CancellationToken);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == edge.Id));
+        await scope.WaitForPendingOperationsAsync();
+        scheduler.HoldActions = true;
+        vm.VoiceSearch = "missing";
+        await scheduler.Entered.Task;
+        scheduler.HoldActions = false;
+        var latestCommitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        vm.Voices.CollectionChanged += (_, _) => latestCommitted.TrySetResult();
+        vm.VoiceSearch = "en-US";
+        await latestCommitted.Task;
+        Assert.Equal("available", Assert.Single(vm.Voices).VoiceId);
+        scheduler.ReleaseActions();
+        await scope.WaitForPendingOperationsAsync();
+        Assert.Equal("available", Assert.Single(vm.Voices).VoiceId);
+        scheduler.Entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        scheduler.HoldActions = true;
+        vm.VoiceSearch = "missing";
+        await scheduler.Entered.Task;
+        scheduler.HoldActions = false;
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == fixture.First.Id));
+        scheduler.ReleaseActions();
+        await scope.WaitForPendingOperationsAsync();
+        Assert.True(vm.IsHttpEditor);
+        Assert.Empty(vm.Voices);
+        Assert.Empty(vm.VoiceCatalogMessage);
+        Assert.Null(fixture.Feedback.LastTitle);
+        vm.HandleNavigatedFrom();
+        await vm.FinishDeactivationAsync();
+        Assert.Equal(0, scope.PendingOperationCount);
+    }
+
+    [Fact]
+    public async Task Old_catalog_failure_after_return_cannot_change_the_new_editor_or_report_failure()
+    {
+        var fixture = new Fixture();
+        var edge = await fixture.EnableEdgeAsync(null);
+        fixture.Transport.IgnoreCancellation = true;
+        fixture.Transport.Release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Transport.Failure = new IOException("fixture late catalog failure");
+        var vm = fixture.ViewModel;
+        var controller = new PageActivationController();
+        var old = controller.Activate();
+        vm.HandleNavigatedTo(old);
+        await vm.LoadAsync(old.CancellationToken);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == edge.Id));
+        await fixture.Transport.Entered.Task;
+        controller.Deactivate();
+        var current = controller.Activate();
+        vm.HandleNavigatedTo(current);
+        await vm.LoadAsync(current.CancellationToken);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(item => item.Id == fixture.First.Id));
+        fixture.Transport.Release.SetResult();
+        await old.WaitForPendingOperationsAsync();
+        await current.WaitForPendingOperationsAsync();
+        Assert.True(vm.IsHttpEditor);
+        Assert.Empty(vm.Voices);
+        Assert.False(vm.IsVoiceCatalogLoading);
+        Assert.Empty(vm.VoiceCatalogMessage);
+        Assert.Null(fixture.Feedback.LastTitle);
+        controller.Deactivate();
+        await vm.FinishDeactivationAsync();
+    }
+
+    [Fact]
+    public async Task Late_preview_failure_after_leave_is_observed_without_feedback_and_stops_existing_audio()
+    {
+        var fixture = new Fixture();
+        var vm = fixture.ViewModel;
+        var controller = new PageActivationController();
+        var scope = controller.Activate();
+        vm.HandleNavigatedTo(scope);
+        await vm.LoadAsync(scope.CancellationToken);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers[0]);
+        await vm.TestDraftCommand.ExecuteAsync(null);
+        Assert.True(fixture.Player.IsPlaying);
+        var previousTitle = fixture.Feedback.LastTitle;
+        fixture.Runtime.IgnoreCancellation = true;
+        fixture.Runtime.Release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.Runtime.Failure = new IOException("fixture late preview failure");
+        var audition = vm.TestDraftCommand.ExecuteAsync(null);
+        Assert.True(vm.IsTestBusy);
+        controller.Deactivate();
+        var cleanup = vm.FinishDeactivationAsync();
+        Assert.False(cleanup.IsCompleted);
+        fixture.Runtime.Release.SetResult();
+        await audition;
+        await cleanup;
+        Assert.False(vm.IsTestBusy);
+        Assert.False(fixture.Player.IsPlaying);
+        Assert.Equal(previousTitle, fixture.Feedback.LastTitle);
+        Assert.Equal(fixture.First.Id, fixture.Settings.Current.CurrentProviderId);
+        Assert.Equal(0, scope.PendingOperationCount);
+    }
+
+    [Fact]
+    public async Task Cancelled_test_remains_ready_for_retry_and_current_failure_is_reported_once()
+    {
+        var fixture = new Fixture();
+        fixture.Runtime.Release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var vm = fixture.ViewModel;
+        await vm.LoadAsync(CancellationToken.None);
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers[0]);
+        var audition = vm.TestDraftCommand.ExecuteAsync(null);
+        await fixture.Runtime.Entered.Task;
+        vm.TestDraftCommand.Cancel();
+        await audition;
+        Assert.False(vm.IsTestBusy);
+        Assert.True(vm.CanTestDraft);
+        Assert.Null(fixture.Feedback.LastTitle);
+        fixture.Runtime.Release.SetResult();
+        fixture.Runtime.Failure = new IOException("fixture current preview failure");
+        await vm.TestDraftCommand.ExecuteAsync(null);
+        Assert.False(vm.IsTestBusy);
+        Assert.True(vm.CanTestDraft);
+        Assert.Equal("试听失败", fixture.Feedback.LastTitle);
+        Assert.Equal(1, fixture.Feedback.NotificationCount);
+        vm.HandleNavigatedFrom();
+        await vm.FinishDeactivationAsync();
+    }
+
+    [Fact]
+    public async Task Import_cancelled_during_final_refresh_preserves_saved_provider_without_completion_feedback()
+    {
+        foreach (var leavePage in new[] { false, true })
+        {
+            var fixture = new Fixture();
+            var vm = fixture.ViewModel;
+            var controller = new PageActivationController();
+            var scope = controller.Activate();
+            vm.HandleNavigatedTo(scope);
+            await vm.LoadAsync(scope.CancellationToken);
+            fixture.Documents.ClipboardDocument = new RuleImportDocument(
+                ProviderEnvelopeCodec.Write(CreateProvider("Imported", 0)), "fixture");
+            var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            fixture.Store.GetAllHandler = async token =>
+            {
+                if (fixture.Store.Items.Any(item => item.Name == "Imported"))
+                {
+                    entered.TrySetResult();
+                    await release.Task.WaitAsync(token);
+                }
+                return fixture.Store.Items.OrderBy(item => item.SortOrder).ToArray();
+            };
+            var import = vm.ImportProvidersFromClipboardCommand.ExecuteAsync(null);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            if (leavePage)
+            {
+                controller.Deactivate();
+                await import;
+            }
+            else
+            {
+                vm.ImportProvidersFromClipboardCommand.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => import);
+            }
+            Assert.Contains(fixture.Store.Items, item => item.Name == "Imported");
+            Assert.False(vm.IsBusy);
+            Assert.Equal(0, fixture.Feedback.NotificationCount);
+            controller.Deactivate();
+            await vm.FinishDeactivationAsync();
+            Assert.Equal(0, scope.PendingOperationCount);
+        }
+    }
+
     private static async Task WaitForCatalogAsync(SpeechServicesViewModel vm)
     {
         var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -439,13 +615,13 @@ public sealed class SpeechServicesViewModelTests
             return edge;
         }
         private SpeechProviderInstance ItemsEdge() => Store.Items.Single(item => item.Type == SpeechProviderType.MicrosoftEdge);
-        public Fixture()
+        public Fixture(IUiScheduler? scheduler = null)
         {
             Store.Items.Add(First);
             Settings.SetCurrent(First.Id);
             ViewModel = new SpeechServicesViewModel(Store, new SpeechProviderWorkspace(Store, TimeProvider.System, Settings),
                 new ProviderDraftPreviewService([Runtime, EdgeRuntime], Settings, Player), Settings, Feedback, Dialogs,
-                new FakeNavigationService(), Documents, new InlineScheduler(), new EdgeVoiceCatalog(Transport, TimeProvider.System));
+                new FakeNavigationService(), Documents, scheduler ?? new InlineScheduler(), new EdgeVoiceCatalog(Transport, TimeProvider.System));
         }
     }
 
@@ -454,7 +630,9 @@ public sealed class SpeechServicesViewModelTests
         public List<SpeechProviderInstance> Items { get; } = [];
         public Exception? SaveFailure { get; set; }
         public ProviderId? FailedDeleteId { get; set; }
+        public Func<CancellationToken, Task<IReadOnlyList<SpeechProviderInstance>>>? GetAllHandler { get; set; }
         public Task<IReadOnlyList<SpeechProviderInstance>> GetAllAsync(CancellationToken cancellationToken) =>
+            GetAllHandler?.Invoke(cancellationToken) ??
             Task.FromResult<IReadOnlyList<SpeechProviderInstance>>(Items.OrderBy(provider => provider.SortOrder).ToArray());
         public Task<SpeechProviderInstance?> GetByIdAsync(ProviderId id, CancellationToken cancellationToken) =>
             Task.FromResult(Items.FirstOrDefault(provider => provider.Id == id));
@@ -494,10 +672,12 @@ public sealed class SpeechServicesViewModelTests
         public Exception? Failure { get; set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource? Release { get; set; }
+        public bool IgnoreCancellation { get; set; }
         public async Task<IReadOnlyList<EdgeVoice>> GetVoicesAsync(CancellationToken cancellationToken)
         {
             Entered.TrySetResult();
-            if (Release is not null) await Release.Task.WaitAsync(cancellationToken);
+            if (Release is not null)
+                await (IgnoreCancellation ? Release.Task : Release.Task.WaitAsync(cancellationToken));
             if (Failure is not null) throw Failure;
             return [new EdgeVoice("available", "Available voice", "en-US", "Female")];
         }
@@ -508,15 +688,19 @@ public sealed class SpeechServicesViewModelTests
     private sealed class Runtime(SpeechProviderType type = SpeechProviderType.Http) : IProviderRuntime
     {
         public SpeechProviderType Type => type;
+        public Exception? Failure { get; set; }
         public SpeechProviderInstance? Provider { get; private set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource? Release { get; set; }
+        public bool IgnoreCancellation { get; set; }
         public async Task<ProviderSynthesisResult> SynthesizeAsync(SpeechProviderInstance provider,
             ProviderSynthesisRequest request, CancellationToken cancellationToken)
         {
             Provider = provider;
             Entered.TrySetResult();
-            if (Release is not null) await Release.Task.WaitAsync(cancellationToken);
+            if (Release is not null)
+                await (IgnoreCancellation ? Release.Task : Release.Task.WaitAsync(cancellationToken));
+            if (Failure is not null) throw Failure;
             return new ProviderSynthesisResult(new MemoryStream([1]), "wav", null);
         }
     }
@@ -543,6 +727,29 @@ public sealed class SpeechServicesViewModelTests
         { cancellationToken.ThrowIfCancellationRequested(); return action(); }
     }
 
+    private sealed class ControlledScheduler : IUiScheduler
+    {
+        private readonly List<(Action Action, TaskCompletionSource Completion)> _pending = [];
+        public bool HoldActions { get; set; }
+        public TaskCompletionSource Entered { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool CheckAccess() => true;
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            if (!HoldActions) { cancellationToken.ThrowIfCancellationRequested(); action(); return Task.CompletedTask; }
+            var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            _pending.Add((action, completion));
+            Entered.TrySetResult();
+            return completion.Task;
+        }
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default)
+        { cancellationToken.ThrowIfCancellationRequested(); return action(); }
+        public void ReleaseActions()
+        {
+            foreach (var (action, completion) in _pending) { action(); completion.SetResult(); }
+            _pending.Clear();
+        }
+    }
+
     private sealed class FakeFeedbackService : IAppFeedbackService
     {
         public string? LastTitle { get; private set; }
@@ -550,17 +757,20 @@ public sealed class SpeechServicesViewModelTests
         public string? LastMessage { get; private set; }
         public bool LastWasWarning { get; private set; }
         public int DeletionPromptCount { get; private set; }
+        public int NotificationCount { get; private set; }
 
         public ProjectedUiError Project(Exception exception) => new(exception.Message, UiMessageSeverity.Error, false);
 
         public void ShowProjectedNotification(string title, ProjectedUiError projected)
         {
+            NotificationCount++;
             LastTitle = title;
             LastMessage = projected.UserMessage;
         }
 
         public void ShowSuccess(string title, string message)
         {
+            NotificationCount++;
             LastWasWarning = false;
             LastTitle = title;
             LastMessage = message;
@@ -568,6 +778,7 @@ public sealed class SpeechServicesViewModelTests
 
         public void ShowWarning(string title, string message)
         {
+            NotificationCount++;
             LastWasWarning = true;
             LastTitle = title;
             LastMessage = message;

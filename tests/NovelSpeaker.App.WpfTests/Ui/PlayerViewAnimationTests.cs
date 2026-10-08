@@ -347,7 +347,14 @@ public sealed partial class PlayerViewTests
                 WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(500));
                 coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Preparing });
                 coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Playing });
-                WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
+                WaitUntil(() =>
+                {
+                    if (view.HasActiveSegmentScrollAnimation ||
+                        segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem)
+                            is not FrameworkElement target) return false;
+                    var center = target.TranslatePoint(new Point(0, 0), scrollViewer).Y + target.ActualHeight / 2d;
+                    return Math.Abs(center - scrollViewer.ViewportHeight / 2d) <= 1d;
+                }, TimeSpan.FromMilliseconds(1200));
                 DoEvents();
                 view.UpdateLayout();
 
