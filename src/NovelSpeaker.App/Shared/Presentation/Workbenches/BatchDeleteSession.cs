@@ -1,4 +1,4 @@
-namespace NovelSpeaker.App.Shared.Presentation.Rules;
+namespace NovelSpeaker.App.Shared.Presentation.Workbenches;
 
 /// <summary>Owns one confirmed batch's busy lifetime and per-item continuation.</summary>
 internal sealed class BatchDeleteSession

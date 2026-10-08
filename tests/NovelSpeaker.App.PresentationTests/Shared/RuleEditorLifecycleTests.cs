@@ -1,6 +1,7 @@
 using NovelSpeaker.App.Features.Rules.Shared;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Workbenches;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.Shared;
@@ -61,16 +62,16 @@ public sealed class RuleEditorLifecycleTests
     public void Reorder_slots_support_first_last_and_adjacent_noop_without_mutating_input()
     {
         var order = new[] { "one", "two", "three" };
-        Assert.True(RuleReorderController.TryMoveToSlot(order, order, "three", 0, out var first));
+        Assert.True(WorkbenchReorderController.TryMoveToSlot(order, order, "three", 0, out var first));
         Assert.Equal(["three", "one", "two"], first);
-        Assert.True(RuleReorderController.TryMoveToSlot(order, order, "one", 3, out var last));
+        Assert.True(WorkbenchReorderController.TryMoveToSlot(order, order, "one", 3, out var last));
         Assert.Equal(["two", "three", "one"], last);
-        Assert.False(RuleReorderController.TryMoveToSlot(order, order, "one", 1, out _));
-        Assert.False(RuleReorderController.TryMoveToSlot(order, order, "two", 1, out _));
-        Assert.False(RuleReorderController.TryMoveToSlot(order, order, "missing", 1, out _));
-        Assert.False(RuleReorderController.TryMoveToSlot(order, order, "one", 4, out _));
+        Assert.False(WorkbenchReorderController.TryMoveToSlot(order, order, "one", 1, out _));
+        Assert.False(WorkbenchReorderController.TryMoveToSlot(order, order, "two", 1, out _));
+        Assert.False(WorkbenchReorderController.TryMoveToSlot(order, order, "missing", 1, out _));
+        Assert.False(WorkbenchReorderController.TryMoveToSlot(order, order, "one", 4, out _));
         Assert.Equal(["one", "two", "three"], order);
-        Assert.True(RuleReorderController.TryMoveByOffset(order, "one", 1, out var offset));
+        Assert.True(WorkbenchReorderController.TryMoveByOffset(order, "one", 1, out var offset));
         Assert.Equal(["two", "one", "three"], offset);
     }
 
@@ -83,7 +84,7 @@ public sealed class RuleEditorLifecycleTests
     {
         var complete = new[] { "h0", "a", "h1", "b", "h2" };
         var visible = new[] { "a", "b" };
-        var changed = RuleReorderController.TryMoveToSlot(complete, visible, source, slot, out var result);
+        var changed = WorkbenchReorderController.TryMoveToSlot(complete, visible, source, slot, out var result);
         Assert.Equal(expected != string.Join(',', complete), changed);
         Assert.Equal(expected.Split(','), changed ? result : complete);
     }
@@ -91,7 +92,7 @@ public sealed class RuleEditorLifecycleTests
     [Fact]
     public async Task ImportSession_serializes_imports_and_releases_busy_after_completion()
     {
-        var session = new RuleImportSession();
+        var session = new WorkbenchImportSession();
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var isBusy = false;
@@ -131,7 +132,7 @@ public sealed class RuleEditorLifecycleTests
     [InlineData(true)]
     public async Task ImportSession_cancellation_releases_busy_and_allows_retry(bool cancelDuringImport)
     {
-        var session = new RuleImportSession();
+        var session = new WorkbenchImportSession();
         var isBusy = false;
         using var cancellation = new CancellationTokenSource();
         if (!cancelDuringImport) cancellation.Cancel();
@@ -155,7 +156,7 @@ public sealed class RuleEditorLifecycleTests
     [Fact]
     public async Task ImportSession_releases_busy_when_import_fails()
     {
-        var session = new RuleImportSession();
+        var session = new WorkbenchImportSession();
         var isBusy = false;
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => session.RunAsync<RuleImportResult>(

@@ -152,22 +152,38 @@ public sealed class SpeechServicesViewModelTests
     }
 
     [Theory]
-    [InlineData(UnsavedChangesDecision.Save)]
-    [InlineData(UnsavedChangesDecision.Discard)]
-    [InlineData(UnsavedChangesDecision.Cancel)]
-    public async Task Dirty_selection_honors_save_discard_and_cancel(UnsavedChangesDecision decision)
+    [InlineData(UnsavedChangesDecision.Save, false)]
+    [InlineData(UnsavedChangesDecision.Discard, false)]
+    [InlineData(UnsavedChangesDecision.Cancel, false)]
+    [InlineData(UnsavedChangesDecision.Save, true)]
+    [InlineData(UnsavedChangesDecision.Discard, true)]
+    [InlineData(UnsavedChangesDecision.Cancel, true)]
+    public async Task Dirty_selection_honors_save_discard_and_cancel(UnsavedChangesDecision decision, bool edgeEditor)
     {
         var fixture = new Fixture();
         var second = CreateProvider("Second", 1);
         fixture.Store.Items.Add(second);
         fixture.Dialogs.NextUnsavedDecision = decision;
+        var editing = edgeEditor ? await fixture.EnableEdgeAsync(null) : fixture.First;
         var vm = fixture.ViewModel;
         await vm.LoadAsync(CancellationToken.None);
-        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(provider => provider.Id == fixture.First.Id));
-        vm.DraftName = "Edited";
+        await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(provider => provider.Id == editing.Id));
+        EdgeVoice? voice = null;
+        if (edgeEditor)
+        {
+            await WaitForCatalogAsync(vm);
+            voice = Assert.Single(vm.Voices);
+            vm.SelectVoiceCommand.Execute(voice);
+        }
+        else vm.DraftName = "Edited";
         await vm.SelectProviderCommand.ExecuteAsync(vm.Providers.Single(provider => provider.Id == second.Id));
-        Assert.Equal(decision == UnsavedChangesDecision.Cancel ? fixture.First.Id : second.Id, vm.SelectedProviderId);
-        Assert.Equal(decision == UnsavedChangesDecision.Save ? "Edited" : "First", fixture.Store.Items.Single(provider => provider.Id == fixture.First.Id).Name);
+        Assert.Equal(decision == UnsavedChangesDecision.Cancel ? editing.Id : second.Id, vm.SelectedProviderId);
+        Assert.Equal(decision == UnsavedChangesDecision.Cancel, vm.HasUnsavedChanges);
+        var saved = fixture.Store.Items.Single(provider => provider.Id == editing.Id);
+        if (edgeEditor)
+            Assert.Equal(decision == UnsavedChangesDecision.Save ? voice : null,
+                Assert.IsType<EdgeSpeechProviderConfiguration>(saved.Configuration).Voice);
+        else Assert.Equal(decision == UnsavedChangesDecision.Save ? "Edited" : "First", saved.Name);
         Assert.Equal(fixture.First.Id, fixture.Settings.Current.CurrentProviderId);
         vm.HandleNavigatedFrom();
         await vm.FinishDeactivationAsync();

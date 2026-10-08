@@ -91,7 +91,7 @@
 
 ## 5. Phase B2：把 Playback 改为 target-driven 流程
 
-### staged breaking migration window：T008–T010
+### staged breaking migration window：T008–T010（已结束，完整门禁恢复）
 
 ## [x] T008（P0）：建立 Playback logical target 与 preparation 身份
 
@@ -199,11 +199,23 @@
 
 完成成果：三类工作台组合现有 EditorSession 的 original/new/dirty 与保存/放弃/取消保护，Metadata 删除 original/isNew/HasEditor 平行 bookkeeping，保留空白新草稿即 dirty 和自身 typed read/write/remove/order、validation 与交换格式。ManagementSelectionController 拥有异步进入保护，页面直接连接既有 activation，删除三个管理 CTS 与各页 entering/deleting flags。小型 WorkbenchExchangeInteraction 拥有单文档构建、文件/剪贴板写入和取消检查；BatchDeleteSession 拥有单次确认后的 busy lifetime、逐项成功/跳过/失败继续处理与最终 reconciliation，不持有业务 repository、规则字段或反馈文案。Chapter 合并备用排序与 draft change 的重复路径，Metadata 使用稳定键 offset 计算并在排序失败后恢复投影；内建 Chapter 限制、Regex scope/timeout、normal/management selection 分离保持。三类 ViewModel 净删 123 行重复 orchestration，新增/扩展 owner 与 activation 接线后生产代码总量基本持平（+2 行）。保留既有核心测试，新增六项合并 owner 行为回归，覆盖失败保存不丢 dirty、迟到取消决定、管理进入串行、批量 partial continuation/取消重试及取消后迟到文档拒绝。Rules/Shared/selection/architecture focused 87/87、WPF navigation/DI 7/7、Release build（0 warning/error）、全仓 format verify、LF 与 diff 检查通过。无持久化变化、临时产物、环境限制或长期文档冲突；最终全量门禁留给 T019。
 
-## [ ] T019（P2）：收敛 Provider 工作台并完成本轮架构验收
+## [x] T019（P2）：收敛 Provider 工作台并完成本轮架构验收
 
 依赖：T018。
 
 目标：让 Provider 复用真正相同的工作台行为，同时保留 HTTP/Edge typed editor 差异；删除重复 orchestration，审计五类结构目标并执行完整门禁。
+
+完成成果：EditorSession、WorkbenchImportSession、WorkbenchReorderController、WorkbenchExchangeInteraction 与 BatchDeleteSession 归入跨业务域 `Shared/Presentation/Workbenches`，删除 SpeechServices 对 Rules Feature 的依赖和旧命名/路径，不保留转发层。Provider 复用 dirty leave guard、管理进入保护、导入 busy/取消、单文档文件/剪贴板交换和批量删除 continuation；HTTP headers/body/rate 与 Edge Voice 仍分别使用 typed draft、validation/save mapping，凭据导出确认、Provider envelope、复制新身份、隐藏项完整排序、试听与 Voice Catalog/search 仍由 Provider owner 负责，CurrentProvider 只读取 Settings truth。保留现有核心测试，将 dirty selection theory 扩展到 Edge 的保存/放弃/取消（三个新用例），不复制共享 owner 的全部测试；没有需删除的旧 orchestration 形状断言或临时测试。T018–T019 四个工作台 ViewModel 合计净删 126 行；生产总代码基本持平（新增 owner/activation 接线抵消删减，合计 +1 行），收益是单一行为 owner；本轮较大减法包括已删除的 Playback 平行状态/audio 代理、Cache 泄漏接口/repair worker，以及 T015 的 34 行和 T017 的 564 行生命周期样板。
+
+本轮五项架构验收：
+
+- 变更传播：核对 Books metadata/import/removal 和 Regex mutation 的持久提交后 typed 发布与 observer 隔离，Playback/Cache/page 各自消费；旧 UI Books/Regex 后果编排与全局 invalidation state 已删除，无通用 EventBus/Messenger。
+- Playback：唯一 PlaybackRuntime 持有 authoritative read；同 Book/Source 导航和自动推进 CommitTarget，Book/Source context 改变才 replacement；SnapshotProjector 为纯投影，audio callback 校验 session/target/preparation attempt 与低层 generation，无旧 runtime 或 audio forwarding wrapper。
+- Cache：ICacheReadModel 内部组合 physical/catalog/coverage、跨 revision 重查与 process repair，对页面只发布 Global/Book/Chapters 展示变化；App 不读取 internal invalidation aspect、coverage query 或 repair protocol。
+- 页面生命周期：页面接线统一使用 activation，latest-operation owner 独立；未发现残留等价 page CTS/version/task registry。保留 data/projection revision、播放/session/background owner、导出准备 admission 与导入进度 dialog task owner，不改变已提交后台工作生命周期。
+- 工作台：Rules/Provider 组合小型 internal owner，Shared 不依赖 Feature 或业务 repository；没有通用泛型 ViewModel、业务 DTO/格式统一、字段字典或新循环。生产 interface 扫描未发现无引用声明；剩余 adapter 属于实际 Windows/日志技术边界，Legacy Provider codec/migration 仅用于已发布持久兼容。
+
+自动验收：Provider/owner/architecture 首轮 focused 64/64，随后 locked restore、全仓 format verify、Release build（0 warning/error）、完整 tests 1233/1233（Domain 15、Application 293、Infrastructure 472、Presentation 351 含 architecture、isolated Desktop WPF 102）、旧 API/Shared→Feature 搜索、LF 与 git diff 检查全部通过，未启用可见窗口。无持久 schema/格式变化、临时产物、未执行的必要检查、环境限制或长期文档冲突；本轮所有 migration window 已结束。
 
 ## 9. 本轮明确不处理
 

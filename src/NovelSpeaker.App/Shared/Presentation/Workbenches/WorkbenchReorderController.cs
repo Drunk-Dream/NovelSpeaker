@@ -1,9 +1,9 @@
-namespace NovelSpeaker.App.Features.Rules.Shared;
+namespace NovelSpeaker.App.Shared.Presentation.Workbenches;
 
 /// <summary>
-/// Computes rule order changes without mutating a page collection or persistence state.
+/// Computes stable-key order changes without mutating a page collection or persistence state.
 /// </summary>
-internal static class RuleReorderController
+internal static class WorkbenchReorderController
 {
     /// <summary>Maps a visible slot into the complete order without moving hidden items independently.</summary>
     public static bool TryMoveToSlot<TId>(

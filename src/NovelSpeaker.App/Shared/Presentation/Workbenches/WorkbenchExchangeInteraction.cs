@@ -1,4 +1,6 @@
-namespace NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Rules;
+
+namespace NovelSpeaker.App.Shared.Presentation.Workbenches;
 
 /// <summary>Produces one exchange document, then writes it to the chosen interaction surface.</summary>
 internal sealed class WorkbenchExchangeInteraction(IRuleDocumentInteraction documents)

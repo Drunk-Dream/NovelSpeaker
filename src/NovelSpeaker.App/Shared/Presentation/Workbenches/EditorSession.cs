@@ -1,9 +1,9 @@
 using NovelSpeaker.App.Shared.Dialogs;
 
-namespace NovelSpeaker.App.Features.Rules.Shared;
+namespace NovelSpeaker.App.Shared.Presentation.Workbenches;
 
 /// <summary>
-/// Owns the minimum state shared by feature-specific rule editors.
+/// Owns the minimum state shared by feature-specific workbench editors.
 /// </summary>
 internal sealed class EditorSession<TId, TEditor>
     where TEditor : class

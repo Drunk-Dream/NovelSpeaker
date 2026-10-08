@@ -5,12 +5,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Providers;
-using NovelSpeaker.App.Features.Rules.Shared;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Workbenches;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shell.Navigation;
@@ -29,6 +29,9 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     private readonly IAppDialogService _dialogs;
     private readonly IAppNavigator _navigator;
     private readonly IRuleDocumentInteraction _documents;
+    private readonly WorkbenchExchangeInteraction _exchange;
+    private readonly WorkbenchImportSession _import = new();
+    private readonly BatchDeleteSession _batchDelete = new();
     private readonly IUiScheduler _scheduler;
     private PageActivationScope? _activation;
     private Task _deactivationDrain = Task.CompletedTask;
@@ -61,6 +64,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         _dialogs = dialogs;
         _navigator = navigator;
         _documents = documents;
+        _exchange = new(documents);
         _scheduler = scheduler;
         _voiceCatalog = voiceCatalog;
         _selection.StateChanged += (_, _) =>
@@ -210,8 +214,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
         {
             await TransitionAsync(async token =>
             {
-                if (!IsManagementMode && !await ConfirmLeaveAsync(token)) return;
-                token.ThrowIfCancellationRequested();
+                if (!await _selection.TryEnterAsync(() => IsBusy, ConfirmLeaveAsync, token)) return;
                 _selection.HandleClick(item.Id, modifiers);
             }, cancellationToken);
             return;
@@ -236,19 +239,17 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     private Task ImportAsync(Func<CancellationToken, Task<RuleImportDocument?>> readDocument,
         CancellationToken cancellationToken) => TransitionAsync(async token =>
     {
-        var document = await readDocument(token);
-        if (document is null) return;
-        IsBusy = true;
-        try
+        var execution = await _import.RunAsync(readDocument, async (document, importToken) =>
         {
-            var result = await _workspace.ImportAsync(document.Json, token);
-            await RefreshAsync(token);
-            token.ThrowIfCancellationRequested();
-            if (result.Error is not null) _feedback.ShowWarning("无法导入语音服务", result.Error);
-            else _feedback.ShowSuccess("导入完成",
-                $"已导入 {result.ImportedCount} 项，跳过重复 {result.DuplicateCount} 项，失败 {result.FailedCount} 项。");
-        }
-        finally { IsBusy = false; }
+            var result = await _workspace.ImportAsync(document.Json, importToken);
+            await RefreshAsync(importToken);
+            return result;
+        }, () => IsBusy, value => IsBusy = value, token);
+        if (execution is null) return;
+        var imported = execution.Result;
+        if (imported.Error is not null) _feedback.ShowWarning("无法导入语音服务", imported.Error);
+        else _feedback.ShowSuccess("导入完成",
+            $"已导入 {imported.ImportedCount} 项，跳过重复 {imported.DuplicateCount} 项，失败 {imported.FailedCount} 项。");
     }, cancellationToken);
 
     [RelayCommand(CanExecute = nameof(CanManage))]
@@ -296,9 +297,8 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
                     _feedback.ShowWarning("无法导出语音服务", result.Message);
                     return;
                 }
-                if (clipboard) await _documents.CopyAsync(result.Json, token);
-                else if (!await _documents.ExportAsync("speech-provider.json", result.Json, token)) return;
-                token.ThrowIfCancellationRequested();
+                if (await _exchange.WriteAsync(_ => Task.FromResult<string?>(result.Json),
+                        clipboard, "speech-provider.json", token) != ExchangeWriteResult.Completed) return;
                 var message = $"成功 {result.ExportedCount}，跳过 {result.SkippedCount}，失败 0。";
                 if (result.SkippedCount > 0) _feedback.ShowWarning("导出完成", message);
                 else _feedback.ShowSuccess("导出完成", message);
@@ -336,7 +336,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
             if (request?.Source is not SpeechProviderListItemViewModel source || !CanManage) return;
             var complete = _completeOrder.Select(provider => provider.Id).ToArray();
             var visible = Providers.Select(provider => provider.Id).ToArray();
-            if (!RuleReorderController.TryMoveToSlot(complete, visible, source.Id, request.SlotIndex, out var order)) return;
+            if (!WorkbenchReorderController.TryMoveToSlot(complete, visible, source.Id, request.SlotIndex, out var order)) return;
             IsBusy = true;
             try
             {
@@ -431,18 +431,21 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
             await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true);
     }
 
-    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
+    public Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy) return false;
-        if (!HasUnsavedChanges) return true;
-        var decision = await _dialogs.ShowUnsavedChangesAsync("未保存的修改", "语音服务有未保存的修改。要先保存再继续吗？",
-            "保存", "放弃", "取消", cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (decision == UnsavedChangesDecision.Save) return await SaveDraftCoreAsync(cancellationToken);
-        if (decision != UnsavedChangesDecision.Discard) return false;
-        if (IsEditingNewProvider) CloseEditor();
-        else if (_editingProvider is not null) OpenEditor(_editingProvider, false);
-        return true;
+        if (IsBusy) return Task.FromResult(false);
+        Task<UnsavedChangesDecision> Decide(CancellationToken token) =>
+            _dialogs.ShowUnsavedChangesAsync("未保存的修改", "语音服务有未保存的修改。要先保存再继续吗？",
+                "保存", "放弃", "取消", token);
+        Task Discard(CancellationToken token)
+        {
+            if (IsEditingNewProvider) CloseEditor();
+            else if (_editingProvider is not null) OpenEditor(_editingProvider, false);
+            return Task.CompletedTask;
+        }
+        return IsEdgeEditor
+            ? _edgeEditor.ConfirmLeaveAsync(Decide, SaveDraftCoreAsync, Discard, cancellationToken)
+            : _editor.ConfirmLeaveAsync(Decide, SaveDraftCoreAsync, Discard, cancellationToken);
     }
 
     private async Task<bool> SaveDraftCoreAsync(CancellationToken cancellationToken)
@@ -838,9 +841,7 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
     [RelayCommand(CanExecute = nameof(CanManage))]
     private Task EnterManagementAsync(CancellationToken cancellationToken) => TransitionAsync(async token =>
     {
-        if (IsManagementMode || !await ConfirmLeaveAsync(token)) return;
-        token.ThrowIfCancellationRequested();
-        _selection.Enter();
+        await _selection.TryEnterAsync(() => IsBusy, ConfirmLeaveAsync, token);
     }, cancellationToken);
 
     [RelayCommand]
@@ -853,36 +854,29 @@ public sealed partial class SpeechServicesViewModel : ObservableObject, ITransie
 
     private async Task DeleteSelectedProvidersAsync(CancellationToken cancellationToken)
     {
-        if (_selection.SelectedCount == 0 || !await ConfirmLeaveAsync(cancellationToken)) return;
-        var items = Providers.Where(item => _selection.IsSelected(item.Id)).ToArray();
-        if (await _feedback.ConfirmDeletionAsync("删除语音服务", $"将删除所选的 {items.Length} 项语音服务，此操作不可撤销。", cancellationToken)
-            != AppConfirmationDecision.Confirm) return;
-        await StopTestAsync(cancellationToken);
-        IsBusy = true;
-        try
-        {
-            var succeeded = 0;
-            var skipped = 0;
-            var failed = 0;
-            foreach (var item in items)
+        if (_selection.SelectedCount == 0) return;
+        var result = await _batchDelete.RunAsync<SpeechProviderListItemViewModel>(
+            async token =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!item.CanDelete) { skipped++; continue; }
-                try
-                {
-                    await _workspace.DeleteAsync(item.Id, cancellationToken);
-                    succeeded++;
-                    if (_editingProvider?.Id == item.Id) CloseEditor();
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-                catch (Exception) { failed++; }
-            }
-            await RefreshAsync(cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            var message = $"成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
-            if (skipped > 0 || failed > 0) _feedback.ShowWarning("删除完成", message);
-            else _feedback.ShowSuccess("删除完成", message);
-        }
-        finally { IsBusy = false; }
+                if (!await ConfirmLeaveAsync(token)) return [];
+                var items = Providers.Where(item => _selection.IsSelected(item.Id)).ToArray();
+                if (items.Length == 0 || await _feedback.ConfirmDeletionAsync("删除语音服务",
+                        $"将删除所选的 {items.Length} 项语音服务，此操作不可撤销。", token)
+                    != AppConfirmationDecision.Confirm) return [];
+                await StopTestAsync(token);
+                return items;
+            },
+            async (item, token) =>
+            {
+                if (!item.CanDelete) return false;
+                await _workspace.DeleteAsync(item.Id, token);
+                if (_editingProvider?.Id == item.Id) CloseEditor();
+                return true;
+            },
+            RefreshAsync, value => IsBusy = value, cancellationToken);
+        if (result is null) return;
+        var message = $"成功 {result.Succeeded}，跳过 {result.Skipped}，失败 {result.Failed}。";
+        if (result.Skipped > 0 || result.Failed > 0) _feedback.ShowWarning("删除完成", message);
+        else _feedback.ShowSuccess("删除完成", message);
     }
 }

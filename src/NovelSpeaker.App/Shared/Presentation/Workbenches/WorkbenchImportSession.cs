@@ -1,15 +1,15 @@
 using NovelSpeaker.App.Shared.Presentation.Rules;
 
-namespace NovelSpeaker.App.Features.Rules.Shared;
+namespace NovelSpeaker.App.Shared.Presentation.Workbenches;
 
 /// <summary>
 /// Coordinates one page's import source and Busy ownership without changing editor drafts.
 /// </summary>
-internal sealed class RuleImportSession
+internal sealed class WorkbenchImportSession
 {
     private int _active;
 
-    public async Task<RuleImportExecution<T>?> RunAsync<T>(
+    public async Task<WorkbenchImportExecution<T>?> RunAsync<T>(
         Func<CancellationToken, Task<RuleImportDocument?>> readDocument,
         Func<RuleImportDocument, CancellationToken, Task<T>> import,
         Func<bool> isBusy,
@@ -49,7 +49,7 @@ internal sealed class RuleImportSession
             cancellationToken.ThrowIfCancellationRequested();
             var result = await import(document, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            return new RuleImportExecution<T>(document, result);
+            return new WorkbenchImportExecution<T>(document, result);
         }
         finally
         {
@@ -63,4 +63,4 @@ internal sealed class RuleImportSession
     }
 }
 
-internal sealed record RuleImportExecution<T>(RuleImportDocument Document, T Result);
+internal sealed record WorkbenchImportExecution<T>(RuleImportDocument Document, T Result);

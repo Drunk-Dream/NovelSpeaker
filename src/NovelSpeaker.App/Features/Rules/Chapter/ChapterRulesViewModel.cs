@@ -9,6 +9,7 @@ using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Workbenches;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Shell.Activation;
@@ -28,7 +29,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     private readonly IRuleDocumentInteraction _ruleDocuments;
     private readonly EditorSession<string?, ChapterRuleEditorModel> _editorSession = new(EditorsEqual);
     private readonly ManagementSelectionController<string> _selection = new();
-    private readonly RuleImportSession _importSession = new();
+    private readonly WorkbenchImportSession _importSession = new();
     private readonly ResettableObservableCollection<ChapterRuleListItemViewModel> _rules = [];
     private bool _suppressDraftStateUpdates;
 
@@ -174,7 +175,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
         }
 
         var order = Rules.Select(rule => rule.Id).ToArray();
-        if (!RuleReorderController.TryMoveToSlot(order, order, source.Id, slotIndex, out var ids))
+        if (!WorkbenchReorderController.TryMoveToSlot(order, order, source.Id, slotIndex, out var ids))
         {
             ClearDragTarget();
             return;
@@ -464,7 +465,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     private async Task MoveRuleAsync(ChapterRuleListItemViewModel? rule, int offset, CancellationToken cancellationToken)
     {
         if (rule is null || (offset < 0 ? !rule.CanMoveUp : !rule.CanMoveDown)) return;
-        if (RuleReorderController.TryMoveByOffset(Rules.Select(item => item.Id).ToArray(),
+        if (WorkbenchReorderController.TryMoveByOffset(Rules.Select(item => item.Id).ToArray(),
                 rule.Id, offset, out var orderedIds, StringComparer.Ordinal))
             await SaveRuleOrderAsync(orderedIds, cancellationToken);
     }

@@ -7,6 +7,7 @@ using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Workbenches;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Features.Rules.Shared;
 using NovelSpeaker.App.Shell.Navigation;
@@ -24,7 +25,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     private readonly ManagementSelectionController<string> _selection = new(StringComparer.Ordinal);
     private readonly EditorSession<string?, MetadataRuleState> _editorSession = new(
         (left, right) => left.Name == right.Name && left.Pattern == right.Pattern, newIsDirty: true);
-    private readonly RuleImportSession _importSession = new();
+    private readonly WorkbenchImportSession _importSession = new();
     private MetadataRuleState? Original => _editorSession.IsNew ? null : _editorSession.Baseline;
 
     private PageActivationScope? _activation;
@@ -252,7 +253,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     private async Task MoveAsync(MetadataRuleRow? row, int delta, CancellationToken cancellationToken)
     {
         if (row is null || !await ConfirmLeaveAsync(cancellationToken)) return;
-        if (!RuleReorderController.TryMoveByOffset(Rules.Select(item => item.Id).ToArray(),
+        if (!WorkbenchReorderController.TryMoveByOffset(Rules.Select(item => item.Id).ToArray(),
                 row.Id, delta, out var ids, StringComparer.Ordinal)) return;
         await SaveOrderAsync(ids, cancellationToken);
     }
@@ -262,7 +263,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     {
         if (request?.Source is not MetadataRuleRow row || !await ConfirmLeaveAsync(cancellationToken)) return;
         var ids = Rules.Select(item => item.Id).ToArray();
-        if (RuleReorderController.TryMoveToSlot(ids, ids, row.Id, request.SlotIndex, out var reordered))
+        if (WorkbenchReorderController.TryMoveToSlot(ids, ids, row.Id, request.SlotIndex, out var reordered))
         {
             await SaveOrderAsync(reordered, cancellationToken);
         }
