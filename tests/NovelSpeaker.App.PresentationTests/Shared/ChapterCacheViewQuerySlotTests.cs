@@ -4,12 +4,46 @@ using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.App.Shared.Presentation.Cache;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shell.Activation;
 using Xunit;
 
 namespace NovelSpeaker.App.PresentationTests.Shared;
 
 public sealed class ChapterCacheViewQuerySlotTests
 {
+    [Fact]
+    public async Task Failure_with_pending_requests_keeps_the_retry_attached_to_activation_until_completion()
+    {
+        using var owner = new PageActivationController();
+        var activation = owner.Activate();
+        // Complete the first query on a worker with no synchronization context so
+        // its observer has finished before inspecting the outstanding retry.
+        var first = new TaskCompletionSource<IReadOnlyList<ChapterCacheStatus>>();
+        var retry = new TaskCompletionSource<IReadOnlyList<ChapterCacheStatus>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var service = new CacheReadModelTestDouble
+        {
+            CoverageHandler = (_, indices, _) => indices.Contains(0) ? first.Task : retry.Task
+        };
+        var applied = new List<int>();
+        var failures = 0;
+        var slot = new ChapterCacheViewQuerySlot(service, new ImmediateUiScheduler(),
+            (_, indices, _) => applied.AddRange(indices), _ => failures++);
+        slot.Activate(activation.CancellationToken, activation);
+        activation.Register(slot.Deactivate);
+        await Task.Run(() => slot.Request("book-1", [0]));
+        slot.Request("book-1", [1]);
+        await Task.Run(() => first.SetException(new IOException("first query failed")));
+
+        var drain = activation.WaitForPendingOperationsAsync();
+        Assert.False(drain.IsCompleted);
+        Assert.Equal(1, failures);
+        owner.Deactivate();
+        retry.SetResult([new(1, 1, 1)]);
+        await drain.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Empty(applied);
+        Assert.Equal(1, failures);
+    }
+
     [Fact]
     public async Task Requests_arriving_during_a_refresh_are_coalesced_into_one_follow_up_query()
     {

@@ -22,6 +22,52 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class BookDetailsViewModelTests
 {
     [Fact]
+    public async Task Switching_books_rejects_late_header_catalog_statistics_and_cache_decoration()
+    {
+        var service = new FakeBookManagementService { BlockDetailsLoad = true, IgnoreDetailsCancellation = true };
+        var cache = new FakeCacheDetailsDependencies();
+        var feedback = new FakeFeedbackService();
+        var viewModel = CreateViewModel(managementService: service, cacheDependencies: cache, feedbackService: feedback);
+        using var activation = new PageActivationController().Activate();
+        viewModel.HandleNavigatedTo(activation);
+        var lateHeader = new TaskCompletionSource<BookDetailsHeader?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.HeaderResult = lateHeader.Task;
+        var oldLoad = viewModel.LoadAsync("book-1", CancellationToken.None);
+        var next = CreateDetails() with { Header = new("book-2", "Next", "Author"), Catalog = [new(0, "Next chapter")] };
+        service.Details = next;
+        service.HeaderResult = null;
+        service.BlockDetailsLoad = false;
+        await viewModel.LoadAsync("book-2", CancellationToken.None);
+        lateHeader.SetResult(CreateDetails().Header);
+        service.ReleaseBlockedDetailsLoad();
+        await oldLoad;
+        Assert.Equal("Next", viewModel.Title);
+        Assert.Equal("Next chapter", Assert.Single(viewModel.Chapters).Title);
+
+        var lateStatistics = new TaskCompletionSource<BookDetailsStatistics?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        service.StatisticsResult = lateStatistics.Task;
+        viewModel.StartStagedLoading();
+        var lateCoverage = new TaskCompletionSource<IReadOnlyList<ChapterCacheStatus>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        cache.ReadModel.CoverageHandler = (_, _, _) => lateCoverage.Task;
+        viewModel.RequestCacheDecorationWindow(0, 1);
+        service.StatisticsResult = null;
+        service.Details = next with { Header = new("book-3", "Newest", null), Catalog = [new(0, "Newest chapter")] };
+        cache.ReadModel.CoverageHandler = null;
+        cache.ReadModel.Statuses = [new(0, 1, 4)];
+        await viewModel.LoadAsync("book-3", CancellationToken.None);
+        viewModel.StartStagedLoading();
+        viewModel.RequestCacheDecorationWindow(0, 1);
+        lateStatistics.SetException(new IOException("late statistics"));
+        lateCoverage.SetResult([new(0, 4, 4)]);
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("Newest", viewModel.Title);
+        Assert.Equal("Newest chapter", Assert.Single(viewModel.Chapters).Title);
+        Assert.Equal("25%", viewModel.Chapters[0].CachePercentageText);
+        Assert.Equal("2 KB", viewModel.CacheSizeText);
+        Assert.Null(feedback.LastTitle);
+    }
+
+    [Fact]
     public async Task Cache_changes_update_only_the_window_or_explicit_chapters_and_preserve_catalog()
     {
         var cache = new FakeCacheDetailsDependencies();
@@ -547,7 +593,7 @@ public sealed class BookDetailsViewModelTests
     {
         managementService ??= new FakeBookManagementService();
         cacheDependencies ??= new FakeCacheDetailsDependencies();
-        return new BookDetailsViewModel(
+        var viewModel = new BookDetailsViewModel(
             managementService,
             managementService,
             managementService,
@@ -561,6 +607,8 @@ public sealed class BookDetailsViewModelTests
             playbackCoordinator ?? new FakePlaybackCoordinator(),
             guardedNavigationService ?? new FakeGuardedNavigationService(),
             uiScheduler ?? new ImmediateUiScheduler());
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
+        return viewModel;
     }
 
     private static FakeDetailsState CreateDetails(
@@ -660,6 +708,7 @@ public sealed class BookDetailsViewModelTests
         public bool IgnoreDetailsCancellation { get; set; }
 
         public Task<BookDetailsHeader?>? HeaderResult { get; set; }
+        public Task<BookDetailsStatistics?>? StatisticsResult { get; set; }
 
         public bool BlockStatisticsLoad { get; set; }
 
@@ -699,6 +748,7 @@ public sealed class BookDetailsViewModelTests
         public Task<BookDetailsStatistics?> GetStatisticsAsync(string bookId, CancellationToken cancellationToken)
         {
             GetBookDetailsStatisticsCallCount++;
+            if (StatisticsResult is not null) return StatisticsResult;
             var details = GetDetails();
             if (BlockStatisticsLoad)
             {

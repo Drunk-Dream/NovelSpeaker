@@ -18,6 +18,81 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed partial class LibraryViewModelTests
 {
     [Fact]
+    public async Task Replaced_sort_suppresses_late_failure_but_current_sort_still_reports_failure()
+    {
+        var scheduler = new FailingCommitUiScheduler();
+        var feedback = new FakeFeedbackService();
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService([
+                new("book-1", "Beta", null, "Chapter", DateTimeOffset.UnixEpoch.AddDays(1)),
+                new("book-2", "Alpha", null, "Chapter", DateTimeOffset.UnixEpoch)]),
+            uiScheduler: scheduler, feedback: feedback);
+        using var activation = new PageActivationController().Activate();
+        viewModel.HandleNavigatedTo(activation);
+        await viewModel.LoadAsync(CancellationToken.None);
+        var late = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        scheduler.NextCommit = late.Task;
+        viewModel.SelectedSortMode = LibrarySortMode.Title;
+        viewModel.SelectedSortMode = LibrarySortMode.RecentImport;
+        late.SetException(new IOException("obsolete projection"));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Empty(feedback.Notifications);
+        Assert.Equal(["book-1", "book-2"], viewModel.Books.Select(book => book.BookId));
+
+        var current = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        scheduler.NextCommit = current.Task;
+        viewModel.SelectedSortMode = LibrarySortMode.Title;
+        current.SetException(new IOException("current projection"));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("更新书库排序失败", Assert.Single(feedback.Notifications).Title);
+    }
+
+    [Fact]
+    public async Task Replaced_load_and_search_from_a_previous_activation_cannot_overwrite_current_cards()
+    {
+        var time = new ManualTimeProvider();
+        var query = new FakeBookCatalogService([new("book-1", "Alpha", null, "Chapter", DateTimeOffset.UnixEpoch)]);
+        var viewModel = CreateViewModel(catalogService: query, timeProvider: time);
+        using var controller = new PageActivationController();
+        var oldActivation = controller.Activate();
+        viewModel.HandleNavigatedTo(oldActivation);
+        var oldResult = new TaskCompletionSource<IReadOnlyList<BookSummary>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        query.FullResult = oldResult.Task;
+        var oldLoad = viewModel.LoadAsync(CancellationToken.None);
+        viewModel.SearchText = "Alpha";
+        viewModel.SearchText = "Beta";
+        controller.Deactivate();
+        var activation = controller.Activate();
+        viewModel.HandleNavigatedTo(activation);
+        query.FullResult = null;
+        query.Books = [new("book-2", "Beta", null, "Chapter", DateTimeOffset.UnixEpoch)];
+        await viewModel.LoadAsync(CancellationToken.None);
+        oldResult.SetResult([new("book-1", "Alpha", null, "Chapter", DateTimeOffset.UnixEpoch)]);
+        Assert.False(await oldLoad);
+        await oldActivation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        time.Advance(TimeSpan.FromSeconds(1));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("book-2", Assert.Single(viewModel.Books).BookId);
+        Assert.Equal("Beta", viewModel.SearchText);
+
+        // Two live searches share the same debounce owner; only the final term commits.
+        viewModel.SearchText = "Alpha";
+        viewModel.SearchText = "Beta";
+        time.Advance(TimeSpan.FromSeconds(1));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("book-2", Assert.Single(viewModel.Books).BookId);
+
+        var lateFailure = new TaskCompletionSource<IReadOnlyList<BookSummary>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        query.FullResult = lateFailure.Task;
+        var replacedLoad = viewModel.LoadAsync(CancellationToken.None);
+        query.FullResult = null;
+        await viewModel.LoadAsync(CancellationToken.None);
+        lateFailure.SetException(new IOException("superseded load"));
+        Assert.False(await replacedLoad);
+        Assert.Equal("book-2", Assert.Single(viewModel.Books).BookId);
+    }
+
+    [Fact]
     public async Task Book_refresh_failure_after_leave_does_not_notify_the_next_page()
     {
         var changes = new FakeBookChanges();
@@ -905,10 +980,11 @@ public sealed partial class LibraryViewModelTests
         public IReadOnlyList<BookSummary> Books { get; set; }
 
         public Task<IReadOnlyList<BookSummary>>? TargetedResult { get; set; }
+        public Task<IReadOnlyList<BookSummary>>? FullResult { get; set; }
 
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult(Books);
+            return FullResult ?? Task.FromResult(Books);
         }
 
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(IReadOnlyCollection<string> bookIds, CancellationToken cancellationToken) =>
@@ -1113,6 +1189,24 @@ public sealed partial class LibraryViewModelTests
             CurrentSnapshot = snapshot;
             SnapshotChanged?.Invoke(this, snapshot);
         }
+    }
+
+    private sealed class FailingCommitUiScheduler : IUiScheduler
+    {
+        public Task? NextCommit { get; set; }
+        public bool CheckAccess() => true;
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            if (NextCommit is { } next)
+            {
+                NextCommit = null;
+                return next;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default) => action();
     }
 
     private sealed class ImmediateUiScheduler : IUiScheduler

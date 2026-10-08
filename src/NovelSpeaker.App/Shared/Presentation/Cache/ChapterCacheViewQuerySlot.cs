@@ -1,5 +1,6 @@
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.App.Shared.Presentation.Platform;
+using NovelSpeaker.App.Shell.Activation;
 
 namespace NovelSpeaker.App.Shared.Presentation.Cache;
 
@@ -21,6 +22,7 @@ internal sealed class ChapterCacheViewQuerySlot
     private string? _pendingBookId;
     private bool _isRefreshRunning;
     private int _activationGeneration;
+    private PageActivationScope? _pageActivation;
 
     public ChapterCacheViewQuerySlot(
         ICacheReadModel readModel,
@@ -34,12 +36,13 @@ internal sealed class ChapterCacheViewQuerySlot
         _reportFailure = reportFailure;
     }
 
-    public void Activate(CancellationToken cancellationToken)
+    public void Activate(CancellationToken cancellationToken, PageActivationScope? pageActivation = null)
     {
         Deactivate();
         lock (_syncRoot)
         {
             _activationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _pageActivation = pageActivation;
         }
     }
 
@@ -50,6 +53,7 @@ internal sealed class ChapterCacheViewQuerySlot
         {
             cancellationTokenSource = _activationCancellationTokenSource;
             _activationCancellationTokenSource = null;
+            _pageActivation = null;
             _activationGeneration++;
             _pendingChapterIndices.Clear();
             _pendingBookId = null;
@@ -74,6 +78,7 @@ internal sealed class ChapterCacheViewQuerySlot
 
         int generation;
         CancellationToken cancellationToken;
+        PageActivationScope? pageActivation;
         lock (_syncRoot)
         {
             if (_activationCancellationTokenSource is not { IsCancellationRequested: false } cancellationTokenSource)
@@ -96,17 +101,24 @@ internal sealed class ChapterCacheViewQuerySlot
 
             _isRefreshRunning = true;
             generation = _activationGeneration;
+            pageActivation = _pageActivation;
         }
 
-        _tasks.Register(
-            ProcessRefreshesAsync(generation, cancellationToken),
-            exception =>
+        StartRefresh(generation, cancellationToken, pageActivation);
+    }
+
+    private void StartRefresh(int generation, CancellationToken cancellationToken, PageActivationScope? pageActivation)
+    {
+        var task = ProcessRefreshesAsync(generation, cancellationToken);
+        void ReportFailure(Exception exception)
+        {
+            if (IsCurrentGeneration(generation))
             {
-                if (IsCurrentGeneration(generation))
-                {
-                    _reportFailure(exception);
-                }
-            });
+                _reportFailure(exception);
+            }
+        }
+        if (pageActivation is not null) pageActivation.Register(task, ReportFailure);
+        else _tasks.Register(task, ReportFailure);
     }
 
     private async Task ProcessRefreshesAsync(int generation, CancellationToken cancellationToken)
@@ -155,6 +167,7 @@ internal sealed class ChapterCacheViewQuerySlot
         catch
         {
             var restartPending = false;
+            PageActivationScope? pageActivation = null;
             lock (_syncRoot)
             {
                 if (generation == _activationGeneration)
@@ -165,21 +178,14 @@ internal sealed class ChapterCacheViewQuerySlot
                     if (restartPending)
                     {
                         _isRefreshRunning = true;
+                        pageActivation = _pageActivation;
                     }
                 }
             }
 
             if (restartPending)
             {
-                _tasks.Register(
-                    ProcessRefreshesAsync(generation, cancellationToken),
-                    exception =>
-                    {
-                        if (IsCurrentGeneration(generation))
-                        {
-                            _reportFailure(exception);
-                        }
-                    });
+                StartRefresh(generation, cancellationToken, pageActivation);
             }
 
             throw;

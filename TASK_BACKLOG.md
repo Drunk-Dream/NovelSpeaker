@@ -171,11 +171,13 @@
 
 完成成果：核对 Library 搜索/投影、BookDetails 加载、PlaybackSettings debounced save、Player content load 和 SpeechServices voice filtering；搜索、筛选与后发覆盖的页面查询共享 latest-operation 语义，播放/catalog/layout 与 voice editor session 身份保持独立。新增小型 `LatestOperationSlot`，只拥有 linked CTS、单调 operation identity、currentness/commit、异常观察和重复安全释放，直接链接既有 PageActivationScope；不引入业务 DTO、调度器或第二套 page lifetime。代表性迁移 Library 搜索 debounce，删除搜索 CTS/version 与手工 finally 释放，净删 34 行页面样板。保留原 activation/Shared/Library 核心测试，新增两项合并生命周期回归，覆盖 replacement 不取消 activation、页面取消/解除订阅/drain、迟到结果/异常拒绝、current failure 和重复释放。Shared/activation/Library focused 30/30、format verify、Release build（0 warning/error）与 diff 检查通过；首次并行验证发生文件锁重试，串行重跑通过。无持久化变化、遗留环境限制或长期文档冲突。
 
-## [ ] T016（P1）：迁移 Library 与 BookDetails 的页面异步状态
+## [x] T016（P1）：迁移 Library 与 BookDetails 的页面异步状态
 
 依赖：T015。
 
 目标：用 activation/operation owner 替换两页中重复的 CTS/version/OwnedTaskRegistry 样板；保留真正需要的目录、播放与布局 revision。
+
+完成成果：Library load/import/search/projection/background row layout 与 BookDetails critical load/staged enrichment/cache observation 使用 activation-linked operation owner；Books/Playback/Cache 订阅注册到唯一 page activation，任务 completion/exception 直接由 activation 观察，缓存查询合并 slot 可附着 activation 观察自身工作，不并列保存同一批任务。删除两页 `OwnedTaskRegistry`、6 个裸 CTS 字段（含 Library management lifetime）、Library load/import/playback projection/row-layout version 与 BookDetails load/header/playback projection version；管理交互 session 使用独立 owner，退出管理取消其批量工作，普通单书导出仍属于页面。Library 保留并命名 `visibleProjectionRevision` 与 `playbackSnapshotRevision`，分别拒绝依据过期集合/索引及播放 decoration 构建的后台布局；BookDetails 保留 `cacheStatisticsRevision`，拒绝清理前统计覆盖清理后事实。WPF initial locator 身份、editor dirty/navigation guard、committed-change 串行门与 critical-load barrier 保持原职责；不取消 Playback/process/background owner。修正后台 catalog 索引完成后的取消检查，防止离开/切书后发布旧 catalog；迟到 load/import/statistics 异常不通知新页面。保留全部既有核心页面、10k、增量 row、播放/card、选择及 scroll 测试，新增四项受控生命周期回归验证连续搜索/快速返回、后发 load 覆盖迟到失败、跨 Book header/catalog/statistics/cache decoration、当前排序失败与被替换排序迟到异常，以及缓存失败重启查询的 activation drain。独立审查发现并修复重启查询漏挂 activation 和被替换 projection/layout 的迟到 Snackbar；初次与重启查询统一注册路径，layout 由 operation.RunAsync 观察，测试无固定等待。Presentation 全部 329/329（含 architecture）、两页/WPF navigation/DI focused 13/13、Release build（0 warning/error）、format verify 与 diff 检查通过。无持久化变化、遗留环境限制或长期文档冲突；Phase D 完整门禁按计划留给 T017。
 
 ## [ ] T017（P1）：迁移其余高收益页面并完成生命周期验收
 
