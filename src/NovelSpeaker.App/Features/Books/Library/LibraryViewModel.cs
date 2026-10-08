@@ -56,13 +56,12 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
     private IReadOnlyDictionary<string, LibraryBookRowPosition> _visibleBookRowPositions =
         new Dictionary<string, LibraryBookRowPosition>(StringComparer.Ordinal);
     private IReadOnlyList<LibraryBookCardProjection> _visibleBookProjection = [];
-    private CancellationTokenSource? _searchDebounceCancellationTokenSource;
+    private readonly LatestOperationSlot _searchOperation = new();
     private CancellationTokenSource? _activeProjectionCancellationTokenSource;
     private CancellationTokenSource? _activeRowLayoutCancellationTokenSource;
     private CancellationTokenSource? _activeImportCancellationTokenSource;
     private LibraryBookCatalog _catalog;
     private PlaybackSnapshot _lastPlaybackSnapshot;
-    private int _searchVersion;
     private int _projectionVersion;
     private int _loadVersion;
     private int _importVersion;
@@ -336,15 +335,12 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         _managementLifetime.Cancel();
         _selection.Reset();
         var projectionWasActive = _activeProjectionCancellationTokenSource is not null;
-        var projectionWasPending = _searchDebounceCancellationTokenSource is not null;
+        var projectionWasPending = _searchOperation.Current is not null;
         var rowLayoutWasActive = _activeRowLayoutCancellationTokenSource is not null;
         Interlocked.Increment(ref _loadVersion);
         CancelActiveImport();
-        _searchDebounceCancellationTokenSource?.Cancel();
-        _searchDebounceCancellationTokenSource?.Dispose();
-        _searchDebounceCancellationTokenSource = null;
+        _searchOperation.Cancel();
         InvalidateVisibleProjection();
-        Interlocked.Increment(ref _searchVersion);
         if (rowLayoutWasActive)
         {
             _refreshRowsOnNextActivation = true;
@@ -613,54 +609,24 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
 
     private void ScheduleFilterRefresh()
     {
-        _searchDebounceCancellationTokenSource?.Cancel();
-        _searchDebounceCancellationTokenSource?.Dispose();
-        var debounceCancellation = new CancellationTokenSource();
-        _searchDebounceCancellationTokenSource = debounceCancellation;
-        var version = Interlocked.Increment(ref _searchVersion);
+        var operation = _searchOperation.Begin(activation: _bookChangeActivation);
         InvalidateVisibleProjection();
-        _pageTasks.Register(
-            ApplyVisibleBooksAfterDebounceAsync(version, debounceCancellation),
+        var task = operation.RunAsync(
+            async current =>
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(120), _timeProvider, current.CancellationToken);
+                if (current.IsCurrent) await ProjectVisibleBooksAsync(current.CancellationToken);
+            },
             exception => _feedbackService.ShowProjectedNotification(
                 "更新书库筛选失败",
                 _feedbackService.Project(exception)));
-    }
-
-    private async Task ApplyVisibleBooksAfterDebounceAsync(
-        int version,
-        CancellationTokenSource debounceCancellation)
-    {
-        var cancellationToken = debounceCancellation.Token;
-        try
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(120), _timeProvider, cancellationToken);
-            if (version != Volatile.Read(ref _searchVersion))
-            {
-                return;
-            }
-
-            await ProjectVisibleBooksAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        finally
-        {
-            if (ReferenceEquals(_searchDebounceCancellationTokenSource, debounceCancellation))
-            {
-                _searchDebounceCancellationTokenSource = null;
-            }
-
-            debounceCancellation.Dispose();
-        }
+        if (_bookChangeActivation is { } activation) activation.Register(task);
+        else _pageTasks.Register(task);
     }
 
     private void ScheduleVisibleProjection()
     {
-        _searchDebounceCancellationTokenSource?.Cancel();
-        _searchDebounceCancellationTokenSource?.Dispose();
-        _searchDebounceCancellationTokenSource = null;
-        Interlocked.Increment(ref _searchVersion);
+        _searchOperation.Cancel();
         InvalidateVisibleProjection();
         _pageTasks.Register(
             ProjectVisibleBooksAsync(CancellationToken.None),

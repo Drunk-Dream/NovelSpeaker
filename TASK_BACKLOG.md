@@ -163,11 +163,13 @@
 
 ## 7. Phase D：统一页面异步生命周期
 
-## [ ] T015（P1）：补齐 activation 与 latest-wins 小型生命周期原语
+## [x] T015（P1）：补齐 activation 与 latest-wins 小型生命周期原语
 
 依赖：T014。
 
 目标：区分 page activation、latest-wins operation 与真正的业务 revision，扩展现有设施而不是建立异步框架；用代表性测试固定取消、迟到提交和释放语义。
+
+完成成果：核对 Library 搜索/投影、BookDetails 加载、PlaybackSettings debounced save、Player content load 和 SpeechServices voice filtering；搜索、筛选与后发覆盖的页面查询共享 latest-operation 语义，播放/catalog/layout 与 voice editor session 身份保持独立。新增小型 `LatestOperationSlot`，只拥有 linked CTS、单调 operation identity、currentness/commit、异常观察和重复安全释放，直接链接既有 PageActivationScope；不引入业务 DTO、调度器或第二套 page lifetime。代表性迁移 Library 搜索 debounce，删除搜索 CTS/version 与手工 finally 释放，净删 34 行页面样板。保留原 activation/Shared/Library 核心测试，新增两项合并生命周期回归，覆盖 replacement 不取消 activation、页面取消/解除订阅/drain、迟到结果/异常拒绝、current failure 和重复释放。Shared/activation/Library focused 30/30、format verify、Release build（0 warning/error）与 diff 检查通过；首次并行验证发生文件锁重试，串行重跑通过。无持久化变化、遗留环境限制或长期文档冲突。
 
 ## [ ] T016（P1）：迁移 Library 与 BookDetails 的页面异步状态
 
