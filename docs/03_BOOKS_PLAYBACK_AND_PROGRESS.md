@@ -122,8 +122,8 @@ Catalog position
 - ReadingState 不引用产品级 Chapter Identity。
 - 当前活动书籍的即时 UI 位置使用 matching PlaybackSnapshot。
 - 非活动书籍和应用重启使用 SQLite ReadingProgress。
-- 显式章节/段落跳转成功后及时 checkpoint 新逻辑位置。
-- Pause、Stop、session replacement、shutdown 等是稳定 checkpoint 边界。
+- 显式章节/段落的 logical target 一旦完成必要位置解析并 commit，就及时 checkpoint 新逻辑位置；不以音频获取成功为前提。
+- Pause、Stop、Book/Source session replacement、shutdown 等仍是稳定 checkpoint 边界。
 - 页面不得直接写 ReadingProgress。
 - 不进行逐毫秒高频 SQLite 写入。
 
@@ -158,9 +158,34 @@ Speech Plan 是当前配置下的派生数据，用于稳定段身份、朗读�
 
 ## 7. Playback Session
 
-Playback session 是当前活动 Book、ActiveSource、章节、段落和播放状态唯一运行时真值。
+Playback session 是当前活动 Book / ActiveSource context 的运行时 owner；logical target 与音频 preparation/transport 是 session 内部彼此解耦但由同一 runtime 统一协调的状态。
 
-`PlaybackSnapshot` 是跨页面的 immutable 当前状态投影。Page/ViewModel 只消费 snapshot，不复制 session mutable truth。
+`PlaybackSnapshot` 是跨页面 immutable 投影。Page/ViewModel 只消费 snapshot，不复制 session、target 或 audio mutable truth。
+
+内部数据流保持单向，但 commit 边界以用户目标为中心：
+
+```text
+user command / automatic advance / committed domain change
+→ resolve valid logical target
+→ commit target + increment target revision
+→ publish PlaybackSnapshot
+→ execute audio/prefetch effects
+→ validate session + target/preparation identity
+→ accept audio result
+→ project next PlaybackSnapshot
+```
+
+长期规则：
+
+- session identity 代表 Book / Source context 生命周期，不代表单个段落；同一 context 内切段、切章和自动推进只更新 logical target。
+- logical target 至少包含可播放位置和单调 target revision。UI 当前章节/段落来自 target，不来自“最近成功加载的音频”。
+- 显式导航在目标位置完成必要解析后立即 commit，随后才异步获取缓存/合成音频；网络或缓存时延不得阻塞 UI target 切换。
+- 用户显式跳转时，旧 target 音频立即停止；不得在新 UI 位置继续朗读旧段落。
+- low-level audio owner 只拥有设备资源、设备位置与播放回调。音频结果必须绑定当前 session + target/preparation identity，迟到结果直接丢弃。
+- 音频准备失败、取消或 Provider 请求失败不会回滚 logical target；当前 target 进入可重试失败状态，或按既有自动失败恢复策略推进。
+- 只有切换/失效 Book 或 ActiveSource context、关闭播放上下文等真正边界才 replacement/retire 整个 session。
+- Books/Regex/Settings 的已提交变化由 Playback 自己订阅并进入同一串行 command/transition 边界，发起变化的页面不调用 Playback refresh API。
+- Provider/语速等下一句配置变化不打断已经开始的当前音频；尚未开始的 preparation 必须使用或重新验证最新有效配置。
 
 支持：
 
@@ -171,7 +196,18 @@ Playback session 是当前活动 Book、ActiveSource、章节、段落和播放�
 - 音频完成/错误后的安全推进；
 - 页面切换、托盘和迷你播放器之间持续播放。
 
-所有改变 session 的命令必须在受控边界中提交；失败/取消不能提前改变逻辑位置。
+### 等待与播放状态
+
+“用户已经定位到哪里”和“声音是否已经开始”是两个不同事实：
+
+- logical target commit 后，Player 立即高亮/显示新章节与段落；
+- target 需要音频且尚未开始播放时进入 Preparing；
+- 损坏音频重生成使用 Recovering；
+- low-level audio 真正开始后才进入 Playing；
+- Paused/Stopped/Faulted 保持明确用户语义；
+- 若不存在真实的流式 buffer 阶段，不保留一个只在本地播放器交接时短暂闪现的高层 Buffering 状态。
+
+加载提示描述“正在准备音频”，而不是“正在缓存”。短到不可感知的 preparation 不应闪烁提示；只有真实可感知等待才延迟显示，音频开始后立即消失，不人为延长最短显示时间。
 
 ### 播放失败恢复
 
@@ -183,7 +219,7 @@ Playback session 是当前活动 Book、ActiveSource、章节、段落和播放�
 - 任一后续段成功得到可播放音频并正常进入播放后，连续自动跳过计数清零。
 - 连续自动跳过达到 3 段后，在已经跳过第 3 个失败段后暂停自动推进；下一段不自动继续，等待用户重新播放、重试或调整 Provider/配置。
 - 用户显式恢复播放后重新开始新的连续失败观察窗口。
-- 自动跳过必须复用正常受控推进与 checkpoint 语义。
+- 自动跳过复用正常 target transition 与 checkpoint 语义；失败段的音频错误不能复活旧 target。
 
 ## 8. Source 激活与更新的长期语义
 
@@ -210,7 +246,7 @@ Playback session 是当前活动 Book、ActiveSource、章节、段落和播放�
 
 ## 10. Prefetch
 
-Playback Prefetch 属于当前 Playback session。
+Playback Prefetch 属于当前 Playback session，并面向当前/后续 logical target 工作；它不能成为第二个 target owner。
 
 优先级：
 
@@ -224,7 +260,7 @@ Prefetch 可以复用 Cache/Speech 的稳定能力，但不成为 Cache backgrou
 
 Speech Provider 或其有效合成配置变化后，尚未开始的新预取使用最新状态；旧配置已经生成的音频可以保留在缓存中，但不得因身份错误继续命中。
 
-Source 切换时属于播放上下文切换，旧 Source 的未完成预取必须停止或失效。
+Target revision 改变后，与旧 target 强绑定且尚未消费的临时准备结果必须失效；可安全复用的物理缓存仍按 cache identity 保留。Source 切换属于 session context 切换，旧 Source 的未完成预取必须停止或失效。
 
 ## 11. Speech Provider 与播放
 
@@ -247,6 +283,8 @@ Library、BookDetails、Player 从稳定 read model/snapshot 构造 presentation
 - Library 只更新受影响卡片，不因播放位置变化重新查询整个书库。
 - BookDetails 的 Active Source Catalog 与动态 decoration 分离。
 - Player XAML 继续绑定一个页面 ViewModel，但内部可以使用 Feature-local controller 分离目录、正文、音频缓存 decoration 与交互。
+- Player 的当前章节/段落跟随 committed logical target 立即更新，不等待音频准备完成。
+- 音频等待反馈只反映当前 target 的 preparation/recovery；短等待不闪烁，真实等待显示明确的“正在准备音频”反馈。
 - 面向用户的章节名称只使用 Chapter.Title；内部 ChapterIndex 不格式化为额外“第 N 章”。
 - Speech Provider 选择器使用管理页同一 SortOrder，只展示名称；CurrentProvider 使用全局 Current 视觉语义，不显示“当前”文字。
 - 用户主动定位优先于后台 decoration。
@@ -258,8 +296,8 @@ Library、BookDetails、Player 从稳定 read model/snapshot 构造 presentation
 - ActiveSource Catalog 才是当前章节框架；Book 不复制第二套目录真值。
 - 当前活动位置与持久化 checkpoint 不冲突。
 - Source 切换/Catalog 替换只做位置边界截断，不做模糊章节映射。
-- 失败/取消的跳转不提交目标位置。
-- 迟到的 Source/Provider/cache/audio 结果不能覆盖新 session。
+- 已完成必要逻辑解析的用户显式跳转先提交 logical target；后续音频准备失败/取消不回滚该 target。
+- 迟到的 Source/Provider/cache/audio 结果不能覆盖更新后的 session context 或 logical target revision。
 - 当前句与下一句之间的 Provider/config 切换语义稳定。
 - 连续失败只能造成有限自动跳过；达到阈值后必须暂停等待用户。
 - 页面生命周期不能销毁 Playback session。

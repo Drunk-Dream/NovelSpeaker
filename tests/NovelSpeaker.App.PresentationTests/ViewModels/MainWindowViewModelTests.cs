@@ -240,6 +240,8 @@ public sealed class MainWindowViewModelTests
                  {
                      (PlaybackState.Playing, "正在播放", "示例小说", NowPlayingVisualState.Playing),
                      (PlaybackState.Paused, "已暂停", "示例小说", NowPlayingVisualState.Paused),
+                     (PlaybackState.Preparing, "正在准备音频", "示例小说", NowPlayingVisualState.Inactive),
+                     (PlaybackState.Recovering, "正在重新生成音频", "示例小说", NowPlayingVisualState.Inactive),
                      (PlaybackState.Stopped, "已停止", "示例小说", NowPlayingVisualState.Inactive),
                      (PlaybackState.Faulted, "播放出错", "示例小说", NowPlayingVisualState.Faulted)
                  })
@@ -593,10 +595,7 @@ public sealed class MainWindowViewModelTests
         {
         }
 
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private sealed class FakeNavigationService : IAppNavigator

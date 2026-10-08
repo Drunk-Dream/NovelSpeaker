@@ -60,14 +60,13 @@ internal static partial class ArchitectureRules
         {
             "PlaybackCoordinator",
             "PlaybackCommandProcessor",
-            "PlaybackSessionState"
+            "PlaybackRuntime"
         };
 
     private static readonly IReadOnlySet<string> PlaybackCommandTypes =
         new HashSet<string>(StringComparer.Ordinal)
         {
-            "IPlaybackSession",
-            "IPlaybackBookCommands"
+            "IPlaybackSession"
         };
 
     private static readonly IReadOnlySet<string> CacheMutableTruthTypes =

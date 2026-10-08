@@ -14,7 +14,10 @@ public sealed record LocalAudioPlaybackSnapshot(
     string? Message,
     bool IsUsingCache,
     double Volume = PlaybackVolume.Default,
-    Guid? PlaybackSessionId = null)
+    Guid? PlaybackSessionId = null,
+    long AudioGeneration = 0,
+    long TargetRevision = 0,
+    Guid? PreparationAttemptId = null)
 {
     public static LocalAudioPlaybackSnapshot Idle { get; } = new(
         PlaybackState.Idle,

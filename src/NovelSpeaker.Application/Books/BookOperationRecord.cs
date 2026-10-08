@@ -6,4 +6,5 @@ public sealed record BookOperationRecord(
     BookOperationPhase Phase,
     string BookId,
     IReadOnlyList<BookOperationPath> Paths,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string? SourceId = null);

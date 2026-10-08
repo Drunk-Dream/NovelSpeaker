@@ -54,8 +54,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel);
             page.DataContext = new PlayerNavigationRequest("book-7", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession);
@@ -101,8 +100,7 @@ public sealed class NavigationPageLifecycleTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new FakePlayerAutoScrollCoordinator(),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
             var page = new PlayerPage(viewModel)
             {
@@ -156,9 +154,6 @@ public sealed class NavigationPageLifecycleTests
         public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
         public void SetVolume(double volume) { }
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

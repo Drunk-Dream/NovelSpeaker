@@ -20,29 +20,33 @@ public sealed partial class PlaybackCoordinatorTests
 {
     private static PlaybackCoordinator CreateCoordinator(
         FakeLocalAudioPlaybackCoordinator localCoordinator,
-        FakeBookPlaybackContentService? bookContentService = null,
+        IBookPlaybackContentService? bookContentService = null,
         FakeCurrentSpeechProvider? selectedProviderProvider = null,
         FakeAudioGenerationProvider? audioProvider = null,
         PlaybackBookContent? book = null,
         FakeReadingProgressStore? readingProgressStore = null,
         FakePrefetchScheduler? prefetchScheduler = null,
         FakeAppSettingsStore? appSettingsStore = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IBookSourceChangeSource? sourceChanges = null,
+        IRegexReplacementRuleWorkspaceService? regexWorkspace = null,
+        IAudioCacheProtectionRegistry? protectionRegistry = null)
     {
-        var audioController = new PlaybackAudioController(localCoordinator);
         return new PlaybackCoordinator(
             bookContentService ?? new FakeBookPlaybackContentService(book ?? CreateBook()),
             selectedProviderProvider ?? new FakeCurrentSpeechProvider(CreateRuleSelection(1, "默认规则")),
             new PlaybackSegmentRunner(
                 audioProvider ?? new FakeAudioGenerationProvider(),
-                audioController),
+                localCoordinator),
             new PlaybackRecoveryPolicy(),
-            new AudioCacheProtectionRegistry(),
-            audioController,
+            protectionRegistry ?? new AudioCacheProtectionRegistry(),
+            localCoordinator,
             new PlaybackProgressController(readingProgressStore ?? new FakeReadingProgressStore()),
             prefetchScheduler ?? new FakePrefetchScheduler(),
             appSettingsStore ?? new FakeAppSettingsStore(AppSettings.Default),
-            timeProvider ?? TimeProvider.System);
+            timeProvider ?? TimeProvider.System,
+            sourceChanges: sourceChanges,
+            regexWorkspace: regexWorkspace);
     }
 
     private static PlaybackBookContent CreateBook()
@@ -165,6 +169,9 @@ public sealed partial class PlaybackCoordinatorTests
         }
     }
 
+    private static Task WaitForPlayingAsync(PlaybackCoordinator coordinator) =>
+        WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Playing);
+
     private static async Task WaitForAsync(
         FakeAudioGenerationProvider audioProvider,
         Func<bool> condition)
@@ -199,6 +206,24 @@ public sealed partial class PlaybackCoordinatorTests
         }
     }
 
+    private static async Task WaitForAsync(FakePrefetchScheduler prefetchScheduler, Func<bool> condition)
+    {
+        if (condition()) return;
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler? handler = null;
+        handler = (_, _) =>
+        {
+            if (condition()) completion.TrySetResult();
+        };
+        prefetchScheduler.ActivityChanged += handler;
+        try
+        {
+            if (condition()) return;
+            await completion.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { prefetchScheduler.ActivityChanged -= handler; }
+    }
+
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
         public FakeBookPlaybackContentService(PlaybackBookContent book)
@@ -208,7 +233,25 @@ public sealed partial class PlaybackCoordinatorTests
 
         public PlaybackBookContent Book { get; set; }
 
+        public TaskCompletionSource? CurrentContextGate { get; set; }
+
+        public TaskCompletionSource? CurrentContextRequested { get; set; }
+
+        public async Task<bool> IsCurrentAsync(PlaybackBookContent book, CancellationToken cancellationToken)
+        {
+            if (CurrentContextGate is { } gate)
+            {
+                CurrentContextRequested?.TrySetResult();
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+            return book.BookId == Book.BookId && book.SourceContext == Book.SourceContext;
+        }
+
         public Dictionary<int, int> GetChapterCallCounts { get; } = [];
+        public Exception? ChapterFailure { get; set; }
+        public TaskCompletionSource? ChapterGate { get; set; }
+        public TaskCompletionSource ChapterRequested { get; set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IgnoreChapterCancellation { get; set; }
 
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -221,27 +264,39 @@ public sealed partial class PlaybackCoordinatorTests
                 Book.BookId,
                 Book.BookTitle,
                 Book.Chapters
-                    .Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title))
+                    .Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title, chapter.ChapterId))
                     .ToArray(),
-                Book.BookAuthor);
+                Book.BookAuthor,
+                Book.SourceContext);
             return Task.FromResult<PlaybackBookContent?>(metadataOnly);
         }
 
-        public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
+        public async Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
         {
             GetChapterCallCounts[chapterIndex] = GetChapterCallCounts.GetValueOrDefault(chapterIndex) + 1;
+            ChapterRequested.TrySetResult();
+            if (ChapterGate is { } gate)
+                await gate.Task.WaitAsync(IgnoreChapterCancellation ? CancellationToken.None : cancellationToken);
+            if (ChapterFailure is { } failure) throw failure;
             if (bookId != Book.BookId)
             {
-                return Task.FromResult<PlaybackChapterContent?>(null);
+                return null;
             }
 
-            return Task.FromResult<PlaybackChapterContent?>(Book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex));
+            return Book.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex);
         }
     }
 
     private sealed class FakeCurrentSpeechProvider : TestCurrentSpeechProvider
     {
         private readonly Dictionary<ProviderId, ResolvedSpeechProvider> _rules = [];
+        public override event EventHandler<SpeechProvidersChangedEventArgs>? Changed;
+
+        public void CommitProvider(ResolvedSpeechProvider? provider)
+        {
+            SelectedProvider = provider;
+            Changed?.Invoke(this, new(true));
+        }
 
         public FakeCurrentSpeechProvider(ResolvedSpeechProvider? selectedProvider)
         {
@@ -276,6 +331,7 @@ public sealed partial class PlaybackCoordinatorTests
         private readonly Queue<Func<Task<AudioGenerationResult>>> _results = [];
 
         public List<AudioGenerationRequest> Requests { get; } = [];
+        public Func<AudioGenerationRequest, Task<AudioGenerationResult>>? GetAudioHandler { get; init; }
 
         public event EventHandler? ActivityChanged;
 
@@ -287,6 +343,11 @@ public sealed partial class PlaybackCoordinatorTests
                 null,
                 false,
                 new TtsExecutionFailure(kind, message, null, null, null, null))));
+        }
+
+        public void EnqueueException(Exception exception)
+        {
+            _results.Enqueue(() => Task.FromException<AudioGenerationResult>(exception));
         }
 
         public void EnqueueSuccess(string filePath)
@@ -302,9 +363,16 @@ public sealed partial class PlaybackCoordinatorTests
         public PendingAudioResult EnqueuePendingSuccess(string filePath)
         {
             var completionSource = new TaskCompletionSource<AudioGenerationResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-            _results.Enqueue(() => completionSource.Task);
-            return new PendingAudioResult(completionSource, filePath);
+            var started = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _results.Enqueue(() =>
+            {
+                started.TrySetResult(null);
+                return completionSource.Task;
+            });
+            return new PendingAudioResult(completionSource, filePath, started.Task);
         }
+
+        public bool ObserveCancellation { get; set; }
 
         public Task<AudioGenerationResult> GetAudioAsync(
             AudioGenerationRequest request,
@@ -312,11 +380,13 @@ public sealed partial class PlaybackCoordinatorTests
             Action<AudioGenerationProgress>? progressCallback,
             CancellationToken cancellationToken)
         {
+            if (GetAudioHandler is { } handler) return handler(request);
             Requests.Add(request);
             ActivityChanged?.Invoke(this, EventArgs.Empty);
             if (_results.Count > 0)
             {
-                return _results.Dequeue().Invoke();
+                var result = _results.Dequeue().Invoke();
+                return ObserveCancellation ? result.WaitAsync(cancellationToken) : result;
             }
 
             return Task.FromResult(new AudioGenerationResult($"audio-{Requests.Count}.mp3", false, null));
@@ -334,11 +404,17 @@ public sealed partial class PlaybackCoordinatorTests
             private readonly TaskCompletionSource<AudioGenerationResult> _completionSource;
             private readonly string _filePath;
 
-            public PendingAudioResult(TaskCompletionSource<AudioGenerationResult> completionSource, string filePath)
+            public PendingAudioResult(
+                TaskCompletionSource<AudioGenerationResult> completionSource,
+                string filePath,
+                Task started)
             {
                 _completionSource = completionSource;
                 _filePath = filePath;
+                Started = started;
             }
+
+            public Task Started { get; }
 
             public void CompleteSuccess()
             {
@@ -351,11 +427,15 @@ public sealed partial class PlaybackCoordinatorTests
     {
         public LocalAudioPlaybackSnapshot CurrentSnapshot { get; private set; } = LocalAudioPlaybackSnapshot.Idle;
 
+        private long _audioGeneration;
+
         public double Volume { get; private set; } = PlaybackVolume.Default;
 
         public LocalAudioPlaybackRequest? LastStartedRequest { get; private set; }
 
         public int StartCallCount { get; private set; }
+
+        public int? CompleteOnStartCall { get; init; }
 
         public int PauseCallCount { get; private set; }
 
@@ -365,9 +445,9 @@ public sealed partial class PlaybackCoordinatorTests
 
         public event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
-        public event EventHandler? PlaybackCompleted;
+        public event EventHandler<LocalAudioPlaybackSnapshot>? PlaybackCompleted;
 
-        public event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed;
+        public event EventHandler<LocalAudioPlaybackFailure>? PlaybackFailed;
 
         public Task StartAsync(LocalAudioPlaybackRequest request, CancellationToken cancellationToken)
         {
@@ -384,8 +464,15 @@ public sealed partial class PlaybackCoordinatorTests
                 null,
                 request.IsUsingCache,
                 PlaybackVolume.Default,
-                request.PlaybackSessionId);
+                request.PlaybackSessionId,
+                ++_audioGeneration,
+                request.TargetRevision,
+                request.PreparationAttemptId);
             SnapshotChanged?.Invoke(this, CurrentSnapshot);
+            if (StartCallCount == CompleteOnStartCall)
+            {
+                RaiseCompleted();
+            }
             return Task.CompletedTask;
         }
 
@@ -443,7 +530,23 @@ public sealed partial class PlaybackCoordinatorTests
                 State = PlaybackState.Stopped,
                 Message = "当前音频已播放完成。"
             };
-            PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+            SnapshotChanged?.Invoke(this, CurrentSnapshot);
+            PlaybackCompleted?.Invoke(this, CurrentSnapshot);
+        }
+
+        public void RaiseHistoricalSnapshot(LocalAudioPlaybackSnapshot snapshot) =>
+            SnapshotChanged?.Invoke(this, snapshot);
+
+        public void RaiseHistoricalCompleted(LocalAudioPlaybackSnapshot snapshot) =>
+            PlaybackCompleted?.Invoke(this, snapshot);
+
+        public void RaiseHistoricalFailed(LocalAudioPlaybackSnapshot snapshot, PlaybackErrorKind kind, string message) =>
+            PlaybackFailed?.Invoke(this, new(snapshot, new PlaybackErrorEventArgs(kind, message)));
+
+        public void PublishSnapshot(LocalAudioPlaybackSnapshot snapshot)
+        {
+            CurrentSnapshot = snapshot;
+            SnapshotChanged?.Invoke(this, snapshot);
         }
 
         public bool TryRaiseCompleted()
@@ -459,7 +562,9 @@ public sealed partial class PlaybackCoordinatorTests
 
         public void RaiseFailed(PlaybackErrorKind kind, string message)
         {
-            PlaybackFailed?.Invoke(this, new PlaybackErrorEventArgs(kind, message));
+            CurrentSnapshot = CurrentSnapshot with { State = PlaybackState.Faulted, Message = message };
+            SnapshotChanged?.Invoke(this, CurrentSnapshot);
+            PlaybackFailed?.Invoke(this, new(CurrentSnapshot, new PlaybackErrorEventArgs(kind, message)));
         }
 
         public void SetPosition(long positionMilliseconds)
@@ -548,17 +653,31 @@ public sealed partial class PlaybackCoordinatorTests
     {
         public List<(Guid SessionId, IReadOnlyList<AudioGenerationRequest> Requests)> ScheduleCalls { get; } = [];
 
+        public List<long> Revisions { get; } = [];
+
+        public List<AudioCacheKey?> KeepActiveKeys { get; } = [];
+
         public List<Guid> CancelledSessions { get; } = [];
+
+        private long _latestRevision = -1;
+
+        public event EventHandler? ActivityChanged;
 
         public Task SubmitAsync(PlaybackPrefetchWindow window, CancellationToken cancellationToken)
         {
+            if (window.Revision < _latestRevision) return Task.CompletedTask;
+            _latestRevision = window.Revision;
             ScheduleCalls.Add((window.SessionId, window.Requests.ToArray()));
+            Revisions.Add(window.Revision);
+            KeepActiveKeys.Add(window.KeepActiveKey);
+            ActivityChanged?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         }
 
         public Task CancelAsync(Guid sessionId, CancellationToken cancellationToken)
         {
             CancelledSessions.Add(sessionId);
+            ActivityChanged?.Invoke(this, EventArgs.Empty);
             return Task.CompletedTask;
         }
     }
@@ -593,7 +712,8 @@ public sealed partial class PlaybackCoordinatorTests
             var previous = Settings;
             Settings = (Settings with
             {
-                PlaybackVolume = update.PlaybackVolume ?? Settings.PlaybackVolume
+                PlaybackVolume = update.PlaybackVolume ?? Settings.PlaybackVolume,
+                PrefetchCount = update.PrefetchCount ?? Settings.PrefetchCount
             }).Normalize();
             Changed?.Invoke(this, new AppSettingsChangedEventArgs(previous, Settings));
             UpdateCompleted.TrySetResult(update);

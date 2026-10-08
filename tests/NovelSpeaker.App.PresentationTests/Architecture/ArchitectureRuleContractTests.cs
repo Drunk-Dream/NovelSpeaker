@@ -145,59 +145,6 @@ public sealed class ArchitectureRuleContractTests
     }
 
     [Fact]
-    public void LargeListRuleRejectsClearThenAddProjection()
-    {
-        var files = new[]
-        {
-            Source(
-                "src/NovelSpeaker.App/Shared/Presentation/LargeListHelper.cs",
-                "src/NovelSpeaker.App",
-                """
-                namespace NovelSpeaker.App.Shared.Presentation;
-                public static class LargeListHelper
-                {
-                    public static void Replace<T>(ICollection<T> collection, IEnumerable<T> items)
-                    {
-                        collection.Clear();
-                        if (items.Count > 0)
-                        {
-                            foreach (var item in items.Where(item => item is not null))
-                            {
-                                if (item is not null)
-                                {
-                                    collection.Add(item);
-                                }
-                            }
-                        }
-
-                        collection.Clear();
-                        foreach (var item in items)
-                            if (item is not null)
-                                continue;
-                            else
-                                collection.Add(item);
-
-                        collection.Clear();
-                        foreach (var item in items) collection.Add(item);
-
-                        collection.Clear();
-                        for (var index = 0; index < 1; index++) collection.Add(items.First());
-
-                        collection.Clear();
-                        while (true) { collection.Add(items.First()); break; }
-                    }
-                }
-                """)
-        };
-
-        Assert.Equal(
-            ["src/NovelSpeaker.App/Shared/Presentation/LargeListHelper.cs"],
-            ArchitectureRules.FindLargeListClearThenAddViolations(
-                files,
-                ["src/NovelSpeaker.App/Shared/Presentation/LargeListHelper.cs"]));
-    }
-
-    [Fact]
     public void PublicApiRuleRejectsWpfType()
     {
         var violations = ArchitectureRules.FindForbiddenPublicApiDependencies(

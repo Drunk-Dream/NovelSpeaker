@@ -14,7 +14,7 @@ public interface IBookPlaybackMetadataQuery
         var book = await GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
         return book is null
             ? null
-            : new PlaybackBookHeader(book.BookId, book.Title, book.Author);
+            : new PlaybackBookHeader(book.BookId, book.Title, book.Author, book.SourceContext);
     }
 
     Task<PlaybackChapterMetadata?> GetChapterAsync(

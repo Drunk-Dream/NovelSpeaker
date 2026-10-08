@@ -8,4 +8,5 @@ public sealed record PlaybackProgressUpdate(
     int ChapterIndex,
     int SegmentIndex,
     int CharacterOffset,
-    long AudioPositionMilliseconds);
+    long AudioPositionMilliseconds,
+    NovelSpeaker.Application.Books.ActiveSourceContext? SourceContext = null);

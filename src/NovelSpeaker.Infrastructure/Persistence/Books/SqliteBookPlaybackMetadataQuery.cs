@@ -1,197 +1,93 @@
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.Infrastructure.Persistence.Books;
 
-/// <summary>
-/// Reads playback book and chapter metadata without accessing stored chapter text.
-/// </summary>
-public sealed class SqliteBookPlaybackMetadataQuery : IBookPlaybackMetadataQuery
+/// <summary>Reads the active source catalog without exposing local content storage.</summary>
+public sealed class SqliteBookPlaybackMetadataQuery(ISqliteConnectionFactory connectionFactory) : IBookPlaybackMetadataQuery
 {
-    private readonly ISqliteConnectionFactory _connectionFactory;
-
-    public SqliteBookPlaybackMetadataQuery(ISqliteConnectionFactory connectionFactory)
-    {
-        _connectionFactory = connectionFactory;
-    }
+    private const string HeaderColumns = """
+        b.Id, b.Title, b.Author, b.ActiveSourceId,
+        (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1)
+        """;
 
     public async Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-
-        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        using var bookCommand = connection.CreateCommand();
-        bookCommand.CommandText =
-            """
-            SELECT Id, Title, Author
-            FROM Books
-            WHERE Id = $id;
-            """;
-        bookCommand.Parameters.AddWithValue("$id", bookId);
-
-        string title;
-        string? author;
-        await using (var reader = await bookCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false))
-        {
-            if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            {
-                return null;
-            }
-
-            title = reader.GetString(1);
-            author = reader.IsDBNull(2) ? null : reader.GetString(2);
-        }
-
-        using var chapterCommand = connection.CreateCommand();
-        chapterCommand.CommandText =
-            """
-            SELECT ChapterIndex, Title
-            FROM Chapters
-            WHERE BookId = $bookId
-            ORDER BY SortOrder, ChapterIndex;
-            """;
-        chapterCommand.Parameters.AddWithValue("$bookId", bookId);
-
-        var chapters = new List<PlaybackChapterSummaryMetadata>();
-        await using var chapterReader = await chapterCommand.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        while (await chapterReader.ReadAsync(cancellationToken).ConfigureAwait(false))
-        {
-            chapters.Add(new PlaybackChapterSummaryMetadata(
-                chapterReader.GetInt32(0),
-                chapterReader.GetString(1)));
-        }
-
-        return new PlaybackBookMetadata(bookId, title, author, chapters);
-    }
-
-    public async Task<PlaybackBookHeader?> GetBookHeaderAsync(
-        string bookId,
-        CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-
-        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            SELECT Id, Title, Author
-            FROM Books
-            WHERE Id = $id
-            LIMIT 1;
+        await using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        // Header and catalog describe the same committed snapshot.
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT {HeaderColumns}, c.ChapterIndex, c.Title, c.Id
+            FROM Books b LEFT JOIN Chapters c ON c.SourceId = b.ActiveSourceId
+            WHERE b.Id = $id ORDER BY c.SortOrder, c.ChapterIndex;
             """;
         command.Parameters.AddWithValue("$id", bookId);
-
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ? new PlaybackBookHeader(
-                reader.GetString(0),
-                reader.GetString(1),
-                reader.IsDBNull(2) ? null : reader.GetString(2))
-            : null;
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false)) return null;
+        var header = ReadHeader(reader);
+        var chapters = new List<PlaybackChapterSummaryMetadata>();
+        do
+        {
+            if (!reader.IsDBNull(5))
+                chapters.Add(new(reader.GetInt32(5), reader.GetString(6), reader.GetString(7)));
+        } while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false));
+        return new(header.BookId, header.Title, header.Author, chapters, header.SourceContext);
     }
 
-    public async Task<PlaybackChapterMetadata?> GetChapterAsync(
-        string bookId,
-        int chapterIndex,
-        CancellationToken cancellationToken)
+    public async Task<PlaybackBookHeader?> GetBookHeaderAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-
-        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = connection.CreateCommand();
-        command.CommandText =
-            """
-            SELECT c.Id, c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length
-            FROM Chapters c
-            INNER JOIN Books b ON b.Id = c.BookId
-            WHERE c.BookId = $bookId AND c.ChapterIndex = $chapterIndex
-            LIMIT 1;
-            """;
-        command.Parameters.AddWithValue("$bookId", bookId);
-        command.Parameters.AddWithValue("$chapterIndex", chapterIndex);
-
+        command.CommandText = $"SELECT {HeaderColumns} FROM Books b WHERE b.Id = $id LIMIT 1;";
+        command.Parameters.AddWithValue("$id", bookId);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false)
-            ? new PlaybackChapterMetadata(
-                reader.GetInt32(1),
-                reader.GetString(2),
-                reader.GetString(3),
-                reader.GetInt32(4),
-                reader.GetInt32(5),
-                reader.GetString(0))
-            : null;
+        return await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ? ReadHeader(reader) : null;
     }
 
+    public async Task<PlaybackChapterMetadata?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) =>
+        (await GetChaptersAsync(bookId, [chapterIndex], cancellationToken).ConfigureAwait(false)).SingleOrDefault();
+
     public async Task<IReadOnlyList<PlaybackChapterMetadata>> GetChaptersAsync(
-        string bookId,
-        IReadOnlyCollection<int> chapterIndices,
-        CancellationToken cancellationToken)
+        string bookId, IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         ArgumentNullException.ThrowIfNull(chapterIndices);
-
-        var requestedIndices = chapterIndices
-            .Distinct()
-            .Order()
-            .ToArray();
-        if (requestedIndices.Length == 0)
-        {
-            return [];
-        }
-
-        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var chapters = new List<ChapterMetadataRow>(requestedIndices.Length);
-        const int batchSize = 400;
-        for (var offset = 0; offset < requestedIndices.Length; offset += batchSize)
+        var indices = chapterIndices.Distinct().Order().ToArray();
+        if (indices.Length == 0) return [];
+        await using var connection = await connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var transaction = connection.BeginTransaction();
+        var chapters = new List<(PlaybackChapterMetadata Chapter, int SortOrder)>(indices.Length);
+        for (var offset = 0; offset < indices.Length; offset += 400)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var batchCount = Math.Min(batchSize, requestedIndices.Length - offset);
             using var command = connection.CreateCommand();
-            command.Parameters.AddWithValue("$bookId", bookId);
-            var chapterParameters = new string[batchCount];
-            for (var index = 0; index < batchCount; index++)
+            command.Transaction = transaction;
+            command.Parameters.AddWithValue("$book", bookId);
+            var parameters = indices.Skip(offset).Take(400).Select((value, index) =>
             {
-                var parameterName = $"$chapterIndex{index}";
-                chapterParameters[index] = parameterName;
-                command.Parameters.AddWithValue(parameterName, requestedIndices[offset + index]);
-            }
-
-            command.CommandText =
-                $"""
-                SELECT c.Id, c.ChapterIndex, c.Title, b.StoredFilePath, c.StartOffset, c.Length, c.SortOrder
-                FROM Chapters c
-                INNER JOIN Books b ON b.Id = c.BookId
-                WHERE c.BookId = $bookId
-                  AND c.ChapterIndex IN ({string.Join(", ", chapterParameters)})
+                var name = $"$index{index}";
+                command.Parameters.AddWithValue(name, value);
+                return name;
+            }).ToArray();
+            command.CommandText = $"""
+                SELECT c.ChapterIndex, c.Title, c.SourceId, c.Id, c.SortOrder,
+                    (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1)
+                FROM Books b JOIN Chapters c ON c.SourceId = b.ActiveSourceId
+                WHERE b.Id = $book AND c.ChapterIndex IN ({string.Join(", ", parameters)})
                 ORDER BY c.SortOrder, c.ChapterIndex;
                 """;
-
-            await using var reader = await command
-                .ExecuteReaderAsync(cancellationToken)
-                .ConfigureAwait(false);
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            {
-                chapters.Add(new ChapterMetadataRow(
-                    new PlaybackChapterMetadata(
-                        reader.GetInt32(1),
-                        reader.GetString(2),
-                        reader.GetString(3),
-                        reader.GetInt32(4),
-                        reader.GetInt32(5),
-                        reader.GetString(0)),
-                    reader.GetInt32(6)));
-            }
+                chapters.Add((new(reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetString(3),
+                    new ActiveSourceContext(reader.GetString(2), reader.GetString(5))), reader.GetInt32(4)));
         }
-
-        return chapters
-            .OrderBy(row => row.SortOrder)
-            .ThenBy(row => row.Metadata.ChapterIndex)
-            .Select(row => row.Metadata)
-            .ToArray();
+        transaction.Commit();
+        return chapters.OrderBy(row => row.SortOrder).ThenBy(row => row.Chapter.ChapterIndex).Select(row => row.Chapter).ToArray();
     }
 
-    private sealed record ChapterMetadataRow(
-        PlaybackChapterMetadata Metadata,
-        int SortOrder);
+    private static PlaybackBookHeader ReadHeader(Microsoft.Data.Sqlite.SqliteDataReader reader) =>
+        new(reader.GetString(0), reader.GetString(1), reader.IsDBNull(2) ? null : reader.GetString(2),
+            reader.IsDBNull(3) ? null : new ActiveSourceContext(reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4)));
 }

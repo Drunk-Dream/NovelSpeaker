@@ -81,7 +81,7 @@ TDD 是推荐方法，不是强制流程。Agent 可以根据任务性质选择�
 
 - 书籍导入、打开和基本书库读取；
 - 播放开始、暂停、恢复；
-- 显式切章、切段和阅读进度保存/恢复；
+- 显式切章/切段的 logical target 能立即提交并投影，音频准备失败不会回退用户位置，阅读进度仍可保存/恢复；
 - Provider 选择、解析与代表性的音频生成流程；
 - HTTP Provider 模板编译、请求构造与安全边界；
 - 缓存生成、读取、失效和删除；
@@ -126,10 +126,11 @@ Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例�
 3. 关键模块不形成循环依赖；
 4. 关键 mutable state 只有一个权威 owner；
 5. Playback/Cache 不直接依赖 HTTP/Edge 具体 Provider transport；
-6. 不新增 Service Locator 或通用 EventBus/Messenger；
-7. 不把 Provider 扩展做成万能 Config/Plugin framework；
-8. 存储信任边界只有一个权威实现；
-9. Observability 不向业务层泄露 Infrastructure store 类型。
+6. Playback session context、logical target 与 low-level audio transport 职责分离，迟到音频结果必须通过稳定 target/preparation identity 拒绝；
+7. 不新增 Service Locator 或通用 EventBus/Messenger；
+8. 不把 Provider 扩展做成万能 Config/Plugin framework；
+9. 存储信任边界只有一个权威实现；
+10. Observability 不向业务层泄露 Infrastructure store 类型。
 
 不要为 architecture test 检测器自身建立大量穷举式 parser/语法边界测试；只保留足以证明规则有效的代表性 contract tests。
 
@@ -197,7 +198,7 @@ Provider 选择器 Stretch、CurrentItem 外观、拖拽插入横线等视觉优
 
 只有当异步、并发或压力本身是核心风险时才建立永久测试。
 
-- 优先事件、状态版本、barrier/gate、可控 TimeProvider 或可控 bounded queue；
+- 优先事件、session/target revision、barrier/gate、可控 TimeProvider 或可控 bounded queue；Playback 异步测试应证明旧 target/preparation 结果不会提交到新 target。
 - 不用固定 `Thread.Sleep` / 任意 `Task.Delay` 猜测完成；
 - cancellation 视为正常控制流；
 - 不用绝对毫秒阈值冻结机器性能；

@@ -12,7 +12,7 @@ namespace NovelSpeaker.Application.Cache;
 /// Composes the current TTS/text configuration with persisted speech-plan and cache facts.
 /// This class is deliberately read-only: repair orchestration is a separate owner.
 /// </summary>
-public sealed class CacheCoverageQuery : ICacheCoverageQuery
+internal sealed class CacheCoverageQuery : ICacheCoverageQuery
 {
     private readonly IAudioCacheStore _cacheStore;
     private readonly IBookPlaybackMetadataQuery _metadataQuery;

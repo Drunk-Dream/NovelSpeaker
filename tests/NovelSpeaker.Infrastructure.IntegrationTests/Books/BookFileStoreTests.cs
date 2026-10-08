@@ -26,7 +26,7 @@ public sealed class BookFileStoreTests
     }
 
     [Fact]
-    public async Task StageNormalizedTextAsync_and_finalizeAsync_create_content_txt_inside_book_directory()
+    public async Task Staging_a_replacement_keeps_the_previous_snapshot_readable()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new AppDataDirectoryProvider(root);
@@ -40,7 +40,12 @@ public sealed class BookFileStoreTests
 
         Assert.True(File.Exists(finalPath));
         Assert.False(File.Exists(temporaryPath));
-        Assert.Equal("Books/book-1/content.txt", handle.FinalPath);
         Assert.Equal("测试正文", await File.ReadAllTextAsync(finalPath, CancellationToken.None));
+
+        var replacement = await store.StageNormalizedTextAsync("新正文", "book-1", progress: null, CancellationToken.None);
+        Assert.NotEqual(handle.FinalPath, replacement.FinalPath);
+        await store.FinalizeAsync(replacement, CancellationToken.None);
+        Assert.Equal("测试正文", await File.ReadAllTextAsync(finalPath, CancellationToken.None));
+        Assert.Equal("新正文", await File.ReadAllTextAsync(new AppStoragePathResolver(directories).ResolvePath(replacement.FinalPath), CancellationToken.None));
     }
 }

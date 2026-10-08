@@ -12,7 +12,6 @@
       ClipToBounds="True"
       navigation:NavigationViewportHeightBehavior.IsEnabled="True">
     <Page.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
     </Page.Resources>
 
     <Grid Margin="24" MinHeight="0" ClipToBounds="True">

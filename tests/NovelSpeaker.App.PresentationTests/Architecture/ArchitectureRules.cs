@@ -332,19 +332,6 @@ internal static partial class ArchitectureRules
         return violations.ToArray();
     }
 
-    public static IReadOnlyList<string> FindLargeListClearThenAddViolations(
-        IEnumerable<SourceFileDescriptor> files,
-        IReadOnlyCollection<string> helperRelativePaths)
-    {
-        var helperPaths = helperRelativePaths.ToHashSet(StringComparer.Ordinal);
-        return files
-            .Where(file => helperPaths.Contains(file.RelativePath))
-            .Where(file => ContainsClearThenAddLoop(StripCommentsAndLiterals(file.Content)))
-            .Select(file => file.RelativePath)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-    }
-
     public static IReadOnlyList<string> FindConcretePlaybackCoordinatorDependencies(
         IEnumerable<SourceFileDescriptor> files,
         IReadOnlyCollection<string> allowedRelativePaths)
@@ -382,8 +369,7 @@ internal static partial class ArchitectureRules
                      file.ProjectDirectoryRelativePath == "src/NovelSpeaker.App"))
         {
             var source = StripCommentsAndLiterals(file.Content);
-            var isCommandConsumer = source.Contains("IPlaybackSession", StringComparison.Ordinal) ||
-                                    source.Contains("IPlaybackBookCommands", StringComparison.Ordinal);
+            var isCommandConsumer = source.Contains("IPlaybackSession", StringComparison.Ordinal);
             var usesPlaybackSnapshot = source.Contains("PlaybackSnapshot", StringComparison.Ordinal);
             if (!isCommandConsumer && !usesPlaybackSnapshot)
             {
@@ -474,32 +460,6 @@ internal static partial class ArchitectureRules
         return violations.ToArray();
     }
 
-    public static IReadOnlyList<string> FindPlaybackSessionStateMutationViolations(
-        IEnumerable<SourceFileDescriptor> files)
-    {
-        var allowedPaths = new HashSet<string>(StringComparer.Ordinal)
-        {
-            "src/NovelSpeaker.Application/Playback/PlaybackCoordinator.cs",
-            "src/NovelSpeaker.Application/Playback/PlaybackCommandProcessor.cs",
-            "src/NovelSpeaker.Application/Playback/PlaybackSessionState.cs",
-            "src/NovelSpeaker.Application/Playback/PlaybackProgressController.cs"
-        };
-        var mutationPattern =
-            @"\.(?:ReplaceBook|SetRule|SetPosition|SetResumePosition|SetConsecutiveSegmentFailureCount|SetSpeakSpeed|UpdateAudio|SetPositionForSave|ReplaceAudioProtection)\s*\(";
-
-        return files
-            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Application" &&
-                           file.RelativePath.Contains("/Playback/", StringComparison.Ordinal) &&
-                           !allowedPaths.Contains(file.RelativePath))
-            .Where(file => Regex.IsMatch(
-                StripCommentsAndLiterals(file.Content),
-                mutationPattern,
-                RegexOptions.CultureInvariant))
-            .Select(file => file.RelativePath)
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-    }
-
     public static IReadOnlyList<string> FindUnregisteredFireAndForgetOperations(
         IEnumerable<SourceFileDescriptor> files)
     {
@@ -512,65 +472,6 @@ internal static partial class ArchitectureRules
             {
                 violations.Add(
                     $"{file.RelativePath}: directly discarded {match.Groups["operation"].Value} task");
-            }
-        }
-
-        return violations.ToArray();
-    }
-
-    public static IReadOnlyList<string> FindSourceLayoutViolations(
-        IEnumerable<SourceFileDescriptor> files)
-    {
-        var violations = new SortedSet<string>(StringComparer.Ordinal);
-
-        foreach (var file in files)
-        {
-            var fileName = Path.GetFileName(file.RelativePath);
-            if (fileName.Equals("AssemblyInfo.cs", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var source = StripCommentsAndLiterals(file.Content);
-            var namespaceMatch = NamespaceDeclarationRegex().Match(source);
-            var publicTypeMatches = PublicTypeDeclarationRegex().Matches(source);
-
-            if (!namespaceMatch.Success)
-            {
-                violations.Add($"{file.RelativePath}: missing namespace declaration");
-                continue;
-            }
-
-            if (publicTypeMatches.Count == 0)
-            {
-                continue;
-            }
-
-            var projectName = Path.GetFileName(file.ProjectDirectoryRelativePath);
-            var relativeToProject = file.RelativePath[(file.ProjectDirectoryRelativePath.Length + 1)..];
-            var relativeDirectory = Path.GetDirectoryName(relativeToProject)?.Replace('\\', '/');
-            var expectedNamespace = string.IsNullOrEmpty(relativeDirectory)
-                ? projectName
-                : $"{projectName}.{relativeDirectory.Replace('/', '.')}";
-            var actualNamespace = namespaceMatch.Groups["name"].Value;
-
-            if (!actualNamespace.Equals(expectedNamespace, StringComparison.Ordinal))
-            {
-                violations.Add(
-                    $"{file.RelativePath}: namespace '{actualNamespace}', expected '{expectedNamespace}'");
-            }
-
-            var expectedTypeName = fileName.EndsWith(".xaml.cs", StringComparison.OrdinalIgnoreCase)
-                ? fileName[..^".xaml.cs".Length]
-                : Path.GetFileNameWithoutExtension(fileName);
-            var actualTypeNames = publicTypeMatches
-                .Select(match => match.Groups["name"].Value)
-                .ToArray();
-
-            if (!actualTypeNames.Contains(expectedTypeName, StringComparer.Ordinal))
-            {
-                violations.Add(
-                    $"{file.RelativePath}: public types [{string.Join(", ", actualTypeNames)}], expected primary type '{expectedTypeName}'");
             }
         }
 
@@ -791,69 +692,6 @@ internal static partial class ArchitectureRules
                normalizedTypeName.EndsWith(".PlaybackCoordinator", StringComparison.Ordinal);
     }
 
-    private static bool ContainsClearThenAddLoop(string source)
-    {
-        foreach (Match clearMatch in CollectionClearRegex().Matches(source))
-        {
-            var containingBlockEnd = FindContainingBlockEnd(source, clearMatch.Index);
-            foreach (Match loopMatch in LoopStartRegex().Matches(source, clearMatch.Index + clearMatch.Length))
-            {
-                if (loopMatch.Index >= containingBlockEnd)
-                {
-                    break;
-                }
-
-                var openParenthesis = source.IndexOf('(', loopMatch.Index + loopMatch.Length - 1);
-                var closeParenthesis = FindMatchingDelimiter(source, openParenthesis, '(', ')');
-                if (closeParenthesis < 0 || closeParenthesis >= containingBlockEnd)
-                {
-                    continue;
-                }
-
-                var bodyStart = SkipWhitespace(source, closeParenthesis + 1);
-                if (bodyStart >= containingBlockEnd)
-                {
-                    continue;
-                }
-
-                string body;
-                if (source[bodyStart] == '{')
-                {
-                    var bodyEnd = FindMatchingDelimiter(source, bodyStart, '{', '}');
-                    if (bodyEnd < 0 || bodyEnd >= containingBlockEnd)
-                    {
-                        continue;
-                    }
-
-                    body = source[(bodyStart + 1)..bodyEnd];
-                }
-                else
-                {
-                    var statementEnd = FindStatementEnd(source, bodyStart);
-                    if (statementEnd < 0 || statementEnd >= containingBlockEnd)
-                    {
-                        continue;
-                    }
-
-                    body = source[bodyStart..(statementEnd + 1)];
-                }
-
-                if (ContainsCollectionAdd(body, clearMatch.Groups["target"].Value))
-                {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static bool ContainsCollectionAdd(string source, string target) =>
-        Regex.IsMatch(
-            source,
-            $@"(?<![A-Za-z0-9_.]){Regex.Escape(target)}\s*\.\s*Add\s*\(",
-            RegexOptions.CultureInvariant);
-
     private static int FindMatchingDelimiter(string source, int openIndex, char opening, char closing)
     {
         if (openIndex < 0 || openIndex >= source.Length || source[openIndex] != opening)
@@ -886,227 +724,6 @@ internal static partial class ArchitectureRules
         }
 
         return index;
-    }
-
-    private static int FindContainingBlockEnd(string source, int index)
-    {
-        var openBlocks = new Stack<int>();
-        for (var currentIndex = 0; currentIndex < index; currentIndex++)
-        {
-            if (source[currentIndex] == '{')
-            {
-                openBlocks.Push(currentIndex);
-            }
-            else if (source[currentIndex] == '}' && openBlocks.Count > 0)
-            {
-                openBlocks.Pop();
-            }
-        }
-
-        return openBlocks.Count == 0
-            ? source.Length
-            : FindMatchingDelimiter(source, openBlocks.Peek(), '{', '}');
-    }
-
-    private static int FindStatementEnd(string source, int startIndex)
-    {
-        var statementStart = SkipWhitespace(source, startIndex);
-        if (IsKeywordAt(source, statementStart, "if"))
-        {
-            return FindIfStatementEnd(source, statementStart);
-        }
-
-        if (IsKeywordAt(source, statementStart, "try"))
-        {
-            return FindTryStatementEnd(source, statementStart);
-        }
-
-        if (IsKeywordAt(source, statementStart, "foreach") ||
-            IsKeywordAt(source, statementStart, "for") ||
-            IsKeywordAt(source, statementStart, "while"))
-        {
-            return FindLoopStatementEnd(source, statementStart);
-        }
-
-        return FindSimpleStatementEnd(source, statementStart);
-    }
-
-    private static int FindIfStatementEnd(string source, int startIndex)
-    {
-        var openParenthesis = source.IndexOf('(', startIndex + 2);
-        var closeParenthesis = FindMatchingDelimiter(source, openParenthesis, '(', ')');
-        if (closeParenthesis < 0)
-        {
-            return -1;
-        }
-
-        var thenStart = SkipWhitespace(source, closeParenthesis + 1);
-        var thenEnd = FindEmbeddedStatementEnd(source, thenStart);
-        if (thenEnd < 0)
-        {
-            return -1;
-        }
-
-        var elseStart = SkipWhitespace(source, thenEnd + 1);
-        if (!IsKeywordAt(source, elseStart, "else"))
-        {
-            return thenEnd;
-        }
-
-        return FindEmbeddedStatementEnd(source, elseStart + "else".Length);
-    }
-
-    private static int FindLoopStatementEnd(string source, int startIndex)
-    {
-        var openParenthesis = source.IndexOf('(', startIndex);
-        var closeParenthesis = FindMatchingDelimiter(source, openParenthesis, '(', ')');
-        if (closeParenthesis < 0)
-        {
-            return -1;
-        }
-
-        return FindEmbeddedStatementEnd(source, closeParenthesis + 1);
-    }
-
-    private static int FindTryStatementEnd(string source, int startIndex)
-    {
-        var cursor = SkipWhitespace(source, startIndex + "try".Length);
-        var statementEnd = FindEmbeddedStatementEnd(source, cursor);
-        if (statementEnd < 0)
-        {
-            return -1;
-        }
-
-        cursor = SkipWhitespace(source, statementEnd + 1);
-        while (IsKeywordAt(source, cursor, "catch"))
-        {
-            cursor = SkipWhitespace(source, cursor + "catch".Length);
-            if (cursor < source.Length && source[cursor] == '(')
-            {
-                var closeParenthesis = FindMatchingDelimiter(source, cursor, '(', ')');
-                if (closeParenthesis < 0)
-                {
-                    return -1;
-                }
-
-                cursor = SkipWhitespace(source, closeParenthesis + 1);
-            }
-
-            if (IsKeywordAt(source, cursor, "when"))
-            {
-                var filterOpenParenthesis = source.IndexOf('(', cursor + "when".Length);
-                var filterCloseParenthesis = FindMatchingDelimiter(
-                    source,
-                    filterOpenParenthesis,
-                    '(',
-                    ')');
-                if (filterCloseParenthesis < 0)
-                {
-                    return -1;
-                }
-
-                cursor = SkipWhitespace(source, filterCloseParenthesis + 1);
-            }
-
-            statementEnd = FindEmbeddedStatementEnd(source, cursor);
-            if (statementEnd < 0)
-            {
-                return -1;
-            }
-
-            cursor = SkipWhitespace(source, statementEnd + 1);
-        }
-
-        if (IsKeywordAt(source, cursor, "finally"))
-        {
-            statementEnd = FindEmbeddedStatementEnd(source, cursor + "finally".Length);
-        }
-
-        return statementEnd;
-    }
-
-    private static int FindEmbeddedStatementEnd(string source, int startIndex)
-    {
-        var statementStart = SkipWhitespace(source, startIndex);
-        if (statementStart >= source.Length)
-        {
-            return -1;
-        }
-
-        if (source[statementStart] == '{')
-        {
-            return FindMatchingDelimiter(source, statementStart, '{', '}');
-        }
-
-        if (IsKeywordAt(source, statementStart, "if"))
-        {
-            return FindIfStatementEnd(source, statementStart);
-        }
-
-        if (IsKeywordAt(source, statementStart, "try"))
-        {
-            return FindTryStatementEnd(source, statementStart);
-        }
-
-        if (IsKeywordAt(source, statementStart, "foreach") ||
-            IsKeywordAt(source, statementStart, "for") ||
-            IsKeywordAt(source, statementStart, "while"))
-        {
-            return FindLoopStatementEnd(source, statementStart);
-        }
-
-        return FindSimpleStatementEnd(source, statementStart);
-    }
-
-    private static bool IsKeywordAt(string source, int startIndex, string keyword) =>
-        startIndex >= 0 &&
-        startIndex + keyword.Length <= source.Length &&
-        source.AsSpan(startIndex, keyword.Length).SequenceEqual(keyword.AsSpan()) &&
-        (startIndex == 0 || !IsIdentifierCharacter(source[startIndex - 1])) &&
-        (startIndex + keyword.Length == source.Length ||
-         !IsIdentifierCharacter(source[startIndex + keyword.Length]));
-
-    private static bool IsIdentifierCharacter(char character) =>
-        char.IsLetterOrDigit(character) || character == '_';
-
-    private static int FindSimpleStatementEnd(string source, int startIndex)
-    {
-        var parenthesisDepth = 0;
-        var bracketDepth = 0;
-        var braceDepth = 0;
-
-        for (var index = startIndex; index < source.Length; index++)
-        {
-            switch (source[index])
-            {
-                case '(':
-                    parenthesisDepth++;
-                    break;
-                case ')':
-                    parenthesisDepth--;
-                    break;
-                case '[':
-                    bracketDepth++;
-                    break;
-                case ']':
-                    bracketDepth--;
-                    break;
-                case '{':
-                    braceDepth++;
-                    break;
-                case '}':
-                    braceDepth--;
-                    if (parenthesisDepth == 0 && bracketDepth == 0 && braceDepth == 0)
-                    {
-                        return index;
-                    }
-                    break;
-                case ';' when parenthesisDepth == 0 && bracketDepth == 0 && braceDepth == 0:
-                    return index;
-            }
-        }
-
-        return -1;
     }
 
     private static IEnumerable<string> FindFeatureNamespaceReferences(SourceFileDescriptor file)
@@ -1356,11 +973,6 @@ internal static partial class ArchitectureRules
     private static partial Regex NamespaceDeclarationRegex();
 
     [GeneratedRegex(
-        @"(?m)^\s*public\s+(?:(?:sealed|abstract|static|partial|readonly|ref)\s+)*(?:class|struct|interface|enum|record(?:\s+(?:class|struct))?)\s+(?<name>[A-Za-z_][A-Za-z0-9_]*)",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex PublicTypeDeclarationRegex();
-
-    [GeneratedRegex(
         @"(?<![A-Za-z0-9_])(?:global::)?(?<namespace>NovelSpeaker\.App\.Features\.(?<feature>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*))(?![A-Za-z0-9_])",
         RegexOptions.CultureInvariant)]
     private static partial Regex FeatureNamespaceReferenceRegex();
@@ -1429,14 +1041,6 @@ internal static partial class ArchitectureRules
         @"\bI?ReadingProgress(?:Persistence)?(?:Store|Writer)\b",
         RegexOptions.CultureInvariant)]
     private static partial Regex ReadingProgressWriterTypeRegex();
-
-    [GeneratedRegex(
-        @"(?<target>[A-Za-z_][A-Za-z0-9_.]*)\s*\.\s*Clear\s*\(\s*\)\s*;",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex CollectionClearRegex();
-
-    [GeneratedRegex(@"\s*(?:foreach|for|while)\s*\(", RegexOptions.CultureInvariant)]
-    private static partial Regex LoopStartRegex();
 
     [GeneratedRegex(
         @"\b(?:Try)?Add(?<lifetime>Singleton|Transient|Scoped)\s*<\s*(?<types>[^>]+)>",

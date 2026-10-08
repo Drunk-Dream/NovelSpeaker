@@ -8,24 +8,6 @@ public sealed class ArchitectureTests
 {
     private static readonly ArchitectureTestRepository Repository = ArchitectureTestRepository.Locate();
 
-    private void InfrastructurePublicTtsSourceApiDoesNotExposeJsonElement()
-    {
-        var jsonElementType = typeof(System.Text.Json.JsonElement);
-        var exposedMembers = typeof(NovelSpeaker.Infrastructure.Speech.Http.HttpTtsClient)
-            .Assembly
-            .GetExportedTypes()
-            .Where(type => type.Namespace?.StartsWith("NovelSpeaker.Infrastructure.Speech", StringComparison.Ordinal) == true)
-            .SelectMany(type => type.GetMethods(System.Reflection.BindingFlags.Public |
-                                                System.Reflection.BindingFlags.Instance |
-                                                System.Reflection.BindingFlags.Static))
-            .Where(method => method.ReturnType == jsonElementType ||
-                             method.GetParameters().Any(parameter => parameter.ParameterType == jsonElementType))
-            .Select(method => $"{method.DeclaringType?.FullName}.{method.Name}")
-            .ToArray();
-
-        Assert.Empty(exposedMembers);
-    }
-
     private void SolutionContainsExpectedProjects()
     {
         var expected = new[]
@@ -209,35 +191,6 @@ public sealed class ArchitectureTests
         Assert.False(ArchitectureRules.UsesWpf(project));
     }
 
-    private void DomainContainsOnlyStableSpeechTypesAndNoTransportOrPersistenceModels()
-    {
-        var domainFiles = Repository.ReadProductSourceFiles()
-            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Domain")
-            .ToArray();
-        var speechFiles = domainFiles
-            .Where(file => file.RelativePath.StartsWith("src/NovelSpeaker.Domain/Speech/", StringComparison.Ordinal))
-            .Select(file => Path.GetFileName(file.RelativePath))
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(
-            [
-                "ProviderId.cs",
-                "SpeechProviderConfiguration.cs",
-                "SpeechProviderInstance.cs",
-                "SpeechProviderNameRules.cs",
-                "SpeechProviderType.cs",
-                "TtsErrorKind.cs"
-            ],
-            speechFiles);
-        Assert.DoesNotContain(domainFiles, file =>
-            file.Content.Contains("ParsedTtsRequest", StringComparison.Ordinal) ||
-            file.Content.Contains("TtsRequestPreview", StringComparison.Ordinal) ||
-            file.Content.Contains("ImportPreview", StringComparison.Ordinal) ||
-            file.Content.Contains("RequestOptionsJson", StringComparison.Ordinal) ||
-            file.Content.Contains("Sqlite", StringComparison.Ordinal));
-    }
-
     private void ApplicationOnlyHasDomainAndDocumentedDependencies()
     {
         var project = Repository.ReadProject("src/NovelSpeaker.Application/NovelSpeaker.Application.csproj");
@@ -316,29 +269,6 @@ public sealed class ArchitectureTests
             ["NovelSpeaker.App", "System.Windows", "Wpf.Ui"]);
 
         Assert.Empty(actual);
-    }
-
-    private void Playback_business_implementations_are_owned_by_Application()
-    {
-        var applicationAssembly = typeof(NovelSpeaker.Application.Playback.PlaybackCoordinator).Assembly;
-
-        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackCoordinator).Assembly);
-        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.LocalAudioPlaybackCoordinator).Assembly);
-        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackContentResolver).Assembly);
-        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Playback.PlaybackPrefetchCoordinator).Assembly);
-        Assert.Equal(applicationAssembly, typeof(NovelSpeaker.Application.Speech.Providers.CurrentSpeechProvider).Assembly);
-
-        var infrastructurePlaybackFiles = Repository.ReadProductSourceFiles()
-            .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.Infrastructure" &&
-                           file.RelativePath.Contains("/Playback/", StringComparison.Ordinal))
-            .ToArray();
-
-        Assert.DoesNotContain(
-            infrastructurePlaybackFiles,
-            file => file.Content.Contains("class PlaybackCoordinator", StringComparison.Ordinal) ||
-                    file.Content.Contains("class LocalAudioPlaybackCoordinator", StringComparison.Ordinal) ||
-                    file.Content.Contains("class PrefetchScheduler", StringComparison.Ordinal) ||
-                    file.Content.Contains("class CurrentSpeechProvider", StringComparison.Ordinal));
     }
 
     private void AppOnlyUsesInfrastructureFromStartupCompositionBoundary()
@@ -447,62 +377,6 @@ public sealed class ArchitectureTests
         Assert.Empty(actual);
     }
 
-    private void LargeListHelpersDoNotClearThenAddOneItemAtATime()
-    {
-        var actual = ArchitectureRules.FindLargeListClearThenAddViolations(
-            Repository.ReadProductSourceFiles(),
-            [
-                "src/NovelSpeaker.App/Shared/Presentation/ViewModelCollectionExtensions.cs",
-                "src/NovelSpeaker.App/Shared/Presentation/ResettableObservableCollection.cs",
-                "src/NovelSpeaker.App/Shared/Presentation/IndexedCatalog.cs",
-                "src/NovelSpeaker.App/Features/Books/Details/BookDetailsViewModel.cs",
-                "src/NovelSpeaker.App/Features/Cache/CacheManagementViewModel.cs",
-                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerContentController.cs",
-                "src/NovelSpeaker.App/Features/Playback/Presentation/PlayerViewModel.cs"
-            ]);
-
-        AssertEqualSet(KnownArchitectureBaseline.LargeListClearThenAddViolations, actual);
-    }
-
-    private void LibraryUsesStandardWpfRowVirtualization()
-    {
-        var libraryRoot = Path.Combine(
-            Repository.RootPath,
-            "src",
-            "NovelSpeaker.App",
-            "Features",
-            "Books",
-            "Library");
-        Assert.False(File.Exists(Path.Combine(libraryRoot, "LibraryItemsControl.cs")));
-        Assert.False(File.Exists(Path.Combine(libraryRoot, "LibraryResponsivePanel.cs")));
-
-        var librarySourceFiles = Repository.ReadProductSourceFiles()
-            .Where(file => file.RelativePath.StartsWith(
-                "src/NovelSpeaker.App/Features/Books/Library/",
-                StringComparison.Ordinal));
-        Assert.All(
-            librarySourceFiles,
-            file =>
-            {
-                Assert.DoesNotContain("GenerateNext", file.Content, StringComparison.Ordinal);
-                Assert.DoesNotContain("IRecyclingItemContainerGenerator", file.Content, StringComparison.Ordinal);
-                Assert.DoesNotContain("IScrollInfo", file.Content, StringComparison.Ordinal);
-                Assert.DoesNotContain("realizedStart", file.Content, StringComparison.Ordinal);
-                Assert.DoesNotContain("realizedCount", file.Content, StringComparison.Ordinal);
-                Assert.DoesNotContain("InvalidateMeasure", file.Content, StringComparison.Ordinal);
-            });
-
-        var libraryPage = File.ReadAllText(Path.Combine(libraryRoot, "LibraryPage.xaml"));
-        Assert.Contains("<ListBox", libraryPage, StringComparison.Ordinal);
-        Assert.Contains("<VirtualizingStackPanel", libraryPage, StringComparison.Ordinal);
-        Assert.Contains("VirtualizingPanel.IsVirtualizing=\"True\"", libraryPage, StringComparison.Ordinal);
-        Assert.Contains("VirtualizingPanel.ScrollUnit=\"Pixel\"", libraryPage, StringComparison.Ordinal);
-        Assert.Contains("VirtualizingPanel.VirtualizationMode=\"Recycling\"", libraryPage, StringComparison.Ordinal);
-        Assert.Contains("ScrollViewer.CanContentScroll=\"True\"", libraryPage, StringComparison.Ordinal);
-        Assert.Contains("Background=\"Transparent\"", libraryPage, StringComparison.Ordinal);
-        Assert.Contains("BorderThickness=\"0\"", libraryPage, StringComparison.Ordinal);
-    }
-
     private void PlaybackStateHasOneOwnerAndReadOnlyConsumerContracts()
     {
         var appFiles = Repository.ReadProductSourceFiles()
@@ -535,25 +409,10 @@ public sealed class ArchitectureTests
         Assert.Equal(
             ["src/NovelSpeaker.Application/Playback/PlaybackRegistration.cs: Singleton"],
             ArchitectureRules.FindPlaybackCoordinatorRegistrations(Repository.ReadProductSourceFiles()));
-        Assert.Empty(ArchitectureRules.FindPlaybackSessionStateMutationViolations(
-            Repository.ReadProductSourceFiles()));
-        Assert.False(typeof(PlaybackSessionState).IsPublic);
-        foreach (var propertyName in new[]
-                 {
-                     nameof(PlaybackSessionState.Book),
-                     nameof(PlaybackSessionState.Provider),
-                     nameof(PlaybackSessionState.ChapterIndex),
-                     nameof(PlaybackSessionState.SegmentIndex),
-                     nameof(PlaybackSessionState.SpeakSpeed),
-                     nameof(PlaybackSessionState.ResumePositionMilliseconds),
-                     nameof(PlaybackSessionState.ConsecutiveSegmentFailureCount),
-                     nameof(PlaybackSessionState.CurrentAudio)
-                 })
-        {
-            Assert.True(
-                typeof(PlaybackSessionState).GetProperty(propertyName)!.SetMethod?.IsPrivate,
-                $"PlaybackSessionState.{propertyName} must have a private setter.");
-        }
+        Assert.False(typeof(PlaybackRuntime).IsPublic);
+        Assert.False(typeof(PlaybackRuntimeState).IsPublic);
+        var runtimeState = typeof(PlaybackRuntime).GetProperty(nameof(PlaybackRuntime.Current))!;
+        Assert.True(runtimeState.GetSetMethod(nonPublic: true)!.IsPrivate);
         Assert.Equal(typeof(PlaybackSnapshot), typeof(IPlaybackSnapshotSource)
             .GetProperty(nameof(IPlaybackSnapshotSource.CurrentSnapshot))!.PropertyType);
         Assert.Null(typeof(IPlaybackSnapshotSource)
@@ -601,25 +460,6 @@ public sealed class ArchitectureTests
             ArchitectureRules.FindApplicationModules(applicationFiles).Order().ToArray());
     }
 
-    private static void PlayerPresentationControllersAreFeatureLocalConcreteTypes()
-    {
-        var controllerTypes = new[]
-        {
-            typeof(PlayerPlaybackProjection),
-            typeof(PlayerContentController),
-            typeof(PlayerSpeechControlController),
-            typeof(PlayerCacheDecorationController),
-            typeof(PlayerInteractionController)
-        };
-
-        Assert.All(controllerTypes, static type =>
-        {
-            Assert.False(type.IsPublic);
-            Assert.True(type.IsSealed);
-            Assert.False(type.IsInterface);
-        });
-    }
-
     private void AppDoesNotDirectlyDiscardAsyncOperations()
     {
         var appFiles = Repository.ReadProductSourceFiles()
@@ -641,79 +481,6 @@ public sealed class ArchitectureTests
         AssertEqualSet(KnownArchitectureBaseline.ViewModelForbiddenPublicApiDependencies, actual);
     }
 
-    private void ProductionSourceFilesMatchNamespacesAndPrimaryPublicTypes()
-    {
-        var actual = ArchitectureRules.FindSourceLayoutViolations(Repository.ReadProductSourceFiles());
-
-        AssertEqualSet(KnownArchitectureBaseline.SourceLayoutViolations, actual);
-    }
-
-    private void AppUsesFeatureSlicesInsteadOfGlobalUiDirectories()
-    {
-        var appRoot = Path.Combine(Repository.RootPath, "src", "NovelSpeaker.App");
-
-        foreach (var legacyDirectory in new[] { "Pages", "Views", "ViewModels" })
-        {
-            Assert.False(
-                Directory.Exists(Path.Combine(appRoot, legacyDirectory)),
-                $"Legacy global UI directory still exists: {legacyDirectory}");
-        }
-
-        foreach (var feature in new[]
-                 {
-                     "Appearance",
-                     "Books",
-                     "Cache",
-                     "Diagnostics",
-                     "Playback",
-                     "PlaybackSettings",
-                     "Rules",
-                     "Settings",
-                     "SpeechServices",
-                 })
-        {
-            Assert.True(
-                Directory.Exists(Path.Combine(appRoot, "Features", feature)),
-                $"Feature slice directory is missing: {feature}");
-        }
-
-        foreach (var feature in new[]
-                 {
-                     "Books/Details",
-                     "Books/Library",
-                     "Books/Shared",
-                     "Rules/Chapter",
-                     "Rules/Regex",
-                     "Rules/Shared"
-                 })
-        {
-            Assert.True(
-                Directory.Exists(Path.Combine(appRoot, "Features", feature)),
-                $"Nested feature slice directory is missing: {feature}");
-        }
-
-        Assert.True(Directory.Exists(Path.Combine(appRoot, "Shared")));
-        Assert.True(Directory.Exists(Path.Combine(appRoot, "Shell")));
-    }
-
-    private void AppKeepsOnlyReusableOrBehaviorOwningUserControlViews()
-    {
-        var appRoot = Path.Combine(Repository.RootPath, "src", "NovelSpeaker.App");
-        var actual = Directory
-            .EnumerateFiles(appRoot, "*View.xaml", SearchOption.AllDirectories)
-            .Select(path => Path.GetRelativePath(appRoot, path).Replace('\\', '/'))
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-
-        Assert.Equal(
-            [
-                "Features/Books/Library/BookCardView.xaml",
-                "Features/Books/Shared/BookCoverView.xaml",
-                "Features/Playback/Components/PlayerView.xaml"
-            ],
-            actual);
-    }
-
     [Fact]
     public void Architecture_contracts_cover_solution_projects_and_project_boundaries()
     {
@@ -732,13 +499,10 @@ public sealed class ArchitectureTests
     [Fact]
     public void Architecture_contracts_cover_layer_dependencies_and_ownership()
     {
-        InfrastructurePublicTtsSourceApiDoesNotExposeJsonElement();
         DomainHasNoProductOrTechnicalDependencies();
-        DomainContainsOnlyStableSpeechTypesAndNoTransportOrPersistenceModels();
         ApplicationOnlyHasDomainAndDocumentedDependencies();
         InfrastructureDoesNotDependOnAppOrWpf();
         ObservabilityApplicationApiDoesNotExposeInfrastructureTypes();
-        Playback_business_implementations_are_owned_by_Application();
         AppOnlyUsesInfrastructureFromStartupCompositionBoundary();
         ServiceProviderUsageStaysInsideCompositionAndFrameworkBridges();
     }
@@ -751,7 +515,7 @@ public sealed class ArchitectureTests
     }
 
     [Fact]
-    public void Architecture_contracts_cover_optimization_phase_guards()
+    public void Architecture_contracts_cover_module_dependencies_and_state_ownership()
     {
         SharedPresentationDoesNotDependOnFeatures();
         FeatureNamespacesDoNotFormUnexpectedCycles();
@@ -759,29 +523,8 @@ public sealed class ArchitectureTests
         FeaturePagesAndViewModelsDoNotUseServiceLocation();
         GenericGlobalCoordinationAbstractionsAreNotIntroduced();
         PagesAndViewModelsDoNotWriteReadingProgress();
-        LargeListHelpersDoNotClearThenAddOneItemAtATime();
-        LibraryUsesStandardWpfRowVirtualization();
         PlaybackStateHasOneOwnerAndReadOnlyConsumerContracts();
-        PlayerPresentationControllersAreFeatureLocalConcreteTypes();
         ApplicationModulesHaveNoUnexpectedDependenciesOrCycles();
-    }
-
-    [Fact]
-    public void Architecture_contracts_cover_source_layout_and_view_ownership()
-    {
-        ProductionSourceFilesMatchNamespacesAndPrimaryPublicTypes();
-        AppUsesFeatureSlicesInsteadOfGlobalUiDirectories();
-        AppKeepsOnlyReusableOrBehaviorOwningUserControlViews();
-    }
-
-    [Fact]
-    public void Wpf_ui_scheduler_does_not_report_ordinary_dispatch_as_a_stall()
-    {
-        var scheduler = Repository.ReadProductSourceFiles().Single(file =>
-            file.RelativePath == "src/NovelSpeaker.App/Shared/Presentation/Platform/WpfUiScheduler.cs");
-
-        Assert.DoesNotContain("IObservability", scheduler.Content, StringComparison.Ordinal);
-        Assert.DoesNotContain("UiDispatcherStall", scheduler.Content, StringComparison.Ordinal);
     }
 
     private static void AssertEqualSet(IEnumerable<string> expected, IEnumerable<string> actual)

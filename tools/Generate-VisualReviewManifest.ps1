@@ -32,20 +32,28 @@ foreach ($manifestFile in $childManifests) {
     $manifest = Get-Content $manifestFile.FullName -Raw | ConvertFrom-Json
     $relativeManifest = Get-RelativePathCompat $visualRoot $manifestFile.FullName
     $category = $relativeManifest.Split('/')[0]
-    $artifactId = if ($manifest.PSObject.Properties['ArtifactId']) { $manifest.ArtifactId } else { $manifest.artifactId }
+    $artifactId = $manifest.ArtifactId
+    $scenesProperty = $manifest.PSObject.Properties['scenes']
+    if ($null -eq $scenesProperty) {
+        throw "Visual review manifest is missing required 'scenes' collection: $($manifestFile.FullName)"
+    }
 
-    $scenes = if ($manifest.PSObject.Properties['Scenes']) { $manifest.Scenes } else { $manifest.Scenarios }
+    if ($scenesProperty.Value -isnot [System.Array] -or $scenesProperty.Value.Count -eq 0) {
+        throw "Visual review manifest requires a non-empty 'scenes' array: $($manifestFile.FullName)"
+    }
+
+    $scenes = $scenesProperty.Value
+    $sceneIndex = 0
     foreach ($scene in $scenes) {
-        $scenario = if ($scene.PSObject.Properties['Scenario']) {
-            $scene.Scenario
-        } elseif ($scene.PSObject.Properties['scene']) {
-            $scene.scene
-        } else {
-            'default'
+        if ($null -eq $scene.PSObject.Properties['scene'] -or
+            [string]::IsNullOrWhiteSpace([string]$scene.scene)) {
+            throw "Visual review manifest entry $sceneIndex is missing required 'scene': $($manifestFile.FullName)"
         }
-        $theme = $scene.Theme.ToString().ToLowerInvariant()
-        $pngName = if ($scene.PSObject.Properties['Png']) { $scene.Png } else { $scene.png }
-        $expectedHash = if ($scene.PSObject.Properties['Sha256']) { $scene.Sha256 } else { $scene.sha256 }
+
+        $scenario = $scene.scene
+        $theme = $scene.theme.ToString().ToLowerInvariant()
+        $pngName = $scene.png
+        $expectedHash = $scene.sha256
         $pngPath = Join-Path $manifestFile.DirectoryName $pngName
         if (-not (Test-Path $pngPath -PathType Leaf)) {
             throw "Missing visual review screenshot: $pngPath"
@@ -65,6 +73,8 @@ foreach ($manifestFile in $childManifests) {
             png = (Get-RelativePathCompat $visualRoot $pngPath).Replace('\', '/')
             sha256 = $actualHash
         }
+
+        $sceneIndex++
     }
 }
 

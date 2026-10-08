@@ -4,4 +4,5 @@ namespace NovelSpeaker.App.Features.Books.Library;
 
 public sealed record LibraryImportCoordinatorResult(
     LibraryImportCoordinatorStatus Status,
-    BookImportFailureReason? FailureReason = null);
+    BookImportFailureReason? FailureReason = null,
+    DirectBookImportResult? PendingImport = null);

@@ -40,6 +40,14 @@ public sealed class TtsResponseValidator : ITtsResponseValidator
         {
             throw;
         }
+        catch (TtsAudioResponseTooLargeException)
+        {
+            return Failure(
+                TtsErrorKind.InvalidResponse,
+                "服务返回的音频超过允许大小，无法生成音频。",
+                response,
+                null);
+        }
         catch (Exception exception)
         {
             SensitiveFailureLogger.LogError(

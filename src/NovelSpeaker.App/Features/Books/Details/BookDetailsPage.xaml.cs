@@ -58,8 +58,7 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
         _initialLocatorPending = true;
         _initialLocatorEvaluationQueued = false;
         _initialLocatorRequestIssued = false;
-        ViewModel.HandleNavigatedTo();
-        activation.Register(ViewModel.HandleNavigatedFrom);
+        ViewModel.HandleNavigatedTo(activation);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
 
         var request = DataContext as BookDetailsRoute;

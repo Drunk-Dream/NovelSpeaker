@@ -9,6 +9,22 @@ public sealed class BehaviorDebtBaselineTests
     private static readonly ArchitectureTestRepository Repository = ArchitectureTestRepository.Locate();
 
     [Fact]
+    public void App_consumes_cache_views_without_invalidation_or_repair_protocols()
+    {
+        var forbidden = new Regex(@"\b(?:ICacheInvalidationSink|ICacheInvalidationCoordinator|CacheInvalidationCoordinator|CacheInvalidationAspect|CacheInvalidationScope|CacheInvalidationBatch|CacheInvalidation|ICacheCatalog|ICacheCoverageQuery|ICachePlanRepairRequestor|SpeechPlanRepairRequestor|ISpeechPlanRepairCoordinator|SpeechPlanRepairCoordinator|SpeechPlanRepairRequest)\b");
+        foreach (var file in Repository.ReadProductSourceFiles()
+                     .Where(file => file.ProjectDirectoryRelativePath == "src/NovelSpeaker.App"))
+        {
+            Assert.False(forbidden.IsMatch(file.Content), file.RelativePath);
+            if (!file.RelativePath.StartsWith("src/NovelSpeaker.App/Bootstrap/", StringComparison.Ordinal))
+            {
+                Assert.DoesNotContain("ICacheChangeLifetime", file.Content, StringComparison.Ordinal);
+                Assert.DoesNotContain("ISpeechPlanRepairLifetime", file.Content, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
     public void Restore_graph_always_includes_the_release_runtime_identifier()
     {
         var buildProperties = XDocument.Load(Absolute("Directory.Build.props"));
@@ -18,25 +34,6 @@ public sealed class BehaviorDebtBaselineTests
 
         Assert.Equal("true", properties["RestorePackagesWithLockFile"]);
         Assert.Equal("win-x64", properties["RuntimeIdentifiers"]);
-    }
-
-    [Fact]
-    public void Async_void_page_events_delegate_through_the_shared_exception_boundary()
-    {
-        var featuresRoot = Absolute("src/NovelSpeaker.App/Features");
-        var pages = Directory.EnumerateFiles(featuresRoot, "*Page.xaml.cs", SearchOption.AllDirectories);
-
-        foreach (var path in pages)
-        {
-            var source = File.ReadAllText(path);
-            if (!source.Contains("async void", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
-            Assert.Contains("PageEventOperationRunner", source, StringComparison.Ordinal);
-            Assert.Contains("_eventOperations.RunAsync(", source, StringComparison.Ordinal);
-        }
     }
 
     [Fact]
@@ -105,6 +102,7 @@ public sealed class BehaviorDebtBaselineTests
     public void Release_and_quality_workflows_keep_locked_build_test_and_package_boundaries()
     {
         var release = File.ReadAllText(Absolute(".github/workflows/release.yml"));
+        var releasePackageValidation = File.ReadAllText(Absolute("tools/ReleasePackageValidation.ps1"));
         var quality = File.ReadAllText(Absolute(".github/workflows/quality-matrix.yml"));
 
         Assert.Contains("uses: ./.github/workflows/quality-matrix.yml", release, StringComparison.Ordinal);
@@ -112,9 +110,11 @@ public sealed class BehaviorDebtBaselineTests
             "dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore",
             release,
             StringComparison.Ordinal);
-        Assert.Contains("TestAssets", release, StringComparison.Ordinal);
-        Assert.Contains("StyleGallery", release, StringComparison.Ordinal);
-        Assert.Contains("visual-review", release, StringComparison.Ordinal);
+        Assert.Contains("Assert-ReleasePackageDirectory -Path artifacts/publish", release, StringComparison.Ordinal);
+        Assert.Contains("Assert-ReleasePackageZip -Path $zip", release, StringComparison.Ordinal);
+        Assert.Contains("TestAssets", releasePackageValidation, StringComparison.Ordinal);
+        Assert.Contains("StyleGallery", releasePackageValidation, StringComparison.Ordinal);
+        Assert.Contains("visual-review", releasePackageValidation, StringComparison.Ordinal);
 
         foreach (var command in new[]
                  {

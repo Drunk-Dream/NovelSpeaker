@@ -25,8 +25,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     private readonly IAppSettingsService _settingsService;
     private readonly IAudioCacheStore _cacheStore;
-    private readonly ICacheCatalog _cacheCatalog;
-    private readonly ICacheInvalidationCoordinator _invalidationCoordinator;
+    private readonly ICacheReadModel _readModel;
     private readonly IAppDiagnosticsService _diagnosticsService;
     private readonly IAppNavigator _navigator;
     private readonly IAppDialogService _dialogService;
@@ -36,26 +35,21 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     private readonly IConfigurationBackupService _configurationBackup;
     private readonly IPresentationFileDialogService _fileDialogs;
     private readonly IUserDocumentFileOperations _files;
-    private readonly OwnedTaskRegistry _liveRefreshTasks = new();
     private readonly object _overviewRefreshSync = new();
-    private CancellationTokenSource? _cacheLimitDebounceCts;
-    private CancellationTokenSource _cacheLimitCommitCancellation = new();
+    private readonly LatestOperationSlot _cacheLimitSave = new();
     private readonly SemaphoreSlim _configurationWriteGate = new(1, 1);
     private CacheOverviewModel? _overview;
     private TaskCompletionSource? _overviewRefreshCompletion;
     private bool _overviewRefreshRequested;
     private int _overviewRefreshVersion;
     private int _overviewAppliedVersion;
-    private bool _isInvalidationRegistered;
+    private bool _isReadModelRegistered;
     private bool _isLoading;
-    private int _cacheLimitVersion;
-    private long _savedCacheLimitBytes = AppSettings.DefaultCacheLimitBytes;
 
     public CacheAndDataViewModel(
         IAppSettingsService settingsService,
         IAudioCacheStore cacheStore,
-        ICacheCatalog cacheCatalog,
-        ICacheInvalidationCoordinator invalidationCoordinator,
+        ICacheReadModel readModel,
         IAppDiagnosticsService diagnosticsService,
         IAppNavigator navigator,
         IAppDialogService dialogService,
@@ -69,8 +63,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     {
         _settingsService = settingsService;
         _cacheStore = cacheStore;
-        _cacheCatalog = cacheCatalog;
-        _invalidationCoordinator = invalidationCoordinator;
+        _readModel = readModel;
         _diagnosticsService = diagnosticsService;
         _navigator = navigator;
         _dialogService = dialogService;
@@ -145,7 +138,6 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         var token = linked.Token;
         IsConfigurationBusy = true;
         CancelPendingSave();
-        RetireCacheLimitCommits();
         var ownsWriteGate = false;
         try
         {
@@ -163,8 +155,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 token.ThrowIfCancellationRequested();
                 await _configurationBackup.RestoreAsync(plan, token);
                 if (token.IsCancellationRequested) return;
-                _savedCacheLimitBytes = _settingsService.Current.CacheLimitBytes;
-                ApplyCacheLimit(_savedCacheLimitBytes);
+                ApplyCacheLimit(_settingsService.Current.CacheLimitBytes);
                 CacheLimitErrorText = string.Empty;
                 ShowSuccess("配置已恢复", "已替换设置、语音服务和规则。");
                 try { await RequestOverviewRefreshAsync(token); }
@@ -209,7 +200,8 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
-        RegisterInvalidationSubscription();
+        cancellationToken = ActivationToken;
+        RegisterReadModelSubscription();
         _isLoading = true;
         NotifyClearAllCommandState();
         HasLoadError = false;
@@ -219,8 +211,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         {
             cancellationToken.ThrowIfCancellationRequested();
             var settings = _settingsService.Current;
-            _savedCacheLimitBytes = settings.CacheLimitBytes;
-            ApplyCacheLimit(_savedCacheLimitBytes);
+            ApplyCacheLimit(settings.CacheLimitBytes);
             await RequestOverviewRefreshAsync(cancellationToken);
             if (IsCurrentActivation(cancellationToken))
             {
@@ -252,8 +243,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public override void Deactivate()
     {
         CancelPendingSave();
-        RetireCacheLimitCommits();
-        UnregisterInvalidationSubscription();
+        UnregisterReadModelSubscription();
         TaskCompletionSource? retiredRefresh;
         lock (_overviewRefreshSync)
         {
@@ -301,10 +291,9 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         IsClearingAll = true;
         try
         {
-            var overviewVersion = GetOverviewRefreshVersion();
             var result = await _cacheStore.ClearAllAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            await RefreshOverviewAfterCacheMutationAsync(overviewVersion, cancellationToken);
+            await RequestOverviewRefreshAsync(cancellationToken);
             ShowCleanupFeedback(result);
         }
         catch (OperationCanceledException)
@@ -360,25 +349,26 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         }
     }
 
-    public async Task CommitCacheLimitAsync(CancellationToken cancellationToken)
+    public Task CommitCacheLimitAsync(CancellationToken cancellationToken) =>
+        RunLatestSaveAsync(_cacheLimitSave, "保存缓存上限失败", CommitCacheLimitOwnedAsync, cancellationToken);
+
+    private async Task CommitCacheLimitOwnedAsync(LatestOperationSlot.Operation operation)
     {
         if (IsConfigurationBusy) return;
-        CompleteOrCancelPendingSave(cancellationToken);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _cacheLimitCommitCancellation.Token);
         var ownsWriteGate = false;
         try
         {
-            await _configurationWriteGate.WaitAsync(linked.Token);
+            await _configurationWriteGate.WaitAsync(operation.CancellationToken);
             ownsWriteGate = true;
-            if (!IsConfigurationBusy) await CommitCacheLimitCoreAsync(linked.Token);
+            if (!IsConfigurationBusy && operation.IsCurrent)
+                await CommitCacheLimitCoreAsync(operation);
         }
-        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
         finally { if (ownsWriteGate) _configurationWriteGate.Release(); }
     }
 
-    private async Task CommitCacheLimitCoreAsync(CancellationToken cancellationToken)
+    private async Task CommitCacheLimitCoreAsync(LatestOperationSlot.Operation operation)
     {
-        var version = Interlocked.Increment(ref _cacheLimitVersion);
+        var cancellationToken = operation.CancellationToken;
 
         if (!TryParseCacheLimitBytes(CacheLimitValueText, SelectedCacheLimitUnit, out var cacheLimitBytes, out var errorMessage))
         {
@@ -386,7 +376,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
             return;
         }
 
-        if (cacheLimitBytes == _savedCacheLimitBytes)
+        if (cacheLimitBytes == _settingsService.Current.CacheLimitBytes)
         {
             CacheLimitErrorText = string.Empty;
             return;
@@ -407,9 +397,9 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
             cancellationToken.ThrowIfCancellationRequested();
             if (decision != AppConfirmationDecision.Confirm)
             {
-                if (version == Volatile.Read(ref _cacheLimitVersion))
+                if (operation.IsCurrent)
                 {
-                    ApplyCacheLimit(_savedCacheLimitBytes);
+                    ApplyCacheLimit(_settingsService.Current.CacheLimitBytes);
                     CacheLimitErrorText = string.Empty;
                 }
 
@@ -427,21 +417,19 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
-            if (version != Volatile.Read(ref _cacheLimitVersion))
+            if (!operation.IsCurrent)
             {
                 return;
             }
 
-            _savedCacheLimitBytes = settings.CacheLimitBytes;
-            ApplyCacheLimit(_savedCacheLimitBytes);
+            ApplyCacheLimit(settings.CacheLimitBytes);
             CacheLimitErrorText = string.Empty;
 
             if (requiresTrim)
             {
-                var overviewVersion = GetOverviewRefreshVersion();
                 await _cacheStore.RunMaintenanceAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
-                await RefreshOverviewAfterCacheMutationAsync(overviewVersion, cancellationToken);
+                await RequestOverviewRefreshAsync(cancellationToken);
             }
 
             if (!requiresTrim)
@@ -449,7 +437,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 await RequestOverviewRefreshAsync(cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
             }
-            if (requiresTrim && _overview?.IsOverLimit == true)
+            if (operation.IsCurrent && requiresTrim && _overview?.IsOverLimit == true)
             {
                 _feedbackService.ShowWarning("缓存仍高于上限", "仍有受保护的正在使用缓存，停止播放后可继续清理。");
             }
@@ -460,7 +448,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         catch (Exception exception)
         {
             if (!cancellationToken.IsCancellationRequested &&
-                version == Volatile.Read(ref _cacheLimitVersion))
+                operation.IsCurrent)
             {
                 ShowSaveFailure("保存缓存上限失败", exception);
             }
@@ -479,13 +467,14 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     private Task RequestOverviewRefreshAsync(CancellationToken cancellationToken)
     {
-        var refreshCancellationToken = ActivationToken.IsCancellationRequested
-            ? cancellationToken
-            : ActivationToken;
+        if (Activation is not { IsCurrent: true } activation)
+            return Task.FromCanceled(new CancellationToken(canceled: true));
+        var refreshCancellationToken = activation.CancellationToken;
         TaskCompletionSource completion;
         var startRefresh = false;
         lock (_overviewRefreshSync)
         {
+            _overviewRefreshVersion++;
             _overviewRefreshRequested = true;
             if (_overviewRefreshCompletion is null)
             {
@@ -501,7 +490,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
         if (startRefresh)
         {
-            _liveRefreshTasks.Register(
+            activation.Register(
                 RefreshOverviewLoopAsync(completion, refreshCancellationToken),
                 exception => ReportOverviewRefreshFailure(exception, refreshCancellationToken));
         }
@@ -530,7 +519,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                     requestVersion = _overviewRefreshVersion;
                 }
 
-                var overview = await _cacheCatalog
+                var overview = await _readModel
                     .GetOverviewAsync(cancellationToken)
                     .ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
@@ -547,7 +536,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                             }
 
                             _overviewAppliedVersion = requestVersion;
-                            ApplyOverview(overview);
+                            ApplyOverview(overview.Value);
                         }
                     },
                     cancellationToken).ConfigureAwait(false);
@@ -567,7 +556,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
                 {
                     _overviewRefreshCompletion = null;
                     restart = _overviewRefreshRequested &&
-                              _isInvalidationRegistered &&
+                              _isReadModelRegistered &&
                               IsCurrentActivation(cancellationToken);
                 }
             }
@@ -589,14 +578,6 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
             ? 0
             : Math.Clamp(overview.TotalSizeBytes * 100d / overview.LimitBytes, 0, 100);
         NotifyClearAllCommandState();
-    }
-
-    private int GetOverviewRefreshVersion()
-    {
-        lock (_overviewRefreshSync)
-        {
-            return _overviewRefreshVersion;
-        }
     }
 
     private Task EnsureOverviewCurrentAsync(CancellationToken cancellationToken)
@@ -634,60 +615,39 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         }
     }
 
-    private async Task RefreshOverviewAfterCacheMutationAsync(
-        int previousOverviewVersion,
-        CancellationToken cancellationToken)
+    private void RegisterReadModelSubscription()
     {
-        await _invalidationCoordinator
-            .FlushPendingAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        var refreshRequired = false;
-        lock (_overviewRefreshSync)
-        {
-            refreshRequired = _overviewRefreshVersion == previousOverviewVersion ||
-                              _overviewAppliedVersion < _overviewRefreshVersion;
-        }
-
-        if (refreshRequired)
-        {
-            await RequestOverviewRefreshAsync(cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private void RegisterInvalidationSubscription()
-    {
-        if (_isInvalidationRegistered)
+        if (_isReadModelRegistered)
         {
             return;
         }
 
-        _invalidationCoordinator.BatchPublished += OnInvalidationBatchPublished;
-        _isInvalidationRegistered = true;
+        _readModel.Changed += OnCacheReadModelChanged;
+        _isReadModelRegistered = true;
+        Activation?.Register(UnregisterReadModelSubscription);
     }
 
-    private void UnregisterInvalidationSubscription()
+    private void UnregisterReadModelSubscription()
     {
-        if (!_isInvalidationRegistered)
+        if (!_isReadModelRegistered)
         {
             return;
         }
 
-        _invalidationCoordinator.BatchPublished -= OnInvalidationBatchPublished;
-        _isInvalidationRegistered = false;
+        _readModel.Changed -= OnCacheReadModelChanged;
+        _isReadModelRegistered = false;
     }
 
-    private void OnInvalidationBatchPublished(object? sender, CacheInvalidationBatch batch)
+    private void OnCacheReadModelChanged(object? sender, CacheReadModelChange change)
     {
-        if (!batch.Changes.Any(static change =>
-                change.Aspects.HasFlag(CacheInvalidationAspect.PhysicalSummary)))
+        if (!change.OverviewChanged)
         {
             return;
         }
 
         lock (_overviewRefreshSync)
         {
-            if (!_isInvalidationRegistered || !IsCurrentActivation(ActivationToken))
+            if (!_isReadModelRegistered || !IsCurrentActivation(ActivationToken))
             {
                 return;
             }
@@ -700,13 +660,13 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     private void StartBackgroundOverviewRefresh(CancellationToken cancellationToken)
     {
-        _liveRefreshTasks.Register(
+        Activation?.Register(
             RequestOverviewRefreshAsync(cancellationToken));
     }
 
     private void ReportOverviewRefreshFailure(Exception exception, CancellationToken refreshCancellationToken)
     {
-        if (_isInvalidationRegistered && IsCurrentActivation(refreshCancellationToken))
+        if (_isReadModelRegistered && IsCurrentActivation(refreshCancellationToken))
         {
             _feedbackService.ShowProjectedNotification(
                 "刷新缓存总览失败",
@@ -738,59 +698,14 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
 
     private void ScheduleDebouncedCommit()
     {
-        CancelPendingSave();
-
-        RunPageOperation(
-            "保存缓存上限失败",
-            currentActivationToken =>
-            {
-                var operationCts = CancellationTokenSource.CreateLinkedTokenSource(currentActivationToken);
-                _cacheLimitDebounceCts = operationCts;
-                return RunDebouncedCommitAsync(
-                    operationCts,
-                    currentActivationToken);
-            });
-    }
-
-    private async Task RunDebouncedCommitAsync(
-        CancellationTokenSource operationCts,
-        CancellationToken activationToken)
-    {
-        var cancellationToken = operationCts.Token;
-        try
+        ScheduleLatestSave(_cacheLimitSave, "保存缓存上限失败", async operation =>
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, cancellationToken);
-            activationToken.ThrowIfCancellationRequested();
-            if (!IsCurrentActivation(activationToken))
-            {
-                return;
-            }
-
-            await CommitCacheLimitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            operationCts.Dispose();
-        }
+            await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, operation.CancellationToken);
+            if (operation.IsCurrent) await CommitCacheLimitOwnedAsync(operation);
+        });
     }
 
-    private void CancelPendingSave()
-    {
-        _cacheLimitDebounceCts?.Cancel();
-        _cacheLimitDebounceCts?.Dispose();
-        _cacheLimitDebounceCts = null;
-    }
-
-    private void RetireCacheLimitCommits()
-    {
-        var previous = _cacheLimitCommitCancellation;
-        _cacheLimitCommitCancellation = new CancellationTokenSource();
-        previous.Cancel();
-        previous.Dispose();
-    }
+    private void CancelPendingSave() => _cacheLimitSave.Cancel();
 
     partial void OnIsClearingAllChanged(bool value)
     {
@@ -817,18 +732,6 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
         {
             _feedbackService.ShowSuccess(feedback.Title, feedback.Message);
         }
-    }
-
-    private void CompleteOrCancelPendingSave(CancellationToken commitToken)
-    {
-        if (_cacheLimitDebounceCts is not null &&
-            _cacheLimitDebounceCts.Token == commitToken)
-        {
-            _cacheLimitDebounceCts = null;
-            return;
-        }
-
-        CancelPendingSave();
     }
 
     private static bool TryParseCacheLimitBytes(

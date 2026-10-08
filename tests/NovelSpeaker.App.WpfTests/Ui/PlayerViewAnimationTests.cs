@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.TestKit.Speech;
 using System.Collections.ObjectModel;
@@ -76,11 +77,10 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
 
-            viewModel.OnPageNavigatedTo(CancellationToken.None);
+            viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -183,11 +183,10 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
 
-            viewModel.OnPageNavigatedTo(CancellationToken.None);
+            viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -292,11 +291,10 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
 
-            viewModel.OnPageNavigatedTo(CancellationToken.None);
+            viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),
@@ -341,7 +339,7 @@ public sealed partial class PlayerViewTests
 
                 coordinator.Publish(coordinator.CurrentSnapshot with
                 {
-                    State = PlaybackState.Buffering,
+                    State = PlaybackState.Preparing,
                     SegmentIndex = 88,
                     SegmentCount = 120
                 });
@@ -349,7 +347,14 @@ public sealed partial class PlayerViewTests
                 WaitUntil(() => view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(500));
                 coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Preparing });
                 coordinator.Publish(coordinator.CurrentSnapshot with { State = PlaybackState.Playing });
-                WaitUntil(() => !view.HasActiveSegmentScrollAnimation, TimeSpan.FromMilliseconds(1200));
+                WaitUntil(() =>
+                {
+                    if (view.HasActiveSegmentScrollAnimation ||
+                        segmentsListBox.ItemContainerGenerator.ContainerFromItem(viewModel.CurrentSegmentItem)
+                            is not FrameworkElement target) return false;
+                    var center = target.TranslatePoint(new Point(0, 0), scrollViewer).Y + target.ActualHeight / 2d;
+                    return Math.Abs(center - scrollViewer.ViewportHeight / 2d) <= 1d;
+                }, TimeSpan.FromMilliseconds(1200));
                 DoEvents();
                 view.UpdateLayout();
 
@@ -418,11 +423,10 @@ public sealed partial class PlayerViewTests
                 new FakeAppFeedbackService(),
                 new FakeNavigationService(),
                 new PlayerAutoScrollCoordinator(TimeProvider.System),
-                new CacheCoverageTestDouble(),
-                new CacheInvalidationTestDouble(),
+                new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
 
-            viewModel.OnPageNavigatedTo(CancellationToken.None);
+            viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),

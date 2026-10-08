@@ -6,6 +6,7 @@ using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.Domain.Settings;
+using NovelSpeaker.App.Shell.Activation;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
@@ -22,9 +23,8 @@ internal sealed class PlayerSpeechControlController : IDisposable
     private readonly IAppSettingsService _settingsService;
     private readonly IAppFeedbackService _feedbackService;
     private readonly TimeProvider _timeProvider;
-    private readonly OwnedTaskRegistry _operationTasks = new();
-
-    private CancellationTokenSource? _speakSpeedStepDebounceCts;
+    private readonly LatestOperationSlot _speakSpeedSave = new();
+    private PageActivationScope? _activation;
 
     public PlayerSpeechControlController(
         IPlaybackSession playbackSession,
@@ -116,39 +116,31 @@ internal sealed class PlayerSpeechControlController : IDisposable
         catch (Exception exception)
         {
             var projected = _feedbackService.Project(exception);
-            _feedbackService.ShowProjectedNotification("更新语速失败", projected);
+            if (!cancellationToken.IsCancellationRequested)
+                _feedbackService.ShowProjectedNotification("更新语速失败", projected);
         }
+    }
+
+    public void Activate(PageActivationScope activation) => _activation = activation;
+
+    public void Deactivate()
+    {
+        _activation = null;
+        CancelPendingSpeakSpeedChange();
     }
 
     public void ScheduleSpeakSpeedChange(int speakSpeed)
     {
-        CancelPendingSpeakSpeedChange();
-        _speakSpeedStepDebounceCts = new CancellationTokenSource();
-        _operationTasks.Register(
-            ApplyDebouncedSpeakSpeedChangeAsync(speakSpeed, _speakSpeedStepDebounceCts.Token));
-    }
-
-    public void CancelPendingSpeakSpeedChange()
-    {
-        _speakSpeedStepDebounceCts?.Cancel();
-        _speakSpeedStepDebounceCts?.Dispose();
-        _speakSpeedStepDebounceCts = null;
-    }
-
-    public void Dispose()
-    {
-        CancelPendingSpeakSpeedChange();
-    }
-
-    private async Task ApplyDebouncedSpeakSpeedChangeAsync(int speakSpeed, CancellationToken cancellationToken)
-    {
-        try
+        if (_activation is not { IsCurrent: true } activation) return;
+        var operation = _speakSpeedSave.Begin(activation: activation);
+        activation.Register(operation.RunAsync(async current =>
         {
-            await Task.Delay(SpeakSpeedStepDebounceDelay, _timeProvider, cancellationToken);
-            await ApplySpeakSpeedAsync(speakSpeed, cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
+            await Task.Delay(SpeakSpeedStepDebounceDelay, _timeProvider, current.CancellationToken);
+            if (current.IsCurrent) await ApplySpeakSpeedAsync(speakSpeed, current.CancellationToken);
+        }, exception => _feedbackService.ShowProjectedNotification("更新语速失败", _feedbackService.Project(exception))));
     }
+
+    public void CancelPendingSpeakSpeedChange() => _speakSpeedSave.Cancel();
+
+    public void Dispose() => Deactivate();
 }

@@ -19,9 +19,7 @@ internal static class RulePatternValidation
     {
         try
         {
-            _ = timeout is null
-                ? new Regex(pattern, RegexOptions.CultureInvariant)
-                : new Regex(pattern, RegexOptions.CultureInvariant, timeout.Value);
+            _ = new Regex(pattern, RegexOptions.CultureInvariant, timeout ?? ChapterRuleRegexPolicy.MatchTimeout);
         }
         catch (ArgumentException exception)
         {

@@ -1,7 +1,7 @@
 namespace NovelSpeaker.Application.Cache;
 
 /// <summary>Identifies a chapter whose persisted speech plan needs rebuilding.</summary>
-public sealed record SpeechPlanRepairRequest
+internal sealed record SpeechPlanRepairRequest
 {
     public SpeechPlanRepairRequest(string bookId, int chapterIndex, string chapterId)
     {

@@ -7,6 +7,8 @@ public interface IBookDeletionOperationStore
 {
     Task<BookDeletionPreparation?> BeginAsync(BookDeleteRequest request, CancellationToken cancellationToken);
 
+    Task<BookDeletionPreparation?> BeginSourceRemovalAsync(BookSourceRemoveRequest request, CancellationToken cancellationToken);
+
     Task CommitAsync(BookDeletionPreparation preparation, CancellationToken cancellationToken);
 
     Task CompleteAsync(BookDeletionPreparation preparation, CancellationToken cancellationToken);

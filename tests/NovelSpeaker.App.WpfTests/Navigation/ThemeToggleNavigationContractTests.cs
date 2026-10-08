@@ -49,7 +49,7 @@ public sealed class ThemeToggleNavigationContractTests
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
-            var provider = WpfTestHost.BuildServiceProvider();
+            var provider = await WpfTestHost.BuildInitializedServiceProviderAsync();
             var runtime = provider.GetRequiredService<IThemeRuntime>();
             runtime.ApplyLightTheme();
             var window = provider.GetRequiredService<MainWindow>();

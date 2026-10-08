@@ -7,4 +7,5 @@ public sealed record BookDetailsHeader(
     string Id,
     string Title,
     string? Author,
-    string? Description = null);
+    string? Description = null,
+    ActiveSourceSummary? ActiveSource = null);

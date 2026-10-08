@@ -11,17 +11,20 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
     private readonly IEncodingSelectionDialogService _encodingSelectionDialogService;
     private readonly IImportProgressDialogService _importProgressDialogService;
     private readonly IUserDocumentFileOperations _fileOperations;
+    private readonly IBookImportSelectionDialogService _bookSelectionDialogService;
 
     public LibraryImportCoordinator(
         IDirectBookImportService directBookImportService,
         IEncodingSelectionDialogService encodingSelectionDialogService,
         IImportProgressDialogService importProgressDialogService,
-        IUserDocumentFileOperations fileOperations)
+        IUserDocumentFileOperations fileOperations,
+        IBookImportSelectionDialogService bookSelectionDialogService)
     {
         _directBookImportService = directBookImportService;
         _encodingSelectionDialogService = encodingSelectionDialogService;
         _importProgressDialogService = importProgressDialogService;
         _fileOperations = fileOperations;
+        _bookSelectionDialogService = bookSelectionDialogService;
     }
 
     public async Task<LibraryImportCoordinatorResult> ImportAsync(
@@ -35,42 +38,56 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
             return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.InvalidSource);
         }
 
-        return metadata.Length >= LargeFileThresholdBytes
-            ? await _importProgressDialogService.RunAsync(
-                metadata.FileName,
-                (progress, token) => ImportWithEncodingLoopAsync(
-                    metadata.FilePath,
-                    metadata.FileName,
-                    progress,
-                    token),
-                cancellationToken)
-            : await ImportWithEncodingLoopAsync(
-                metadata.FilePath,
-                metadata.FileName,
-                progress: null,
-                cancellationToken);
+        return await ImportWithSelectionLoopAsync(metadata, cancellationToken);
     }
 
-    private async Task<LibraryImportCoordinatorResult> ImportWithEncodingLoopAsync(
-        string filePath,
-        string fileName,
-        IProgress<BookImportProgress>? progress,
+    private async Task<LibraryImportCoordinatorResult> ImportWithSelectionLoopAsync(
+        UserDocumentFileMetadata metadata,
         CancellationToken cancellationToken)
     {
         string? selectedEncoding = null;
+        BookImportSelection? selection = null;
+        var filePath = metadata.FilePath;
+        var fileName = metadata.FileName;
 
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = await _directBookImportService.ImportAsync(
-                new DirectBookImportRequest(filePath, selectedEncoding, fileName),
-                progress,
-                cancellationToken);
+            async Task<LibraryImportCoordinatorResult> AttemptAsync(IProgress<BookImportProgress>? progress, CancellationToken token)
+            {
+                var attempt = await _directBookImportService.ImportAsync(
+                    new DirectBookImportRequest(filePath, selectedEncoding, fileName, selection?.TargetBookId, selection?.CreateNewBook ?? false),
+                    progress, token);
+                return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.RequiresInput, PendingImport: attempt);
+            }
+
+            // Every attempt closes its progress surface before showing a selection surface.
+            var attemptResult = metadata.Length >= LargeFileThresholdBytes
+                ? await _importProgressDialogService.RunAsync(fileName, (progress, token) => AttemptAsync(progress, token), cancellationToken)
+                : await AttemptAsync(null, cancellationToken);
+            if (attemptResult.Status == LibraryImportCoordinatorStatus.Cancelled)
+            {
+                return attemptResult;
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var result = attemptResult.PendingImport!;
 
             if (result.Status == DirectBookImportStatus.Imported)
             {
                 return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Imported);
+            }
+
+            if (result.Status == DirectBookImportStatus.RequiresBookSelection)
+            {
+                selection = await _bookSelectionDialogService.ShowAsync(result.BookCandidates!, cancellationToken);
+                if (selection is null)
+                {
+                    return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Cancelled);
+                }
+
+                continue;
             }
 
             if (result.Status == DirectBookImportStatus.Failed)

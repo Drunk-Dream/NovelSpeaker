@@ -1,3 +1,5 @@
+using NovelSpeaker.App.Shell.Activation;
+using NovelSpeaker.TestKit.Books;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.App.Features.Books.Shared;
 using NovelSpeaker.App.Shared.Feedback;
@@ -50,7 +52,7 @@ public sealed partial class LibraryViewModelTests
         viewModel.HandleNavigatedFrom();
         Assert.False(viewModel.IsManagementMode);
         Assert.Equal(0, viewModel.SelectedBookCount);
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         viewModel.EnterManagementCommand.Execute(null);
         viewModel.SelectAllBooksCommand.Execute(null);
         Assert.Equal(1, viewModel.SelectedBookCount);
@@ -60,13 +62,13 @@ public sealed partial class LibraryViewModelTests
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
-    public async Task Cancelled_batch_keeps_catalog_invalidated_without_completion_notification(int cancelAfterCount)
+    public async Task Cancelled_batch_stops_page_work_without_completion_notification(int cancelAfterCount)
     {
-        var invalidation = new BookCatalogInvalidationState();
+        var changes = new FakeBookChanges();
         var deletion = new FakeBookManagementService();
         var feedback = new FakeFeedbackService();
         var viewModel = CreateViewModel(catalogService: new FakeBookCatalogService(ManagementBooks), managementService: deletion,
-            deleteDialogService: new FakeBookDeleteDialogService { NextResult = new(true, true) }, invalidation: invalidation, feedback: feedback);
+            deleteDialogService: new FakeBookDeleteDialogService { NextResult = new(true, true) }, bookChanges: changes, feedback: feedback);
         await viewModel.LoadAsync(CancellationToken.None);
         deletion.OnDelete = _ =>
         {
@@ -76,7 +78,6 @@ public sealed partial class LibraryViewModelTests
         viewModel.SelectAllBooksCommand.Execute(null);
         await viewModel.DeleteSelectedBooksCommand.ExecuteAsync(null);
         Assert.Equal(cancelAfterCount, deletion.Requests.Count);
-        Assert.True(invalidation.IsInvalidated);
         Assert.Empty(feedback.Notifications);
     }
 

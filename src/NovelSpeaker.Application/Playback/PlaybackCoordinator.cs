@@ -19,8 +19,7 @@ public sealed class PlaybackCoordinator :
     IPlaybackSnapshotSource,
     IPlaybackSession,
     IPlaybackStopTimer,
-    IPlaybackBookCommands,
-    IPlaybackRegexReplacementRefresher,
+    IBookRemovalWorkStopper,
     IAsyncDisposable
 {
     internal static readonly TimeSpan VolumePersistenceDelay = TimeSpan.FromMilliseconds(300);
@@ -30,7 +29,7 @@ public sealed class PlaybackCoordinator :
     private readonly PlaybackSegmentRunner _segmentRunner;
     private readonly PlaybackRecoveryPolicy _recoveryPolicy;
     private readonly IAudioCacheProtectionRegistry _audioCacheProtectionRegistry;
-    private readonly PlaybackAudioController _audioController;
+    private readonly ILocalAudioPlaybackCoordinator _localAudio;
     private readonly PlaybackProgressController _progressController;
     private readonly IPlaybackPrefetchController _prefetchController;
     private readonly IAppSettingsService _appSettingsService;
@@ -41,37 +40,18 @@ public sealed class PlaybackCoordinator :
     private readonly object _disposeGate = new();
     private readonly object _volumePersistenceGate = new();
 
-    private PlaybackSnapshot _currentSnapshot = PlaybackSnapshot.Idle;
-    private PlaybackSessionState? _currentSession;
-    private TtsErrorKind? _lastFailureKind;
-    private string? _lastRecoveredCorruptSegmentKey;
-    private long _contentRevision;
+    private readonly PlaybackRuntime _runtime = new();
+    private readonly IBookSourceChangeSource? _sourceChanges;
+    private readonly IRegexReplacementRuleWorkspaceService? _regexWorkspace;
     private bool _disposed;
     private Task? _disposeTask;
     private CancellationTokenSource? _volumePersistenceCancellation;
     private Task? _volumePersistenceTask;
     private double _pendingVolume;
     private bool _hasPendingVolumePersistence;
-
-    // These accessors are aliases into the session owner. They intentionally do not
-    // cache a second book, provider, or protection handle in the coordinator.
-    private PlaybackBookContent? _currentBook
-    {
-        get => _currentSession?.Book;
-        set
-        {
-            if (value is not null && _currentSession is not null)
-            {
-                _currentSession.ReplaceBook(value);
-            }
-        }
-    }
-
-    private ResolvedSpeechProvider? _currentProvider
-    {
-        get => _currentSession?.Provider;
-        set => _currentSession?.SetProvider(value);
-    }
+    private long _prefetchWindowRevision;
+    private long _settingsSpeedRevision;
+    private long _appliedSettingsSpeedRevision;
 
     internal PlaybackCoordinator(
         IBookPlaybackContentService bookContentService,
@@ -79,42 +59,48 @@ public sealed class PlaybackCoordinator :
         PlaybackSegmentRunner segmentRunner,
         PlaybackRecoveryPolicy recoveryPolicy,
         IAudioCacheProtectionRegistry audioCacheProtectionRegistry,
-        PlaybackAudioController audioController,
+        ILocalAudioPlaybackCoordinator localAudio,
         PlaybackProgressController progressController,
         IPlaybackPrefetchController prefetchController,
         IAppSettingsService appSettingsService,
         TimeProvider timeProvider,
-        IObservability? observability = null)
+        IObservability? observability = null,
+        IBookSourceChangeSource? sourceChanges = null,
+        IRegexReplacementRuleWorkspaceService? regexWorkspace = null)
     {
         _bookContentService = bookContentService;
         _selectedProvider = selectedProvider;
         _segmentRunner = segmentRunner;
         _recoveryPolicy = recoveryPolicy;
         _audioCacheProtectionRegistry = audioCacheProtectionRegistry;
-        _audioController = audioController;
+        _localAudio = localAudio;
         _progressController = progressController;
         _prefetchController = prefetchController;
         _appSettingsService = appSettingsService;
         _timeProvider = timeProvider;
+        _sourceChanges = sourceChanges;
+        _regexWorkspace = regexWorkspace;
         _observability = observability ?? new ObservabilityHub(new ObservabilityContextAccessor());
         _commandProcessor = new PlaybackCommandProcessor(
             ProcessEventCommandAsync,
             PublishEventCommandFailureSafely);
         var startupVolume = PlaybackVolume.Normalize(_appSettingsService.Current.PlaybackVolume);
-        _audioController.SetVolume(startupVolume);
-        _currentSnapshot = PlaybackSnapshot.Idle with { Volume = startupVolume };
+        _localAudio.SetVolume(startupVolume);
         _stopTimer = new PlaybackStopTimer(
             _timeProvider,
-            PauseAsync,
+            PauseFromTimerAsync,
             PublishStopTimerFailureSafely);
 
-        _audioController.SnapshotChanged += OnLocalSnapshotChanged;
-        _audioController.PlaybackCompleted += OnLocalPlaybackCompleted;
-        _audioController.PlaybackFailed += OnLocalPlaybackFailed;
+        _localAudio.SnapshotChanged += OnLocalSnapshotChanged;
+        _localAudio.PlaybackCompleted += OnLocalPlaybackCompleted;
+        _localAudio.PlaybackFailed += OnLocalPlaybackFailed;
         _appSettingsService.Changed += OnSettingsChanged;
+        _selectedProvider.Changed += OnProvidersChanged;
+        if (_sourceChanges is not null) _sourceChanges.Changed += OnBookCommittedChange;
+        if (_regexWorkspace is not null) _regexWorkspace.Changed += OnRegexRulesChanged;
     }
 
-    public PlaybackSnapshot CurrentSnapshot => _currentSnapshot;
+    public PlaybackSnapshot CurrentSnapshot => PlaybackSnapshotProjector.Project(_runtime.Current, _localAudio.Volume);
 
     public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
@@ -139,7 +125,7 @@ public sealed class PlaybackCoordinator :
             await RunSerializedAsync(ct => StartCoreAsync(request, ct), cancellationToken).ConfigureAwait(false);
             operation.Complete(OperationResult.Succeeded());
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             operation.Complete(OperationResult.Cancelled());
             throw;
@@ -233,47 +219,106 @@ public sealed class PlaybackCoordinator :
         lock (_volumePersistenceGate)
         {
             ThrowIfDisposed();
-            var previousVolume = _audioController.Volume;
-            _audioController.SetVolume(volume);
-            var normalizedVolume = _audioController.Volume;
-            PublishSnapshot(_currentSnapshot with { Volume = normalizedVolume });
-            if (normalizedVolume != previousVolume)
-                ScheduleVolumePersistence(normalizedVolume);
+            var previous = _localAudio.Volume;
+            _localAudio.SetVolume(volume);
+            PublishSnapshot();
+            if (_localAudio.Volume != previous) ScheduleVolumePersistence(_localAudio.Volume);
         }
     }
 
     private void OnSettingsChanged(object? sender, AppSettingsChangedEventArgs change)
     {
+        if (change.IsSnapshotReplacement || change.Previous.DefaultSpeakSpeed != change.Current.DefaultSpeakSpeed)
+        {
+            Interlocked.Increment(ref _settingsSpeedRevision);
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.SettingsChanged, null, null));
+        }
         if (!change.IsSnapshotReplacement && change.Previous.PlaybackVolume == change.Current.PlaybackVolume) return;
         lock (_volumePersistenceGate)
         {
             if (_disposed) return;
-            // An older slider save must not overwrite a newer slider value. Snapshot replacement,
-            // however, is authoritative even when it restores the same persisted volume.
-            if (!change.IsSnapshotReplacement && _hasPendingVolumePersistence &&
-                _pendingVolume != change.Current.PlaybackVolume) return;
+            if (!change.IsSnapshotReplacement && _hasPendingVolumePersistence && _pendingVolume != change.Current.PlaybackVolume) return;
             _hasPendingVolumePersistence = false;
             _volumePersistenceCancellation?.Cancel();
-            _audioController.SetVolume(change.Current.PlaybackVolume);
-            PublishSnapshot(_currentSnapshot with { Volume = _audioController.Volume });
+            _localAudio.SetVolume(change.Current.PlaybackVolume);
+            PublishSnapshot();
         }
     }
 
-    public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken)
+    private void OnProvidersChanged(object? sender, SpeechProvidersChangedEventArgs change)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-        return RunSerializedAsync(ct => RefreshBookMetadataCoreAsync(bookId, ct), cancellationToken);
+        if (!_disposed && change.AffectsSynthesis)
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.ProviderChanged, null, null));
     }
 
-    public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken)
+    public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken)
     {
-        return RunSerializedAsync(RefreshRegexReplacementCoreAsync, cancellationToken);
+        _runtime.CancelWork(bookId, sourceId);
+        return _commandProcessor.RunSerializedAsync(async ct =>
+        {
+            var book = _runtime.Current.Book;
+            if (book?.BookId == bookId && (sourceId is null || book.SourceContext?.SourceId == sourceId))
+                await DiscardSourceContextAsync(ct).ConfigureAwait(false);
+        }, cancellationToken);
     }
 
-    public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
+    private void OnBookCommittedChange(object? sender, BookCommittedChange change)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-        return RunSerializedAsync(ct => HandleBookDeletedCoreAsync(bookId, ct), cancellationToken);
+        var current = _runtime.Current;
+        if (_disposed) return;
+        if (change is BookCommittedChange.MetadataCommitted)
+        {
+            // Metadata facts also apply to a Book whose opening command is still resolving.
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, null, null, change));
+            return;
+        }
+        var preparation = _runtime.ActivePreparation;
+        if (preparation is { IsActive: true } && preparation.Book.BookId == change.BookId &&
+            InvalidatesBookContext(change, preparation.Book.SourceContext)) preparation.Cancel();
+        var contentWork = _runtime.ActiveContentWork;
+        if (contentWork is { IsActive: true } && contentWork.Book.BookId == change.BookId &&
+            InvalidatesBookContext(change, contentWork.Book.SourceContext)) contentWork.Cancel();
+        if (current.Book?.BookId != change.BookId)
+        {
+            var opening = contentWork is { IsActive: true } && contentWork.Book.BookId == change.BookId
+                ? contentWork.Book
+                : preparation is { IsActive: true } && preparation.Book.BookId == change.BookId ? preparation.Book : null;
+            if (current.Book is null && opening is not null)
+                _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged, null, null, change, opening.SourceContext));
+            return;
+        }
+        var invalidates = InvalidatesBookContext(change, current.Book.SourceContext);
+        if (change is not BookCommittedChange.MetadataCommitted && !invalidates) return;
+        if (invalidates) _runtime.CancelSession(current.Identity);
+        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.BookChanged,
+            null, null, change, current.Book.SourceContext));
+    }
+
+    private static bool InvalidatesBookContext(BookCommittedChange change, ActiveSourceContext? context) => change switch
+    {
+        BookCommittedChange.ActiveCatalogCommitted catalog => context?.SourceId == catalog.SourceId && context.CatalogVersion != catalog.CatalogVersion,
+        BookCommittedChange.ActiveSourceChanged source => context?.SourceId != source.SourceId,
+        BookCommittedChange.BookRemoved => true,
+        BookCommittedChange.SourceRemoved source => context?.SourceId == source.SourceId,
+        _ => false
+    };
+
+    private void OnRegexRulesChanged(object? sender, RegexReplacementRulesChangedEventArgs change)
+    {
+        if (!_disposed && change.AffectsSpeechProfile)
+            _commandProcessor.Enqueue(new(PlaybackEventCommandKind.RegexChanged, null, null));
+    }
+
+    private async Task DiscardSourceContextAsync(CancellationToken cancellationToken)
+    {
+        _stopTimer.Cancel();
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
+        var transition = _runtime.Clear(cancellationToken);
+        CancelPreparationEffects(transition);
+        // The Source is already invalid: never checkpoint against its obsolete catalog.
+        await ExecuteRetirementAsync(transition, stopAudio).ConfigureAwait(false);
+        _runtime.ReportMessage("活动来源目录已更新，请重新打开书籍。");
+        PublishSnapshot();
     }
 
     public ValueTask DisposeAsync()
@@ -281,7 +326,7 @@ public sealed class PlaybackCoordinator :
         lock (_disposeGate)
         {
             _disposeTask ??= DisposeCoreAsync();
-            return new ValueTask(_disposeTask);
+            return new(_disposeTask);
         }
     }
 
@@ -289,1653 +334,1076 @@ public sealed class PlaybackCoordinator :
     {
         _disposed = true;
         _appSettingsService.Changed -= OnSettingsChanged;
+        _selectedProvider.Changed -= OnProvidersChanged;
+        if (_sourceChanges is not null) _sourceChanges.Changed -= OnBookCommittedChange;
+        if (_regexWorkspace is not null) _regexWorkspace.Changed -= OnRegexRulesChanged;
         await _stopTimer.DisposeAsync().ConfigureAwait(false);
         _commandProcessor.BeginShutdown();
-        _currentSession?.Cancel();
-        _audioController.SnapshotChanged -= OnLocalSnapshotChanged;
-        _audioController.PlaybackCompleted -= OnLocalPlaybackCompleted;
-        _audioController.PlaybackFailed -= OnLocalPlaybackFailed;
-
-        Exception? disposeFailure = null;
-        try
+        _runtime.CancelSession(_runtime.Current.Identity);
+        _localAudio.SnapshotChanged -= OnLocalSnapshotChanged;
+        _localAudio.PlaybackCompleted -= OnLocalPlaybackCompleted;
+        _localAudio.PlaybackFailed -= OnLocalPlaybackFailed;
+        Exception? failure = null;
+        async Task ObserveAsync(Func<Task> effect)
         {
-            await FlushVolumePersistenceAsync().ConfigureAwait(false);
+            try { await effect().ConfigureAwait(false); }
+            catch (Exception exception) { failure ??= exception; }
         }
-        catch (Exception exception)
-        {
-            disposeFailure ??= exception;
-        }
-
-        try
-        {
-            await _commandProcessor.WaitForIdleAsync().ConfigureAwait(false);
-            var session = _currentSession;
-            if (session is not null)
-            {
-                try
-                {
-                    await _progressController.SaveAsync(
-                        session,
-                        session.HasLoadedAudio
-                            ? _audioController.CurrentSnapshot.PositionMilliseconds
-                            : _progressController.GetCurrentPositionMillisecondsForSave(
-                                session,
-                                _audioController.CurrentSnapshot),
-                        _audioController.CurrentSnapshot,
-                        CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception exception)
-                {
-                    disposeFailure ??= exception;
-                }
-
-                try
-                {
-                    await _prefetchController.CancelAsync(session.SessionId, CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (Exception exception)
-                {
-                    disposeFailure ??= exception;
-                }
-
-                try
-                {
-                    await DisposeSessionAsync().ConfigureAwait(false);
-                }
-                catch (Exception exception)
-                {
-                    disposeFailure ??= exception;
-                }
-            }
-
-            try
-            {
-                ClearProtectedPlaybackFile();
-            }
-            catch (Exception exception)
-            {
-                disposeFailure ??= exception;
-            }
-        }
-        catch (Exception exception)
-        {
-            disposeFailure ??= exception;
-        }
-        try
-        {
-            await _commandProcessor.DisposeAsync().ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            disposeFailure ??= exception;
-        }
-
-        try
-        {
-            await _audioController.DisposeAsync().ConfigureAwait(false);
-        }
-        catch (Exception exception)
-        {
-            disposeFailure ??= exception;
-        }
-
-        if (disposeFailure is not null)
-        {
-            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(disposeFailure).Throw();
-        }
+        await ObserveAsync(FlushVolumePersistenceAsync).ConfigureAwait(false);
+        await _commandProcessor.WaitForIdleAsync().ConfigureAwait(false);
+        CaptureDevicePosition();
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
+        var stop = _runtime.Stop("已停止当前播放。");
+        CancelPreparationEffects(stop);
+        await ObserveAsync(() => ExecuteCheckpointsAsync(stop, CancellationToken.None)).ConfigureAwait(false);
+        await ObserveAsync(() => ExecuteRetirementAsync(stop, stopAudio)).ConfigureAwait(false);
+        _runtime.Dispose();
+        await ObserveAsync(() => _commandProcessor.DisposeAsync().AsTask()).ConfigureAwait(false);
+        await ObserveAsync(() => _localAudio.DisposeAsync().AsTask()).ConfigureAwait(false);
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
-    private async Task StartCoreAsync(PlaybackStartRequest request, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
+    private Task StartCoreAsync(PlaybackStartRequest request, CancellationToken ct) =>
+        OpenBookCoreAsync(request.BookId, request.ChapterIndex, request.SegmentIndex,
+            request.ResumePositionMilliseconds, request.SpeakSpeedOverride, true, ct);
 
-        var resolved = await ResolveBookStartContextAsync(
-            request.BookId,
-            request.ChapterIndex,
-            request.SegmentIndex,
-            request.ResumePositionMilliseconds,
-            allowSavedProgress: true,
-            cancellationToken).ConfigureAwait(false);
+    private Task OpenPausedCoreAsync(OpenBookPlaybackRequest request, CancellationToken ct) =>
+        OpenBookCoreAsync(request.BookId, request.ChapterIndex, request.SegmentIndex,
+            null, request.SpeakSpeedOverride, false, ct);
+
+    private async Task OpenBookCoreAsync(string bookId, int? chapterIndex, int? segmentIndex,
+        long? resume, int? speed, bool play, CancellationToken cancellationToken)
+    {
+        using var work = _runtime.BeginContentWork(new(bookId, string.Empty, []));
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, work.Token, _commandProcessor.LifecycleToken);
+        cancellationToken = linked.Token;
+        var resolved = await ResolveBookStartContextAsync(bookId, chapterIndex, segmentIndex, resume, true,
+            cancellationToken, work).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         if (resolved is null)
         {
-            PublishSnapshot(PlaybackSnapshot.Idle with
+            if (_runtime.Current.Book is null)
             {
-                State = PlaybackState.Faulted,
-                Message = "未找到要播放的书籍。",
-                CanRetry = false
-            });
+                _runtime.ReportFailure("未找到要打开的书籍。");
+                PublishSnapshot();
+            }
             return;
         }
-
-        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
-        var speakSpeed = NormalizeSpeakSpeed(request.SpeakSpeedOverride ?? _appSettingsService.Current.DefaultSpeakSpeed);
-        var checkpointNewPosition = request.ChapterIndex is not null || request.SegmentIndex is not null;
-
-        if (selectedProvider is null)
+        var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
+        var targetBook = resolved.Value.Book;
+        var targetPosition = new PlaybackPosition(resolved.Value.ChapterIndex, resolved.Value.SegmentIndex);
+        var current = _runtime.Current;
+        var message = provider is null ? ProviderMissingMessage : "已恢复到当前位置，等待播放。";
+        if (current.Identity is not null && current.Book?.BookId == targetBook.BookId &&
+            current.Book.SourceContext == targetBook.SourceContext)
         {
-            await OpenResolvedPositionAsync(
-                resolved.Value.Book,
-                resolved.Value.ChapterIndex,
-                resolved.Value.SegmentIndex,
-                resolved.Value.ResumePositionMilliseconds,
-                selectedProvider,
-                speakSpeed,
-                "尚未选择语音服务，请前往语音服务管理完成配置。",
-                cancellationToken,
-                checkpointNewPosition).ConfigureAwait(false);
+            _stopTimer.Cancel();
+            CaptureDevicePosition();
+            current = _runtime.Current;
+            _runtime.ChangeSpeechConfiguration(current.Identity, provider, speed ?? current.SpeakSpeed);
+            current = _runtime.Current;
+            var stopAudio = HasCurrentDeviceAudio(current);
+            var transition = _runtime.CommitTarget(targetBook, targetPosition,
+                play ? PlaybackIntent.Play : PlaybackIntent.Pause, cancellationToken, message,
+                resolved.Value.ResumePositionMilliseconds);
+            await ExecuteTargetTransitionAsync(transition, stopAudio, cancellationToken).ConfigureAwait(false);
             return;
         }
-
-        await StartNewSessionAsync(
-            resolved.Value.Book,
-            resolved.Value.ChapterIndex,
-            resolved.Value.SegmentIndex,
-            resolved.Value.ResumePositionMilliseconds,
-            selectedProvider,
-            speakSpeed,
-            forceInvalidate: false,
-            playImmediately: true,
-            pausedState: PlaybackState.Paused,
-            pausedMessage: "已恢复到当前位置，等待播放。",
-            cancellationToken,
-            checkpointNewPosition: checkpointNewPosition);
+        await ReplacePlaybackSessionAsync(new(targetBook, targetPosition, provider,
+            speed ?? _appSettingsService.Current.DefaultSpeakSpeed,
+            play && provider is not null ? PlaybackState.Preparing : provider is null ? PlaybackState.Stopped : PlaybackState.Paused,
+            resolved.Value.ResumePositionMilliseconds, Message: message),
+            chapterIndex is not null || segmentIndex is not null || resolved.Value.RequiresCheckpoint,
+            false, cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task OpenPausedCoreAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-
-        var resolved = await ResolveBookStartContextAsync(
-            request.BookId,
-            request.ChapterIndex,
-            request.SegmentIndex,
-            resumePositionMillisecondsOverride: null,
-            allowSavedProgress: true,
-            cancellationToken).ConfigureAwait(false);
-        if (resolved is null)
-        {
-            PublishSnapshot(PlaybackSnapshot.Idle with
-            {
-                State = PlaybackState.Faulted,
-                Message = "未找到要打开的书籍。",
-                CanRetry = false
-            });
-            return;
-        }
-
-        var speakSpeed = NormalizeSpeakSpeed(request.SpeakSpeedOverride ?? _appSettingsService.Current.DefaultSpeakSpeed);
-        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
-        var checkpointNewPosition = request.ChapterIndex is not null || request.SegmentIndex is not null;
-        await OpenResolvedPositionAsync(
-            resolved.Value.Book,
-            resolved.Value.ChapterIndex,
-            resolved.Value.SegmentIndex,
-            resolved.Value.ResumePositionMilliseconds,
-            selectedProvider,
-            speakSpeed,
-            "已恢复到当前位置，等待播放。",
-            cancellationToken,
-            checkpointNewPosition).ConfigureAwait(false);
-    }
+    private const string ProviderMissingMessage = "尚未选择语音服务，请前往语音服务管理完成配置。";
 
     private async Task PauseCoreAsync(CancellationToken cancellationToken)
     {
-        ThrowIfDisposed();
-        if (_currentSession is null)
+        var current = _runtime.Current;
+        if (current.Identity is null) return;
+        if (current.Audio.HasLoadedAudio)
         {
-            return;
+            await _localAudio.PauseAsync(cancellationToken).ConfigureAwait(false);
+            AcceptDeviceSnapshot(_localAudio.CurrentSnapshot, authoritativeTransportChange: true);
         }
-
-        if (!_currentSession.HasLoadedAudio)
-        {
-            PublishSnapshot(_currentSnapshot with
-            {
-                State = PlaybackState.Paused,
-                Message = "已暂停，等待播放。"
-            });
-            await RefreshPrefetchWindowAsync(_currentSession, maxCountOverride: 1, cancellationToken);
-            await _progressController.SaveAsync(
-                _currentSession,
-                _currentSession.PositionForSave,
-                _audioController.CurrentSnapshot,
-                cancellationToken);
-            return;
-        }
-
-        await _audioController.PauseAsync(cancellationToken);
-        var pausedAudio = _audioController.CurrentSnapshot;
-        _currentSession.UpdateAudio(pausedAudio);
-        if (_currentBook is not null && _currentProvider is not null)
-        {
-            PublishSnapshot(BuildSnapshot(
-                PlaybackState.Paused,
-                _currentBook,
-                _currentSession.ChapterIndex,
-                _currentSession.SegmentIndex,
-                _currentProvider,
-                _currentSession.SpeakSpeed,
-                pausedAudio.PositionMilliseconds,
-                pausedAudio.DurationMilliseconds,
-                pausedAudio.Message,
-                pausedAudio.IsUsingCache,
-                false));
-        }
-
-        await RefreshPrefetchWindowAsync(_currentSession, maxCountOverride: 1, cancellationToken);
-        await _progressController.SaveAsync(
-            _currentSession,
-            _audioController.CurrentSnapshot.PositionMilliseconds,
-            _audioController.CurrentSnapshot,
-            cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var transition = _runtime.Pause();
+        CancelPreparationEffects(transition);
+        PublishSnapshot();
+        await ExecuteCheckpointsAsync(transition, cancellationToken).ConfigureAwait(false);
+        SchedulePrefetchRefresh(_runtime.Current, 1);
     }
+
+    private Task PauseFromTimerAsync(CancellationToken cancellationToken) => RunSerializedAsync(async ct =>
+    {
+        try { await PauseCoreAsync(ct).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch
+        {
+            // Observe the timer's pause failure before releasing the command boundary.
+            // A queued completion may otherwise replace the session and cancel the timer
+            // before its task can report the original checkpoint failure.
+            _runtime.ReportMessage("定时停止执行失败，请重新设置。");
+            try { PublishSnapshot(); } catch { }
+        }
+    }, cancellationToken);
 
     private async Task ResumeCoreAsync(CancellationToken cancellationToken)
     {
-        ThrowIfDisposed();
-        if (_currentSession is null)
+        var current = _runtime.Current;
+        if (current.Book is null || current.Position is null) return;
+        if (current.Intent == PlaybackIntent.Play &&
+            current.State is PlaybackState.Preparing or PlaybackState.Recovering or PlaybackState.Playing)
+            return;
+        if (current.Audio.HasLoadedAudio)
         {
+            await _localAudio.ResumeAsync(cancellationToken).ConfigureAwait(false);
+            _runtime.ResumeLoadedAudio();
+            AcceptDeviceSnapshot(_localAudio.CurrentSnapshot);
+            _runtime.ResetFailureWindow();
+            PublishSnapshot();
+            SchedulePrefetchRefresh(_runtime.Current, null);
             return;
         }
-
-        if (!_currentSession.HasLoadedAudio)
+        var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (provider is null)
         {
-            var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
-            if (provider is null)
-            {
-                if (_currentBook is not null)
-                {
-                    PublishSnapshot(CreateProviderMissingSnapshot(
-                        _currentBook,
-                        _currentSession.ChapterIndex,
-                        _currentSession.SegmentIndex,
-                        _currentSession.SpeakSpeed));
-                }
-
-                return;
-            }
-
-            _currentProvider = provider;
-            _currentSession.SetConsecutiveSegmentFailureCount(0);
-            await PlayCurrentSegmentAsync(
-                _currentSession,
-                _currentSession.ResumePositionMilliseconds,
-                forceInvalidate: false,
-                cancellationToken).ConfigureAwait(false);
+            _runtime.ChangeSpeechConfiguration(current.Identity, null, current.SpeakSpeed);
+            _runtime.ReportMessage(ProviderMissingMessage);
+            PublishSnapshot();
             return;
         }
-
-        await _audioController.ResumeAsync(cancellationToken);
-        var resumedAudio = _audioController.CurrentSnapshot;
-        _currentSession.UpdateAudio(resumedAudio);
-        if (_currentBook is not null && _currentProvider is not null)
+        if (current.Identity is null)
         {
-            PublishSnapshot(BuildSnapshot(
-                PlaybackState.Playing,
-                _currentBook,
-                _currentSession.ChapterIndex,
-                _currentSession.SegmentIndex,
-                _currentProvider,
-                _currentSession.SpeakSpeed,
-                resumedAudio.PositionMilliseconds,
-                resumedAudio.DurationMilliseconds,
-                resumedAudio.Message,
-                resumedAudio.IsUsingCache,
-                false));
+            await ReplacePlaybackSessionAsync(new(current.Book, current.Position, provider, current.SpeakSpeed,
+                provider is null ? PlaybackState.Stopped : PlaybackState.Preparing,
+                current.ResumePositionMilliseconds,
+                Message: provider is null ? ProviderMissingMessage : "已恢复当前段落，正在准备音频。"),
+                true, false, cancellationToken).ConfigureAwait(false);
+            return;
         }
-
-        await RefreshPrefetchWindowAsync(_currentSession, maxCountOverride: null, cancellationToken);
+        _runtime.ChangeSpeechConfiguration(current.Identity, provider, current.SpeakSpeed);
+        var transition = _runtime.BeginPlayback(true);
+        PublishSnapshot();
+        SchedulePreparationEffects(transition);
     }
 
     private async Task StopCoreAsync(CancellationToken cancellationToken)
     {
-        ThrowIfDisposed();
         _stopTimer.Cancel();
-        if (_currentSession is null)
-        {
-            PublishSnapshot(PlaybackSnapshot.Idle);
-            return;
-        }
-
-        await StopAndDisposeCurrentSessionAsync(cancellationToken).ConfigureAwait(false);
-
-        PublishSnapshot(_currentSnapshot with
-        {
-            State = PlaybackState.Stopped,
-            PositionMilliseconds = 0,
-            DurationMilliseconds = _audioController.CurrentSnapshot.DurationMilliseconds,
-            Message = "已停止当前播放。",
-            CanRetry = false
-        });
+        if (_runtime.Current.Book is null) return;
+        CaptureDevicePosition();
+        // A checkpoint failure leaves the current session available for another attempt.
+        await SaveCurrentAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
+        var stop = _runtime.Stop("已停止当前播放。");
+        CancelPreparationEffects(stop);
+        await ExecuteRetirementAsync(stop, stopAudio).ConfigureAwait(false);
+        PublishSnapshot();
     }
 
     private async Task ClearCoreAsync(CancellationToken cancellationToken)
     {
-        ThrowIfDisposed();
-
-        if (_currentSession is not null)
-        {
-            await StopAndDisposeCurrentSessionAsync(cancellationToken).ConfigureAwait(false);
-            ClearCurrentBookContext();
-        }
-        else
-        {
-            _stopTimer.Cancel();
-            ClearProtectedPlaybackFile();
-            ClearCurrentBookContext();
-        }
-
-        PublishSnapshot(PlaybackSnapshot.Idle with { Volume = _audioController.Volume });
-    }
-
-    private async Task StopAndDisposeCurrentSessionAsync(CancellationToken cancellationToken)
-    {
         _stopTimer.Cancel();
-
-        var session = _currentSession
-            ?? throw new InvalidOperationException("当前没有可清理的播放会话。");
-        if (session.HasLoadedAudio)
-        {
-            session.UpdateAudio(_audioController.CurrentSnapshot);
-        }
-
-        var positionBeforeStop = _progressController.GetCurrentPositionMillisecondsForSave(
-            session,
-            _audioController.CurrentSnapshot);
-        if (session.HasLoadedAudio)
-        {
-            await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
-            session.UpdateAudio(_audioController.CurrentSnapshot);
-        }
-
-        await _progressController.SaveAsync(
-            session,
-            positionBeforeStop,
-            _audioController.CurrentSnapshot,
-            cancellationToken).ConfigureAwait(false);
-        await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
-        ClearProtectedPlaybackFile();
-        await DisposeSessionAsync().ConfigureAwait(false);
+        CaptureDevicePosition();
+        await SaveCurrentAsync(cancellationToken).ConfigureAwait(false);
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
+        var clear = _runtime.Clear(cancellationToken);
+        CancelPreparationEffects(clear);
+        await ExecuteRetirementAsync(clear, stopAudio).ConfigureAwait(false);
+        PublishSnapshot();
     }
 
     private async Task RefreshBookMetadataCoreAsync(string bookId, CancellationToken cancellationToken)
     {
-        ThrowIfDisposed();
-
-        if (_currentBook is null ||
-            !string.Equals(_currentBook.BookId, bookId, StringComparison.Ordinal))
+        var current = _runtime.Current;
+        if (current.Book?.BookId != bookId) return;
+        var book = await _bookContentService.GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (book is null) return;
+        if (book.SourceContext != current.Book.SourceContext)
         {
+            await DiscardSourceContextAsync(cancellationToken).ConfigureAwait(false);
             return;
         }
-
-        var refreshedBook = await _bookContentService.GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
-        if (refreshedBook is null)
-        {
-            return;
-        }
-
-        _currentBook = MergeBookMetadata(_currentBook, refreshedBook);
-        PublishSnapshot(_currentSnapshot with
-        {
-            BookTitle = _currentBook.BookTitle,
-            BookAuthor = _currentBook.BookAuthor
-        });
+        _runtime.UpdateMetadata(book);
+        PublishSnapshot();
     }
 
     private async Task RefreshRegexReplacementCoreAsync(CancellationToken cancellationToken)
     {
-        ThrowIfDisposed();
-        if (_currentBook is null || _currentSession is null)
+        var current = _runtime.Current;
+        if (current.Book is null || current.Position is not { } position) return;
+        using var work = _runtime.BeginContentWork(current.Book);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.SessionToken, work.Token);
+        var token = linked.Token;
+        var previous = GetChapter(current.Book, position.ChapterIndex)!.Segments[position.SegmentIndex];
+        var chapter = await _bookContentService.GetChapterAsync(current.Book.BookId, position.ChapterIndex, token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        if (chapter is null) return;
+        await ValidateBookAsync(current.Book, token).ConfigureAwait(false);
+        var book = ReplaceChapter(current.Book, chapter);
+        var mapped = PlaybackPositionResolver.FindMappedSegmentIndex(chapter, previous.StartOffset);
+        if (mapped >= 0)
         {
-            return;
-        }
-
-        var session = _currentSession;
-        var chapterIndex = session.ChapterIndex;
-        var previousChapter = GetChapter(_currentBook, chapterIndex);
-        var previousSegment = previousChapter is not null && session.SegmentIndex >= 0 && session.SegmentIndex < previousChapter.Segments.Count
-            ? previousChapter.Segments[session.SegmentIndex]
-            : null;
-        var characterOffset = previousSegment?.StartOffset ?? 0;
-        var replacement = await _bookContentService.GetChapterAsync(_currentBook.BookId, chapterIndex, cancellationToken).ConfigureAwait(false);
-        if (replacement is null)
-        {
-            return;
-        }
-
-        _currentBook = ReplaceChapter(_currentBook, replacement);
-        _contentRevision++;
-        var wasPlaying = _currentSnapshot.State == PlaybackState.Playing;
-
-        if (replacement.LoadState == PlaybackChapterLoadState.LoadedEmpty ||
-            PlaybackPositionResolver.FindMappedSegmentIndex(replacement, characterOffset) < 0)
-        {
-            var target = await ResolveNearestAvailablePositionAsync(_currentBook, chapterIndex, cancellationToken).ConfigureAwait(false);
-            if (target is null || _currentProvider is null)
+            var segment = chapter.Segments[mapped];
+            if (mapped == position.SegmentIndex && previous.StableIdentity == segment.StableIdentity &&
+                previous.SpeechText == segment.SpeechText)
             {
-                if (session.HasLoadedAudio)
-                {
-                    await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
-                }
-
-                await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
-                await DisposeSessionAsync().ConfigureAwait(false);
-                PublishSnapshot(_currentSnapshot with
-                {
-                    State = PlaybackState.Stopped,
-                    SegmentCount = 0,
-                    ContentRevision = _contentRevision,
-                    Message = "正则替换后没有可播放的段落。",
-                    CanRetry = false
-                });
+                _runtime.UpdateContent(book, new(position.ChapterIndex, mapped), "正则替换规则已应用。");
+                if (current.Identity is { } identity)
+                    await _prefetchController.CancelAsync(identity.SessionId, token).ConfigureAwait(false);
+                SchedulePrefetchRefresh(_runtime.Current, null);
+                PublishSnapshot();
                 return;
             }
-
-            await StartNewSessionAsync(
-                target.Value.Book,
-                target.Value.ChapterIndex,
-                target.Value.SegmentIndex,
-                0,
-                _currentProvider,
-                session.SpeakSpeed,
-                forceInvalidate: false,
-                playImmediately: wasPlaying,
-                pausedState: PlaybackState.Paused,
-                pausedMessage: "正则替换规则已应用，等待播放。",
-                cancellationToken).ConfigureAwait(false);
-            return;
         }
-
-        var mappedIndex = PlaybackPositionResolver.FindMappedSegmentIndex(replacement, characterOffset);
-        var mappedSegment = replacement.Segments[mappedIndex];
-        var speechChanged = previousSegment is null || !string.Equals(previousSegment.SpeechText, mappedSegment.SpeechText, StringComparison.Ordinal);
-        if (!speechChanged)
-        {
-            await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
-            await RefreshPrefetchWindowAsync(session, null, cancellationToken).ConfigureAwait(false);
-            PublishSnapshot(_currentSnapshot with
-            {
-                SegmentCount = replacement.Segments.Count,
-                ContentRevision = _contentRevision,
-                Message = "正则替换规则已应用。"
-            });
-            return;
-        }
-
-        if (_currentProvider is null)
-        {
-            return;
-        }
-
-        await StartNewSessionAsync(
-            _currentBook,
-            chapterIndex,
-            mappedIndex,
-            0,
-            _currentProvider,
-            session.SpeakSpeed,
-            forceInvalidate: false,
-            playImmediately: wasPlaying,
-            pausedState: PlaybackState.Paused,
-            pausedMessage: "正则替换规则已应用，等待播放。",
-            cancellationToken).ConfigureAwait(false);
-    }
-
-    private async Task HandleBookDeletedCoreAsync(string bookId, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-
-        if (!string.Equals(_currentSnapshot.BookId, bookId, StringComparison.Ordinal))
-        {
-            return;
-        }
-
+        var target = mapped >= 0 ? (Book: book, ChapterIndex: position.ChapterIndex, SegmentIndex: mapped) :
+            await FindNearestAsync(book, position.ChapterIndex, token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
         _stopTimer.Cancel();
-        if (_currentSession is not null)
-        {
-            if (_currentSession.HasLoadedAudio)
-            {
-                await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
-            }
-
-            await _prefetchController.CancelAsync(_currentSession.SessionId, cancellationToken).ConfigureAwait(false);
-            await DisposeSessionAsync().ConfigureAwait(false);
-        }
-
-        ClearProtectedPlaybackFile();
-        ClearCurrentBookContext();
-        PublishSnapshot(PlaybackSnapshot.Idle);
-    }
-
-    private async Task MoveSegmentCoreAsync(int delta, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        if (_currentBook is null)
-        {
-            return;
-        }
-
-        var currentPosition = GetCurrentPosition();
-        var target = await ResolveRelativeSegmentAsync(
-            _currentBook,
-            currentPosition.ChapterIndex,
-            currentPosition.SegmentIndex,
-            delta,
-            cancellationToken);
         if (target is null)
         {
+            CaptureDevicePosition();
+            current = _runtime.Current;
+            var stopAudio = HasCurrentDeviceAudio(current);
+            var transition = _runtime.UpdateContent(book, null, "正则替换后没有可播放的段落。");
+            await ExecuteTargetTransitionAsync(transition, stopAudio, token, propagateFailure: false).ConfigureAwait(false);
             return;
         }
-
-        if (CurrentSnapshot.State == PlaybackState.Playing && _currentProvider is not null)
+        if (current.Identity is null)
         {
-            await StartNewSessionAsync(
-                target.Value.Book,
-                target.Value.ChapterIndex,
-                target.Value.SegmentIndex,
-                0,
-                _currentProvider,
-                GetCurrentSpeakSpeed(),
-                forceInvalidate: false,
-                playImmediately: true,
-                pausedState: PlaybackState.Paused,
-                pausedMessage: "已恢复到当前位置，等待播放。",
-                cancellationToken,
-                checkpointNewPosition: true);
+            var transition = _runtime.UpdateContent(book,
+                new(target.Value.ChapterIndex, target.Value.SegmentIndex), "正则替换规则已应用。");
+            await ExecuteTargetTransitionAsync(transition, false, token, propagateFailure: false).ConfigureAwait(false);
             return;
         }
-
-        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
-        await OpenResolvedPositionAsync(
-            target.Value.Book,
-            target.Value.ChapterIndex,
-            target.Value.SegmentIndex,
-            0,
-            selectedProvider,
-            GetCurrentSpeakSpeed(),
-            "已跳转到目标段落，等待播放。",
-            cancellationToken,
-            checkpointNewPosition: true).ConfigureAwait(false);
+        var provider = await _selectedProvider.GetSelectedProviderAsync(token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        CaptureDevicePosition();
+        current = _runtime.Current;
+        _runtime.ChangeSpeechConfiguration(current.Identity, provider, current.SpeakSpeed);
+        current = _runtime.Current;
+        var shouldStopAudio = HasCurrentDeviceAudio(current);
+        var committed = _runtime.CommitTarget(target.Value.Book,
+            new(target.Value.ChapterIndex, target.Value.SegmentIndex), current.Intent, token,
+            provider is null ? ProviderMissingMessage : "正则替换规则已应用，等待播放。");
+        await ExecuteTargetTransitionAsync(committed, shouldStopAudio, token).ConfigureAwait(false);
     }
 
-    private async Task MoveChapterCoreAsync(int delta, CancellationToken cancellationToken)
+    private async Task<(PlaybackBookContent Book, int ChapterIndex, int SegmentIndex)?> FindNearestAsync(
+        PlaybackBookContent book, int chapter, CancellationToken ct)
+    {
+        var target = await ResolveNearestAvailablePositionAsync(book, chapter, ct).ConfigureAwait(false);
+        return target is null ? null : (target.Value.Book, target.Value.ChapterIndex, target.Value.SegmentIndex);
+    }
+
+    private async Task JumpToCoreAsync(int chapterIndex, int segmentIndex, CancellationToken ct)
+    {
+        var current = _runtime.Current;
+        if (current.Book is null) return;
+        using var work = _runtime.BeginContentWork(current.Book);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runtime.SessionToken, work.Token);
+        ct = linked.Token;
+        var target = await ResolvePlayablePositionAsync(current.Book, chapterIndex, segmentIndex, 1, false, ct).ConfigureAwait(false);
+        if (target is not null) await NavigateAsync(target.Value.Book, target.Value.ChapterIndex, target.Value.SegmentIndex, ct).ConfigureAwait(false);
+    }
+
+    private Task JumpToChapterCoreAsync(int chapterIndex, CancellationToken ct) => JumpToCoreAsync(chapterIndex, 0, ct);
+
+    private async Task MoveSegmentCoreAsync(int delta, CancellationToken ct)
+    {
+        var current = _runtime.Current;
+        if (current.Book is null || current.Position is not { } position) return;
+        using var work = _runtime.BeginContentWork(current.Book);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runtime.SessionToken, work.Token);
+        ct = linked.Token;
+        var target = await ResolveRelativeSegmentAsync(current.Book, position.ChapterIndex, position.SegmentIndex, delta, ct).ConfigureAwait(false);
+        if (target is not null) await NavigateAsync(target.Value.Book, target.Value.ChapterIndex, target.Value.SegmentIndex, ct).ConfigureAwait(false);
+    }
+
+    private async Task MoveChapterCoreAsync(int delta, CancellationToken ct)
     {
         using var operation = _observability.StartOperation(OperationCatalog.PlaybackChapterSwitch);
         try
         {
-            await MoveChapterCoreWithoutTelemetryAsync(delta, cancellationToken).ConfigureAwait(false);
+            var current = _runtime.Current;
+            if (current.Book is not null && current.Position is { } position &&
+                FindRelativeChapterIndex(current.Book, position.ChapterIndex, delta) is { } chapter)
+            {
+                using var work = _runtime.BeginContentWork(current.Book);
+                using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runtime.SessionToken, work.Token);
+                ct = linked.Token;
+                var target = await ResolvePlayablePositionAsync(current.Book, chapter, 0, delta >= 0 ? 1 : -1, false, ct).ConfigureAwait(false);
+                if (target is not null) await NavigateAsync(target.Value.Book, target.Value.ChapterIndex, target.Value.SegmentIndex, ct).ConfigureAwait(false);
+            }
             operation.Complete(OperationResult.Succeeded());
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            operation.Complete(OperationResult.Cancelled());
-            throw;
-        }
-        catch
-        {
-            operation.Complete(OperationResult.Failed("chapter-switch-failed"));
-            throw;
-        }
+        catch (OperationCanceledException) { operation.Complete(OperationResult.Cancelled()); throw; }
+        catch { operation.Complete(OperationResult.Failed("chapter-switch-failed")); throw; }
     }
 
-    private async Task MoveChapterCoreWithoutTelemetryAsync(int delta, CancellationToken cancellationToken)
+    private async Task NavigateAsync(PlaybackBookContent book, int chapter, int segment, CancellationToken ct)
     {
-        ThrowIfDisposed();
-        if (_currentBook is null)
+        var current = _runtime.Current;
+        var provider = await _selectedProvider.GetSelectedProviderAsync(ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        if (current.Identity is null || current.Book?.BookId != book.BookId ||
+            current.Book.SourceContext != book.SourceContext)
         {
-            return;
-        }
-
-        var currentPosition = GetCurrentPosition();
-        var targetChapterIndex = FindRelativeChapterIndex(_currentBook, currentPosition.ChapterIndex, delta);
-        if (targetChapterIndex is null)
-        {
-            return;
-        }
-
-        var target = await ResolvePlayablePositionAsync(
-            _currentBook,
-            targetChapterIndex.Value,
-            0,
-            delta >= 0 ? 1 : -1,
-            preferLastSegmentWhenSearchingBackward: false,
-            cancellationToken);
-        if (target is null)
-        {
-            return;
-        }
-
-        if (CurrentSnapshot.State == PlaybackState.Playing && _currentProvider is not null)
-        {
-            await StartNewSessionAsync(
-                target.Value.Book,
-                target.Value.ChapterIndex,
-                target.Value.SegmentIndex,
-                0,
-                _currentProvider,
-                GetCurrentSpeakSpeed(),
-                forceInvalidate: false,
-                playImmediately: true,
-                pausedState: PlaybackState.Paused,
-                pausedMessage: "已恢复到当前位置，等待播放。",
-                cancellationToken,
-                checkpointNewPosition: true);
-            return;
-        }
-
-        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
-        await OpenResolvedPositionAsync(
-            target.Value.Book,
-            target.Value.ChapterIndex,
-            target.Value.SegmentIndex,
-            0,
-            selectedProvider,
-            GetCurrentSpeakSpeed(),
-            "已跳转到目标章节，等待播放。",
-            cancellationToken,
-            checkpointNewPosition: true).ConfigureAwait(false);
-    }
-
-    private async Task RetryCurrentSegmentCoreAsync(CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        if (_currentBook is null)
-        {
-            return;
-        }
-
-        var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken);
-        if (provider is null)
-        {
-            var current = GetCurrentPosition();
-            PublishSnapshot(CreateProviderMissingSnapshot(
-                _currentBook,
-                current.ChapterIndex,
-                current.SegmentIndex,
-                GetCurrentSpeakSpeed()));
-            return;
-        }
-
-        var currentPosition = GetCurrentPosition();
-        var retryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
-            _lastFailureKind ?? TtsErrorKind.Unknown,
-            _currentSnapshot.Message ?? "正在重试当前段落。",
-            _currentSession?.ConsecutiveSegmentFailureCount ?? 0,
-            IsCorruptAudio: _lastFailureKind == TtsErrorKind.AudioDecode,
-            CorruptAudioRecoveryAttempted: false));
-        await StartNewSessionAsync(
-            await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken),
-            currentPosition.ChapterIndex,
-            currentPosition.SegmentIndex,
-            0,
-            provider,
-            GetCurrentSpeakSpeed(),
-            forceInvalidate: retryDecision.ShouldInvalidateAudio,
-            playImmediately: true,
-            pausedState: PlaybackState.Paused,
-            pausedMessage: "已恢复到当前位置，等待播放。",
-            cancellationToken,
-            initialConsecutiveFailureCount: 0);
-    }
-
-    private async Task ChangeProviderCoreAsync(ProviderId providerId, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        var provider = await _selectedProvider.SelectProviderAsync(providerId, cancellationToken).ConfigureAwait(false);
-        if (provider is null) return;
-        // A loaded sentence owns its saved configuration until playback completes.
-        if (_currentSession is { HasLoadedAudio: true }) return;
-        _currentProvider = provider;
-        PublishSnapshot(_currentSnapshot with
-        {
-            ProviderId = provider.ProviderId,
-            ProviderName = provider.ProviderName,
-            HasAvailableProvider = true,
-            Message = "已选择语音服务。"
-        });
-    }
-
-    private async Task ChangeSpeedCoreAsync(int speakSpeed, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        var normalizedSpeed = NormalizeSpeakSpeed(speakSpeed);
-        if (_currentBook is null || _currentProvider is null)
-        {
-            PublishSnapshot(_currentSnapshot with
+            var state = current.Intent switch
             {
-                SpeakSpeed = normalizedSpeed,
-                Message = $"语速已调整为 {normalizedSpeed}。"
-            });
+                PlaybackIntent.Play when provider is not null => PlaybackState.Preparing,
+                PlaybackIntent.Pause => PlaybackState.Paused,
+                _ => PlaybackState.Stopped
+            };
+            await ReplacePlaybackSessionAsync(new(book, new(chapter, segment), provider, current.SpeakSpeed,
+                state, Message: provider is null ? ProviderMissingMessage : "已跳转到目标段落，等待播放。"),
+                true, false, ct).ConfigureAwait(false);
             return;
         }
-
-        if (_currentSession is { HasLoadedAudio: true } session)
-        {
-            // The loaded sentence keeps playing; synthesis and prefetch use the new speed from here on.
-            session.SetSpeakSpeed(normalizedSpeed);
-            PublishSnapshot(_currentSnapshot with { SpeakSpeed = normalizedSpeed });
-            await RefreshPrefetchWindowAsync(session, maxCountOverride: null, cancellationToken).ConfigureAwait(false);
-            return;
-        }
-
-        var currentPosition = GetCurrentPosition();
-        var currentBook = await EnsureChapterLoadedAsync(_currentBook, currentPosition.ChapterIndex, cancellationToken).ConfigureAwait(false);
-        await OpenResolvedPositionAsync(
-            currentBook,
-            currentPosition.ChapterIndex,
-            currentPosition.SegmentIndex,
-            0,
-            _currentProvider,
-            normalizedSpeed,
-            "语速已调整，等待播放。",
-            cancellationToken).ConfigureAwait(false);
+        _stopTimer.Cancel();
+        CaptureDevicePosition();
+        current = _runtime.Current;
+        _runtime.ChangeSpeechConfiguration(current.Identity, provider, current.SpeakSpeed);
+        current = _runtime.Current;
+        var stopAudio = HasCurrentDeviceAudio(current);
+        var transition = _runtime.CommitTarget(book, new(chapter, segment), current.Intent, ct,
+            provider is null ? ProviderMissingMessage : "已跳转到目标段落，等待播放。");
+        await ExecuteTargetTransitionAsync(transition, stopAudio, ct).ConfigureAwait(false);
     }
 
-    private async Task StartNewSessionAsync(
-        PlaybackBookContent book,
-        int chapterIndex,
-        int segmentIndex,
-        long resumePositionMilliseconds,
-        ResolvedSpeechProvider? selectedProvider,
-        int speakSpeed,
-        bool forceInvalidate,
-        bool playImmediately,
-        PlaybackState pausedState,
-        string pausedMessage,
-        CancellationToken cancellationToken,
-        int initialConsecutiveFailureCount = 0,
-        bool checkpointNewPosition = false,
-        bool pausedCanRetry = false)
+    private async Task RetryCurrentSegmentCoreAsync(CancellationToken ct)
     {
+        var current = _runtime.Current;
+        if (current.Book is null || current.Position is null) return;
         _stopTimer.Cancel();
-        _commandProcessor.AdvanceEventEpoch();
-        var previousSession = _currentSession;
-        var previousSnapshot = _currentSnapshot;
-        var previousPositionForSave = previousSession is null
-            ? 0
-            : _progressController.GetCurrentPositionMillisecondsForSave(
-                previousSession,
-                _audioController.CurrentSnapshot);
-        var previousHadLoadedAudio = previousSession?.HasLoadedAudio == true;
-        var previousAudioSnapshot = _audioController.CurrentSnapshot;
-        var previousAudioStopped = IsTerminalAudioSnapshotForSession(previousSession, previousAudioSnapshot);
-        PlaybackSessionState? session = null;
+        var provider = await _selectedProvider.GetSelectedProviderAsync(ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        if (provider is null) { _runtime.ReportMessage(ProviderMissingMessage); PublishSnapshot(); return; }
+        _runtime.ChangeSpeechConfiguration(current.Identity, provider, current.SpeakSpeed);
+        var transition = _runtime.BeginPlayback(false, current.LastFailureKind == TtsErrorKind.AudioDecode);
+        PublishSnapshot();
+        SchedulePreparationEffects(transition, current.LastFailureKind == TtsErrorKind.AudioDecode);
+    }
 
+    private async Task ChangeProviderCoreAsync(ProviderId providerId, CancellationToken ct)
+    {
+        var provider = await _selectedProvider.SelectProviderAsync(providerId, ct).ConfigureAwait(false);
+        ct.ThrowIfCancellationRequested();
+        if (provider is null) return;
+        await ApplyProviderAsync(provider, ct).ConfigureAwait(false);
+    }
+
+    private async Task ApplyProviderAsync(ResolvedSpeechProvider? provider, CancellationToken ct)
+    {
+        var current = _runtime.Current;
+        if (!current.Audio.HasLoadedAudio)
+        {
+            var previousPreparation = current.Preparation?.Identity;
+            _runtime.ChangeSpeechConfiguration(current.Identity, provider, current.SpeakSpeed);
+            current = _runtime.Current;
+            if (current.Preparation?.Identity != previousPreparation)
+            {
+                if (current.Preparation is { } preparation) ScheduleTargetPreparation(current);
+                else if (previousPreparation is { } obsolete) _runtime.CancelPreparation(obsolete);
+            }
+        }
+        PublishSnapshot();
+        SchedulePrefetchRefresh(_runtime.Current, null);
+    }
+
+    private async Task ChangeSpeedCoreAsync(int speed, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        var current = _runtime.Current;
+        if (current.Identity is { } identity)
+        {
+            var previousPreparation = current.Preparation?.Identity;
+            _runtime.ChangeSpeechConfiguration(identity, current.Provider, speed);
+            current = _runtime.Current;
+            if (current.Preparation?.Identity != previousPreparation)
+            {
+                if (current.Preparation is not null) ScheduleTargetPreparation(current);
+                else if (previousPreparation is { } obsolete) _runtime.CancelPreparation(obsolete);
+            }
+        }
+        else _runtime.ChangeIdleSpeed(speed);
+        PublishSnapshot();
+        SchedulePrefetchRefresh(_runtime.Current, null);
+    }
+
+    private async Task ReplacePlaybackSessionAsync(PlaybackSessionTarget target, bool checkpoint, bool forceInvalidate, CancellationToken ct,
+        bool cancelStopTimer = true)
+    {
+        await ValidateBookAsync(target.Book, ct).ConfigureAwait(false);
+        var requestedState = target.State;
+        while (true)
+        {
+            var provider = await _selectedProvider.GetSelectedProviderAsync(ct).ConfigureAwait(false);
+            target = target with
+            {
+                Provider = provider,
+                State = provider is null && requestedState == PlaybackState.Preparing ? PlaybackState.Stopped : requestedState,
+                Message = provider is null ? ProviderMissingMessage : target.Message
+            };
+            var preparation = _runtime.PrepareSessionReplacement(target);
+            if (!preparation.IsAccepted) throw new InvalidOperationException("无效的播放目标。");
+            await ValidateBookAsync(target.Book, ct).ConfigureAwait(false);
+            var latestProvider = await _selectedProvider.GetSelectedProviderAsync(ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            if (!HasSameSynthesisProvider(provider, latestProvider)) continue;
+            var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
+            var device = _localAudio.CurrentSnapshot;
+            var retiringPosition = MatchesDevice(_runtime.Current, device) && device.State is PlaybackState.Playing or PlaybackState.Paused
+                ? device.PositionMilliseconds : _runtime.Current.PositionForSave;
+            var transition = _runtime.CommitSessionReplacement(preparation.Replacement!, ct, checkpoint, retiringPosition);
+            if (!transition.IsAccepted) throw new OperationCanceledException(ct);
+            if (cancelStopTimer) _stopTimer.Cancel();
+            await ExecuteSessionReplacementEffectsAsync(transition, stopAudio, forceInvalidate, ct).ConfigureAwait(false);
+            return;
+        }
+    }
+
+    private static bool HasSameSynthesisProvider(ResolvedSpeechProvider? first, ResolvedSpeechProvider? second) =>
+        first is null ? second is null : second is not null && first.ProviderId == second.ProviderId &&
+            ProviderSynthesisFingerprint.Create(first.Provider).Equals(ProviderSynthesisFingerprint.Create(second.Provider));
+
+    private async Task ExecuteSessionReplacementEffectsAsync(PlaybackTransition transition, bool stopAudio,
+        bool forceInvalidate, CancellationToken ct)
+    {
+        Exception? effectFailure = null;
+        CancelPreparationEffects(transition);
+        PublishSnapshot();
+        try { await ExecuteRetirementAsync(transition, stopAudio).ConfigureAwait(false); }
+        catch (Exception exception) { effectFailure = exception; }
+        try { await ExecuteCheckpointsAsync(transition, CancellationToken.None).ConfigureAwait(false); }
+        catch (Exception exception) { effectFailure ??= exception; }
+        if (effectFailure is not null)
+        {
+            if (transition.State.Identity is { } identity && transition.State.Position is { } position)
+                _runtime.AcceptAudio(new(identity, position, PlaybackState.Stopped, PlaybackAudioFacts.Empty,
+                    "播放切换未完成，已保留当前目标。", transition.State.Target?.Identity,
+                    transition.State.Preparation?.Identity));
+            else _runtime.ReportMessage("播放切换未完成，已保留当前目标。");
+            PublishSnapshot();
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(effectFailure).Throw();
+        }
+        SchedulePreparationEffects(transition, forceInvalidate);
+        SchedulePrefetchRefresh(transition.State, null);
+    }
+
+    private async Task ExecuteTargetTransitionAsync(
+        PlaybackTransition transition,
+        bool stopAudio,
+        CancellationToken cancellationToken,
+        bool propagateFailure = true)
+    {
+        if (!transition.IsAccepted)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            throw new InvalidOperationException("无效的播放目标。");
+        }
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _runtime.SessionToken);
+        var transitionToken = linked.Token;
+        CancelPreparationEffects(transition);
+        PublishSnapshot();
+        InvalidatePrefetchWindow(transition.State);
         try
         {
-            if (previousSession is not null)
-            {
-                await _progressController.SaveAsync(
-                    previousSession,
-                    previousPositionForSave,
-                    _audioController.CurrentSnapshot,
-                    cancellationToken).ConfigureAwait(false);
-
-                // Stop the currently loaded local audio before we buffer a replacement segment.
-                // Otherwise the old/intermediate segment can finish and advance the new session.
-                if (previousHadLoadedAudio)
-                {
-                    await _audioController.StopAsync(cancellationToken).ConfigureAwait(false);
-                    previousSession.UpdateAudio(_audioController.CurrentSnapshot with
-                    {
-                        PositionMilliseconds = previousPositionForSave
-                    });
-                    previousAudioStopped = true;
-                }
-
-                ClearProtectedPlaybackFile();
-            }
-
-            await _prefetchController.CancelAsync(previousSession?.SessionId ?? Guid.Empty, cancellationToken);
-
-            session = new PlaybackSessionState(
-                book,
-                chapterIndex,
-                segmentIndex,
-                selectedProvider,
-                speakSpeed);
-
-            session.SetResumePosition(resumePositionMilliseconds);
-            session.SetConsecutiveSegmentFailureCount(initialConsecutiveFailureCount);
-
-            if (checkpointNewPosition)
-            {
-                await _progressController.SaveAsync(
-                    session,
-                    resumePositionMilliseconds,
-                    _audioController.CurrentSnapshot,
-                    cancellationToken).ConfigureAwait(false);
-            }
+            if (stopAudio) await _localAudio.StopAsync(CancellationToken.None).ConfigureAwait(false);
+            await ExecuteCheckpointsAsync(transition, transitionToken).ConfigureAwait(false);
         }
         catch
         {
-            if (session is not null)
+            if (_runtime.Current.Target?.Identity == transition.State.Target?.Identity)
             {
-                await session.DisposeAsync().ConfigureAwait(false);
+                if (transition.State.Target is null)
+                    _runtime.ReportMessage("播放切换未完成，已保留当前目标。");
+                else
+                    _runtime.Pause();
+                PublishSnapshot();
             }
-
-            RestorePreviousSessionAfterReplacementFailure(
-                previousSession,
-                previousSnapshot,
-                previousPositionForSave,
-                previousAudioStopped);
-            _commandProcessor.AdvanceEventEpoch();
+            if (!propagateFailure) return;
             throw;
         }
-
-        _commandProcessor.AdvanceEventEpoch();
-        await DisposeSessionAsync();
-        _currentSession = session;
-        _currentBook = book;
-        _currentProvider = selectedProvider;
-        _lastFailureKind = null;
-        _lastRecoveredCorruptSegmentKey = null;
-
-        if (selectedProvider is null)
-        {
-            _currentBook = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken).ConfigureAwait(false);
-            PublishSnapshot(CreateProviderMissingSnapshot(
-                _currentBook,
-                chapterIndex,
-                segmentIndex,
-                speakSpeed));
-            return;
-        }
-
-        if (playImmediately)
-        {
-            PublishSnapshot(BuildSnapshot(
-                PlaybackState.Preparing,
-                book,
-                chapterIndex,
-                segmentIndex,
-                selectedProvider,
-                speakSpeed,
-                0,
-                0,
-                "正在准备当前段落。",
-                false,
-                false));
-
-            await PlayCurrentSegmentAsync(session, resumePositionMilliseconds, forceInvalidate, cancellationToken);
-            return;
-        }
-
-        _currentBook = await EnsureChapterLoadedAsync(book, chapterIndex, cancellationToken).ConfigureAwait(false);
-        PublishSnapshot(BuildSnapshot(
-            pausedState,
-            _currentBook,
-            chapterIndex,
-            segmentIndex,
-            selectedProvider,
-            speakSpeed,
-            resumePositionMilliseconds,
-            0,
-            pausedMessage,
-            false,
-            pausedCanRetry));
+        SchedulePreparationEffects(transition);
+        SchedulePrefetchRefresh(transition.State, null);
+        transitionToken.ThrowIfCancellationRequested();
     }
 
-    private void RestorePreviousSessionAfterReplacementFailure(
-        PlaybackSessionState? previousSession,
-        PlaybackSnapshot previousSnapshot,
-        long previousPositionForSave,
-        bool previousAudioStopped)
+    private void CancelPreparationEffects(PlaybackTransition transition)
     {
-        if (previousSession is null)
-        {
-            return;
-        }
-
-        _currentSession = previousSession;
-        _currentBook = previousSession.Book;
-        _currentProvider = previousSession.Provider;
-        if (!previousAudioStopped)
-        {
-            return;
-        }
-
-        previousSession.UpdateAudio(_audioController.CurrentSnapshot with
-        {
-            State = PlaybackState.Stopped,
-            PositionMilliseconds = previousPositionForSave,
-            DurationMilliseconds = previousSnapshot.DurationMilliseconds,
-            BookId = previousSession.BookId,
-            ChapterIndex = previousSession.ChapterIndex,
-            SegmentIndex = previousSession.SegmentIndex
-        });
-        PublishSnapshot(previousSnapshot with
-        {
-            State = PlaybackState.Stopped,
-            PositionMilliseconds = 0,
-            Message = "播放切换失败，已保留原阅读位置。",
-            CanRetry = false
-        });
+        foreach (var effect in transition.Effects.OfType<PlaybackCancelPreparationEffect>())
+            _runtime.CancelPreparation(effect.Preparation);
     }
 
-    private async Task PlayCurrentSegmentAsync(
-        PlaybackSessionState session,
-        long resumePositionMilliseconds,
-        bool forceInvalidate,
-        CancellationToken cancellationToken)
+    private void SchedulePreparationEffects(PlaybackTransition transition, bool forceInvalidate = false)
     {
-        if (_currentBook is null) return;
-        var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
-        _currentProvider = provider;
-        if (provider is null)
-        {
-            await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
-            PublishSnapshot(CreateProviderMissingSnapshot(_currentBook, session.ChapterIndex, session.SegmentIndex, session.SpeakSpeed));
-            return;
-        }
+        foreach (var effect in transition.Effects.OfType<PlaybackPrepareTargetAudioEffect>())
+            ScheduleTargetPreparation(effect.State, forceInvalidate);
+    }
 
-        _currentBook = await EnsureChapterLoadedAsync(_currentBook, session.ChapterIndex, cancellationToken);
-        var chapter = GetChapter(_currentBook, session.ChapterIndex);
-        while (chapter is not null &&
-               session.SegmentIndex >= 0 &&
-               session.SegmentIndex < chapter.Segments.Count &&
-               !NarratableText.HasContent(chapter.Segments[session.SegmentIndex].SpeechText))
+    private async Task ExecuteRetirementAsync(PlaybackTransition transition, bool stopAudio)
+    {
+        Exception? failure = null;
+        foreach (var effect in transition.Effects.OfType<PlaybackRetireSessionEffect>())
         {
-            var next = await ResolveRelativeSegmentAsync(
-                _currentBook,
-                session.ChapterIndex,
-                session.SegmentIndex,
-                1,
-                cancellationToken).ConfigureAwait(false);
-            if (next is null)
+            effect.Lifetime.Cancel();
+            try
             {
-                await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
-                await DisposeSessionAsync().ConfigureAwait(false);
-                PublishSnapshot(_currentSnapshot with
-                {
-                    State = PlaybackState.Stopped,
-                    Message = "已跳过没有语音内容的段落，播放结束。",
-                    CanRetry = false
-                });
-                return;
+                if (stopAudio) await _localAudio.StopAsync(CancellationToken.None).ConfigureAwait(false);
             }
-
-            _currentBook = next.Value.Book;
-            session.SetPosition(next.Value.ChapterIndex, next.Value.SegmentIndex);
-            session.SetResumePosition(0);
-            chapter = GetChapter(_currentBook, session.ChapterIndex);
-        }
-
-        if (chapter is null)
-        {
-            PublishPlaybackFailure("未找到要播放的章节。", TtsErrorKind.InvalidRule);
-            return;
-        }
-
-        if (session.SegmentIndex < 0 || session.SegmentIndex >= chapter.Segments.Count)
-        {
-            PublishPlaybackFailure("未找到要播放的段落。", TtsErrorKind.InvalidRule);
-            return;
-        }
-
-        var segment = chapter.Segments[session.SegmentIndex];
-        var audioRequest = new AudioGenerationRequest(
-            _currentBook.BookId,
-            chapter.ChapterIndex,
-            session.SegmentIndex,
-            segment.SpeechText,
-            provider,
-            session.SpeakSpeed,
-            session.SessionId)
-        {
-            ChapterId = chapter.ChapterId,
-            StableSegmentIdentity = segment.StableIdentity
-        };
-
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, session.CancellationToken);
-
-        PublishSnapshot(BuildSnapshot(
-            PlaybackState.Buffering,
-            _currentBook,
-            chapter.ChapterIndex,
-            session.SegmentIndex,
-            provider,
-            session.SpeakSpeed,
-            0,
-            0,
-            forceInvalidate ? "正在重新生成当前段音频。" : "正在加载当前段音频。",
-            false,
-            false));
-
-        if (forceInvalidate)
-        {
-            PublishSnapshot(_currentSnapshot with { State = PlaybackState.Recovering, Message = "检测到音频损坏，正在重新生成。" });
-        }
-
-        var run = await _segmentRunner.RunAsync(
-            new PlaybackSegmentRunRequest(
-                audioRequest,
-                $"{_currentBook.BookTitle} · {chapter.Title}",
-                resumePositionMilliseconds,
-                forceInvalidate),
-            progress =>
+            catch (Exception exception) { failure ??= exception; }
+            try { await _prefetchController.CancelAsync(effect.Lifetime.Identity.SessionId, CancellationToken.None).ConfigureAwait(false); }
+            catch (Exception exception) { failure ??= exception; }
+            finally
             {
-                if (!IsSessionCurrent(session.SessionId) || _currentBook is null || _currentProvider is null)
-                {
-                    return;
-                }
-
-                PublishSnapshot(BuildSnapshot(
-                    PlaybackState.Buffering,
-                    _currentBook,
-                    chapter.ChapterIndex,
-                    session.SegmentIndex,
-                    provider,
-                    session.SpeakSpeed,
-                    0,
-                    0,
-                    progress.Message,
-                    false,
-                    false));
-            },
-            linkedCts.Token).ConfigureAwait(false);
-        var audio = run.Audio;
-        if (!IsSessionCurrent(session.SessionId))
-        {
-            return;
+                try { effect.Lifetime.Dispose(); }
+                catch (Exception exception) { failure ??= exception; }
+            }
         }
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
+    }
 
+    private Task SaveCurrentAsync(CancellationToken ct)
+    {
+        if (_runtime.Current.Identity is not { } identity) return Task.CompletedTask;
+        return ExecuteCheckpointsAsync(_runtime.Checkpoint(identity), ct);
+    }
+
+    private async Task ExecuteCheckpointsAsync(PlaybackTransition transition, CancellationToken ct)
+    {
+        foreach (var effect in transition.Effects.OfType<PlaybackCheckpointEffect>())
+            await _progressController.SaveAsync(effect.Progress, ct).ConfigureAwait(false);
+    }
+
+    private PlaybackSegmentRunRequest CreateSegmentRequest(PlaybackRuntimeState state, bool forceInvalidate)
+    {
+        var position = state.Position!.Value;
+        var chapter = GetChapter(state.Book!, position.ChapterIndex)!;
+        var segment = chapter.Segments[position.SegmentIndex];
+        return new(new AudioGenerationRequest(state.Book!.BookId, position.ChapterIndex, position.SegmentIndex,
+            segment.SpeechText, state.Provider!, state.SpeakSpeed, state.Identity!.SessionId)
+        { ChapterId = chapter.ChapterId, StableSegmentIdentity = segment.StableIdentity },
+            $"{state.Book.BookTitle} · {chapter.Title}", state.ResumePositionMilliseconds, forceInvalidate,
+            token => ValidateBookAsync(state.Book, token), state.Preparation?.Identity);
+    }
+
+    private void ScheduleTargetPreparation(PlaybackRuntimeState state, bool forceInvalidate = false)
+    {
+        if (state.Book is null || state.Preparation is not { } preparation ||
+            state.Intent != PlaybackIntent.Play || state.Provider is null || !_runtime.IsCurrentPreparation(preparation.Identity))
+            return;
+
+        var work = _runtime.BeginPreparation(state.Book, preparation.Identity);
+        var request = CreateSegmentRequest(state, forceInvalidate);
+        var sessionToken = _runtime.SessionToken;
+        var settingsSpeedRevision = Interlocked.Read(ref _settingsSpeedRevision);
+        var lifecycleToken = _commandProcessor.LifecycleToken;
+        var commandLifetime = CancellationTokenSource.CreateLinkedTokenSource(sessionToken, lifecycleToken);
+        try
+        {
+            var worker = Task.Run(() => PrepareTargetInBackgroundAsync(state, request, preparation.Identity,
+                settingsSpeedRevision, commandLifetime, work));
+            _ = ObserveTargetPreparationAsync(worker, preparation.Identity, lifecycleToken);
+        }
+        catch
+        {
+            commandLifetime.Dispose();
+            work.Dispose();
+            throw;
+        }
+    }
+
+    private async Task PrepareTargetInBackgroundAsync(
+        PlaybackRuntimeState state,
+        PlaybackSegmentRunRequest request,
+        PlaybackAudioPreparationIdentity identity,
+        long settingsSpeedRevision,
+        CancellationTokenSource commandLifetime,
+        PlaybackPreparationLifetime work)
+    {
+        using (work)
+        using (commandLifetime)
+        using (var linked = CancellationTokenSource.CreateLinkedTokenSource(work.Token, commandLifetime.Token))
+        {
+            try
+            {
+                var audio = await _segmentRunner.PrepareAsync(request, null, linked.Token).ConfigureAwait(false);
+                linked.Token.ThrowIfCancellationRequested();
+                await _commandProcessor.RunSerializedAsync(
+                    ct => CompleteTargetPreparationAsync(state, request, identity, audio, settingsSpeedRevision, ct),
+                    commandLifetime.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (linked.IsCancellationRequested)
+            {
+                // A newer target, pause, session replacement, or shutdown owns the result now.
+            }
+            catch (Exception) when (commandLifetime.IsCancellationRequested)
+            {
+                // Session retirement and shutdown own the result now.
+            }
+            catch
+            {
+                try
+                {
+                    await ReportPreparationFailureAsync(identity, commandLifetime.Token).ConfigureAwait(false);
+                }
+                catch (Exception) when (commandLifetime.IsCancellationRequested) { }
+            }
+        }
+    }
+
+    private async Task ObserveTargetPreparationAsync(
+        Task worker,
+        PlaybackAudioPreparationIdentity identity,
+        CancellationToken lifecycleToken)
+    {
+        try
+        {
+            await worker.ConfigureAwait(false);
+        }
+        catch (Exception) when (lifecycleToken.IsCancellationRequested)
+        {
+            // Shutdown owns any failure that escaped worker initialization or cleanup.
+        }
+        catch
+        {
+            try
+            {
+                await ReportPreparationFailureAsync(identity, lifecycleToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                // The final observer owns failures from reporting an escaped worker error.
+            }
+        }
+    }
+
+    private Task ReportPreparationFailureAsync(
+        PlaybackAudioPreparationIdentity identity,
+        CancellationToken cancellationToken) =>
+        _commandProcessor.RunSerializedAsync(ct =>
+        {
+            if (_runtime.IsCurrentPreparation(identity))
+            {
+                var position = _runtime.Current.Position;
+                if (position is { } currentPosition)
+                {
+                    _runtime.AcceptAudio(new(identity.Session, currentPosition, PlaybackState.Faulted,
+                        PlaybackAudioFacts.Empty, "播放准备失败，请重试。", identity.Target, identity));
+                    PublishSnapshot();
+                }
+            }
+            return Task.CompletedTask;
+        }, cancellationToken);
+
+    private async Task CompleteTargetPreparationAsync(
+        PlaybackRuntimeState state,
+        PlaybackSegmentRunRequest request,
+        PlaybackAudioPreparationIdentity identity,
+        AudioGenerationResult audio,
+        long settingsSpeedRevision,
+        CancellationToken ct)
+    {
+        if (!_runtime.IsCurrentPreparation(identity) || !IsCurrentPreparationRequest(request)) return;
+        await PlayPreparedSegmentAsync(state, request, audio, settingsSpeedRevision, ct).ConfigureAwait(false);
+    }
+
+    private async Task PlayPreparedSegmentAsync(PlaybackRuntimeState state, PlaybackSegmentRunRequest request,
+        AudioGenerationResult audio, long settingsSpeedRevision, CancellationToken ct)
+    {
+        if (!_runtime.IsCurrent(state.Identity!) || !IsCurrentPreparationRequest(request)) return;
+        if (!await EnsureLatestPreparationConfigurationAsync(state, request, settingsSpeedRevision, ct).ConfigureAwait(false))
+            return;
         if (!audio.IsSuccess)
         {
-            if (audio.Failure?.Kind == TtsErrorKind.Cancelled)
+            await HandleSegmentFailureAsync(audio.Failure!, false, ct).ConfigureAwait(false);
+            return;
+        }
+        if (!IsCurrentPreparationRequest(request)) return;
+        PublishSnapshot();
+        var protection = _audioCacheProtectionRegistry.Protect(audio.FilePath!);
+        if (!_runtime.TryProtectAudio(state.Identity!, protection)) { protection.Dispose(); return; }
+        var run = await _segmentRunner.PlayPreparedAsync(request, audio, ct,
+            token => EnsureLatestPreparationConfigurationAsync(state, request, settingsSpeedRevision, token)).ConfigureAwait(false);
+        if (run is null) return;
+        ct.ThrowIfCancellationRequested();
+        if (!_runtime.IsCurrent(state.Identity!)) return;
+        AcceptDeviceSnapshot(run.LocalSnapshot);
+        PublishSnapshot();
+    }
+
+    private async Task<bool> EnsureLatestPreparationConfigurationAsync(
+        PlaybackRuntimeState state,
+        PlaybackSegmentRunRequest request,
+        long settingsSpeedRevision,
+        CancellationToken cancellationToken)
+    {
+        var identity = request.PreparationIdentity!;
+        if (!_runtime.IsCurrentPreparation(identity)) return false;
+        var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!_runtime.IsCurrentPreparation(identity)) return false;
+
+        var current = _runtime.Current;
+        var latestSettingsSpeedRevision = Interlocked.Read(ref _settingsSpeedRevision);
+        var appliedSettingsSpeedRevision = Interlocked.Read(ref _appliedSettingsSpeedRevision);
+        var settingsSpeedChanged = latestSettingsSpeedRevision != settingsSpeedRevision ||
+            latestSettingsSpeedRevision != appliedSettingsSpeedRevision;
+        var speakSpeed = settingsSpeedChanged
+            ? _appSettingsService.Current.DefaultSpeakSpeed
+            : current.SpeakSpeed;
+        if (speakSpeed == current.SpeakSpeed &&
+            HasSameSynthesisProvider(request.AudioRequest.Provider, provider)) return true;
+
+        var previousPreparation = current.Preparation?.Identity;
+        _runtime.ChangeSpeechConfiguration(state.Identity, provider, speakSpeed);
+        current = _runtime.Current;
+        if (current.Preparation is { } preparation && preparation.Identity != previousPreparation)
+            ScheduleTargetPreparation(current);
+        else if (previousPreparation is { } obsolete && current.Preparation?.Identity != obsolete)
+            _runtime.CancelPreparation(obsolete);
+        PublishSnapshot();
+        return false;
+    }
+
+    private async Task HandleSegmentFailureAsync(TtsExecutionFailure failure, bool corruptAudio, CancellationToken ct)
+    {
+        var current = _runtime.Current;
+        if (current.Identity is null || !_runtime.IsCurrent(current.Identity)) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runtime.SessionToken);
+        var token = linked.Token;
+        var decision = _runtime.RecordFailure(_recoveryPolicy, failure.Kind, failure.Message, corruptAudio);
+        if (decision.ShouldRetryCurrentSegment)
+        {
+            if (HasCurrentDeviceAudio(current))
             {
-                linkedCts.Token.ThrowIfCancellationRequested();
-                return;
+                await _localAudio.StopAsync(token).ConfigureAwait(false);
+                AcceptDeviceSnapshot(_localAudio.CurrentSnapshot);
             }
-
-            await HandleSegmentFailureAsync(
-                session,
-                audio.Failure!,
-                cancellationToken).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+            var retry = _runtime.BeginPlayback(false, recovering: true);
+            PublishSnapshot();
+            SchedulePreparationEffects(retry, forceInvalidate: corruptAudio);
             return;
         }
-
-        var local = run.LocalSnapshot;
-        session.UpdateAudio(local);
-        if (local.State is PlaybackState.Faulted or PlaybackState.Stopped)
-        {
-            PublishSnapshot(BuildSnapshot(
-                local.State,
-                _currentBook,
-                chapter.ChapterIndex,
-                session.SegmentIndex,
-                provider,
-                session.SpeakSpeed,
-                local.PositionMilliseconds,
-                local.DurationMilliseconds,
-                local.Message,
-                local.IsUsingCache,
-                false));
-            return;
-        }
-
-        session.SetConsecutiveSegmentFailureCount(0);
-        _lastFailureKind = null;
-        session.SetResumePosition(resumePositionMilliseconds);
-        ReplaceProtectedPlaybackFile(audio.FilePath);
-
-        PublishSnapshot(BuildSnapshot(
-            local.State,
-            _currentBook,
-            chapter.ChapterIndex,
-            session.SegmentIndex,
-            provider,
-            session.SpeakSpeed,
-            local.PositionMilliseconds,
-            local.DurationMilliseconds,
-            local.Message,
-            local.IsUsingCache,
-            false));
-
-        await RefreshPrefetchWindowAsync(session, maxCountOverride: null, linkedCts.Token);
-    }
-
-    private async Task HandleSegmentFailureAsync(
-        PlaybackSessionState session,
-        TtsExecutionFailure failure,
-        CancellationToken cancellationToken)
-    {
-        if (!IsSessionCurrent(session.SessionId))
-        {
-            return;
-        }
-
-        var decision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
-            failure.Kind,
-            failure.Message,
-            session.ConsecutiveSegmentFailureCount,
-            IsCorruptAudio: false,
-            CorruptAudioRecoveryAttempted: false));
-        session.SetConsecutiveSegmentFailureCount(decision.ConsecutiveSegmentFailureCount);
-        _lastFailureKind = failure.Kind;
-        if (decision.ShouldSkipCurrentSegment)
-        {
-            await SkipFailedSegmentAsync(session, decision, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    private async Task SkipFailedSegmentAsync(
-        PlaybackSessionState session,
-        PlaybackRecoveryDecision decision,
-        CancellationToken cancellationToken)
-    {
-        if (_currentBook is null)
-        {
-            return;
-        }
-
-        var next = await ResolveRelativeSegmentAsync(
-            _currentBook,
-            session.ChapterIndex,
-            session.SegmentIndex,
-            1,
-            cancellationToken).ConfigureAwait(false);
+        if (!decision.ShouldSkipCurrentSegment) return;
+        var position = current.Position!.Value;
+        var next = await ResolveRelativeSegmentAsync(current.Book!, position.ChapterIndex, position.SegmentIndex, 1, token).ConfigureAwait(false);
         if (next is null)
         {
-            await _progressController.SaveAsync(
-                session,
-                0,
-                _audioController.CurrentSnapshot,
-                cancellationToken).ConfigureAwait(false);
-            await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
-            await DisposeSessionAsync().ConfigureAwait(false);
-            PublishSnapshot(_currentSnapshot with
-            {
-                State = PlaybackState.Stopped,
-                PositionMilliseconds = 0,
-                Message = "当前段播放失败，已跳过并结束播放。",
-                CanRetry = false
-            });
+            await FinishAsync("当前段播放失败，已跳过并结束播放。", ct).ConfigureAwait(false);
             return;
         }
-
-        await StartNewSessionAsync(
-            next.Value.Book,
-            next.Value.ChapterIndex,
-            next.Value.SegmentIndex,
-            0,
-            _currentProvider,
-            session.SpeakSpeed,
-            forceInvalidate: false,
-            playImmediately: !decision.ShouldPause,
-            pausedState: PlaybackState.Paused,
-            pausedMessage: decision.Message,
-            cancellationToken,
-            initialConsecutiveFailureCount: decision.ConsecutiveSegmentFailureCount,
-            checkpointNewPosition: true,
-            pausedCanRetry: decision.ShouldPause);
+        var provider = await _selectedProvider.GetSelectedProviderAsync(token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        CaptureDevicePosition();
+        current = _runtime.Current;
+        _runtime.ChangeSpeechConfiguration(current.Identity, provider, current.SpeakSpeed);
+        current = _runtime.Current;
+        var stopAudio = HasCurrentDeviceAudio(current);
+        var transition = _runtime.CommitTarget(next.Value.Book,
+            new(next.Value.ChapterIndex, next.Value.SegmentIndex),
+            decision.ShouldPause || provider is null ? PlaybackIntent.Pause : PlaybackIntent.Play,
+            token, decision.Message, canRetry: decision.ShouldPause);
+        await ExecuteTargetTransitionAsync(transition, stopAudio, ct).ConfigureAwait(false);
     }
 
-    private void PublishPlaybackFailure(string message, TtsErrorKind failureKind)
+    private async Task RefreshPrefetchWindowAsync(PlaybackRuntimeState state, int? maxCount, long revision, CancellationToken ct)
     {
-        _lastFailureKind = failureKind;
-        PublishSnapshot(_currentSnapshot with
-        {
-            State = PlaybackState.Faulted,
-            Message = message,
-            CanRetry = true
-        });
-    }
-
-    private async Task RefreshPrefetchWindowAsync(
-        PlaybackSessionState session,
-        int? maxCountOverride,
-        CancellationToken cancellationToken)
-    {
-        if (_currentBook is null || _currentProvider is null)
-        {
-            return;
-        }
-
-        var prefetchCount = await GetPrefetchCountAsync(maxCountOverride, cancellationToken).ConfigureAwait(false);
-        if (prefetchCount <= 0)
+        if (state.Identity is not { } session || !_runtime.IsCurrent(session)) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runtime.SessionToken, _commandProcessor.LifecycleToken);
+        var token = linked.Token;
+        if (state.Target is null || state.Book is null || state.Position is not { } position)
         {
             await _prefetchController.SubmitAsync(
-                new PlaybackPrefetchWindow(session.SessionId, Array.Empty<AudioGenerationRequest>()),
-                cancellationToken).ConfigureAwait(false);
+                new PlaybackPrefetchWindow(session.SessionId, Array.Empty<AudioGenerationRequest>())
+                { Revision = revision }, token).ConfigureAwait(false);
             return;
         }
-
+        var targetIdentity = state.Target.Identity;
         var requests = new List<AudioGenerationRequest>();
-        var book = _currentBook;
-        var chapterIndex = session.ChapterIndex;
-        var segmentIndex = session.SegmentIndex;
-        while (requests.Count < prefetchCount)
+        var provider = await _selectedProvider.GetSelectedProviderAsync(token).ConfigureAwait(false);
+        var count = Math.Clamp(_appSettingsService.Current.PrefetchCount, 0, AppSettings.DefaultPrefetchCountValue);
+        if (maxCount is not null) count = Math.Min(count, maxCount.Value);
+        var book = state.Book;
+        for (var i = 0; provider is not null && i < count; i++)
         {
-            var next = await ResolveRelativeSegmentAsync(
-                book,
-                chapterIndex,
-                segmentIndex,
-                1,
-                cancellationToken).ConfigureAwait(false);
-            if (next is null)
-            {
-                break;
-            }
-
+            var next = await ResolveRelativeSegmentAsync(book, position.ChapterIndex, position.SegmentIndex, 1, token).ConfigureAwait(false);
+            if (next is null) break;
             book = next.Value.Book;
-            chapterIndex = next.Value.ChapterIndex;
-            segmentIndex = next.Value.SegmentIndex;
-            AddPrefetchRequest(book, requests, session, chapterIndex, segmentIndex);
+            position = new(next.Value.ChapterIndex, next.Value.SegmentIndex);
+            var chapter = GetChapter(book, position.ChapterIndex)!;
+            var segment = chapter.Segments[position.SegmentIndex];
+            requests.Add(new(book.BookId, position.ChapterIndex, position.SegmentIndex, segment.SpeechText,
+                provider, state.SpeakSpeed, state.Identity.SessionId)
+            { ChapterId = chapter.ChapterId, StableSegmentIdentity = segment.StableIdentity });
         }
-
-        if (IsSessionCurrent(session.SessionId))
+        await ValidateBookAsync(book, token).ConfigureAwait(false);
+        token.ThrowIfCancellationRequested();
+        if (!_runtime.IsCurrent(state.Identity) || _runtime.Current.Target?.Identity != targetIdentity) return;
+        var currentTargetRequest = CreateCurrentTargetAudioRequest(state);
+        await _prefetchController.SubmitAsync(new PlaybackPrefetchWindow(state.Identity.SessionId, requests)
         {
-            _currentBook = book;
-        }
-
-        await _prefetchController.SubmitAsync(
-            new PlaybackPrefetchWindow(session.SessionId, requests),
-            cancellationToken).ConfigureAwait(false);
+            Revision = revision,
+            KeepActiveKey = currentTargetRequest?.ToCacheKey()
+        }, token).ConfigureAwait(false);
     }
 
-    private void AddPrefetchRequest(
-        PlaybackBookContent book,
-        List<AudioGenerationRequest> requests,
-        PlaybackSessionState session,
-        int chapterIndex,
-        int segmentIndex)
+    private void InvalidatePrefetchWindow(PlaybackRuntimeState state)
     {
-        if (_currentProvider is null)
+        if (state.Identity is not { } session) return;
+        var currentTargetRequest = CreateCurrentTargetAudioRequest(state);
+        var requests = currentTargetRequest is { } targetRequest
+            ? new[] { targetRequest }
+            : Array.Empty<AudioGenerationRequest>();
+        var revision = Interlocked.Increment(ref _prefetchWindowRevision);
+        var window = new PlaybackPrefetchWindow(session.SessionId, requests)
         {
-            return;
-        }
-
-        var chapter = GetChapter(book, chapterIndex);
-        if (chapter is null || segmentIndex < 0 || segmentIndex >= chapter.Segments.Count)
-        {
-            return;
-        }
-
-        var speechText = chapter.Segments[segmentIndex].SpeechText;
-        if (!NarratableText.HasContent(speechText))
-        {
-            return;
-        }
-
-        requests.Add(new AudioGenerationRequest(
-            book.BookId,
-            chapterIndex,
-            segmentIndex,
-            speechText,
-            _currentProvider,
-            session.SpeakSpeed,
-            session.SessionId)
-        {
-            ChapterId = chapter.ChapterId,
-            StableSegmentIdentity = chapter.Segments[segmentIndex].StableIdentity
-        });
+            Revision = revision,
+            KeepActiveKey = currentTargetRequest?.ToCacheKey()
+        };
+        _ = ObservePrefetchWindowSubmissionAsync(window, _runtime.SessionToken, _commandProcessor.LifecycleToken);
     }
 
-    private void OnLocalPlaybackCompleted(object? sender, EventArgs e)
+    private AudioGenerationRequest? CreateCurrentTargetAudioRequest(PlaybackRuntimeState state)
     {
-        EnqueueEventCommand(new PlaybackEventCommand(
-            PlaybackEventCommandKind.Completed,
-            GetLocalPlaybackSessionId(),
-            _audioController.CurrentSnapshot,
-            null,
-            _commandProcessor.CurrentEventEpoch));
+        if (state.Identity is not { } identity || state.Book is null || state.Position is not { } position ||
+            state.Provider is null) return null;
+        var chapter = GetChapter(state.Book, position.ChapterIndex);
+        if (chapter is null || position.SegmentIndex < 0 || position.SegmentIndex >= chapter.Segments.Count)
+            return null;
+        var segment = chapter.Segments[position.SegmentIndex];
+        return new AudioGenerationRequest(state.Book.BookId, position.ChapterIndex, position.SegmentIndex,
+            segment.SpeechText, state.Provider, state.SpeakSpeed, identity.SessionId)
+        { ChapterId = chapter.ChapterId, StableSegmentIdentity = segment.StableIdentity };
     }
 
-    private void OnLocalPlaybackFailed(object? sender, PlaybackErrorEventArgs error)
+    private async Task ObservePrefetchWindowSubmissionAsync(
+        PlaybackPrefetchWindow window,
+        CancellationToken sessionToken,
+        CancellationToken lifecycleToken)
     {
-        EnqueueEventCommand(new PlaybackEventCommand(
-            PlaybackEventCommandKind.Failed,
-            GetLocalPlaybackSessionId(),
-            _audioController.CurrentSnapshot,
-            error,
-            _commandProcessor.CurrentEventEpoch));
-    }
-
-    private void OnLocalSnapshotChanged(object? sender, LocalAudioPlaybackSnapshot snapshot)
-    {
-        EnqueueEventCommand(new PlaybackEventCommand(
-            PlaybackEventCommandKind.SnapshotChanged,
-            GetLocalPlaybackSessionId(),
-            snapshot,
-            null,
-            _commandProcessor.CurrentEventEpoch));
-    }
-
-    private void EnqueueEventCommand(PlaybackEventCommand command) => _commandProcessor.Enqueue(command);
-
-    private async Task ProcessEventCommandAsync(
-        PlaybackEventCommand command,
-        CancellationToken cancellationToken)
-    {
-        if (_disposed ||
-            command.SessionId is not Guid sessionId ||
-            command.EventEpoch != _commandProcessor.CurrentEventEpoch)
-        {
-            return;
-        }
-
-        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            _currentSession?.CancellationToken ?? CancellationToken.None);
-        if (_disposed ||
-            !IsSessionCurrent(sessionId) ||
-            command.EventEpoch != _commandProcessor.CurrentEventEpoch ||
-            command.Snapshot is null)
-        {
-            return;
-        }
-
-        var session = _currentSession!;
-        if (!IsCurrentLocalAudioEvent(command.Snapshot))
-        {
-            return;
-        }
-
-        if (_currentSnapshot.State == PlaybackState.Stopped &&
-            command.Kind is PlaybackEventCommandKind.Completed or PlaybackEventCommandKind.Failed)
-        {
-            return;
-        }
-
         try
         {
-            switch (command.Kind)
-            {
-                case PlaybackEventCommandKind.Completed:
-                    await ProcessPlaybackCompletedAsync(
-                        session, command.Snapshot, linkedCancellation.Token, cancellationToken).ConfigureAwait(false);
-                    break;
-                case PlaybackEventCommandKind.Failed:
-                    await ProcessPlaybackFailedAsync(
-                        session, command.Error!, command.Snapshot, linkedCancellation.Token, cancellationToken).ConfigureAwait(false);
-                    break;
-                case PlaybackEventCommandKind.SnapshotChanged:
-                    ProcessSnapshotChanged(session, command.Snapshot);
-                    break;
-            }
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(sessionToken, lifecycleToken);
+            await _prefetchController.SubmitAsync(window, linked.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (
-            _disposed ||
-            cancellationToken.IsCancellationRequested ||
-            !IsSessionCurrent(sessionId) ||
-            _currentSession?.CancellationToken.IsCancellationRequested == true)
-        {
-            // Closing and session replacement are normal event invalidation paths.
-        }
+        catch (OperationCanceledException) { }
+        catch { }
     }
 
-    private async Task ProcessPlaybackCompletedAsync(
-        PlaybackSessionState session,
-        LocalAudioPlaybackSnapshot snapshot,
-        CancellationToken cancellationToken,
-        CancellationToken replacementCancellationToken)
+    private void SchedulePrefetchRefresh(PlaybackRuntimeState state, int? maxCount)
     {
-        if (_currentBook is null)
-        {
-            return;
-        }
-
-        session.UpdateAudio(snapshot);
-        var next = await ResolveRelativeSegmentAsync(
-            _currentBook,
-            session.ChapterIndex,
-            session.SegmentIndex,
-            1,
-            cancellationToken).ConfigureAwait(false);
-        if (next is null)
-        {
-            await _progressController.SaveAsync(
-                session,
-                snapshot.DurationMilliseconds,
-                _audioController.CurrentSnapshot,
-                cancellationToken).ConfigureAwait(false);
-            await _prefetchController.CancelAsync(session.SessionId, cancellationToken).ConfigureAwait(false);
-            await DisposeSessionAsync().ConfigureAwait(false);
-
-            PublishSnapshot(_currentSnapshot with
-            {
-                State = PlaybackState.Stopped,
-                PositionMilliseconds = 0,
-                Message = "全书播放完成。",
-                CanRetry = false
-            });
-            return;
-        }
-
-        await _progressController.SaveAsync(
-            session,
-            snapshot.DurationMilliseconds,
-            _audioController.CurrentSnapshot,
-            cancellationToken).ConfigureAwait(false);
-
-        _currentBook = next.Value.Book;
-        session.SetPosition(next.Value.ChapterIndex, next.Value.SegmentIndex);
-        session.SetResumePosition(0);
-        await PlayCurrentSegmentAsync(session, 0, forceInvalidate: false, replacementCancellationToken).ConfigureAwait(false);
+        var revision = Interlocked.Increment(ref _prefetchWindowRevision);
+        _ = ObservePrefetchRefreshAsync(state, maxCount, revision);
     }
 
-    private async Task ProcessPlaybackFailedAsync(
-        PlaybackSessionState session,
-        PlaybackErrorEventArgs error,
-        LocalAudioPlaybackSnapshot snapshot,
-        CancellationToken cancellationToken,
-        CancellationToken replacementCancellationToken)
+    private async Task ObservePrefetchRefreshAsync(PlaybackRuntimeState state, int? maxCount, long revision)
     {
-        if (_currentBook is null)
+        try { await RefreshPrefetchWindowAsync(state, maxCount, revision, CancellationToken.None).ConfigureAwait(false); }
+        catch (OperationCanceledException) { }
+        catch { }
+    }
+
+    private async Task ValidateBookAsync(PlaybackBookContent book, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        if (!await _bookContentService.IsCurrentAsync(book, ct).ConfigureAwait(false))
+            throw new OperationCanceledException("活动来源目录已更新。", ct);
+        ct.ThrowIfCancellationRequested();
+    }
+
+    private void OnLocalPlaybackCompleted(object? sender, LocalAudioPlaybackSnapshot snapshot) =>
+        EnqueueAudioEvent(PlaybackEventCommandKind.Completed, snapshot);
+
+    private void OnLocalPlaybackFailed(object? sender, LocalAudioPlaybackFailure failure) =>
+        EnqueueAudioEvent(PlaybackEventCommandKind.Failed, failure.Snapshot, failure.Error);
+
+    private void OnLocalSnapshotChanged(object? sender, LocalAudioPlaybackSnapshot snapshot) => EnqueueAudioEvent(PlaybackEventCommandKind.SnapshotChanged, snapshot);
+
+    private void EnqueueAudioEvent(PlaybackEventCommandKind kind, LocalAudioPlaybackSnapshot snapshot, PlaybackErrorEventArgs? error = null)
+    {
+        _commandProcessor.Enqueue(new(kind, snapshot, error));
+    }
+
+    private async Task ProcessEventCommandAsync(PlaybackEventCommand command, CancellationToken ct)
+    {
+        if (_disposed) return;
+        if (command.Kind is PlaybackEventCommandKind.StopTimerFailed or PlaybackEventCommandKind.EventProcessingFailed)
         {
+            if (command.Kind == PlaybackEventCommandKind.StopTimerFailed) _runtime.ReportMessage("定时停止执行失败，请重新设置。");
+            else _runtime.ReportFailure("播放事件处理失败，请稍后重试。");
+            try { PublishSnapshot(); } catch { }
             return;
         }
-
-        session.UpdateAudio(snapshot);
-        if (error.Kind is PlaybackErrorKind.AudioDecode or PlaybackErrorKind.UnsupportedFormat)
+        var sessionToken = _runtime.SessionToken;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, sessionToken);
+        try
         {
-            var recoveryKey = $"{session.SessionId:N}:{session.ChapterIndex}:{session.SegmentIndex}:{session.ProviderId}:{session.SpeakSpeed}";
-            var recoveryDecision = _recoveryPolicy.Decide(new PlaybackRecoveryInput(
-                TtsErrorKind.AudioDecode,
-                error.Message,
-                session.ConsecutiveSegmentFailureCount,
-                IsCorruptAudio: true,
-                CorruptAudioRecoveryAttempted: string.Equals(
-                    _lastRecoveredCorruptSegmentKey,
-                    recoveryKey,
-                    StringComparison.Ordinal)));
-            if (recoveryDecision.ShouldRetryCurrentSegment)
+            if (command.Kind == PlaybackEventCommandKind.BookChanged)
             {
-                _lastRecoveredCorruptSegmentKey = recoveryKey;
-                await PlayCurrentSegmentAsync(session, 0, forceInvalidate: true, replacementCancellationToken).ConfigureAwait(false);
+                if (command.BookChange?.BookId != _runtime.Current.Book?.BookId)
+                {
+                    if (_runtime.Current.Book is null && command.BookChange is not BookCommittedChange.MetadataCommitted)
+                        await DiscardSourceContextAsync(ct).ConfigureAwait(false);
+                    return;
+                }
+                if (command.BookChange is BookCommittedChange.MetadataCommitted metadata)
+                    await RefreshBookMetadataCoreAsync(metadata.BookId, ct).ConfigureAwait(false);
+                else if (command.BookChange is { } change && command.SourceContext == _runtime.Current.Book?.SourceContext &&
+                    InvalidatesBookContext(change, _runtime.Current.Book?.SourceContext))
+                    await DiscardSourceContextAsync(ct).ConfigureAwait(false);
                 return;
             }
+            if (command.Kind == PlaybackEventCommandKind.SettingsChanged)
+            {
+                var settingsSpeedRevision = Interlocked.Read(ref _settingsSpeedRevision);
+                await ChangeSpeedCoreAsync(_appSettingsService.Current.DefaultSpeakSpeed, ct).ConfigureAwait(false);
+                Interlocked.Exchange(ref _appliedSettingsSpeedRevision, settingsSpeedRevision);
+                return;
+            }
+            if (command.Kind == PlaybackEventCommandKind.ProviderChanged)
+            {
+                await ApplyProviderAsync(await _selectedProvider.GetSelectedProviderAsync(ct).ConfigureAwait(false), ct).ConfigureAwait(false);
+                return;
+            }
+            if (command.Kind == PlaybackEventCommandKind.RegexChanged)
+            {
+                await RefreshRegexReplacementCoreAsync(ct).ConfigureAwait(false);
+                return;
+            }
+            var current = _runtime.Current;
+            if (current.Identity is not { } identity || !_runtime.IsCurrent(identity) ||
+                command.Snapshot is not { } snapshot || !MatchesDevice(current, snapshot)) return;
+            if (command.Kind == PlaybackEventCommandKind.SnapshotChanged)
+            {
+                if (snapshot.State is PlaybackState.Playing or PlaybackState.Paused) { AcceptDeviceSnapshot(snapshot); PublishSnapshot(); }
+                return;
+            }
+            await ValidateBookAsync(current.Book!, linked.Token).ConfigureAwait(false);
+            AcceptDeviceSnapshot(snapshot);
+            if (command.Kind == PlaybackEventCommandKind.Failed)
+            {
+                await HandleSegmentFailureAsync(new(TtsErrorKind.AudioDecode, command.Error!.Message, null, null, null, null),
+                    command.Error.Kind is PlaybackErrorKind.AudioDecode or PlaybackErrorKind.UnsupportedFormat, ct).ConfigureAwait(false);
+                return;
+            }
+            _runtime.ResetFailureWindow();
+            var position = current.Position!.Value;
+            _runtime.CaptureCheckpointPosition(identity, current.Target!.Identity,
+                snapshot.PreparationAttemptId!.Value, snapshot.DurationMilliseconds);
+            var next = await ResolveRelativeSegmentAsync(current.Book!, position.ChapterIndex, position.SegmentIndex, 1, linked.Token).ConfigureAwait(false);
+            if (next is null) { await FinishAsync("全书播放完成。", ct).ConfigureAwait(false); return; }
+            var provider = await _selectedProvider.GetSelectedProviderAsync(ct).ConfigureAwait(false);
+            _runtime.ChangeSpeechConfiguration(current.Identity, provider, current.SpeakSpeed);
+            current = _runtime.Current;
+            var stopAudio = HasCurrentDeviceAudio(current);
+            var transition = _runtime.CommitTarget(next.Value.Book,
+                new(next.Value.ChapterIndex, next.Value.SegmentIndex), PlaybackIntent.Play, ct,
+                provider is null ? ProviderMissingMessage : null);
+            await ExecuteTargetTransitionAsync(transition, stopAudio, ct).ConfigureAwait(false);
         }
-
-        await HandleSegmentFailureAsync(
-            session,
-            new TtsExecutionFailure(TtsErrorKind.AudioDecode, error.Message, null, null, null, null),
-            replacementCancellationToken).ConfigureAwait(false);
+        catch (OperationCanceledException exception) when (ct.IsCancellationRequested || sessionToken.IsCancellationRequested ||
+            exception.CancellationToken.IsCancellationRequested)
+        { }
     }
 
-    private void ProcessSnapshotChanged(PlaybackSessionState session, LocalAudioPlaybackSnapshot snapshot)
+    private async Task FinishAsync(string message, CancellationToken ct)
     {
-        if (_currentBook is null || _currentProvider is null)
-        {
-            return;
-        }
-
-        session.UpdateAudio(snapshot);
-        if (snapshot.State is PlaybackState.Stopped or PlaybackState.Faulted)
-        {
-            return;
-        }
-
-        PublishSnapshot(BuildSnapshot(
-            snapshot.State,
-            _currentBook,
-            session.ChapterIndex,
-            session.SegmentIndex,
-            _currentProvider,
-            session.SpeakSpeed,
-            snapshot.PositionMilliseconds,
-            snapshot.DurationMilliseconds,
-            snapshot.Message,
-            snapshot.IsUsingCache,
-            false));
+        var stopAudio = HasCurrentDeviceAudio(_runtime.Current);
+        var stop = _runtime.Stop(message);
+        CancelPreparationEffects(stop);
+        Exception? failure = null;
+        try { await ExecuteCheckpointsAsync(stop, ct).ConfigureAwait(false); }
+        catch (Exception exception) { failure = exception; }
+        try { await ExecuteRetirementAsync(stop, stopAudio).ConfigureAwait(false); }
+        catch (Exception exception) { failure ??= exception; }
+        PublishSnapshot();
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
-    private bool IsCurrentLocalAudioEvent(LocalAudioPlaybackSnapshot snapshot)
+    private bool MatchesDevice(PlaybackRuntimeState state, LocalAudioPlaybackSnapshot snapshot) =>
+        state.Identity is not null && snapshot.PlaybackSessionId == state.Identity.SessionId &&
+        snapshot.BookId == state.Book?.BookId && state.Target is { } target &&
+        snapshot.TargetRevision == target.Identity.Revision &&
+        snapshot.AudioGeneration == _localAudio.CurrentSnapshot.AudioGeneration &&
+        snapshot.PreparationAttemptId is { } attemptId &&
+        (state.Audio.PreparationIdentity?.AttemptId == attemptId ||
+            state.Preparation is { } preparation && preparation.Identity.AttemptId == attemptId &&
+            _runtime.IsCurrentPreparation(preparation.Identity));
+
+    private bool HasCurrentDeviceAudio(PlaybackRuntimeState state)
     {
-        if (_currentSession is null || _currentBook is null)
-        {
-            return false;
-        }
-
-        var current = _audioController.CurrentSnapshot;
-        return Equals(current, snapshot) &&
-            (snapshot.PlaybackSessionId is null || snapshot.PlaybackSessionId == _currentSession.SessionId) &&
-            string.Equals(snapshot.BookId, _currentBook.BookId, StringComparison.Ordinal) &&
-            snapshot.ChapterIndex == _currentSession.ChapterIndex &&
-            snapshot.SegmentIndex == _currentSession.SegmentIndex;
+        var device = _localAudio.CurrentSnapshot;
+        return state.Audio.HasLoadedAudio ||
+            MatchesDevice(state, device) &&
+            (device.State is PlaybackState.Preparing or PlaybackState.Playing or PlaybackState.Paused or PlaybackState.Faulted);
     }
 
-    private Guid? GetLocalPlaybackSessionId()
+    private void CaptureDevicePosition()
     {
-        return _audioController.CurrentSnapshot.PlaybackSessionId ?? _currentSession?.SessionId;
+        var state = _runtime.Current;
+        var snapshot = _localAudio.CurrentSnapshot;
+        if (!MatchesDevice(state, snapshot)) return;
+        AcceptDeviceSnapshot(snapshot);
+        state = _runtime.Current;
+        if (state.Identity is not { } identity || state.Target is not { } target ||
+            snapshot.PreparationAttemptId is not { } attemptId) return;
+        _runtime.CaptureCheckpointPosition(identity, target.Identity, attemptId,
+            snapshot.State is PlaybackState.Stopped or PlaybackState.Faulted
+                ? state.PositionForSave : snapshot.PositionMilliseconds);
     }
 
-    private static bool IsTerminalAudioSnapshotForSession(
-        PlaybackSessionState? session,
-        LocalAudioPlaybackSnapshot snapshot)
+    private void AcceptDeviceSnapshot(LocalAudioPlaybackSnapshot snapshot, bool authoritativeTransportChange = false)
     {
-        return session is not null &&
-            (snapshot.State is PlaybackState.Stopped or PlaybackState.Faulted) &&
-            (snapshot.PlaybackSessionId is null || snapshot.PlaybackSessionId == session.SessionId) &&
-            string.Equals(snapshot.BookId, session.BookId, StringComparison.Ordinal) &&
-            snapshot.ChapterIndex == session.ChapterIndex &&
-            snapshot.SegmentIndex == session.SegmentIndex;
+        var current = _runtime.Current;
+        if (!MatchesDevice(current, snapshot) || current.Identity is not { } identity || current.Position is not { } position) return;
+        var preparation = current.Preparation?.Identity ?? current.Audio.PreparationIdentity;
+        if (preparation is null || preparation.AttemptId != snapshot.PreparationAttemptId) return;
+        _runtime.AcceptAudio(new(identity, position, snapshot.State,
+            new(snapshot.State is PlaybackState.Playing or PlaybackState.Paused, snapshot.PositionMilliseconds,
+                snapshot.DurationMilliseconds, snapshot.IsUsingCache),
+            snapshot.Message ?? (snapshot.State == PlaybackState.Paused && current.State == PlaybackState.Paused ? current.Message : null),
+            current.Target?.Identity, preparation), authoritativeTransportChange);
     }
+
+    private bool IsCurrentPreparationRequest(PlaybackSegmentRunRequest request) =>
+        request.PreparationIdentity is { } identity &&
+        request.AudioRequest.SessionId == identity.Session.SessionId &&
+        request.AudioRequest.ToCacheIdentity() == identity.Synthesis &&
+        _runtime.IsCurrentPreparation(identity);
 
     private void PublishEventCommandFailureSafely()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
-        _lastFailureKind = TtsErrorKind.Unknown;
-        try
-        {
-            PublishSnapshot(_currentSnapshot with
-            {
-                State = PlaybackState.Faulted,
-                Message = "播放事件处理失败，请稍后重试。",
-                CanRetry = true
-            });
-        }
-        catch (Exception)
-        {
-            // Snapshot subscribers are outside the event processor's ownership boundary.
-            // Do not allow a subscriber failure to become an unobserved task exception.
-        }
+        if (_disposed) return;
+        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.EventProcessingFailed, null, null));
     }
 
     private void PublishStopTimerFailureSafely()
     {
-        if (_disposed)
+        if (_disposed) return;
+        _commandProcessor.Enqueue(new(PlaybackEventCommandKind.StopTimerFailed, null, null));
+    }
+
+    private Task RunSerializedAsync(Func<CancellationToken, Task> action, CancellationToken ct) =>
+        _commandProcessor.RunSerializedAsync(async token =>
         {
-            return;
-        }
+            ThrowIfDisposed();
+            if (_runtime.Current.Book is { } book && !await _bookContentService.IsCurrentAsync(book, token).ConfigureAwait(false))
+                await DiscardSourceContextAsync(token).ConfigureAwait(false);
+            await action(token).ConfigureAwait(false);
+        }, ct);
 
-        try
-        {
-            PublishSnapshot(_currentSnapshot with
-            {
-                Message = "定时停止执行失败，请重新设置。"
-            });
-        }
-        catch
-        {
-            // Snapshot subscribers are outside the timer task's ownership boundary.
-        }
-    }
-
-    private PlaybackSnapshot CreateProviderMissingSnapshot(
-        PlaybackBookContent book,
-        int chapterIndex,
-        int segmentIndex,
-        int speakSpeed)
-    {
-        return PlaybackSnapshotProjector.Project(new PlaybackSnapshotProjectionInput(
-            PlaybackState.Stopped,
-            book,
-            chapterIndex,
-            segmentIndex,
-            null,
-            speakSpeed,
-            0,
-            0,
-            "尚未选择语音服务，请前往语音服务管理完成配置。",
-            false,
-            false,
-            SegmentCountOverride: 0,
-            Volume: _audioController.Volume));
-    }
-
-    private PlaybackSnapshot BuildSnapshot(
-        PlaybackState state,
-        PlaybackBookContent book,
-        int chapterIndex,
-        int segmentIndex,
-        ResolvedSpeechProvider selectedProvider,
-        int speakSpeed,
-        long positionMilliseconds,
-        long durationMilliseconds,
-        string? message,
-        bool isUsingCache,
-        bool canRetry)
-    {
-        return PlaybackSnapshotProjector.Project(new PlaybackSnapshotProjectionInput(
-            state,
-            book,
-            chapterIndex,
-            segmentIndex,
-            selectedProvider,
-            speakSpeed,
-            positionMilliseconds,
-            durationMilliseconds,
-            message,
-            isUsingCache,
-            canRetry,
-            _contentRevision,
-            Volume: _audioController.Volume));
-    }
-
-    private (int ChapterIndex, int SegmentIndex) GetCurrentPosition()
-    {
-        if (_currentSession is not null)
-        {
-            return (_currentSession.ChapterIndex, _currentSession.SegmentIndex);
-        }
-
-        return (_currentSnapshot.ChapterIndex, _currentSnapshot.SegmentIndex);
-    }
-
-    private int GetCurrentSpeakSpeed()
-    {
-        return NormalizeSpeakSpeed(_currentSession?.SpeakSpeed ?? _currentSnapshot.SpeakSpeed);
-    }
-
-    private static int NormalizeSpeakSpeed(int speakSpeed)
-    {
-        return AppSettings.NormalizeSpeakSpeed(speakSpeed);
-    }
-
-    private Task<int> GetPrefetchCountAsync(int? maxCountOverride, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var settings = _appSettingsService.Current;
-        var prefetchCount = Math.Clamp(settings.PrefetchCount, 0, AppSettings.DefaultPrefetchCountValue);
-        return Task.FromResult(maxCountOverride is null
-            ? prefetchCount
-            : Math.Min(prefetchCount, maxCountOverride.Value));
-    }
+    private void PublishSnapshot() => SnapshotChanged?.Invoke(this, CurrentSnapshot);
+    private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 
     private static PlaybackChapterContent? GetChapter(PlaybackBookContent book, int chapterIndex)
     {
@@ -2020,6 +1488,13 @@ public sealed class PlaybackCoordinator :
         ReadingProgressEntry progress,
         CancellationToken cancellationToken)
     {
+        if (book.Chapters.Count == 0) return null;
+        var chapterIndex = Math.Clamp(progress.ChapterIndex, book.Chapters.Min(c => c.ChapterIndex), book.Chapters.Max(c => c.ChapterIndex));
+        progress = progress with
+        {
+            ChapterIndex = chapterIndex,
+            AudioPositionMilliseconds = chapterIndex == progress.ChapterIndex ? progress.AudioPositionMilliseconds : 0
+        };
         book = await EnsureChapterLoadedAsync(book, progress.ChapterIndex, cancellationToken).ConfigureAwait(false);
         var chapter = GetChapter(book, progress.ChapterIndex);
         var restored = PlaybackPositionResolver.ResolveRestoredPosition(book, progress);
@@ -2114,6 +1589,9 @@ public sealed class PlaybackCoordinator :
         }
 
         var loadedChapter = await _bookContentService.GetChapterAsync(book.BookId, chapterIndex, cancellationToken);
+        if (!await _bookContentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false) ||
+            (existing.ChapterId is not null && loadedChapter?.ChapterId != existing.ChapterId))
+            throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
         return ReplaceChapter(
             book,
             loadedChapter ?? PlaybackChapterContent.Failed(existing.ChapterIndex, existing.Title));
@@ -2128,71 +1606,24 @@ public sealed class PlaybackCoordinator :
         return book with { Chapters = chapters };
     }
 
-    private bool IsSessionCurrent(Guid sessionId)
-    {
-        return _currentSession is not null && _currentSession.SessionId == sessionId;
-    }
-
-    private async Task DisposeSessionAsync()
-    {
-        if (_currentSession is null)
-        {
-            return;
-        }
-
-        _currentSession.Cancel();
-        await _currentSession.DisposeAsync();
-        _currentSession = null;
-    }
-
-    private void ClearCurrentBookContext()
-    {
-        _lastFailureKind = null;
-        _lastRecoveredCorruptSegmentKey = null;
-    }
-
-    private static PlaybackBookContent MergeBookMetadata(PlaybackBookContent existingBook, PlaybackBookContent refreshedBook)
-    {
-        var existingChapters = existingBook.Chapters.ToDictionary(chapter => chapter.ChapterIndex);
-        var mergedChapters = refreshedBook.Chapters
-            .Select(chapter => existingChapters.GetValueOrDefault(chapter.ChapterIndex) ?? chapter)
-            .ToArray();
-
-        return new PlaybackBookContent(
-            refreshedBook.BookId,
-            refreshedBook.BookTitle,
-            mergedChapters,
-            refreshedBook.BookAuthor);
-    }
-
-    private void ReplaceProtectedPlaybackFile(string? filePath)
-    {
-        ClearProtectedPlaybackFile();
-        if (!string.IsNullOrWhiteSpace(filePath))
-        {
-            _currentSession?.ReplaceAudioProtection(_audioCacheProtectionRegistry.Protect(filePath));
-        }
-    }
-
-    private void ClearProtectedPlaybackFile()
-    {
-        _currentSession?.ReplaceAudioProtection(null);
-    }
-
-    private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex, long ResumePositionMilliseconds)?> ResolveBookStartContextAsync(
+    private async Task<(PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex, long ResumePositionMilliseconds, bool RequiresCheckpoint)?> ResolveBookStartContextAsync(
         string bookId,
         int? requestedChapterIndex,
         int? requestedSegmentIndex,
         long? resumePositionMillisecondsOverride,
         bool allowSavedProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        PlaybackContentWorkLifetime? contentWork = null)
     {
         var book = await _bookContentService.GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
         if (book is null)
         {
             return null;
         }
+        contentWork?.SetBook(book);
+        cancellationToken.ThrowIfCancellationRequested();
 
+        var requiresCheckpoint = false;
         var hasExplicitPosition = requestedChapterIndex is not null || requestedSegmentIndex is not null;
         var resumePositionMilliseconds = resumePositionMillisecondsOverride ?? 0;
         (PlaybackBookContent Book, PlaybackChapterContent Chapter, int ChapterIndex, int SegmentIndex)? startPosition = null;
@@ -2206,6 +1637,11 @@ public sealed class PlaybackCoordinator :
                 if (restoredPosition is not null)
                 {
                     book = restoredPosition.Value.Book;
+                    contentWork?.SetBook(book);
+                    requiresCheckpoint = savedProgress.ChapterIndex != restoredPosition.Value.ChapterIndex ||
+                        savedProgress.SegmentIndex != restoredPosition.Value.SegmentIndex ||
+                        savedProgress.CharacterOffset != restoredPosition.Value.Chapter.Segments[restoredPosition.Value.SegmentIndex].StartOffset ||
+                        savedProgress.AudioPositionMilliseconds != restoredPosition.Value.ResumePositionMilliseconds;
                     startPosition = (
                         restoredPosition.Value.Book,
                         restoredPosition.Value.Chapter,
@@ -2233,131 +1669,9 @@ public sealed class PlaybackCoordinator :
             startPosition.Value.Chapter,
             startPosition.Value.ChapterIndex,
             startPosition.Value.SegmentIndex,
-            resumePositionMilliseconds);
-    }
-
-    private async Task OpenResolvedPositionAsync(
-        PlaybackBookContent book,
-        int chapterIndex,
-        int segmentIndex,
-        long resumePositionMilliseconds,
-        ResolvedSpeechProvider? selectedProvider,
-        int speakSpeed,
-        string pausedMessage,
-        CancellationToken cancellationToken,
-        bool checkpointNewPosition = false)
-    {
-        if (selectedProvider is null)
-        {
-            await StartNewSessionAsync(
-                book,
-                chapterIndex,
-                segmentIndex,
-                resumePositionMilliseconds,
-                selectedProvider: null,
-                speakSpeed: speakSpeed,
-                forceInvalidate: false,
-                playImmediately: false,
-                pausedState: PlaybackState.Stopped,
-                pausedMessage: "尚未选择语音服务。",
-                cancellationToken,
-                checkpointNewPosition: checkpointNewPosition).ConfigureAwait(false);
-            return;
-        }
-
-        await StartNewSessionAsync(
-            book,
-            chapterIndex,
-            segmentIndex,
             resumePositionMilliseconds,
-            selectedProvider,
-            speakSpeed,
-            forceInvalidate: false,
-            playImmediately: false,
-            pausedState: PlaybackState.Paused,
-            pausedMessage: pausedMessage,
-            cancellationToken,
-            checkpointNewPosition: checkpointNewPosition);
+            requiresCheckpoint);
     }
-
-    private async Task JumpToCoreAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        if (_currentBook is null)
-        {
-            return;
-        }
-
-        var target = await ResolvePlayablePositionAsync(
-            _currentBook,
-            chapterIndex,
-            segmentIndex,
-            searchDirection: 1,
-            preferLastSegmentWhenSearchingBackward: false,
-            cancellationToken).ConfigureAwait(false);
-        if (target is null)
-        {
-            return;
-        }
-
-        if (_currentSnapshot.State == PlaybackState.Playing && _currentProvider is not null)
-        {
-            await StartNewSessionAsync(
-                target.Value.Book,
-                target.Value.ChapterIndex,
-                target.Value.SegmentIndex,
-                0,
-                _currentProvider,
-                GetCurrentSpeakSpeed(),
-                forceInvalidate: false,
-                playImmediately: true,
-                pausedState: PlaybackState.Paused,
-                pausedMessage: "已恢复到当前位置，等待播放。",
-                cancellationToken,
-                checkpointNewPosition: true).ConfigureAwait(false);
-            return;
-        }
-
-        var selectedProvider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
-        await OpenResolvedPositionAsync(
-            target.Value.Book,
-            target.Value.ChapterIndex,
-            target.Value.SegmentIndex,
-            0,
-            selectedProvider,
-            GetCurrentSpeakSpeed(),
-            "已跳转到目标段落，等待播放。",
-            cancellationToken,
-            checkpointNewPosition: true).ConfigureAwait(false);
-    }
-
-    private async Task JumpToChapterCoreAsync(int chapterIndex, CancellationToken cancellationToken)
-    {
-        ThrowIfDisposed();
-        if (_currentBook is null)
-        {
-            return;
-        }
-
-        var target = await ResolvePlayablePositionAsync(
-            _currentBook,
-            chapterIndex,
-            0,
-            searchDirection: 1,
-            preferLastSegmentWhenSearchingBackward: false,
-            cancellationToken).ConfigureAwait(false);
-        if (target is null)
-        {
-            return;
-        }
-
-        await JumpToCoreAsync(target.Value.ChapterIndex, target.Value.SegmentIndex, cancellationToken).ConfigureAwait(false);
-    }
-
-    private Task RunSerializedAsync(
-        Func<CancellationToken, Task> action,
-        CancellationToken cancellationToken) =>
-        _commandProcessor.RunSerializedAsync(action, cancellationToken);
 
     private void ScheduleVolumePersistence(double volume)
     {
@@ -2457,15 +1771,4 @@ public sealed class PlaybackCoordinator :
         }
     }
 
-    private void PublishSnapshot(PlaybackSnapshot snapshot)
-    {
-        snapshot = snapshot with { HasLoadedAudio = _currentSession?.HasLoadedAudio == true };
-        _currentSnapshot = snapshot;
-        SnapshotChanged?.Invoke(this, snapshot);
-    }
-
-    private void ThrowIfDisposed()
-    {
-        ObjectDisposedException.ThrowIf(_disposed, this);
-    }
 }

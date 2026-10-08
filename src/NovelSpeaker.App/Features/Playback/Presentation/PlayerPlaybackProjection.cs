@@ -30,7 +30,7 @@ internal sealed class PlayerPlaybackProjection
             isFaulted || snapshot.State == PlaybackState.Paused && snapshot.CanRetry
                 ? snapshot.Message ?? "播放失败。"
                 : string.Empty,
-            snapshot.State == PlaybackState.Playing ? "暂停" : "播放",
+            snapshot.State is PlaybackState.Playing or PlaybackState.Preparing or PlaybackState.Recovering ? "暂停" : "播放",
             AppSettings.NormalizeSpeakSpeed(
                 string.IsNullOrWhiteSpace(snapshot.BookId)
                     ? defaultSpeakSpeed

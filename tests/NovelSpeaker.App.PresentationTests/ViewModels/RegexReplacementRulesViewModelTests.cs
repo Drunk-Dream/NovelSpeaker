@@ -1,5 +1,4 @@
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Playback;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shared.Presentation.Selection;
@@ -80,7 +79,7 @@ public sealed class RegexReplacementRulesViewModelTests
     }
 
     [Fact]
-    public async Task Leaving_page_stops_remaining_deletes_but_refreshes_runtime_for_committed_deletion()
+    public async Task Leaving_page_stops_remaining_deletes_after_committed_deletion()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard);
         var vm = fixture.ViewModel;
@@ -91,14 +90,13 @@ public sealed class RegexReplacementRulesViewModelTests
         fixture.Feedback.DeletionDecision = AppConfirmationDecision.Confirm;
         fixture.Workspace.AfterDelete = vm.HandleNavigatedFrom;
         await vm.DeleteSelectedRulesCommand.ExecuteAsync(null);
-        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
         Assert.False(vm.IsManagementMode);
         await vm.LoadAsync(CancellationToken.None);
         Assert.Equal(remainingId, Assert.Single(vm.Rules).Id);
     }
 
     [Fact]
-    public async Task Batch_delete_continues_after_failure_and_refreshes_runtime_without_editor_fallback()
+    public async Task Batch_delete_continues_after_failure_without_editor_fallback()
     {
         var fixture = CreateFixture(UnsavedChangesDecision.Discard, 3);
         var vm = fixture.ViewModel;
@@ -114,7 +112,8 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.False(vm.HasEditor);
         Assert.Equal(1, vm.SelectedCount);
         Assert.Equal(1, fixture.Feedback.DeletionPromptCount);
-        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
+        Assert.Equal("成功 2，跳过 0，失败 1。", fixture.Feedback.LastWarningMessage);
+        Assert.Null(fixture.Feedback.LastSuccessTitle);
     }
 
     private async Task LoadAsync_leaves_editor_closed_until_a_rule_is_clicked()
@@ -289,28 +288,6 @@ public sealed class RegexReplacementRulesViewModelTests
         Assert.Null(fixture.Feedback.LastProjectedTitle);
     }
 
-    private async Task SaveAsync_refreshes_playback_when_execution_fields_change()
-    {
-        var fixture = CreateFixture(UnsavedChangesDecision.Save);
-        await LoadAndSelectFirstAsync(fixture);
-        fixture.ViewModel.DraftReplacement = "新替换";
-
-        await fixture.ViewModel.SaveCommand.ExecuteAsync(null);
-
-        Assert.Equal(1, fixture.Playback.RegexRefreshCount);
-    }
-
-    private async Task SaveAsync_does_not_refresh_playback_when_only_name_changes()
-    {
-        var fixture = CreateFixture(UnsavedChangesDecision.Save);
-        await LoadAndSelectFirstAsync(fixture);
-        fixture.ViewModel.DraftName = "新名称";
-
-        await fixture.ViewModel.SaveCommand.ExecuteAsync(null);
-
-        Assert.Equal(0, fixture.Playback.RegexRefreshCount);
-    }
-
     [Fact]
     public async Task Regex_rule_editing_contracts_cover_load_selection_and_dirty_leave_decisions()
     {
@@ -323,14 +300,12 @@ public sealed class RegexReplacementRulesViewModelTests
     }
 
     [Fact]
-    public async Task Regex_rule_validation_and_save_contracts_cover_fields_failures_and_refresh()
+    public async Task Regex_rule_validation_and_save_contracts_cover_fields_failures_and_cancellation()
     {
         await Validation_projects_name_and_pattern_errors_to_their_form_fields();
         await Empty_replacement_is_valid_for_removing_matching_text();
         await SelectRuleAsync_save_failure_keeps_current_draft_and_blocks_leave();
         await ConfirmLeaveAsync_does_not_convert_save_cancellation_to_failure();
-        await SaveAsync_refreshes_playback_when_execution_fields_change();
-        await SaveAsync_does_not_refresh_playback_when_only_name_changes();
     }
 
     private static TestFixture CreateFixture(UnsavedChangesDecision decision, int ruleCount = 2)
@@ -354,16 +329,14 @@ public sealed class RegexReplacementRulesViewModelTests
 
         var workspace = new FakeRegexReplacementRuleWorkspaceService(editors.ToArray());
         var feedback = new FakeFeedbackService();
-        var playback = new FakePlaybackCoordinator();
         var documents = new FakeRuleDocumentInteraction();
         var viewModel = new RegexReplacementRulesViewModel(
             workspace,
-            playback,
             feedback,
             new FakeDialogService(decision),
             new FakeNavigationService(),
             documents);
-        return new TestFixture(viewModel, workspace, feedback, playback, documents, firstRuleId, secondRuleId);
+        return new TestFixture(viewModel, workspace, feedback, documents, firstRuleId, secondRuleId);
     }
 
     private static async Task LoadAndSelectFirstAsync(TestFixture fixture)
@@ -376,7 +349,6 @@ public sealed class RegexReplacementRulesViewModelTests
         RegexReplacementRulesViewModel ViewModel,
         FakeRegexReplacementRuleWorkspaceService Workspace,
         FakeFeedbackService Feedback,
-        FakePlaybackCoordinator Playback,
         FakeRuleDocumentInteraction Documents,
         Guid FirstRuleId,
         Guid SecondRuleId);
@@ -548,6 +520,7 @@ public sealed class RegexReplacementRulesViewModelTests
     {
         public string? LastProjectedTitle { get; private set; }
         public string? LastSuccessTitle { get; private set; }
+        public string? LastWarningMessage { get; private set; }
         public int DeletionPromptCount { get; private set; }
         public AppConfirmationDecision DeletionDecision { get; set; } = AppConfirmationDecision.Cancel;
 
@@ -565,6 +538,7 @@ public sealed class RegexReplacementRulesViewModelTests
 
         public void ShowWarning(string title, string message)
         {
+            LastWarningMessage = message;
         }
 
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(
@@ -588,47 +562,4 @@ public sealed class RegexReplacementRulesViewModelTests
             Task.FromResult(true);
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackRegexReplacementRefresher
-    {
-        public int RegexRefreshCount { get; private set; }
-        public Exception? RefreshException { get; set; }
-
-        public PlaybackSnapshot CurrentSnapshot => PlaybackSnapshot.Idle;
-
-        public event EventHandler<PlaybackSnapshot>? SnapshotChanged
-        {
-            add { }
-            remove { }
-        }
-
-        public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task OpenPausedAsync(OpenBookPlaybackRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PauseAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ResumeAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task JumpToAsync(PlaybackJumpTarget target, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task JumpToChapterAsync(int chapterIndex, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task JumpToSegmentAsync(int chapterIndex, int segmentIndex, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task NextSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PreviousSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task NextChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task PreviousChapterAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ChangeRuleAsync(long ruleId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            RegexRefreshCount++;
-            if (RefreshException is not null)
-            {
-                throw RefreshException;
-            }
-
-            return Task.CompletedTask;
-        }
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
-    }
 }

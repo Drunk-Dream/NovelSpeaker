@@ -19,8 +19,6 @@ public static class PlaybackRegistration
         ArgumentNullException.ThrowIfNull(services);
         services.TryAddSingleton<IBookPlaybackContentService, PlaybackContentResolver>();
         services.TryAddSingleton<ILocalAudioPlaybackCoordinator, LocalAudioPlaybackCoordinator>();
-        services.TryAddSingleton<PlaybackAudioController>(serviceProvider =>
-            new PlaybackAudioController(serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>()));
         services.TryAddSingleton<PlaybackSegmentRunner>();
         services.TryAddSingleton<PlaybackRecoveryPolicy>();
         services.TryAddSingleton<PlaybackProgressController>();
@@ -32,22 +30,27 @@ public static class PlaybackRegistration
                 serviceProvider.GetRequiredService<PlaybackSegmentRunner>(),
                 serviceProvider.GetRequiredService<PlaybackRecoveryPolicy>(),
                 serviceProvider.GetRequiredService<IAudioCacheProtectionRegistry>(),
-                serviceProvider.GetRequiredService<PlaybackAudioController>(),
+                serviceProvider.GetRequiredService<ILocalAudioPlaybackCoordinator>(),
                 serviceProvider.GetRequiredService<PlaybackProgressController>(),
                 serviceProvider.GetRequiredService<IPlaybackPrefetchController>(),
                 serviceProvider.GetRequiredService<IAppSettingsService>(),
                 serviceProvider.GetRequiredService<TimeProvider>(),
-                serviceProvider.GetRequiredService<IObservability>()));
+                serviceProvider.GetRequiredService<IObservability>(),
+                serviceProvider.GetRequiredService<IBookSourceChangeSource>(),
+                serviceProvider.GetRequiredService<IRegexReplacementRuleWorkspaceService>()));
         services.TryAddSingleton<IPlaybackSnapshotSource>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<IBookRemovalWorkStopper, PlaybackRemovalWorkStopper>());
         services.TryAddSingleton<IPlaybackSession>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
         services.TryAddSingleton<IPlaybackStopTimer>(serviceProvider =>
             serviceProvider.GetRequiredService<PlaybackCoordinator>());
-        services.TryAddSingleton<IPlaybackBookCommands>(serviceProvider =>
-            serviceProvider.GetRequiredService<PlaybackCoordinator>());
-        services.TryAddSingleton<IPlaybackRegexReplacementRefresher>(serviceProvider =>
-            serviceProvider.GetRequiredService<PlaybackCoordinator>());
         return services;
     }
+}
+
+internal sealed class PlaybackRemovalWorkStopper(PlaybackCoordinator coordinator) : IBookRemovalWorkStopper
+{
+    public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken) =>
+        coordinator.StopForRemovalAsync(bookId, sourceId, cancellationToken);
 }

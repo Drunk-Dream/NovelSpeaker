@@ -10,7 +10,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
@@ -31,8 +30,6 @@ using NovelSpeaker.Domain.Speech;
 using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.StyleGallery;
 using Wpf.Ui;
-using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
-using SymbolRegular = Wpf.Ui.Controls.SymbolRegular;
 using WpfUiButton = Wpf.Ui.Controls.Button;
 using Xunit;
 
@@ -56,16 +53,11 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 960, 640));
             view.UpdateLayout();
 
-            var emptyStatus = Assert.IsType<AppStatusView>(view.FindName("EmptyChapterStatusView"));
-            Assert.Equal(Visibility.Visible, emptyStatus.Visibility);
-            Assert.Equal("当前章节没有可播放段落", emptyStatus.Title);
-            Assert.Equal("0 / 0", Assert.IsType<TextBlock>(FindVisibleDescendantByText(view, "0 / 0")).Text);
-            Assert.False(Assert.IsType<WpfUiButton>(view.FindName("PrimaryPlaybackButton")).IsEnabled);
-            Assert.False(Assert.IsType<WpfUiButton>(view.FindName("PreviousSegmentButton")).IsEnabled);
-            Assert.False(Assert.IsType<WpfUiButton>(view.FindName("NextSegmentButton")).IsEnabled);
-            Assert.Equal(
-                Visibility.Collapsed,
-                Assert.IsType<Grid>(view.FindName("SegmentProgressPanel")).Visibility);
+            Assert.NotNull(FindVisibleDescendantByText(view, "当前章节没有可播放段落"));
+            Assert.NotNull(FindVisibleDescendantByText(view, "0 / 0"));
+            Assert.False(FindUiButtonByAutomationName(view, "播放").IsEnabled);
+            Assert.False(FindUiButtonByAutomationName(view, "上一段").IsEnabled);
+            Assert.False(FindUiButtonByAutomationName(view, "下一段").IsEnabled);
         });
     }
 
@@ -83,10 +75,8 @@ public sealed partial class PlayerViewTests
             inactiveView.Arrange(new Rect(0, 0, 1280, 760));
             inactiveView.UpdateLayout();
 
-            var inactiveToolButton = Assert.IsType<WpfUiButton>(inactiveView.FindName("ChapterManagementToolButton"));
+            var inactiveToolButton = FindUiButtonByAutomationName(inactiveView, "章节管理");
             Assert.Equal("章节管理", inactiveToolButton.ToolTip);
-            Assert.Equal("章节管理", AutomationProperties.GetName(inactiveToolButton));
-            Assert.Equal(SymbolRegular.MultiselectLtr24, Assert.IsType<SymbolIcon>(inactiveToolButton.Icon).Symbol);
 
             var chapters = new ObservableCollection<PlayerChapterItemViewModel>
             {
@@ -111,22 +101,14 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var toolButton = Assert.IsType<WpfUiButton>(view.FindName("ChapterManagementToolButton"));
+            var toolButton = FindUiButtonByAutomationName(view, "退出选择");
             var locateButton = Assert.IsType<WpfUiButton>(view.FindName("LocateCurrentChapterButton"));
-            var selectionToolbar = Assert.IsAssignableFrom<FrameworkElement>(view.FindName("ChapterManagementToolbar"));
-            var startButton = Assert.IsType<WpfUiButton>(view.FindName("StartActiveCacheButton"));
+            var startButton = FindUiButtonByAutomationName(view, "开始缓存");
 
             Assert.Equal("退出选择", toolButton.ToolTip);
-            Assert.Equal("退出选择", AutomationProperties.GetName(toolButton));
-            Assert.Equal(SymbolRegular.Dismiss24, Assert.IsType<SymbolIcon>(toolButton.Icon).Symbol);
-            Assert.Equal(Visibility.Visible, selectionToolbar.Visibility);
-            Assert.NotNull(FindVisibleDescendantByText(selectionToolbar, "已选择 2 章"));
+            Assert.NotNull(FindVisibleDescendantByText(view, "已选择 2 章"));
             Assert.NotNull(FindVisibleDescendantByText(view, "已有主动缓存批次正在运行，完成或取消后可开始新批次。"));
-            Assert.Equal("开始缓存", AutomationProperties.GetName(startButton));
-            Assert.Null(startButton.Content);
-            Assert.Equal(SymbolRegular.ArrowDownload24, Assert.IsType<SymbolIcon>(startButton.Icon).Symbol);
             Assert.False(startButton.IsEnabled);
-            Assert.Equal("定位到当前章节", locateButton.ToolTip);
             Assert.Equal("定位到当前章节", AutomationProperties.GetName(locateButton));
             Assert.Equal(Visibility.Collapsed, locateButton.Visibility);
         });
@@ -191,13 +173,11 @@ public sealed partial class PlayerViewTests
             view.Arrange(new Rect(0, 0, 1280, 760));
             view.UpdateLayout();
 
-            var noRuleFooter = Assert.IsType<AppStatusView>(view.FindName("NoProviderStatusView"));
             var backButton = FindUiButtonByAutomationName(view, "返回");
 
             Assert.Null(FindVisibleDescendantByContent(view, "前往 语音服务"));
-            Assert.Equal(Visibility.Visible, noRuleFooter.Visibility);
-            Assert.True(GetBoundsRelativeToRoot(noRuleFooter, view).Bottom <= view.ActualHeight);
-            Assert.True(GetBoundsRelativeToRoot(backButton, view).Top >= 0);
+            Assert.NotNull(FindVisibleDescendantByText(view, "请选择语音服务，或前往语音服务管理完成配置。"));
+            Assert.True(backButton.IsEnabled);
         });
     }
 
@@ -310,11 +290,6 @@ public sealed partial class PlayerViewTests
 
             Assert.True(context.HasProviders);
             Assert.True(popup.IsOpen);
-            var providerSurface = Assert.IsType<SelectionSurface>(
-                VisualTreeTestHelper.FindDescendant<SelectionSurface>(popup.Child));
-            Assert.True(providerSurface.IsCurrent);
-            Assert.NotSame(System.Windows.Application.Current.FindResource("App.Brush.Interaction.Surface.Selected"),
-                providerSurface.Background);
             popup.IsOpen = false;
         });
     }

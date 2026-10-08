@@ -20,14 +20,91 @@ public sealed class TtsResponseValidatorTests
         var outside = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(outside);
         DirectoryLinkTestHelper.CreateDirectoryLink(
-            Path.Combine(directories.CacheDirectoryPath, "RuleTests"),
+            Path.Combine(directories.CacheDirectoryPath, "TemporarySpeech"),
             outside);
-        var store = new TemporaryAudioStore(directories);
-
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            store.WriteAsync(1, new MemoryStream([1, 2, 3]), CancellationToken.None));
+        Assert.Throws<InvalidDataException>(() => new TemporaryAudioStore(directories));
 
         Assert.Empty(Directory.EnumerateFileSystemEntries(outside));
+    }
+
+    [Fact]
+    public async Task Temporary_store_accepts_response_at_byte_limit_without_a_known_length()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new TemporaryAudioStore(directories);
+        await using var content = new GeneratedContentStream(TemporaryAudioStore.MaximumResponseBytes);
+
+        var path = await store.WriteAsync(1, content, CancellationToken.None);
+
+        Assert.Equal(TemporaryAudioStore.MaximumResponseBytes, new FileInfo(path).Length);
+        TemporaryAudioStore.Delete(path);
+    }
+
+    [Fact]
+    public async Task Temporary_store_rejects_actual_bytes_over_limit_and_deletes_partial_file()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new TemporaryAudioStore(directories);
+        await using var content = new GeneratedContentStream(TemporaryAudioStore.MaximumResponseBytes + 1);
+
+        await Assert.ThrowsAsync<TtsAudioResponseTooLargeException>(() =>
+            store.WriteAsync(1, content, CancellationToken.None));
+
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
+    }
+
+    [Fact]
+    public async Task ValidateAsync_returns_stable_invalid_response_for_oversized_audio()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var validator = new TtsResponseValidator(new TemporaryAudioStore(directories), new AudioProbe());
+        await using var response = new TtsTransportResponse(
+            200,
+            "audio/mpeg",
+            new GeneratedContentStream(TemporaryAudioStore.MaximumResponseBytes + 1));
+
+        var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
+
+        Assert.Equal(TtsErrorKind.InvalidResponse, result.Failure!.Kind);
+        Assert.Equal("服务返回的音频超过允许大小，无法生成音频。", result.Failure.Message);
+        Assert.Null(result.Failure.ResponseSummary);
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
+    }
+
+    [Fact]
+    public async Task Temporary_store_deletes_partial_file_when_cancelled_during_copy()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new TemporaryAudioStore(directories);
+        using var cancellation = new CancellationTokenSource();
+        await using var content = new GeneratedContentStream(TemporaryAudioStore.MaximumResponseBytes, cancellation);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            store.WriteAsync(1, content, cancellation.Token));
+
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
+    }
+
+    [Fact]
+    public async Task Temporary_store_deletes_partial_file_when_file_write_fails()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var store = new TemporaryAudioStore(directories, new WriteFailureOperations());
+        await using var content = new GeneratedContentStream(128);
+
+        await Assert.ThrowsAsync<IOException>(() => store.WriteAsync(1, content, CancellationToken.None));
+
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -47,7 +124,7 @@ public sealed class TtsResponseValidatorTests
         var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
 
         Assert.Equal(TtsErrorKind.EmptyAudioResponse, result.Failure!.Kind);
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(directories.CacheDirectoryPath, "RuleTests")));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -95,8 +172,7 @@ public sealed class TtsResponseValidatorTests
         var result = await validator.ValidateAsync(CreateRequest(), response, CancellationToken.None);
 
         Assert.Equal(TtsErrorKind.AudioDecode, result.Failure!.Kind);
-        var temporaryDirectory = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
-        Assert.Empty(Directory.EnumerateFiles(temporaryDirectory));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -171,8 +247,7 @@ public sealed class TtsResponseValidatorTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             validator.ValidateAsync(CreateRequest(), response, cancellation.Token));
 
-        var temporaryDirectory = Path.Combine(directories.CacheDirectoryPath, "RuleTests");
-        Assert.Empty(Directory.EnumerateFiles(temporaryDirectory));
+        Assert.Empty(GetPurposeFiles(directories, "RuleTests"));
     }
 
     [Fact]
@@ -183,14 +258,72 @@ public sealed class TtsResponseValidatorTests
         await directories.EnsureCreatedAsync(CancellationToken.None);
         var operations = new PartialCopyThenThrowOperations();
         var store = new TemporaryAudioStore(directories, operations);
-        var temporaryPath = Path.Combine(directories.CacheDirectoryPath, "RuleTests", "source.tmp");
-        Directory.CreateDirectory(Path.GetDirectoryName(temporaryPath)!);
-        File.WriteAllText(temporaryPath, "source");
+        var temporaryPath = await store.WriteAsync(7, new MemoryStream("source"u8.ToArray()), CancellationToken.None);
         var candidatePath = Path.ChangeExtension(temporaryPath, "wav");
 
         Assert.Throws<IOException>(() => store.CreateCandidate(temporaryPath, "wav"));
 
         Assert.False(File.Exists(candidatePath));
+    }
+
+    [Fact]
+    public async Task Residual_cleanup_removes_abandoned_owner_files_and_preserves_live_owner_and_persistent_data()
+    {
+        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        var directories = new AppDataDirectoryProvider(root);
+        await directories.EnsureCreatedAsync(CancellationToken.None);
+        var paths = new AppStoragePathResolver(directories);
+        using var active = new TemporarySpeechFileLease(directories, paths);
+        var activeFile = active.CreatePath("ProviderPreviews", "preview.wav");
+        Directory.CreateDirectory(Path.GetDirectoryName(activeFile)!);
+        File.WriteAllText(activeFile, "active");
+
+        using var abandoned = new TemporarySpeechFileLease(directories, paths);
+        var abandonedFiles = new[]
+        {
+            abandoned.CreatePath("RuleTests", "response.tmp"),
+            abandoned.CreatePath("RuleTests", "response.mp3"),
+            abandoned.CreatePath("RuleTests", "response.wav"),
+            abandoned.CreatePath("RuleTests", "response.audio"),
+            abandoned.CreatePath("ProviderPreviews", "preview.wav"),
+            abandoned.CreatePath("TtsCache", "aa", "staging.tmp")
+        };
+        foreach (var path in abandonedFiles)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, "abandoned");
+        }
+        var abandonedDirectory = abandoned.RootPath;
+        abandoned.Dispose();
+
+        var cacheFile = Path.Combine(directories.CacheDirectoryPath, "Tts", "v1", "persisted.mp3");
+        var localSourceFile = Path.Combine(directories.BooksDirectoryPath, "book", "content.txt");
+        Directory.CreateDirectory(Path.GetDirectoryName(cacheFile)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(localSourceFile)!);
+        File.WriteAllText(cacheFile, "persistent cache");
+        File.WriteAllText(localSourceFile, "source");
+
+        active.DeleteAbandonedDirectories(CancellationToken.None);
+        active.DeleteAbandonedDirectories(CancellationToken.None);
+
+        Assert.True(File.Exists(activeFile));
+        Assert.False(Directory.Exists(abandonedDirectory));
+        Assert.All(abandonedFiles, path => Assert.False(File.Exists(path)));
+        Assert.True(File.Exists(cacheFile));
+        Assert.True(File.Exists(localSourceFile));
+    }
+
+    private static IEnumerable<string> GetPurposeFiles(AppDataDirectoryProvider directories, string purpose)
+    {
+        var root = Path.Combine(directories.CacheDirectoryPath, "TemporarySpeech");
+        return Directory.Exists(root)
+            ? Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+                .Where(path => Path.GetRelativePath(root, path)
+                    .Split(Path.DirectorySeparatorChar)
+                    .Contains(purpose, StringComparer.Ordinal))
+                .Where(path => !Path.GetFileName(path).Equals(".owner-lock", StringComparison.Ordinal))
+                .ToArray()
+            : [];
     }
 
     private static ParsedTtsRequest CreateRequest() => new(
@@ -211,6 +344,8 @@ public sealed class TtsResponseValidatorTests
 
     private sealed class PartialCopyThenThrowOperations : ITemporaryAudioFileOperations
     {
+        public Stream Create(string path) => File.Create(path);
+
         public void Copy(string sourcePath, string destinationPath)
         {
             File.WriteAllText(destinationPath, "partial");
@@ -220,6 +355,93 @@ public sealed class TtsResponseValidatorTests
         public void Delete(string path)
         {
             TemporaryAudioStore.Delete(path);
+        }
+    }
+
+    private sealed class WriteFailureOperations : ITemporaryAudioFileOperations
+    {
+        public Stream Create(string path) => new PartialThenFailWriteStream(File.Create(path));
+
+        public void Copy(string sourcePath, string destinationPath) => File.Copy(sourcePath, destinationPath);
+
+        public void Delete(string path) => TemporaryAudioStore.Delete(path);
+    }
+
+    private sealed class PartialThenFailWriteStream(Stream inner) : Stream
+    {
+        private bool _failed;
+
+        public override bool CanRead => false;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => inner.Flush();
+        public override Task FlushAsync(CancellationToken cancellationToken) => inner.FlushAsync(cancellationToken);
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => inner.SetLength(value);
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_failed)
+            {
+                throw new IOException("simulated disk write failure");
+            }
+
+            _failed = true;
+            await inner.WriteAsync(buffer[..Math.Min(buffer.Length, 4)], cancellationToken);
+            throw new IOException("simulated disk write failure");
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
+
+        public override ValueTask DisposeAsync() => inner.DisposeAsync();
+    }
+
+    private sealed class GeneratedContentStream(long totalBytes, CancellationTokenSource? cancelAfterFirstRead = null) : Stream
+    {
+        private long _remaining = totalBytes;
+        private bool _cancelled;
+
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() => throw new NotSupportedException();
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_remaining == 0)
+            {
+                return ValueTask.FromResult(0);
+            }
+
+            var bytesRead = (int)Math.Min(buffer.Length, _remaining);
+            buffer.Span[..bytesRead].Clear();
+            _remaining -= bytesRead;
+            if (!_cancelled && cancelAfterFirstRead is not null)
+            {
+                _cancelled = true;
+                cancelAfterFirstRead.Cancel();
+            }
+
+            return ValueTask.FromResult(bytesRead);
         }
     }
 }

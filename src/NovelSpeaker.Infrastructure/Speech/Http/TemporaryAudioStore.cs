@@ -9,19 +9,29 @@ namespace NovelSpeaker.Infrastructure.Speech.Http;
 /// <summary>Owns temporary HTTP TTS response files and their cleanup.</summary>
 public sealed class TemporaryAudioStore : IGeneratedAudioFileStore
 {
-    private readonly IAppDataDirectoryProvider _directories;
+    internal const long MaximumResponseBytes = 64L * 1024 * 1024;
+
     private readonly IAppStoragePathResolver _pathResolver;
     private readonly ITemporaryAudioFileOperations _fileOperations;
+    private readonly TemporarySpeechFileLease _temporaryFiles;
 
     public TemporaryAudioStore(IAppDataDirectoryProvider directories)
-        : this(directories, new TemporaryAudioFileOperations(), new AppStoragePathResolver(directories))
+        : this(
+            directories,
+            new TemporaryAudioFileOperations(),
+            new AppStoragePathResolver(directories),
+            new TemporarySpeechFileLease(directories, new AppStoragePathResolver(directories)))
     {
     }
 
     internal TemporaryAudioStore(
         IAppDataDirectoryProvider directories,
         ITemporaryAudioFileOperations fileOperations)
-        : this(directories, fileOperations, new AppStoragePathResolver(directories))
+        : this(
+            directories,
+            fileOperations,
+            new AppStoragePathResolver(directories),
+            new TemporarySpeechFileLease(directories, new AppStoragePathResolver(directories)))
     {
     }
 
@@ -29,10 +39,24 @@ public sealed class TemporaryAudioStore : IGeneratedAudioFileStore
         IAppDataDirectoryProvider directories,
         ITemporaryAudioFileOperations fileOperations,
         IAppStoragePathResolver pathResolver)
+        : this(
+            directories,
+            fileOperations,
+            pathResolver,
+            new TemporarySpeechFileLease(directories, pathResolver))
     {
-        _directories = directories ?? throw new ArgumentNullException(nameof(directories));
+    }
+
+    internal TemporaryAudioStore(
+        IAppDataDirectoryProvider directories,
+        ITemporaryAudioFileOperations fileOperations,
+        IAppStoragePathResolver pathResolver,
+        TemporarySpeechFileLease temporaryFiles)
+    {
+        ArgumentNullException.ThrowIfNull(directories);
         _fileOperations = fileOperations ?? throw new ArgumentNullException(nameof(fileOperations));
         _pathResolver = pathResolver ?? throw new ArgumentNullException(nameof(pathResolver));
+        _temporaryFiles = temporaryFiles ?? throw new ArgumentNullException(nameof(temporaryFiles));
     }
 
     public async Task<TtsAudioResponse> WriteAsync(ProviderSynthesisResult audio, CancellationToken cancellationToken)
@@ -54,15 +78,33 @@ public sealed class TemporaryAudioStore : IGeneratedAudioFileStore
 
     public async Task<string> WriteAsync(long ruleId, Stream content, CancellationToken cancellationToken)
     {
-        var directoryPath = _pathResolver.ResolvePath(
-            Path.Combine(_directories.CacheDirectoryPath, "RuleTests"));
+        var path = _temporaryFiles.CreatePath("RuleTests", $"tts-{ruleId}-{Guid.NewGuid():N}.tmp");
+        var directoryPath = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directoryPath);
-        var path = _pathResolver.ResolvePath(
-            Path.Combine(directoryPath, $"tts-{ruleId}-{Guid.NewGuid():N}.tmp"));
         try
         {
-            await using var file = File.Create(path);
-            await content.CopyToAsync(file, cancellationToken).ConfigureAwait(false);
+            await using var file = _fileOperations.Create(path);
+            var buffer = new byte[81920];
+            long totalBytes = 0;
+            while (true)
+            {
+                var remainingBytes = MaximumResponseBytes - totalBytes;
+                var readBuffer = buffer.AsMemory(0, (int)Math.Min(buffer.Length, remainingBytes + 1));
+                var bytesRead = await content.ReadAsync(readBuffer, cancellationToken).ConfigureAwait(false);
+                if (bytesRead == 0)
+                {
+                    break;
+                }
+
+                if (bytesRead > remainingBytes)
+                {
+                    throw new TtsAudioResponseTooLargeException();
+                }
+
+                await file.WriteAsync(buffer.AsMemory(0, bytesRead), cancellationToken).ConfigureAwait(false);
+                totalBytes += bytesRead;
+            }
+
             return path;
         }
         catch
@@ -116,6 +158,8 @@ public sealed class TemporaryAudioStore : IGeneratedAudioFileStore
 
 internal interface ITemporaryAudioFileOperations
 {
+    Stream Create(string path);
+
     void Copy(string sourcePath, string destinationPath);
 
     void Delete(string path);
@@ -123,6 +167,8 @@ internal interface ITemporaryAudioFileOperations
 
 internal sealed class TemporaryAudioFileOperations : ITemporaryAudioFileOperations
 {
+    public Stream Create(string path) => File.Create(path);
+
     public void Copy(string sourcePath, string destinationPath)
     {
         File.Copy(sourcePath, destinationPath, overwrite: true);
@@ -133,6 +179,9 @@ internal sealed class TemporaryAudioFileOperations : ITemporaryAudioFileOperatio
         TemporaryAudioStore.Delete(path);
     }
 }
+
+internal sealed class TtsAudioResponseTooLargeException()
+    : IOException("HTTP TTS audio response exceeded the configured size limit.");
 
 internal sealed class TemporaryAudioFileOwner(
     string path,

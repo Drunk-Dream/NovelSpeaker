@@ -3,7 +3,7 @@ namespace NovelSpeaker.Application.Cache;
 /// <summary>
 /// Owns process-scoped repair of missing or stale chapter speech plans.
 /// </summary>
-public interface ISpeechPlanRepairCoordinator : IAsyncDisposable
+internal interface ISpeechPlanRepairCoordinator : ISpeechPlanRepairLifetime, IAsyncDisposable
 {
     /// <summary>
     /// Registers a repair. Cancelling the returned wait does not cancel the shared repair.
@@ -11,6 +11,4 @@ public interface ISpeechPlanRepairCoordinator : IAsyncDisposable
     Task RequestAsync(
         SpeechPlanRepairRequest request,
         CancellationToken cancellationToken);
-
-    Task StopAsync(CancellationToken cancellationToken);
 }

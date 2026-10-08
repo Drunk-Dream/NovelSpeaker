@@ -29,6 +29,7 @@ public static class EffectiveReadingProgressProjector
             persisted.RemainingChapterCount,
             persisted.OverallProgress,
             persisted.HasReadingProgress);
+        if (persisted.SourceContext != snapshot.SourceContext) return baseline;
         return Project(
             persisted.Id,
             persisted.TotalChapterCount,
@@ -69,19 +70,15 @@ public static class EffectiveReadingProgressProjector
                 : 0,
             currentChapterIndex is not null);
 
-        if (!string.Equals(snapshot.BookId, bookId, StringComparison.Ordinal))
+        if (!string.Equals(snapshot.BookId, bookId, StringComparison.Ordinal) ||
+            (catalog.Count > 0 && catalog[0].SourceContext != snapshot.SourceContext))
         {
             return baseline;
         }
 
         if (totalChapterCount <= 0)
         {
-            return new EffectiveReadingProgress(
-                null,
-                snapshot.ChapterTitle ?? baselineTitle,
-                0,
-                0,
-                false);
+            return baseline;
         }
 
         var snapshotChapterPosition = chapterPositionResolver(snapshot.ChapterIndex);

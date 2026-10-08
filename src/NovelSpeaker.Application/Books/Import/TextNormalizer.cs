@@ -9,12 +9,23 @@ public sealed class TextNormalizer : ITextNormalizer
 {
     public string Normalize(string rawText)
     {
-        var unified = rawText.Replace("\r\n", "\n", StringComparison.Ordinal)
-            .Replace('\r', '\n');
+        var firstChange = 0;
+        while (firstChange < rawText.Length && rawText[firstChange] != '\r' &&
+               (rawText[firstChange] is '\n' or '\t' || !char.IsControl(rawText[firstChange])))
+            firstChange++;
+        if (firstChange == rawText.Length) return rawText;
 
-        var builder = new StringBuilder(unified.Length);
-        foreach (var character in unified)
+        var builder = new StringBuilder(rawText.Length);
+        builder.Append(rawText.AsSpan(0, firstChange));
+        for (var index = firstChange; index < rawText.Length; index++)
         {
+            var character = rawText[index];
+            if (character == '\r')
+            {
+                builder.Append('\n');
+                if (index + 1 < rawText.Length && rawText[index + 1] == '\n') index++;
+                continue;
+            }
             if (character == '\n' || character == '\t' || !char.IsControl(character))
             {
                 builder.Append(character);

@@ -32,6 +32,8 @@ internal sealed class CacheStoreTestDouble : IAudioCacheStore
 
     public AudioCacheStoreCleanupResult CleanupResult { get; set; } = new(0, 0, 0, 0);
 
+    public Func<CancellationToken, Task<AudioCacheStoreCleanupResult>>? ClearAllHandler { get; set; }
+
     public int ClearBookCallCount { get; private set; }
 
     public int ClearChaptersCallCount { get; private set; }
@@ -130,7 +132,7 @@ internal sealed class CacheStoreTestDouble : IAudioCacheStore
     public Task<AudioCacheStoreCleanupResult> ClearAllAsync(CancellationToken cancellationToken)
     {
         ClearAllCallCount++;
-        return Task.FromResult(CleanupResult);
+        return ClearAllHandler?.Invoke(cancellationToken) ?? Task.FromResult(CleanupResult);
     }
 
     public int ClearAllCallCount { get; private set; }

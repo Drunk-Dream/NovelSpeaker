@@ -196,7 +196,9 @@ internal static class PlaybackPositionResolver
                 progress.AudioPositionMilliseconds);
         }
 
-        var mappedSegmentIndex = FindMappedSegmentIndex(chapter, progress.CharacterOffset);
+        var mappedSegmentIndex = progress.SegmentIndex >= chapter.Segments.Count
+            ? FindMappedSegmentIndex(chapter, int.MaxValue)
+            : FindMappedSegmentIndex(chapter, Math.Max(0, progress.CharacterOffset));
         if (mappedSegmentIndex < 0)
         {
             return null;

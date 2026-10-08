@@ -52,6 +52,9 @@ public sealed class WpfTestHostIsolationTests
         {
             Assert.True(WpfTestHost.CurrentDesktop.IsIsolated);
             Assert.False(WpfTestHost.IsVisibleWindowsAllowed);
+            var input = new System.Windows.Controls.TextBox();
+            Assert.False(System.Windows.Input.InputMethod.GetIsInputMethodEnabled(input));
+            Assert.True(System.Windows.Input.InputMethod.GetIsInputMethodSuspended(input));
         });
     }
 

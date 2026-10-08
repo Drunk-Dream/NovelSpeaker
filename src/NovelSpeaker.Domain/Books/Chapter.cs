@@ -1,13 +1,11 @@
 namespace NovelSpeaker.Domain.Books;
 
 /// <summary>
-/// Represents a chapter persisted for a specific imported book.
+/// Represents a technical entry in a source-owned catalog.
 /// </summary>
 public sealed record Chapter(
     string Id,
-    string BookId,
+    string SourceId,
     int ChapterIndex,
     int SortOrder,
-    string Title,
-    int StartOffset,
-    int Length);
+    string Title);

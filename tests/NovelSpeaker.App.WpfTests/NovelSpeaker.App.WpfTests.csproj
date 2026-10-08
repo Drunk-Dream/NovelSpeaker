@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <None Include="..\..\src\NovelSpeaker.App\Bootstrap\App.xaml" Link="TestAssets\ApplicationResources.xaml" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Include="..\TestKit\Books\*.cs" Link="TestKit\Books\%(Filename)%(Extension)" />
     <ProjectReference Include="..\..\src\NovelSpeaker.App\NovelSpeaker.App.csproj" />
     <ProjectReference Include="..\..\tools\NovelSpeaker.StyleGallery\NovelSpeaker.StyleGallery.csproj" />
   </ItemGroup>

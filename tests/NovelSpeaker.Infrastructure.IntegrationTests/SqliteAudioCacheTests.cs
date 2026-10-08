@@ -8,6 +8,7 @@ using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.FileSystem.Cache;
 using NovelSpeaker.Infrastructure.Cache;
 using NovelSpeaker.Infrastructure.Persistence;
+using NovelSpeaker.Infrastructure.Persistence.Books;
 using NovelSpeaker.Infrastructure.Persistence.Cache;
 using NovelSpeaker.Infrastructure.Playback;
 using NovelSpeaker.Infrastructure.Speech.Http;
@@ -19,10 +20,106 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed class SqliteAudioCacheTests
 {
     [Fact]
+    public async Task Cached_book_lists_use_library_metadata_and_keep_unlisted_cache_available_for_cleanup()
+    {
+        var fixture = await CreateFixtureAsync();
+        foreach (var bookId in new[] { "book-1", "book-2" })
+        {
+            await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
+                CreateKey(bookId, 0, 0, 1, 10, "缓存正文"),
+                bookId, 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
+                CancellationToken.None);
+        }
+
+        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                UPDATE Books SET Author = '作者一' WHERE Id = 'book-1';
+                UPDATE Books SET Author = '作者二', ImportedAt = 'not-a-date' WHERE Id = 'book-2';
+                """;
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
+        }
+
+        var catalog = new CacheCatalog(
+            fixture.Cache,
+            new SqliteBookPlaybackMetadataQuery(fixture.ConnectionFactory),
+            new BookLibraryQuery(fixture.ConnectionFactory));
+        var books = await catalog.GetCachedBooksAsync(CancellationToken.None);
+        Assert.Equal(["book-1", "book-2"], books.Select(book => book.BookId));
+        Assert.Equal("书一", books[0].Title);
+        Assert.Equal("作者一", books[0].Author);
+        Assert.Equal("book-2", books[1].Title);
+        Assert.Null(books[1].Author);
+        Assert.All(books, book =>
+        {
+            Assert.Equal(1, book.EntryCount);
+            Assert.Equal(1, book.ChapterCount);
+            Assert.True(book.TotalSizeBytes > 0);
+        });
+
+        var targeted = Assert.Single(await catalog.GetCachedBooksAsync(
+            ["book-2", "missing-book"], CancellationToken.None));
+        Assert.Equal(books[1], targeted);
+        Assert.Empty(await catalog.GetCachedBooksAsync(["missing-book"], CancellationToken.None));
+
+        var details = await catalog.GetCachedBookAsync("book-2", CancellationToken.None);
+        Assert.NotNull(details);
+        Assert.Equal("书二", details.Title);
+        Assert.Equal("作者二", details.Author);
+        Assert.Equal(targeted.TotalSizeBytes, details.TotalSizeBytes);
+        Assert.Null(await catalog.GetCachedBookAsync("missing-book", CancellationToken.None));
+        Assert.Equal("第一章", Assert.Single(await catalog.GetCachedChapterCatalogAsync(
+            "book-2", CancellationToken.None)).Title);
+    }
+
+    [Fact]
+    public async Task No_active_source_hides_chapter_coverage_but_preserves_cache_for_cleanup()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = CreateKey("book-1", 0, 0, 7, 12, "正文");
+        await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
+            key, "book-1", 0, 7, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"), CancellationToken.None);
+        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "UPDATE Books SET ActiveSourceId = NULL WHERE Id = 'book-1';";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        Assert.Empty(await fixture.Cache.GetChaptersAsync("book-1", CancellationToken.None));
+        var index = new SqliteAudioCacheIndex(fixture.ConnectionFactory, TimeProvider.System);
+        Assert.Empty(await index.GetEntriesAsync("book-1", 0, CancellationToken.None));
+        Assert.Contains(await index.GetAllEntriesAsync(CancellationToken.None), item => item.CacheKey == key.Value);
+        Assert.Contains(await index.GetLruEntriesAsync(CancellationToken.None), item => item.CacheKey == key.Value);
+        Assert.Contains(await index.GetEntriesAsync("book-1", null, CancellationToken.None), item => item.CacheKey == key.Value);
+    }
+
+    [Fact]
+    public async Task Catalog_replacement_removes_old_plans_and_cache_and_rejects_old_audio_write()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = CreateKey("book-1", 0, 0, 7, 12, "旧段");
+        var source = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path);
+        var entry = await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(key, "book-1", 0, 7, source, "audio/mpeg"), CancellationToken.None);
+        var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        await planStore.SaveAsync(CreatePlan("cache-chapter-1-0", ChapterSpeechPlanState.Ready,
+            [CreatePlanSegment(0, 0, "旧段")]), CancellationToken.None);
+        await Books.SourceBookFixture.SaveAsync(fixture.ConnectionFactory, "book-1", ["新章"]);
+        Assert.Null(await planStore.GetAsync("cache-chapter-1-0", CancellationToken.None));
+        Assert.Null(await fixture.Cache.TryGetAsync(key, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Cache.StoreAsync(
+            new AudioCacheWriteRequest(key, "book-1", 0, 7, source, "audio/mpeg"), CancellationToken.None));
+        Assert.Empty(await fixture.Cache.GetChaptersAsync("book-1", CancellationToken.None));
+        await fixture.Cache.RunStartupMaintenanceAsync(CancellationToken.None);
+        Assert.False(File.Exists(entry.FilePath));
+    }
+
+    [Fact]
     public async Task Current_configuration_query_distinguishes_plan_states_empty_content_and_title_coverage()
     {
         var fixture = await CreateFixtureAsync();
-        var profile = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "正文一").Identity.SynthesisProfile;
+        var profile = CreateKey("book-1", 0, 0, 7, 12, "正文一").Identity.SynthesisProfile;
         var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
         await planStore.SaveAsync(
             CreatePlan(
@@ -46,10 +143,10 @@ public sealed class SqliteAudioCacheTests
                 [CreatePlanSegment(0, 0, "尚未缓存")]),
             CancellationToken.None);
 
-        var firstBodyKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "正文一");
-        var secondBodyKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "正文二");
-        var staleProfileKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 13, "正文二");
-        var titleKey = TestAudioCacheKey.CreateTitle("book-1", 0, 7, 12, "第一章");
+        var firstBodyKey = CreateKey("book-1", 0, 0, 7, 12, "正文一");
+        var secondBodyKey = CreateKey("book-1", 0, 1, 7, 12, "正文二");
+        var staleProfileKey = CreateKey("book-1", 0, 1, 7, 13, "正文二");
+        var titleKey = CreateTitleKey("book-1", 0, 7, 12, "第一章");
         await InsertIndexedCoverageEntryAsync(
             fixture,
             firstBodyKey,
@@ -114,7 +211,7 @@ public sealed class SqliteAudioCacheTests
             ChapterSpeechPlanState.Ready,
             [CreatePlanSegment(0, 0, "正文")]);
         await planStore.SaveAsync(plan, CancellationToken.None);
-        var profile = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "正文").Identity.SynthesisProfile;
+        var profile = CreateKey("book-1", 0, 0, 7, 12, "正文").Identity.SynthesisProfile;
         var changedTextProfile = TextProfileFingerprint.Create(
             TextSegmentationOptions.Default with { LongParagraphThreshold = 801 },
             []);
@@ -150,7 +247,7 @@ public sealed class SqliteAudioCacheTests
         int segmentCount)
     {
         var fixture = await CreateFixtureAsync();
-        var profile = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "段落 0").Identity.SynthesisProfile;
+        var profile = CreateKey("book-1", 0, 0, 7, 12, "段落 0").Identity.SynthesisProfile;
         var planStore = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
         var segments = Enumerable
             .Range(0, segmentCount)
@@ -160,7 +257,7 @@ public sealed class SqliteAudioCacheTests
             CreatePlan("cache-chapter-1-0", ChapterSpeechPlanState.Ready, segments),
             CancellationToken.None);
 
-        var cachedKey = TestAudioCacheKey.Create(
+        var cachedKey = CreateKey(
             "book-1",
             0,
             segmentCount - 1,
@@ -191,10 +288,10 @@ public sealed class SqliteAudioCacheTests
     {
         var timeProvider = new ManualTimeProvider();
         var fixture = await CreateFixtureAsync(timeProvider: timeProvider);
-        var validKey = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "当前文本甲");
-        var corruptKey = TestAudioCacheKey.Create("book-1", 0, 1, 7, 12, "当前文本乙");
-        var missingKey = TestAudioCacheKey.Create("book-1", 0, 2, 7, 12, "当前文本丙");
-        var invalidPathKey = TestAudioCacheKey.Create("book-1", 0, 3, 7, 12, "当前文本丁");
+        var validKey = CreateKey("book-1", 0, 0, 7, 12, "当前文本甲");
+        var corruptKey = CreateKey("book-1", 0, 1, 7, 12, "当前文本乙");
+        var missingKey = CreateKey("book-1", 0, 2, 7, 12, "当前文本丙");
+        var invalidPathKey = CreateKey("book-1", 0, 3, 7, 12, "当前文本丁");
         var valid = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
                 validKey,
@@ -245,7 +342,7 @@ public sealed class SqliteAudioCacheTests
 
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
-                TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段"),
+                CreateKey("book-1", 0, 0, 1, 10, "第一段"),
                 "book-1",
                 0,
                 1,
@@ -256,7 +353,7 @@ public sealed class SqliteAudioCacheTests
 
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
-                TestAudioCacheKey.Create("book-1", 1, 0, 1, 10, "第二段"),
+                CreateKey("book-1", 1, 0, 1, 10, "第二段"),
                 "book-1",
                 1,
                 1,
@@ -277,7 +374,7 @@ public sealed class SqliteAudioCacheTests
         batches.Clear();
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
-                TestAudioCacheKey.Create("book-1", 0, 1, 1, 10, "第一段续写"),
+                CreateKey("book-1", 0, 1, 1, 10, "第一段续写"),
                 "book-1",
                 0,
                 1,
@@ -298,7 +395,7 @@ public sealed class SqliteAudioCacheTests
         Assert.Equal([0, 1], secondScope.ChapterIndices);
 
         batches.Clear();
-        var key = TestAudioCacheKey.Create("book-1", 2, 0, 1, 10, "第三段");
+        var key = CreateKey("book-1", 2, 0, 1, 10, "第三段");
         _ = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
                 key,
@@ -316,7 +413,7 @@ public sealed class SqliteAudioCacheTests
         Assert.Equal([2], invalidateScope.ChapterIndices);
 
         batches.Clear();
-        var staleKey = TestAudioCacheKey.Create("book-1", 3, 0, 1, 10, "第四段");
+        var staleKey = CreateKey("book-1", 3, 0, 1, 10, "第四段");
         var staleEntry = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
                 staleKey,
@@ -341,7 +438,7 @@ public sealed class SqliteAudioCacheTests
     public async Task StoreAsync_persists_audio_under_sharded_path_and_try_get_hits()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "第一段");
         var sourceFile = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path);
 
         var stored = await fixture.Cache.StoreAsync(
@@ -361,7 +458,7 @@ public sealed class SqliteAudioCacheTests
     public async Task StoreAsync_rejects_corrupt_audio_before_moving_or_indexing_it()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "损坏响应");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "损坏响应");
         var sourceFile = Path.Combine(fixture.Directories.RootDirectoryPath, "corrupt.mp3");
         await File.WriteAllTextAsync(sourceFile, "not audio", CancellationToken.None);
 
@@ -377,7 +474,7 @@ public sealed class SqliteAudioCacheTests
     public async Task StoreAsync_persists_v2_identity_and_real_synthesis_profile_metadata()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "带配置身份的正文");
+        var key = CreateKey("book-1", 0, 0, 7, 12, "带配置身份的正文");
 
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
@@ -415,7 +512,7 @@ public sealed class SqliteAudioCacheTests
     public async Task StoreAsync_merges_same_key_writers_without_indexing_until_a_valid_file_exists()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 7, 12, "并发同键");
+        var key = CreateKey("book-1", 0, 0, 7, 12, "并发同键");
         var first = new AudioCacheWriteRequest(
             key,
             "book-1",
@@ -438,7 +535,7 @@ public sealed class SqliteAudioCacheTests
     public async Task TryGetAsync_removes_stale_database_entry_when_file_is_missing()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "第一段");
         var stored = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(key, "book-1", 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
             CancellationToken.None);
@@ -462,7 +559,7 @@ public sealed class SqliteAudioCacheTests
         var fixture = await CreateFixtureAsync(
             timeProvider: timeProvider,
             invalidationCoordinator: invalidationCoordinator);
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "第一段");
         var stored = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
                 key,
@@ -493,7 +590,7 @@ public sealed class SqliteAudioCacheTests
     public async Task InvalidateAsync_removes_file_and_index()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "第一段");
         var stored = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(key, "book-1", 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
             CancellationToken.None);
@@ -508,10 +605,10 @@ public sealed class SqliteAudioCacheTests
     public async Task GetBooksAndChaptersAsync_and_clear_operations_follow_book_and_chapter_boundaries()
     {
         var fixture = await CreateFixtureAsync();
-        var key1 = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
-        var key2 = TestAudioCacheKey.Create("book-1", 1, 0, 1, 10, "第二章");
-        var key4 = TestAudioCacheKey.Create("book-1", 1, 1, 1, 10, "第二章第二段");
-        var key3 = TestAudioCacheKey.Create("book-2", 0, 0, 1, 10, "其他书");
+        var key1 = CreateKey("book-1", 0, 0, 1, 10, "第一段");
+        var key2 = CreateKey("book-1", 1, 0, 1, 10, "第二章");
+        var key4 = CreateKey("book-1", 1, 1, 1, 10, "第二章第二段");
+        var key3 = CreateKey("book-2", 0, 0, 1, 10, "其他书");
 
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(key1, "book-1", 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
@@ -562,18 +659,22 @@ public sealed class SqliteAudioCacheTests
     public async Task RunMaintenanceAsync_cleans_tmp_files_and_orphan_cache_files()
     {
         var fixture = await CreateFixtureAsync();
+        var pathResolver = new AppStoragePathResolver(fixture.Directories);
+        var abandonedOwner = new TemporarySpeechFileLease(fixture.Directories, pathResolver);
+        var tempFile = abandonedOwner.CreatePath("TtsCache", "aa", "leftover.tmp");
+        Directory.CreateDirectory(Path.GetDirectoryName(tempFile)!);
+        await File.WriteAllTextAsync(tempFile, "tmp", CancellationToken.None);
+        abandonedOwner.Dispose();
+
         var shardDirectory = Path.Combine(fixture.Directories.CacheDirectoryPath, "Tts", AudioCacheKey.CurrentVersion, "aa");
         Directory.CreateDirectory(shardDirectory);
-
-        var tempFile = Path.Combine(shardDirectory, "leftover.tmp");
-        await File.WriteAllTextAsync(tempFile, "tmp", CancellationToken.None);
 
         var orphanFile = Path.Combine(shardDirectory, "orphan.mp3");
         File.Copy(PlaybackTestAudio.DemoMp3Path, orphanFile, overwrite: true);
 
         await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
 
-        Assert.False(File.Exists(tempFile));
+        Assert.False(Directory.Exists(abandonedOwner.RootPath));
         Assert.False(File.Exists(orphanFile));
     }
 
@@ -583,8 +684,8 @@ public sealed class SqliteAudioCacheTests
         var registry = new AudioCacheProtectionRegistry();
         var limit = new FileInfo(PlaybackTestAudio.DemoMp3Path).Length + 1;
         var fixture = await CreateFixtureAsync(limit, registry);
-        var key1 = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
-        var key2 = TestAudioCacheKey.Create("book-1", 0, 1, 1, 10, "第二段");
+        var key1 = CreateKey("book-1", 0, 0, 1, 10, "第一段");
+        var key2 = CreateKey("book-1", 0, 1, 1, 10, "第二段");
 
         var first = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(key1, "book-1", 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
@@ -605,7 +706,7 @@ public sealed class SqliteAudioCacheTests
     public async Task ClearAllAsync_removes_tracked_entries_and_orphans()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "第一段");
 
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(key, "book-1", 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
@@ -641,7 +742,7 @@ public sealed class SqliteAudioCacheTests
             CancellationToken.None);
         await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
-                TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "当前朗读计划"),
+                CreateKey("book-1", 0, 0, 1, 10, "当前朗读计划"),
                 "book-1",
                 0,
                 1,
@@ -684,7 +785,7 @@ public sealed class SqliteAudioCacheTests
                 ChapterSpeechPlanState.Ready,
                 [CreatePlanSegment(0, 0, "事务失败")]),
             CancellationToken.None);
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "事务失败");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "事务失败");
         var stored = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
                 key,
@@ -723,7 +824,7 @@ public sealed class SqliteAudioCacheTests
         var writes = Enumerable.Range(0, 8)
             .Select(segmentIndex => fixture.Cache.StoreAsync(
                 new AudioCacheWriteRequest(
-                    TestAudioCacheKey.Create("book-1", 0, segmentIndex, 1, 10, $"段落 {segmentIndex}"),
+                    CreateKey("book-1", 0, segmentIndex, 1, 10, $"段落 {segmentIndex}"),
                     "book-1",
                     0,
                     1,
@@ -742,7 +843,7 @@ public sealed class SqliteAudioCacheTests
     public async Task StoreAsync_pre_cancelled_does_not_consume_source_or_leave_cache_files()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "第一段");
         var sourceFile = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path);
         using var cancellation = new CancellationTokenSource();
         cancellation.Cancel();
@@ -759,14 +860,10 @@ public sealed class SqliteAudioCacheTests
             AudioCacheKey.CurrentVersion,
             key.Shard,
             $"{key.FileNameBase}.mp3")));
-        var ttsDirectory = Path.Combine(fixture.Directories.CacheDirectoryPath, "Tts");
-        if (Directory.Exists(ttsDirectory))
-        {
-            Assert.Empty(Directory.EnumerateFiles(
-                ttsDirectory,
-                "*.tmp",
-                SearchOption.AllDirectories));
-        }
+        var temporarySpeechDirectory = Path.Combine(fixture.Directories.CacheDirectoryPath, "TemporarySpeech");
+        Assert.DoesNotContain(
+            Directory.EnumerateFiles(temporarySpeechDirectory, "*", SearchOption.AllDirectories),
+            path => !Path.GetFileName(path).Equals(".owner-lock", StringComparison.Ordinal));
         File.Delete(sourceFile);
     }
 
@@ -774,7 +871,7 @@ public sealed class SqliteAudioCacheTests
     public async Task StoreAsync_index_failure_removes_newly_finalized_cache_file_and_staging()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "第一段");
         await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
         {
             using var command = connection.CreateCommand();
@@ -812,7 +909,7 @@ public sealed class SqliteAudioCacheTests
     public async Task TryGetAsync_rejects_an_index_path_outside_the_application_root()
     {
         var fixture = await CreateFixtureAsync();
-        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段");
+        var key = CreateKey("book-1", 0, 0, 1, 10, "第一段");
         var outsidePath = Path.Combine(Path.GetDirectoryName(fixture.Directories.RootDirectoryPath)!, "outside.mp3");
 
         await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
@@ -912,6 +1009,18 @@ public sealed class SqliteAudioCacheTests
         await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
+    private static AudioCacheKey CreateKey(string bookId, int chapterIndex, int startOffset, long ruleId, int speed, string text)
+    {
+        var key = TestAudioCacheKey.Create(bookId, chapterIndex, startOffset, ruleId, speed, text);
+        return AudioCacheKey.FromIdentity(key.Identity with { ChapterId = $"cache-chapter-{bookId[^1]}-{chapterIndex}" });
+    }
+
+    private static AudioCacheKey CreateTitleKey(string bookId, int chapterIndex, long ruleId, int speed, string text)
+    {
+        var key = TestAudioCacheKey.CreateTitle(bookId, chapterIndex, ruleId, speed, text);
+        return AudioCacheKey.FromIdentity(key.Identity with { ChapterId = $"cache-chapter-{bookId[^1]}-{chapterIndex}" });
+    }
+
     private static async Task<CacheFixture> CreateFixtureAsync(
         long? cacheLimitBytes = null,
         AudioCacheProtectionRegistry? registry = null,
@@ -933,18 +1042,27 @@ public sealed class SqliteAudioCacheTests
             using var seedCommand = seedConnection.CreateCommand();
             seedCommand.CommandText =
                 """
-                INSERT INTO Books
-                    (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
-                VALUES
-                    ('book-1', '书一', 'book-1.txt', 'Books/book-1/content.txt', 'cache-fixture-book-1', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00'),
-                    ('book-2', '书二', 'book-2.txt', 'Books/book-2/content.txt', 'cache-fixture-book-2', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
-                VALUES
-                    ('cache-chapter-1-0', 'book-1', 0, 0, '第一章', 0, 1),
-                    ('cache-chapter-1-1', 'book-1', 1, 1, '第二章', 0, 1),
-                    ('cache-chapter-1-2', 'book-1', 2, 2, '第三章', 0, 1),
-                    ('cache-chapter-1-3', 'book-1', 3, 3, '第四章', 0, 1),
-                    ('cache-chapter-2-0', 'book-2', 0, 0, '第一章', 0, 1);
+                INSERT INTO Books (Id, Title, Author, Description, ImportedAt, UpdatedAt) VALUES
+                ('book-1', '书一', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00'),
+                ('book-2', '书二', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-1', 'book-1', 1, '书一', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-1', 'book-1.txt', 'Books/book-1/content.txt', 'cache-fixture-book-1', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                UPDATE Books SET ActiveSourceId = 'local:' || 'book-1' WHERE Id = 'book-1';
+                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-2', 'book-2', 1, '书二', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-2', 'book-2.txt', 'Books/book-2/content.txt', 'cache-fixture-book-2', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                UPDATE Books SET ActiveSourceId = 'local:' || 'book-2' WHERE Id = 'book-2';
+                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
+                ('cache-chapter-1-0', 'local:' || 'book-1', 0, 0, '第一章'),
+                ('cache-chapter-1-1', 'local:' || 'book-1', 1, 1, '第二章'),
+                ('cache-chapter-1-2', 'local:' || 'book-1', 2, 2, '第三章'),
+                ('cache-chapter-1-3', 'local:' || 'book-1', 3, 3, '第四章'),
+                ('cache-chapter-2-0', 'local:' || 'book-2', 0, 0, '第一章');
+                INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
+                ('cache-chapter-1-0', 0, 1),
+                ('cache-chapter-1-1', 0, 1),
+                ('cache-chapter-1-2', 0, 1),
+                ('cache-chapter-1-3', 0, 1),
+                ('cache-chapter-2-0', 0, 1);
                 """;
             await seedCommand.ExecuteNonQueryAsync(CancellationToken.None);
         }

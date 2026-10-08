@@ -7,18 +7,23 @@ namespace NovelSpeaker.Infrastructure.Books.FileStorage;
 
 public sealed class BookTextExportService(
     IBookPlaybackMetadataQuery metadataQuery,
-    IAppStoragePathResolver pathResolver,
+    ISourceContentReader contentReader,
     ExportFileNameSanitizer fileNameSanitizer) : IBookTextExportService
 {
     public async Task<bool> ExportAsync(string bookId, string destinationDirectory, CancellationToken cancellationToken)
     {
         var book = await metadataQuery.GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
         if (book is null || book.Chapters.Count == 0) return false;
-        var chapter = await metadataQuery.GetChapterAsync(bookId, book.Chapters[0].ChapterIndex, cancellationToken).ConfigureAwait(false);
-        if (chapter is null || string.IsNullOrWhiteSpace(chapter.StoredFilePath)) return false;
-        var source = pathResolver.ResolvePath(chapter.StoredFilePath);
-        if (!File.Exists(source)) return false;
-        var text = await File.ReadAllTextAsync(source, new UTF8Encoding(false, true), cancellationToken).ConfigureAwait(false);
+        if (book.SourceContext is null) return false;
+        string text;
+        try
+        {
+            text = await contentReader.ReadSourceTextAsync(book.SourceContext.SourceId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (FileNotFoundException) { return false; }
+        catch (InvalidDataException) { return false; }
+        var current = await metadataQuery.GetBookHeaderAsync(bookId, cancellationToken).ConfigureAwait(false);
+        if (current?.SourceContext != book.SourceContext) return false;
         var name = fileNameSanitizer.Sanitize(book.Title, 100);
         var temporary = Path.Combine(destinationDirectory, $".{Guid.NewGuid():N}.tmp");
         try

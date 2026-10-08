@@ -13,22 +13,18 @@ namespace NovelSpeaker.App.Features.Books.Library;
 public partial class LibraryPage : System.Windows.Controls.Page, INavigationAware, INavigableView<LibraryViewModel>, IKeyboardShortcutTarget, ITransientEscapeHandler
 {
     private readonly PageActivationController _activation = new();
-    private readonly IBookCatalogInvalidationState _catalogInvalidationState;
     private readonly IPresentationFileDialogService _fileDialogs;
     private readonly PageEventOperationRunner _eventOperations;
     private readonly IKeyboardShortcutTargetRegistry? _shortcutTargets;
     private ScrollViewer? _booksScrollViewer;
-    private bool _hasLoaded;
 
     public LibraryPage(
         LibraryViewModel viewModel,
-        IBookCatalogInvalidationState catalogInvalidationState,
         IPresentationFileDialogService fileDialogs,
         PageEventOperationRunner eventOperations,
         IKeyboardShortcutTargetRegistry? shortcutTargets = null)
         : this()
     {
-        _catalogInvalidationState = catalogInvalidationState;
         _fileDialogs = fileDialogs;
         _eventOperations = eventOperations;
         _shortcutTargets = shortcutTargets;
@@ -38,7 +34,6 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
 
     internal LibraryPage()
     {
-        _catalogInvalidationState = null!;
         _fileDialogs = null!;
         _eventOperations = PageEventOperationRunner.DesignTime;
         _shortcutTargets = null;
@@ -54,24 +49,14 @@ public partial class LibraryPage : System.Windows.Controls.Page, INavigationAwar
     {
         using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiLibraryLoad);
         var activation = _activation.Activate();
-        ViewModel.HandleNavigatedTo();
-        activation.Register(ViewModel.HandleNavigatedFrom);
+        ViewModel.HandleNavigatedTo(activation);
         if (_shortcutTargets is not null)
         {
             activation.Register(_shortcutTargets.Register(this));
         }
-        if (_hasLoaded && !_catalogInvalidationState.IsInvalidated)
-        {
-            operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
-            return;
-        }
-
         try
         {
-            if (await ViewModel.LoadAsync(activation.CancellationToken))
-            {
-                activation.TryCommit(() => _hasLoaded = true);
-            }
+            await ViewModel.LoadAsync(activation.CancellationToken);
             operation.Complete(NovelSpeaker.Application.Observability.OperationResult.Succeeded());
         }
         catch (OperationCanceledException) when (!activation.IsCurrent)

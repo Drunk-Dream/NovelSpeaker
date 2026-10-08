@@ -16,12 +16,29 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class ActiveCacheCoordinatorTests
 {
     [Fact]
+    public async Task Source_removal_cancels_only_its_frozen_active_cache_batch_and_waits_for_completion()
+    {
+        var audio = new ControlledAudioProvider();
+        var pending = audio.EnqueuePending();
+        await using var coordinator = new ActiveCacheCoordinator(new FakeContentService(),
+            new MutableRuleProvider(CreateRule(7, "批次规则")), audio, new BookMutationGate());
+        await coordinator.StartAsync(new("book-1", [8], 10), CancellationToken.None);
+        await pending.Started;
+        await coordinator.StopForRemovalAsync("book-1", "other-source", CancellationToken.None);
+        Assert.False(audio.Calls[0].CancellationToken.IsCancellationRequested);
+        await coordinator.StopForRemovalAsync("book-1", "local:book-1", CancellationToken.None);
+        Assert.True(audio.Calls[0].CancellationToken.IsCancellationRequested);
+        Assert.Equal(ActiveCacheBatchStatus.Cancelled, coordinator.CurrentSnapshot!.Status);
+        Assert.Equal(0, coordinator.CurrentSnapshot.CompletedSegmentCount);
+    }
+
+    [Fact]
     public async Task Cache_batch_skips_fully_cached_chapter_and_fills_missing_segments()
     {
         var audio = new ControlledAudioProvider();
         audio.EnqueueSuccess();
         audio.EnqueueSuccess();
-        await using var coordinator = new ActiveCacheCoordinator(new FakeContentService(), new MutableRuleProvider(CreateRule(7, "Provider")), audio);
+        await using var coordinator = new ActiveCacheCoordinator(new FakeContentService(), new MutableRuleProvider(CreateRule(7, "Provider")), audio, new BookMutationGate());
         await coordinator.StartAsync(new StartActiveCacheRequest("book-1", [3, 8], 10), CancellationToken.None);
         await coordinator.WaitForCurrentBatchAsync(CancellationToken.None);
         Assert.Equal([ActiveCacheChapterStatus.Skipped, ActiveCacheChapterStatus.Completed], coordinator.CurrentSnapshot!.Chapters.Select(chapter => chapter.Status));
@@ -35,7 +52,7 @@ public sealed class ActiveCacheCoordinatorTests
         var rules = new MutableRuleProvider(CreateRule(7, "批次规则"));
         var audio = new ControlledAudioProvider();
         var firstCall = audio.EnqueuePending();
-        await using var coordinator = new ActiveCacheCoordinator(content, rules, audio);
+        await using var coordinator = new ActiveCacheCoordinator(content, rules, audio, new BookMutationGate());
 
         var start = await coordinator.StartAsync(
             new StartActiveCacheRequest("book-1", [8, 3], 12),
@@ -87,7 +104,7 @@ public sealed class ActiveCacheCoordinatorTests
         await using var coordinator = new ActiveCacheCoordinator(
             new FakeContentService(),
             new MutableRuleProvider(CreateRule(7, "批次规则")),
-            audio);
+            audio, new BookMutationGate());
 
         var first = await coordinator.StartAsync(
             new StartActiveCacheRequest("book-1", [3], 10),
@@ -107,6 +124,50 @@ public sealed class ActiveCacheCoordinatorTests
         Assert.True(audio.Calls[1].CancellationToken.IsCancellationRequested);
     }
 
+    [Fact]
+    public async Task CancelAsync_does_not_cancel_replacement_batch_when_old_batch_finishes_during_notification()
+    {
+        var audio = new ControlledAudioProvider();
+        var oldBatchAudio = audio.EnqueuePending();
+        var replacementAudio = audio.EnqueuePending();
+        await using var coordinator = new ActiveCacheCoordinator(
+            new FakeContentService(),
+            new MutableRuleProvider(CreateRule(7, "批次规则")),
+            audio,
+            new BookMutationGate());
+
+        var start = await coordinator.StartAsync(
+            new StartActiveCacheRequest("book-1", [8], 10),
+            CancellationToken.None);
+        await oldBatchAudio.Started;
+
+        var notificationHandled = false;
+        ActiveCacheStartResult? replacement = null;
+        coordinator.SnapshotChanged += (_, snapshot) =>
+        {
+            if (notificationHandled || snapshot.Status != ActiveCacheBatchStatus.Cancelling)
+            {
+                return;
+            }
+
+            notificationHandled = true;
+            coordinator.WaitForCurrentBatchAsync(CancellationToken.None).GetAwaiter().GetResult();
+            replacement = coordinator.StartAsync(
+                new StartActiveCacheRequest("book-1", [3], 10),
+                CancellationToken.None).GetAwaiter().GetResult();
+        };
+
+        await coordinator.CancelAsync(CancellationToken.None);
+        await replacementAudio.Started;
+
+        Assert.Equal(ActiveCacheStartStatus.Accepted, start.Status);
+        Assert.Equal(ActiveCacheStartStatus.Accepted, replacement?.Status);
+        Assert.True(audio.Calls[0].CancellationToken.IsCancellationRequested);
+        Assert.False(audio.Calls[1].CancellationToken.IsCancellationRequested);
+
+        await coordinator.CancelAsync(CancellationToken.None);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -124,7 +185,7 @@ public sealed class ActiveCacheCoordinatorTests
         await using var coordinator = new ActiveCacheCoordinator(
             new FakeContentService(),
             new MutableRuleProvider(CreateRule(7, "批次规则")),
-            audio);
+            audio, new BookMutationGate());
 
         await coordinator.StartAsync(
             new StartActiveCacheRequest("book-1", [3, 8], 10),
@@ -146,7 +207,7 @@ public sealed class ActiveCacheCoordinatorTests
         await using var coordinator = new ActiveCacheCoordinator(
             new FakeContentService(),
             new MutableRuleProvider(CreateRule(7, "批次规则")),
-            audio);
+            audio, new BookMutationGate());
         using var pageOperation = new CancellationTokenSource();
 
         await coordinator.StartAsync(
@@ -176,7 +237,7 @@ public sealed class ActiveCacheCoordinatorTests
         await using var coordinator = new ActiveCacheCoordinator(
             new FakeContentService(),
             new MutableRuleProvider(CreateRule(7, "批次规则")),
-            audio);
+            audio, new BookMutationGate());
 
         await coordinator.StartAsync(
             new StartActiveCacheRequest("book-1", [8], 10),
@@ -204,7 +265,7 @@ public sealed class ActiveCacheCoordinatorTests
                 [
                     PlaybackChapterContent.Unloaded(3, "第三章"),
                     PlaybackChapterContent.Unloaded(8, "第八章")
-                ]));
+                ], SourceContext: new("local:book-1", "catalog")));
         }
 
         public Task<PlaybackChapterContent?> GetChapterAsync(

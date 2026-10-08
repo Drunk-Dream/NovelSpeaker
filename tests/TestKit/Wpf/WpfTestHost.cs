@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
+using System.Windows.Markup;
+using System.Xml.Linq;
 using Microsoft.Extensions.DependencyInjection;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
@@ -359,13 +361,23 @@ internal static class WpfTestHost
                     _desktop = desktop;
                     _desktopInfo = desktop.Info;
                     desktop.InitializeSta();
+
+                    if (!AllowVisibleWindows)
+                    {
+                        // OS IME helpers can outlive the STA and retain its isolated Desktop.
+                        // These fixtures exercise WPF focus/keyboard routing, without IME composition.
+                        System.Windows.Input.InputMethod.IsInputMethodEnabledProperty.OverrideMetadata(
+                            typeof(UIElement), new PropertyMetadata(false));
+                        System.Windows.Input.InputMethod.IsInputMethodSuspendedProperty.OverrideMetadata(
+                            typeof(UIElement), new PropertyMetadata(true));
+                    }
                     dispatcher = Dispatcher.CurrentDispatcher;
 
-                    var application = new global::NovelSpeaker.App.Bootstrap.App();
-                    var initializeComponent = typeof(global::NovelSpeaker.App.Bootstrap.App).GetMethod(
-                        "InitializeComponent",
-                        BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-                    initializeComponent?.Invoke(application, null);
+                    // Use the production resource source without constructing App:
+                    // its queued OnStartup would launch the real shell/tray on this Desktop.
+                    var application = new System.Windows.Application();
+                    LoadApplicationResources(application);
+                    global::NovelSpeaker.App.Shell.Input.MouseWheelScrollBehavior.EnableApplicationWideHandling();
                     application.ShutdownMode = ShutdownMode.OnExplicitShutdown;
                 }
                 catch (Exception exception)
@@ -483,6 +495,37 @@ internal static class WpfTestHost
 
         ReleaseInitializationSignal(initialized);
         return dispatcher!;
+    }
+
+    private static void LoadApplicationResources(System.Windows.Application application)
+    {
+        var source = XDocument.Load(Path.Combine(AppContext.BaseDirectory, "TestAssets", "ApplicationResources.xaml"));
+        XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var dictionary = source.Root!.Element(presentation + "Application.Resources")!.Elements().Single();
+        var merged = dictionary.Element(presentation + "ResourceDictionary.MergedDictionaries")!;
+        foreach (var element in merged.Elements())
+        {
+            AddNamespaces(element);
+            // Install each compiled dictionary before loading the next one, just as
+            // App.InitializeComponent does, so cross-dictionary StaticResources resolve.
+            application.Resources.MergedDictionaries.Add((ResourceDictionary)XamlReader.Parse(element.ToString()));
+        }
+
+        merged.Remove();
+        AddNamespaces(dictionary);
+        var local = (ResourceDictionary)XamlReader.Parse(dictionary.ToString());
+        foreach (var key in local.Keys)
+        {
+            application.Resources.Add(key, local[key]);
+        }
+
+        void AddNamespaces(XElement element)
+        {
+            foreach (var declaration in source.Root.Attributes().Where(static attribute => attribute.IsNamespaceDeclaration))
+            {
+                element.SetAttributeValue(declaration.Name, declaration.Value);
+            }
+        }
     }
 
     private static void CompleteDispatcherThreadShutdown()

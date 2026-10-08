@@ -1,7 +1,7 @@
 using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
-using NovelSpeaker.App.Shared.Presentation;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 
 namespace NovelSpeaker.App.Features.Cache;
@@ -18,11 +18,8 @@ internal sealed class CacheManagementExportController
     private readonly IAppFeedbackService _feedbackService;
     private readonly IPresentationFileDialogService _fileDialogs;
     private readonly IUiScheduler _uiScheduler;
-    private readonly OwnedTaskRegistry _pageTasks = new();
     private CancellationTokenSource? _preparationCts;
-    private CancellationToken _activationToken;
-    private int _activationVersion;
-    private bool _isActive;
+    private PageActivationScope? _activation;
 
     public CacheManagementExportController(
         IChapterExportCoordinator coordinator,
@@ -45,27 +42,23 @@ internal sealed class CacheManagementExportController
         ChapterExportBatchStatus.Running or
         ChapterExportBatchStatus.Cancelling;
 
-    public void Activate(CancellationToken cancellationToken)
+    public void Activate(PageActivationScope activation)
     {
         Deactivate();
-        _activationToken = cancellationToken;
-        _activationVersion++;
-        _isActive = true;
+        _activation = activation;
         _coordinator.SnapshotChanged += OnSnapshotChanged;
+        activation.Register(() => _coordinator.SnapshotChanged -= OnSnapshotChanged);
+        activation.Register(() =>
+        {
+            if (ReferenceEquals(_activation, activation)) Deactivate();
+        });
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void Deactivate()
     {
-        _activationVersion++;
-        if (_isActive)
-        {
-            _coordinator.SnapshotChanged -= OnSnapshotChanged;
-            _isActive = false;
-        }
-
+        _activation = null;
         _preparationCts?.Cancel();
-        _activationToken = default;
     }
 
     public async Task PrepareAndStartAsync(
@@ -88,7 +81,7 @@ internal sealed class CacheManagementExportController
 
         var operationCts = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken,
-            _activationToken);
+            _activation?.CancellationToken ?? new CancellationToken(canceled: true));
         if (Interlocked.CompareExchange(ref _preparationCts, operationCts, null) is not null)
         {
             operationCts.Dispose();
@@ -154,7 +147,8 @@ internal sealed class CacheManagementExportController
         }
         catch (Exception exception)
         {
-            _feedbackService.ShowProjectedNotification("开始导出失败", _feedbackService.Project(exception));
+            if (!operationCts.IsCancellationRequested)
+                _feedbackService.ShowProjectedNotification("开始导出失败", _feedbackService.Project(exception));
         }
         finally
         {
@@ -165,63 +159,10 @@ internal sealed class CacheManagementExportController
 
     private void OnSnapshotChanged(object? sender, ChapterExportSnapshot snapshot)
     {
-        if (!_isActive || _activationToken.IsCancellationRequested)
-        {
-            return;
-        }
-
-        var activationVersion = _activationVersion;
-        var activationToken = _activationToken;
-        if (!_uiScheduler.CheckAccess())
-        {
-            try
-            {
-                _pageTasks.Register(
-                    _uiScheduler.InvokeAsync(
-                        () => NotifyStateChanged(activationVersion, activationToken),
-                        activationToken),
-                    exception => ReportProjectionFailure(exception, activationVersion, activationToken));
-            }
-            catch (OperationCanceledException) when (activationToken.IsCancellationRequested)
-            {
-            }
-            catch (Exception exception)
-            {
-                ReportProjectionFailure(exception, activationVersion, activationToken);
-            }
-
-            return;
-        }
-
-        NotifyStateChanged(activationVersion, activationToken);
+        if (_activation is not { IsCurrent: true } activation) return;
+        activation.Run(token => _uiScheduler.InvokeAsync(
+            () => activation.TryCommit(() => StateChanged?.Invoke(this, EventArgs.Empty)), token),
+            exception => _feedbackService.ShowProjectedNotification(
+                "更新导出状态失败", _feedbackService.Project(exception)));
     }
-
-    private void NotifyStateChanged(int activationVersion, CancellationToken activationToken)
-    {
-        if (!IsCurrentActivation(activationVersion, activationToken))
-        {
-            return;
-        }
-
-        StateChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void ReportProjectionFailure(
-        Exception exception,
-        int activationVersion,
-        CancellationToken activationToken)
-    {
-        if (IsCurrentActivation(activationVersion, activationToken))
-        {
-            _feedbackService.ShowProjectedNotification(
-                "更新导出状态失败",
-                _feedbackService.Project(exception));
-        }
-    }
-
-    private bool IsCurrentActivation(int activationVersion, CancellationToken activationToken) =>
-        _isActive &&
-        activationVersion == _activationVersion &&
-        _activationToken == activationToken &&
-        !activationToken.IsCancellationRequested;
 }

@@ -1,11 +1,23 @@
 using NovelSpeaker.Application.Books.Import;
 using NovelSpeaker.Domain.Books;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace NovelSpeaker.Application.UnitTests.Books;
 
 public sealed class ChapterSplitterTests
 {
+    [Fact]
+    public void Split_throws_bounded_timeout_instead_of_treating_rule_as_non_matching()
+    {
+        var rule = new ChapterRule("rule", "复杂规则", @"^(a+)+$", 10, true,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        var text = new string('a', 100_000) + "!";
+
+        Assert.Throws<RegexMatchTimeoutException>(() =>
+            new ChapterSplitter().Split(text, [rule], splitOnBlankLines: false));
+    }
+
     [Fact]
     public void Split_returns_ordered_chapters_with_offsets()
     {

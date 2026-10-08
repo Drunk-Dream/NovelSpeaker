@@ -11,9 +11,9 @@ public interface ILocalAudioPlaybackCoordinator : IAsyncDisposable
 
     event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
-    event EventHandler? PlaybackCompleted;
+    event EventHandler<LocalAudioPlaybackSnapshot>? PlaybackCompleted;
 
-    event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed;
+    event EventHandler<LocalAudioPlaybackFailure>? PlaybackFailed;
 
     Task StartAsync(LocalAudioPlaybackRequest request, CancellationToken cancellationToken);
     Task ResumeAsync(CancellationToken cancellationToken);

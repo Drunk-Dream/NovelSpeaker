@@ -30,6 +30,7 @@
                 <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/ControlThemes/Feedback.xaml" />
                 <ResourceDictionary Source="/NovelSpeaker;component/Shared/Theming/Resources/ControlThemes/Rules.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

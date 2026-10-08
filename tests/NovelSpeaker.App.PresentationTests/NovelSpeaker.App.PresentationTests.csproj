@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <Compile Include="..\TestKit\Books\*.cs" Link="TestKit\Books\%(Filename)%(Extension)" />
     <ProjectReference Include="..\..\src\NovelSpeaker.App\NovelSpeaker.App.csproj" />
   </ItemGroup>
   <ItemGroup>

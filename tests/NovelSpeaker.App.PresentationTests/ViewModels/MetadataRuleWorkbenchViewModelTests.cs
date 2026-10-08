@@ -132,6 +132,7 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         Assert.Equal(1, vm.SelectedCount);
         Assert.Equal(1, feedback.DeletionPromptCount);
         Assert.Equal("成功 1，跳过 0，失败 1。", feedback.LastMessage);
+        Assert.True(feedback.LastWasWarning);
     }
 
     [Fact]
@@ -326,10 +327,19 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         public int ErrorCount { get; private set; }
         public int DeletionPromptCount { get; private set; }
         public string? LastMessage { get; private set; }
+        public bool LastWasWarning { get; private set; }
         public ProjectedUiError Project(Exception exception) => new ExceptionProjector().Project(exception);
         public void ShowProjectedNotification(string title, ProjectedUiError projected) => ErrorCount++;
-        public void ShowSuccess(string title, string message) => LastMessage = message;
-        public void ShowWarning(string title, string message) { }
+        public void ShowSuccess(string title, string message)
+        {
+            LastWasWarning = false;
+            LastMessage = message;
+        }
+        public void ShowWarning(string title, string message)
+        {
+            LastWasWarning = true;
+            LastMessage = message;
+        }
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(string title, string message, CancellationToken token)
         {
             DeletionPromptCount++;

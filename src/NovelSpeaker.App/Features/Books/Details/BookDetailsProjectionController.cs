@@ -42,6 +42,8 @@ internal sealed class BookDetailsProjectionController
 
     public bool IsCatalogReady { get; private set; }
 
+    public IReadOnlyCollection<int> CacheDecorationWindow => _cacheDecorationWindow;
+
     public void Reset()
     {
         _catalog = new BookDetailsChapterCatalog([]);
@@ -74,6 +76,7 @@ internal sealed class BookDetailsProjectionController
                 () => new BookDetailsChapterCatalog(catalog),
                 cancellationToken).ConfigureAwait(true)
             : new BookDetailsChapterCatalog(catalog);
+        cancellationToken.ThrowIfCancellationRequested();
         var progress = ProjectProgress(bookId, nextCatalog, readingPosition, initialSnapshot);
         _catalog = nextCatalog;
         _readingPosition = readingPosition;

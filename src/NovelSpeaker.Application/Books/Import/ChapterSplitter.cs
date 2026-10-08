@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Application.Books.RuleEditing;
 
 namespace NovelSpeaker.Application.Books.Import;
 
@@ -10,7 +11,17 @@ public sealed class ChapterSplitter : IChapterSplitter
 {
     public int? FindFirstExplicitTitleOffset(string normalizedText, IReadOnlyList<ChapterRule> rules)
     {
-        return FindLines(normalizedText, rules).FirstOrDefault(line => line.IsTitle)?.Start;
+        var orderedRules = CreateRegexes(rules);
+        var start = 0;
+        while (start <= normalizedText.Length)
+        {
+            var newline = normalizedText.IndexOf('\n', start);
+            var end = newline < 0 ? normalizedText.Length : newline;
+            if (IsTitle(normalizedText.AsSpan(start, end - start), orderedRules)) return start;
+            if (newline < 0) break;
+            start = newline + 1;
+        }
+        return null;
     }
 
     public IReadOnlyList<BookImportChapter> Split(
@@ -20,27 +31,27 @@ public sealed class ChapterSplitter : IChapterSplitter
     {
         if (string.IsNullOrWhiteSpace(normalizedText)) return [];
 
-        var lines = FindLines(normalizedText, rules);
-        var firstTitle = lines.FindIndex(line => line.IsTitle);
-        if (firstTitle < 0 && !splitOnBlankLines)
-        {
-            return [new BookImportChapter(0, 0, "全文", 0, normalizedText.Length)];
-        }
-
+        var orderedRules = CreateRegexes(rules);
         var markers = new List<(int TitleOffset, int ContentOffset, string? Title)>();
-        var startIndex = firstTitle >= 0 ? firstTitle : lines.FindIndex(line => !line.IsBlank);
+        var foundTitle = false;
         var hasBody = false;
         var pendingBlank = false;
-        for (var index = startIndex; index < lines.Count; index++)
+        var start = 0;
+        while (start <= normalizedText.Length)
         {
-            var line = lines[index];
-            if (line.IsTitle)
+            var newline = normalizedText.IndexOf('\n', start);
+            var end = newline < 0 ? normalizedText.Length : newline;
+            var line = normalizedText.AsSpan(start, end - start);
+            if (IsTitle(line, orderedRules))
             {
-                markers.Add((line.Start, line.End, line.Text.Trim()));
+                // An explicit title makes all preceding text a metadata header, including blank sections.
+                if (!foundTitle) markers.Clear();
+                foundTitle = true;
+                markers.Add((start, newline < 0 ? end : end + 1, line.Trim().ToString()));
                 hasBody = false;
                 pendingBlank = false;
             }
-            else if (line.IsBlank)
+            else if (line.IsWhiteSpace())
             {
                 pendingBlank |= hasBody && splitOnBlankLines;
             }
@@ -48,14 +59,19 @@ public sealed class ChapterSplitter : IChapterSplitter
             {
                 if (markers.Count == 0 || pendingBlank)
                 {
-                    markers.Add((line.Start, line.Start, null));
+                    markers.Add((start, start, null));
                     hasBody = false;
                 }
 
                 hasBody = true;
                 pendingBlank = false;
             }
+            if (newline < 0) break;
+            start = newline + 1;
         }
+
+        if (!foundTitle && !splitOnBlankLines)
+            return [new BookImportChapter(0, 0, "全文", 0, normalizedText.Length)];
 
         var chapters = new List<BookImportChapter>();
         for (var index = 0; index < markers.Count; index++)
@@ -81,25 +97,18 @@ public sealed class ChapterSplitter : IChapterSplitter
             : chapters;
     }
 
-    private static List<Line> FindLines(string normalizedText, IReadOnlyList<ChapterRule> rules)
+    private static Regex[] CreateRegexes(IReadOnlyList<ChapterRule> rules) =>
+        rules.Where(rule => rule.IsEnabled)
+            .OrderBy(rule => rule.SortOrder)
+            .Select(rule => ChapterRuleRegexPolicy.Create(rule.Pattern))
+            .ToArray();
+
+    private static bool IsTitle(ReadOnlySpan<char> line, Regex[] orderedRules)
     {
-        var lines = new List<Line>();
-        var orderedRules = rules.Where(rule => rule.IsEnabled).OrderBy(rule => rule.SortOrder).ToArray();
-        var lineStart = 0;
-        foreach (var line in normalizedText.Split('\n'))
+        foreach (var regex in orderedRules)
         {
-            var end = Math.Min(lineStart + line.Length + 1, normalizedText.Length);
-            lines.Add(new Line(
-                lineStart,
-                end,
-                line,
-                string.IsNullOrWhiteSpace(line),
-                orderedRules.Any(rule => Regex.IsMatch(line, rule.Pattern, RegexOptions.CultureInvariant))));
-            lineStart = end;
+            if (regex.IsMatch(line)) return true;
         }
-
-        return lines;
+        return false;
     }
-
-    private sealed record Line(int Start, int End, string Text, bool IsBlank, bool IsTitle);
 }

@@ -65,28 +65,30 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
                        (SELECT c.Title
                         FROM ReadingProgress progress
                         INNER JOIN Chapters c
-                            ON c.BookId = progress.BookId
-                           AND c.ChapterIndex = progress.ChapterIndex
+                            ON c.SourceId = b.ActiveSourceId
+                           AND c.ChapterIndex = MAX(0, MIN(progress.ChapterIndex, chapterCounts.TotalChapterCount - 1))
                         WHERE progress.BookId = b.Id
                         ORDER BY progress.UpdatedAt DESC
                         LIMIT 1),
                        (SELECT c.Title
                         FROM Chapters c
-                        WHERE c.BookId = b.Id
+                        WHERE c.SourceId = b.ActiveSourceId
                         ORDER BY c.SortOrder, c.ChapterIndex
                         LIMIT 1),
-                       '未开始') AS CurrentChapterTitle,
+                       CASE WHEN b.ActiveSourceId IS NULL THEN '无活动来源' ELSE '未开始' END) AS CurrentChapterTitle,
                    b.ImportedAt,
                    b.LastPlayedAt,
                    COALESCE(chapterCounts.TotalChapterCount, 0) AS TotalChapterCount,
                    rp.ChapterIndex,
-                   CASE WHEN rp.BookId IS NULL THEN 0 ELSE 1 END AS HasReadingProgress
+                   CASE WHEN rp.BookId IS NULL THEN 0 ELSE 1 END AS HasReadingProgress,
+                   b.ActiveSourceId,
+                   (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1)
             FROM Books b
             LEFT JOIN (
-                SELECT BookId, COUNT(*) AS TotalChapterCount
+                SELECT SourceId, COUNT(*) AS TotalChapterCount
                 FROM Chapters
-                GROUP BY BookId
-            ) chapterCounts ON chapterCounts.BookId = b.Id
+                GROUP BY SourceId
+            ) chapterCounts ON chapterCounts.SourceId = b.ActiveSourceId
             LEFT JOIN ReadingProgress rp ON rp.BookId = b.Id
             {bookFilter}
             ORDER BY b.ImportedAt DESC, b.Id;
@@ -131,7 +133,7 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
                 : SqliteDateTimeMapper.Parse(reader.GetString(5));
             var totalChapterCount = reader.GetInt32(6);
             var currentChapterIndex = reader.IsDBNull(7) ? (int?)null : reader.GetInt32(7);
-            var hasReadingProgress = reader.GetInt64(8) == 1 && currentChapterIndex is not null;
+            var hasReadingProgress = reader.GetInt64(8) == 1 && currentChapterIndex is not null && totalChapterCount > 0;
             var clampedIndex = hasReadingProgress && totalChapterCount > 0
                 ? Math.Clamp(currentChapterIndex!.Value, 0, totalChapterCount - 1)
                 : (int?)null;
@@ -147,7 +149,8 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
                 clampedIndex,
                 clampedIndex is null ? totalChapterCount : Math.Max(0, totalChapterCount - clampedIndex.Value - 1),
                 clampedIndex is null || totalChapterCount == 0 ? 0 : (double)(clampedIndex.Value + 1) / totalChapterCount,
-                hasReadingProgress);
+                hasReadingProgress,
+                reader.IsDBNull(9) ? null : new ActiveSourceContext(reader.GetString(9), reader.IsDBNull(10) ? null : reader.GetString(10)));
             return true;
         }
         catch (InvalidCastException)

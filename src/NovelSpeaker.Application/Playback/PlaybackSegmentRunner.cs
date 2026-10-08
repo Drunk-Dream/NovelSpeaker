@@ -9,7 +9,9 @@ internal sealed record PlaybackSegmentRunRequest(
     AudioGenerationRequest AudioRequest,
     string DisplayTitle,
     long ResumePositionMilliseconds,
-    bool ForceInvalidate);
+    bool ForceInvalidate,
+    Func<CancellationToken, Task>? ValidateContextAsync = null,
+    PlaybackAudioPreparationIdentity? PreparationIdentity = null);
 
 /// <summary>
 /// Captures the result of one segment execution without owning playback state or publishing events.
@@ -25,23 +27,22 @@ internal sealed record PlaybackSegmentRunResult(
 internal sealed class PlaybackSegmentRunner
 {
     private readonly IAudioGenerationProvider _audioProvider;
-    private readonly PlaybackAudioController _audioController;
+    private readonly ILocalAudioPlaybackCoordinator _localAudio;
 
     public PlaybackSegmentRunner(
         IAudioGenerationProvider audioProvider,
-        PlaybackAudioController audioController)
+        ILocalAudioPlaybackCoordinator localAudio)
     {
         _audioProvider = audioProvider;
-        _audioController = audioController;
+        _localAudio = localAudio;
     }
 
-    public async Task<PlaybackSegmentRunResult> RunAsync(
+    public async Task<AudioGenerationResult> PrepareAsync(
         PlaybackSegmentRunRequest request,
         Action<AudioGenerationProgress>? progressCallback,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-
         if (request.ForceInvalidate)
         {
             await _audioProvider.InvalidateAsync(
@@ -49,17 +50,32 @@ internal sealed class PlaybackSegmentRunner
                 cancellationToken).ConfigureAwait(false);
         }
 
-        var audio = await _audioProvider.GetAudioAsync(
+        return await _audioProvider.GetAudioAsync(
             request.AudioRequest,
             AudioGenerationPriority.Current,
             progressCallback,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<PlaybackSegmentRunResult?> PlayPreparedAsync(
+        PlaybackSegmentRunRequest request,
+        AudioGenerationResult audio,
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task<bool>>? validateLatestConfigurationAsync = null)
+    {
         if (!audio.IsSuccess)
         {
-            return new PlaybackSegmentRunResult(audio, _audioController.CurrentSnapshot);
+            return new PlaybackSegmentRunResult(audio, _localAudio.CurrentSnapshot);
         }
 
-        await _audioController.StartAsync(
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request.ValidateContextAsync is not null)
+            await request.ValidateContextAsync(cancellationToken).ConfigureAwait(false);
+        if (validateLatestConfigurationAsync is not null &&
+            !await validateLatestConfigurationAsync(cancellationToken).ConfigureAwait(false))
+            return null;
+
+        await _localAudio.StartAsync(
             new LocalAudioPlaybackRequest(
                 audio.FilePath!,
                 request.DisplayTitle,
@@ -68,11 +84,11 @@ internal sealed class PlaybackSegmentRunner
                 request.AudioRequest.SegmentIndex,
                 request.ResumePositionMilliseconds,
                 audio.IsUsingCache,
-                request.AudioRequest.SessionId),
+                request.AudioRequest.SessionId,
+                request.PreparationIdentity?.Target.Revision ?? 0,
+                request.PreparationIdentity?.AttemptId),
             cancellationToken).ConfigureAwait(false);
 
-        return new PlaybackSegmentRunResult(
-            audio,
-            _audioController.CurrentSnapshot);
+        return new PlaybackSegmentRunResult(audio, _localAudio.CurrentSnapshot);
     }
 }

@@ -37,12 +37,15 @@ public sealed class ChapterSpeechPlanPlaybackIntegrationTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                INSERT INTO Books
-                    (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
-                VALUES
-                    ('book-1', '书', 'book.txt', 'Books/book-1/content.txt', 'playback-plan', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
-                VALUES ('chapter-1', 'book-1', 0, 0, '第一章', 0, 9);
+                INSERT INTO Books (Id, Title, Author, Description, ImportedAt, UpdatedAt) VALUES
+                ('book-1', '书', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-1', 'book-1', 1, '书', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-1', 'book.txt', 'Books/book-1/content.txt', 'playback-plan', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                UPDATE Books SET ActiveSourceId = 'local:' || 'book-1' WHERE Id = 'book-1';
+                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter-1', 'local:' || 'book-1', 0, 0, '第一章');
+                INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
+                ('chapter-1', 0, 9);
                 """;
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
@@ -56,7 +59,7 @@ public sealed class ChapterSpeechPlanPlaybackIntegrationTests
             TimeProvider.System);
         var service = new PlaybackContentResolver(
             new SqliteBookPlaybackMetadataQuery(factory),
-            new BookContentReader(new AppStoragePathResolver(directories)),
+            new SourceContentReader(new AppStoragePathResolver(directories), factory),
             new TextSegmenter(),
             new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
             new PassthroughRegexReplacementPipeline(),

@@ -404,6 +404,7 @@ internal sealed class SqliteAudioCacheIndex
                    COALESCE(SUM(e.FileSize), 0)
             FROM AudioCacheEntries e
             INNER JOIN Chapters c ON c.Id = e.ChapterId
+            INNER JOIN Books b ON b.Id = e.BookId AND b.ActiveSourceId = c.SourceId
             WHERE e.KeyVersion = 2 AND e.HealthState = $status AND e.BookId = $bookId
             GROUP BY e.BookId, c.ChapterIndex
             ORDER BY c.ChapterIndex;
@@ -461,6 +462,7 @@ internal sealed class SqliteAudioCacheIndex
                        COALESCE(SUM(e.FileSize), 0)
                 FROM AudioCacheEntries e
                 INNER JOIN Chapters c ON c.Id = e.ChapterId
+                INNER JOIN Books b ON b.Id = e.BookId AND b.ActiveSourceId = c.SourceId
                 WHERE e.KeyVersion = 2 AND e.HealthState = $status AND e.BookId = $bookId
                   AND c.ChapterIndex IN ({string.Join(", ", parameters)})
                 GROUP BY e.BookId, c.ChapterIndex
@@ -526,6 +528,7 @@ internal sealed class SqliteAudioCacheIndex
                    COALESCE(SUM(e.FileSize), 0)
             FROM AudioCacheEntries e
             INNER JOIN Chapters c ON c.Id = e.ChapterId
+            INNER JOIN Books b ON b.Id = e.BookId AND b.ActiveSourceId = c.SourceId
             WHERE e.KeyVersion = 2 AND e.HealthState = $status
               AND e.BookId = $bookId AND c.ChapterIndex = $chapterIndex
             GROUP BY e.BookId, c.ChapterIndex;
@@ -818,6 +821,7 @@ internal sealed class SqliteAudioCacheIndex
         if (chapterIndex is not null)
         {
             predicates.Add("c.ChapterIndex = $chapterIndex");
+            predicates.Add("EXISTS (SELECT 1 FROM Books b WHERE b.Id = e.BookId AND b.ActiveSourceId = c.SourceId)");
             command.Parameters.AddWithValue("$chapterIndex", chapterIndex.Value);
         }
 
@@ -907,9 +911,10 @@ internal sealed class SqliteAudioCacheIndex
     {
         using var command = connection.CreateCommand();
         command.CommandText =
-            "SELECT Id FROM Chapters WHERE BookId = $bookId AND ChapterIndex = $chapterIndex LIMIT 1;";
+            "SELECT c.Id FROM Books b JOIN Chapters c ON c.SourceId = b.ActiveSourceId WHERE b.Id = $bookId AND c.ChapterIndex = $chapterIndex AND c.Id = $technicalChapter LIMIT 1;";
         command.Parameters.AddWithValue("$bookId", request.BookId);
         command.Parameters.AddWithValue("$chapterIndex", request.ChapterIndex);
+        command.Parameters.AddWithValue("$technicalChapter", request.Key.Identity.ChapterId);
         var chapterId = Convert.ToString(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false));
         if (string.IsNullOrWhiteSpace(chapterId))
         {

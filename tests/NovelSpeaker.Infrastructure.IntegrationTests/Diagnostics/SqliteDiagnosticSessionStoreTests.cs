@@ -501,10 +501,4 @@ public sealed class SqliteDiagnosticSessionStoreTests
         }
     }
 
-    private sealed class ManualTimeProvider(DateTimeOffset initial) : TimeProvider
-    {
-        private DateTimeOffset _now = initial;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-    }
 }

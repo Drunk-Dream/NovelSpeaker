@@ -40,7 +40,8 @@ public sealed class ProviderProductionPipelineTests
         { Configuration = fixture.HttpConfiguration(path) }, false, CancellationToken.None);
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
-        Assert.Equal(expectedState, playback.CurrentSnapshot.State);
+        await WaitForSnapshotAsync(playback, snapshot =>
+            snapshot.State == expectedState && snapshot.SegmentIndex == 1);
         Assert.Equal(1, playback.CurrentSnapshot.SegmentIndex);
         Assert.Equal(2, fixture.Server.GetRequestCount("/" + path));
         if (expectedState == PlaybackState.Playing)
@@ -72,6 +73,7 @@ public sealed class ProviderProductionPipelineTests
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 1, null, 0), CancellationToken.None)
             .WaitAsync(TimeSpan.FromSeconds(10));
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         await gate.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(TtsErrorKind.Cancelled, (await prefetch).Failure!.Kind);
@@ -89,6 +91,7 @@ public sealed class ProviderProductionPipelineTests
         Assert.False(playback.CurrentSnapshot.HasLoadedAudio);
         Assert.Equal(0, fixture.RequestCount);
         await playback.ResumeAsync(CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         await playback.PauseAsync(CancellationToken.None);
         Assert.Equal(PlaybackState.Paused, playback.CurrentSnapshot.State);
         Assert.True(playback.CurrentSnapshot.HasLoadedAudio);
@@ -104,6 +107,7 @@ public sealed class ProviderProductionPipelineTests
         { Configuration = fixture.HttpConfiguration("rate-limited") }, false, CancellationToken.None);
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(2, fixture.Server.GetRequestCount("/rate-limited"));
         Assert.True(File.Exists(fixture.Player.LoadedFile));
@@ -119,6 +123,7 @@ public sealed class ProviderProductionPipelineTests
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
 
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(3, fixture.Edge.Calls.Count);
     }
@@ -237,12 +242,16 @@ public sealed class ProviderProductionPipelineTests
         await using var fixture = await Fixture.CreateAsync(edge, prefetchCount: 1);
         var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(0, playback.CurrentSnapshot.SpeakSpeed);
         Assert.True(File.Exists(fixture.Player.LoadedFile));
         await fixture.WaitForCoverageAsync();
+        // The original profile has exercised playback + prefetch. Quiesce that window
+        // before measuring the new profile's active-cache transport requests.
         await fixture.Services.GetRequiredService<IAppSettingsService>().UpdateAsync(
-            new AppSettingsUpdate { DefaultSpeakSpeed = 1 }, CancellationToken.None);
+            new AppSettingsUpdate { DefaultSpeakSpeed = 1, PrefetchCount = 0 }, CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.SpeakSpeed == 1);
         var active = fixture.Services.GetRequiredService<IActiveCacheCoordinator>();
         var start = await active.StartAsync(new StartActiveCacheRequest("book", [0], 1), CancellationToken.None);
         Assert.Equal(ActiveCacheStartStatus.Accepted, start.Status);
@@ -280,6 +289,7 @@ public sealed class ProviderProductionPipelineTests
         var store = fixture.Services.GetRequiredService<IProviderStore>();
         var workspace = fixture.Services.GetRequiredService<SpeechProviderWorkspace>();
         await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
         var loaded = fixture.Player.LoadedFile;
         var expectedId = fixture.Provider.Id;
         if (change == "switch")
@@ -299,10 +309,12 @@ public sealed class ProviderProductionPipelineTests
             await settings.UpdateAsync(new AppSettingsUpdate { ClearCurrentProvider = true }, CancellationToken.None);
         else
             await workspace.SetEdgeEnabledAsync(false, CancellationToken.None);
+        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing && snapshot.HasLoadedAudio);
         Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
         Assert.Equal(loaded, fixture.Player.LoadedFile);
 
-        var completed = WaitForSnapshotAsync(playback, snapshot => snapshot.SegmentIndex == 1 && snapshot.State != PlaybackState.Buffering);
+        var nextState = change is "switch" or "edit" ? PlaybackState.Playing : PlaybackState.Stopped;
+        var completed = WaitForSnapshotAsync(playback, snapshot => snapshot.SegmentIndex == 1 && snapshot.State == nextState);
         fixture.Player.Complete();
         await completed;
         if (change is "switch" or "edit")
@@ -318,8 +330,11 @@ public sealed class ProviderProductionPipelineTests
             Assert.Equal(PlaybackState.Stopped, playback.CurrentSnapshot.State);
             Assert.False(playback.CurrentSnapshot.HasAvailableProvider);
             Assert.Equal(1, fixture.RequestCount);
+            // Completion publishes the new logical target before running its checkpoint effect.
+            // A serialized stop command drains that effect before reading durable progress.
+            await playback.StopAsync(CancellationToken.None);
             var progress = await fixture.Services.GetRequiredService<IReadingProgressStore>().GetAsync("book", CancellationToken.None);
-            Assert.Equal(0, progress!.SegmentIndex);
+            Assert.Equal(1, progress!.SegmentIndex);
         }
     }
 
@@ -393,10 +408,15 @@ public sealed class ProviderProductionPipelineTests
             await using var connection = await fixture.Services.GetRequiredService<ISqliteConnectionFactory>().OpenConnectionAsync(CancellationToken.None);
             using var command = connection.CreateCommand();
             command.CommandText = """
-                INSERT INTO Books (Id, Title, OriginalFileName, StoredFilePath, SourceHash, Encoding, ImportedAt, UpdatedAt)
-                VALUES ('book', 'Book', 'book.txt', 'Books/content.txt', 'provider-pipeline', 'utf-8', '2026-01-01', '2026-01-01');
-                INSERT INTO Chapters (Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length)
-                VALUES ('chapter', 'book', 0, 0, 'Chapter', 0, 14);
+                INSERT INTO Books (Id, Title, Author, Description, ImportedAt, UpdatedAt) VALUES
+                ('book', 'Book', NULL, NULL, '2026-01-01', '2026-01-01');
+                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book', 'book', 1, 'Book', NULL, NULL, '2026-01-01', '2026-01-01');
+                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book', 'book.txt', 'Books/content.txt', 'provider-pipeline', 'utf-8', '2026-01-01', '2026-01-01');
+                UPDATE Books SET ActiveSourceId = 'local:' || 'book' WHERE Id = 'book';
+                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter', 'local:' || 'book', 0, 0, 'Chapter');
+                INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
+                ('chapter', 0, 14);
                 """;
             await command.ExecuteNonQueryAsync();
             return fixture;

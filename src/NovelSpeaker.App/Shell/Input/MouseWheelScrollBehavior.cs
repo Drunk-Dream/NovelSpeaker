@@ -142,12 +142,19 @@ public static class MouseWheelScrollBehavior
         }
 
         var notches = Math.Max(1d, Math.Abs(delta) / (double)Mouse.MouseWheelDeltaForOneLine);
-        var lineOffset = Math.Max(16d, SystemParameters.WheelScrollLines * 16d);
-        var scrollOffset = lineOffset * notches;
-        var nextOffset = delta > 0
-            ? scrollViewer.VerticalOffset - scrollOffset
-            : scrollViewer.VerticalOffset + scrollOffset;
-        scrollViewer.ScrollToVerticalOffset(Math.Clamp(nextOffset, 0d, scrollViewer.ScrollableHeight));
+        var linesPerNotch = Math.Max(1, SystemParameters.WheelScrollLines);
+        var lineCount = Math.Max(1, (int)Math.Ceiling(linesPerNotch * notches));
+        for (var line = 0; line < lineCount; line++)
+        {
+            if (delta > 0)
+            {
+                scrollViewer.LineUp();
+            }
+            else
+            {
+                scrollViewer.LineDown();
+            }
+        }
     }
 
     private static DependencyObject? GetParent(DependencyObject dependencyObject)

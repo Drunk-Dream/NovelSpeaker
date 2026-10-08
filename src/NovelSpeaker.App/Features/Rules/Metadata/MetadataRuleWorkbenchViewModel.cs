@@ -7,9 +7,11 @@ using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
+using NovelSpeaker.App.Shared.Presentation.Workbenches;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Features.Rules.Shared;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shell.Activation;
 
 namespace NovelSpeaker.App.Features.Rules.Metadata;
 
@@ -21,12 +23,14 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     private readonly IAppFeedbackService _feedback;
     private readonly IRuleDocumentInteraction _documents;
     private readonly ManagementSelectionController<string> _selection = new(StringComparer.Ordinal);
-    private MetadataRuleState? _original;
-    private bool _isNew;
+    private readonly EditorSession<string?, MetadataRuleState> _editorSession = new(
+        (left, right) => left.Name == right.Name && left.Pattern == right.Pattern, newIsDirty: true);
+    private readonly WorkbenchImportSession _importSession = new();
+    private MetadataRuleState? Original => _editorSession.IsNew ? null : _editorSession.Baseline;
 
-    private CancellationTokenSource? _managementLifetime;
-    private bool _enteringManagement;
-    private bool _deletingBatch;
+    private PageActivationScope? _activation;
+    private readonly BatchDeleteSession _batchDelete = new();
+    private readonly WorkbenchExchangeInteraction _exchange;
 
     protected MetadataRuleWorkbenchViewModel(
         IAppNavigator navigator,
@@ -38,6 +42,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
         _dialogs = dialogs;
         _feedback = feedback;
         _documents = documents;
+        _exchange = new(_documents);
         _selection.StateChanged += (_, _) =>
         {
             SyncSelection();
@@ -57,15 +62,13 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
 
     public ObservableCollection<MetadataRuleRow> Rules { get; } = [];
 
-    [ObservableProperty] private bool hasEditor;
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private string draftName = string.Empty;
     [ObservableProperty] private string draftPattern = string.Empty;
     [ObservableProperty] private string validationMessage = string.Empty;
 
-    public bool HasUnsavedChanges => HasEditor &&
-        (_isNew || !string.Equals(DraftName, _original?.Name, StringComparison.Ordinal) ||
-         !string.Equals(DraftPattern, _original?.Pattern, StringComparison.Ordinal));
+    public bool HasEditor => _editorSession.HasEditor;
+    public bool HasUnsavedChanges => _editorSession.IsDirty;
 
     public bool IsManagementMode => _selection.IsManagementMode;
     public int SelectedCount => _selection.SelectedCount;
@@ -75,13 +78,20 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        ActivateManagement(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_activation?.IsCurrent != true)
+        {
+            HandleNavigatedTo(new PageActivationController().Activate());
+            _activation!.Register(cancellationToken.Register(_activation.Dispose));
+        }
         await RefreshAsync(null, cancellationToken);
     }
 
     public void HandleNavigatedFrom()
     {
-        _managementLifetime?.Cancel();
+        var activation = _activation;
+        _activation = null;
+        activation?.Dispose();
         _selection.Reset();
     }
 
@@ -98,13 +108,8 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     private async Task NewRuleAsync(CancellationToken cancellationToken)
     {
         if (!await ConfirmLeaveAsync(cancellationToken)) return;
-        _original = null;
-        _isNew = true;
-        HasEditor = true;
-        DraftName = string.Empty;
-        DraftPattern = string.Empty;
-        ValidationMessage = string.Empty;
-        SyncSelection();
+        Open(new MetadataRuleState(string.Empty, string.Empty, string.Empty, 0, true,
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch), isNew: true);
     }
 
     [RelayCommand]
@@ -112,7 +117,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     {
         if (row is null || IsBusy) return;
         if (_selection.HandleClick(row.Id)) return;
-        if (!_isNew && _original?.Id == row.Id)
+        if (!_editorSession.IsNew && Original?.Id == row.Id)
         {
             SyncSelection();
             return;
@@ -160,7 +165,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
             return false;
         }
 
-        if (Rules.Any(row => row.Id != _original?.Id && string.Equals(row.Name, name, StringComparison.OrdinalIgnoreCase)))
+        if (Rules.Any(row => row.Id != Original?.Id && string.Equals(row.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
             ValidationMessage = "规则名称已存在。";
             return false;
@@ -171,9 +176,9 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
             IsBusy = true;
             var now = DateTimeOffset.UtcNow;
             var rule = new MetadataRuleState(
-                _original?.Id ?? Guid.NewGuid().ToString("N"), name, pattern,
-                _original?.SortOrder ?? (Rules.Count == 0 ? 10 : Rules.Max(row => row.State.SortOrder) + 10),
-                _original?.IsEnabled ?? true, _original?.CreatedAt ?? now, now);
+                Original?.Id ?? Guid.NewGuid().ToString("N"), name, pattern,
+                Original?.SortOrder ?? (Rules.Count == 0 ? 10 : Rules.Max(row => row.State.SortOrder) + 10),
+                Original?.IsEnabled ?? true, Original?.CreatedAt ?? now, now);
             await WriteAsync(rule, cancellationToken);
             await RefreshAsync(rule.Id, cancellationToken);
             ValidationMessage = string.Empty;
@@ -197,16 +202,13 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     [RelayCommand]
     private void CancelEditing()
     {
-        if (_isNew)
+        if (_editorSession.IsNew)
         {
-            HasEditor = false;
-            _isNew = false;
-            _original = null;
-            SyncSelection();
+            CloseEditor();
         }
-        else if (_original is not null)
+        else if (Original is not null)
         {
-            Open(_original);
+            Open(Original);
         }
 
         ValidationMessage = string.Empty;
@@ -221,8 +223,8 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
         await ExecuteAsync(async () =>
         {
             await WriteAsync(current.State with { IsEnabled = !current.IsEnabled, UpdatedAt = DateTimeOffset.UtcNow }, cancellationToken);
-            await RefreshAsync(_original?.Id, cancellationToken);
-        });
+            await RefreshAsync(Original?.Id, cancellationToken);
+        }, cancellationToken);
     }
 
     [RelayCommand]
@@ -239,7 +241,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
         {
             await RemoveAsync(row.Id, cancellationToken);
             await RefreshAsync(null, cancellationToken);
-        });
+        }, cancellationToken);
     }
 
     [RelayCommand]
@@ -251,11 +253,8 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     private async Task MoveAsync(MetadataRuleRow? row, int delta, CancellationToken cancellationToken)
     {
         if (row is null || !await ConfirmLeaveAsync(cancellationToken)) return;
-        var index = Rules.ToList().FindIndex(candidate => candidate.Id == row.Id);
-        var target = index + delta;
-        if (index < 0 || target < 0 || target >= Rules.Count) return;
-        var ids = Rules.Select(item => item.Id).ToList();
-        (ids[index], ids[target]) = (ids[target], ids[index]);
+        if (!WorkbenchReorderController.TryMoveByOffset(Rules.Select(item => item.Id).ToArray(),
+                row.Id, delta, out var ids, StringComparer.Ordinal)) return;
         await SaveOrderAsync(ids, cancellationToken);
     }
 
@@ -264,7 +263,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     {
         if (request?.Source is not MetadataRuleRow row || !await ConfirmLeaveAsync(cancellationToken)) return;
         var ids = Rules.Select(item => item.Id).ToArray();
-        if (RuleReorderController.TryMoveToSlot(ids, ids, row.Id, request.SlotIndex, out var reordered))
+        if (WorkbenchReorderController.TryMoveToSlot(ids, ids, row.Id, request.SlotIndex, out var reordered))
         {
             await SaveOrderAsync(reordered, cancellationToken);
         }
@@ -273,34 +272,39 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     private Task SaveOrderAsync(IReadOnlyList<string> ids, CancellationToken cancellationToken) =>
         ExecuteAsync(async () =>
         {
-            await WriteOrderAsync(ids.Select((id, index) => (id, (index + 1) * 10)).ToArray(), cancellationToken);
-            await RefreshAsync(_original?.Id, cancellationToken);
-        });
+            try
+            {
+                await WriteOrderAsync(ids.Select((id, index) => (id, (index + 1) * 10)).ToArray(), cancellationToken);
+            }
+            catch (Exception) when (!cancellationToken.IsCancellationRequested)
+            {
+                await RefreshAsync(Original?.Id, cancellationToken);
+                throw;
+            }
+            await RefreshAsync(Original?.Id, cancellationToken);
+        }, cancellationToken);
 
     [RelayCommand]
-    private async Task ExportRuleAsync(MetadataRuleRow? row, CancellationToken cancellationToken)
+    private Task ExportRuleAsync(MetadataRuleRow? row, CancellationToken cancellationToken) =>
+        ExchangeRuleAsync(row, false, cancellationToken);
+
+    [RelayCommand]
+    private Task CopyRuleAsync(MetadataRuleRow? row, CancellationToken cancellationToken) =>
+        ExchangeRuleAsync(row, true, cancellationToken);
+
+    private async Task ExchangeRuleAsync(MetadataRuleRow? row, bool clipboard, CancellationToken cancellationToken)
     {
         if ((!IsManagementMode && row is null) || (IsManagementMode && SelectedCount == 0)) return;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
         await ExecuteAsync(async () =>
         {
             var rules = RulesForExchange(row);
-            if (await _documents.ExportAsync(DocumentFileName, Serialize(rules), linked.Token))
-                _feedback.ShowSuccess("导出完成", $"成功 {rules.Count}，跳过 0，失败 0。");
-        });
-    }
-
-    [RelayCommand]
-    private async Task CopyRuleAsync(MetadataRuleRow? row, CancellationToken cancellationToken)
-    {
-        if ((!IsManagementMode && row is null) || (IsManagementMode && SelectedCount == 0)) return;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        await ExecuteAsync(async () =>
-        {
-            var rules = RulesForExchange(row);
-            await _documents.CopyAsync(Serialize(rules), linked.Token);
-            _feedback.ShowSuccess("复制完成", $"成功 {rules.Count}，跳过 0，失败 0。");
-        });
+            var result = await _exchange.WriteAsync(_ => Task.FromResult<string?>(Serialize(rules)),
+                clipboard, DocumentFileName, linked.Token);
+            if (result == ExchangeWriteResult.Completed)
+                _feedback.ShowSuccess(clipboard ? "复制完成" : "导出完成", $"成功 {rules.Count}，跳过 0，失败 0。");
+        }, linked.Token);
     }
 
     private IReadOnlyList<MetadataRuleState> RulesForExchange(MetadataRuleRow? row) =>
@@ -310,79 +314,94 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
 
     [RelayCommand]
     private Task ImportFileAsync(CancellationToken cancellationToken) =>
-        ImportAsync(() => _documents.PickImportAsync(cancellationToken), cancellationToken);
+        ImportAsync(_documents.PickImportAsync, cancellationToken);
 
     [RelayCommand]
     private Task ImportClipboardAsync(CancellationToken cancellationToken) =>
-        ImportAsync(() => _documents.ReadClipboardAsync(cancellationToken), cancellationToken);
+        ImportAsync(_documents.ReadClipboardAsync, cancellationToken);
 
-    private async Task ImportAsync(Func<Task<RuleImportDocument?>> read, CancellationToken cancellationToken)
+    private async Task ImportAsync(Func<CancellationToken, Task<RuleImportDocument?>> read, CancellationToken cancellationToken)
     {
-        await ExecuteAsync(async () =>
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
+        try
         {
-            var document = await read();
-            if (document is null) return;
-            var imported = 0;
-            var skipped = 0;
-            var failed = 0;
-            using var json = JsonDocument.Parse(document.Json);
-            if (json.RootElement.ValueKind != JsonValueKind.Object ||
-                !json.RootElement.TryGetProperty("schemaVersion", out var version) ||
-                version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var schemaVersion) || schemaVersion != 1 ||
-                !json.RootElement.TryGetProperty("ruleType", out var ruleType) ||
-                ruleType.ValueKind != JsonValueKind.String || ruleType.GetString() != DocumentRuleType ||
-                !json.RootElement.TryGetProperty("rules", out var entries) || entries.ValueKind != JsonValueKind.Array)
+            var execution = await _importSession.RunAsync(read, ImportJsonAsyncCore,
+                () => IsBusy, value => IsBusy = value, linked.Token);
+            if (execution is null) return;
+            var result = execution.Result;
+            _feedback.ShowSuccess("元数据规则导入完成", $"导入 {result.ImportedCount} 条，跳过重复 {result.SkippedCount} 条，失败 {result.FailedCount} 条。");
+        }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+        catch (Exception exception) when (!linked.IsCancellationRequested)
+        {
+            _feedback.ShowProjectedNotification("元数据规则操作失败", _feedback.Project(exception));
+        }
+        catch (Exception) when (linked.IsCancellationRequested) { }
+    }
+
+    private async Task<RuleImportResult> ImportJsonAsyncCore(RuleImportDocument document, CancellationToken cancellationToken)
+    {
+        var imported = 0;
+        var skipped = 0;
+        var failed = 0;
+        using var json = JsonDocument.Parse(document.Json);
+        if (json.RootElement.ValueKind != JsonValueKind.Object ||
+            !json.RootElement.TryGetProperty("schemaVersion", out var version) ||
+            version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var schemaVersion) || schemaVersion != 1 ||
+            !json.RootElement.TryGetProperty("ruleType", out var ruleType) ||
+            ruleType.ValueKind != JsonValueKind.String || ruleType.GetString() != DocumentRuleType ||
+            !json.RootElement.TryGetProperty("rules", out var entries) || entries.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException("元数据规则文档版本或结构无效。");
+        }
+
+        var existing = (await ReadAsync(cancellationToken)).ToList();
+        foreach (var item in entries.EnumerateArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
             {
-                throw new InvalidOperationException("元数据规则文档版本或结构无效。");
-            }
+                if (item.ValueKind != JsonValueKind.Object ||
+                    !item.TryGetProperty("name", out var nameValue) ||
+                    !item.TryGetProperty("pattern", out var patternValue))
+                {
+                    throw new InvalidOperationException("规则缺少名称或正则表达式。");
+                }
 
-            var existing = (await ReadAsync(cancellationToken)).ToList();
-            foreach (var item in entries.EnumerateArray())
+                var name = nameValue.GetString()?.Trim() ?? string.Empty;
+                var pattern = patternValue.GetString()?.Trim() ?? string.Empty;
+                var enabled = item.TryGetProperty("isEnabled", out var enabledValue) ? enabledValue.GetBoolean() : true;
+                if (name.Length == 0) throw new InvalidOperationException("规则名称不能为空。");
+                ImportMetadataExtractor.ValidatePattern(pattern);
+                if (existing.Any(rule => rule.Name == name && rule.Pattern == pattern && rule.IsEnabled == enabled))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var uniqueName = name;
+                for (var suffix = 2; existing.Any(rule => string.Equals(rule.Name, uniqueName, StringComparison.OrdinalIgnoreCase)); suffix++)
+                {
+                    uniqueName = $"{name}({suffix})";
+                }
+
+                var now = DateTimeOffset.UtcNow;
+                var rule = new MetadataRuleState(Guid.NewGuid().ToString("N"), uniqueName, pattern,
+                    existing.Count == 0 ? 10 : existing.Max(candidate => candidate.SortOrder) + 10,
+                    enabled, now, now);
+                await WriteAsync(rule, cancellationToken);
+                existing.Add(rule);
+                imported++;
+            }
+            catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or JsonException)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                try
-                {
-                    if (item.ValueKind != JsonValueKind.Object ||
-                        !item.TryGetProperty("name", out var nameValue) ||
-                        !item.TryGetProperty("pattern", out var patternValue))
-                    {
-                        throw new InvalidOperationException("规则缺少名称或正则表达式。");
-                    }
-
-                    var name = nameValue.GetString()?.Trim() ?? string.Empty;
-                    var pattern = patternValue.GetString()?.Trim() ?? string.Empty;
-                    var enabled = item.TryGetProperty("isEnabled", out var enabledValue) ? enabledValue.GetBoolean() : true;
-                    if (name.Length == 0) throw new InvalidOperationException("规则名称不能为空。");
-                    ImportMetadataExtractor.ValidatePattern(pattern);
-                    if (existing.Any(rule => rule.Name == name && rule.Pattern == pattern && rule.IsEnabled == enabled))
-                    {
-                        skipped++;
-                        continue;
-                    }
-
-                    var uniqueName = name;
-                    for (var suffix = 2; existing.Any(rule => string.Equals(rule.Name, uniqueName, StringComparison.OrdinalIgnoreCase)); suffix++)
-                    {
-                        uniqueName = $"{name}({suffix})";
-                    }
-
-                    var now = DateTimeOffset.UtcNow;
-                    var rule = new MetadataRuleState(Guid.NewGuid().ToString("N"), uniqueName, pattern,
-                        existing.Count == 0 ? 10 : existing.Max(candidate => candidate.SortOrder) + 10,
-                        enabled, now, now);
-                    await WriteAsync(rule, cancellationToken);
-                    existing.Add(rule);
-                    imported++;
-                }
-                catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or JsonException)
-                {
-                    failed++;
-                }
+                failed++;
             }
+        }
 
-            await RefreshAsync(_original?.Id, cancellationToken, preserveDraft: true);
-            _feedback.ShowSuccess("元数据规则导入完成", $"导入 {imported} 条，跳过重复 {skipped} 条，失败 {failed} 条。");
-        });
+        await RefreshAsync(Original?.Id, cancellationToken, preserveDraft: true);
+        return new RuleImportResult(imported, skipped, imported + skipped + failed, failed);
     }
 
     private string Serialize(IReadOnlyList<MetadataRuleState> rules) =>
@@ -393,28 +412,18 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
             rules = rules.Select(rule => new { name = rule.Name, pattern = rule.Pattern, isEnabled = rule.IsEnabled })
         });
 
-    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
-    {
-        if (!HasUnsavedChanges) return true;
-        var decision = await _dialogs.ShowUnsavedChangesAsync(
-            "未保存的修改", "当前元数据规则有未保存的修改。要先保存再继续吗？",
-            "保存", "放弃", "取消", cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (decision == UnsavedChangesDecision.Discard)
-        {
-            CancelEditing();
-            return true;
-        }
-        return decision switch
-        {
-            UnsavedChangesDecision.Save => await SaveCoreAsync(cancellationToken),
-            _ => false
-        };
-    }
+    public Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken) =>
+        _editorSession.ConfirmLeaveAsync(
+            token => _dialogs.ShowUnsavedChangesAsync(
+                "未保存的修改", "当前元数据规则有未保存的修改。要先保存再继续吗？",
+                "保存", "放弃", "取消", token),
+            async token => await SaveCoreAsync(token),
+            _ => { CancelEditing(); return Task.CompletedTask; }, cancellationToken);
 
     private async Task RefreshAsync(string? selectedId, CancellationToken cancellationToken, bool preserveDraft = false)
     {
         var states = await ReadAsync(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         Rules.Clear();
         foreach (var state in states.OrderBy(rule => rule.SortOrder).ThenBy(rule => rule.Id, StringComparer.Ordinal))
         {
@@ -428,10 +437,7 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
         var selected = Rules.FirstOrDefault(row => row.Id == selectedId);
         if (selected is null)
         {
-            _original = null;
-            _isNew = false;
-            HasEditor = false;
-            SyncSelection();
+            CloseEditor();
         }
         else
         {
@@ -439,37 +445,62 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
         }
     }
 
-    private void Open(MetadataRuleState state)
+    private void Open(MetadataRuleState state, bool isNew = false)
     {
-        _original = state;
-        _isNew = false;
-        HasEditor = true;
+        _editorSession.Open(isNew ? null : state.Id, state, isNew, null);
         DraftName = state.Name;
         DraftPattern = state.Pattern;
         ValidationMessage = string.Empty;
+        _editorSession.UpdateDirty(state);
+        NotifyEditorState();
         SyncSelection();
+    }
+
+    private void CloseEditor()
+    {
+        _editorSession.Close();
+        NotifyEditorState();
+        SyncSelection();
+    }
+
+    partial void OnDraftNameChanged(string value) => UpdateDirty();
+    partial void OnDraftPatternChanged(string value) => UpdateDirty();
+
+    private void UpdateDirty()
+    {
+        if (_editorSession.Baseline is { } baseline)
+            _editorSession.UpdateDirty(baseline with { Name = DraftName, Pattern = DraftPattern });
+        NotifyEditorState();
+    }
+
+    private void NotifyEditorState()
+    {
+        OnPropertyChanged(nameof(HasEditor));
+        OnPropertyChanged(nameof(HasUnsavedChanges));
     }
 
     private void SyncSelection()
     {
-        foreach (var row in Rules) row.IsSelected = IsManagementMode ? _selection.IsSelected(row.Id) : row.Id == _original?.Id;
+        foreach (var row in Rules) row.IsSelected = IsManagementMode ? _selection.IsSelected(row.Id) : row.Id == Original?.Id;
     }
 
-    private async Task ExecuteAsync(Func<Task> action)
+    private async Task ExecuteAsync(Func<Task> action, CancellationToken cancellationToken)
     {
         if (IsBusy) return;
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
             IsBusy = true;
             await action();
         }
         catch (OperationCanceledException)
         {
         }
-        catch (Exception exception)
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested)
         {
             _feedback.ShowProjectedNotification("元数据规则操作失败", _feedback.Project(exception));
         }
+        catch (Exception) when (cancellationToken.IsCancellationRequested) { }
         finally
         {
             IsBusy = false;
@@ -478,11 +509,14 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(CanReorder));
 
 
-    private void ActivateManagement(CancellationToken cancellationToken)
+    public void HandleNavigatedTo(PageActivationScope activation)
     {
-        _managementLifetime?.Cancel();
-        _managementLifetime?.Dispose();
-        _managementLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        HandleNavigatedFrom();
+        _activation = activation;
+        activation.Register(() =>
+        {
+            if (ReferenceEquals(_activation, activation)) HandleNavigatedFrom();
+        });
     }
 
     [RelayCommand]
@@ -491,19 +525,9 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
 
     private async Task<bool> TryEnterManagementAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy || _enteringManagement) return false;
-        if (IsManagementMode) return true;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        _enteringManagement = true;
-        try
-        {
-            if (!await ConfirmLeaveAsync(linked.Token)) return false;
-            linked.Token.ThrowIfCancellationRequested();
-            _selection.Enter();
-            return true;
-        }
-        catch (OperationCanceledException) when (linked.IsCancellationRequested) { return false; }
-        finally { _enteringManagement = false; }
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
+        return await _selection.TryEnterAsync(() => IsBusy, ConfirmLeaveAsync, linked.Token);
     }
 
     [RelayCommand]
@@ -517,37 +541,37 @@ public abstract partial class MetadataRuleWorkbenchViewModel : ObservableObject,
     [RelayCommand]
     private async Task DeleteSelectedRulesAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy || _deletingBatch || !IsManagementMode || SelectedCount == 0) return;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        cancellationToken = linked.Token;
-        _deletingBatch = true;
+        if (IsBusy || !IsManagementMode || SelectedCount == 0) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
         try
         {
-            if (!await ConfirmLeaveAsync(cancellationToken)) return;
-            var items = Rules.Where(item => _selection.IsSelected(item.Id)).ToArray();
-            if (items.Length == 0) return;
-            if (await _feedback.ConfirmDeletionAsync("删除规则", $"将删除所选 {items.Length} 条规则，此操作不可撤销。", cancellationToken)
-                != AppConfirmationDecision.Confirm) return;
-            IsBusy = true;
-            var succeeded = 0;
-            var failed = 0;
-            foreach (var item in items)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                try
+            var result = await _batchDelete.RunAsync<MetadataRuleRow>(
+                async token =>
                 {
-                    await RemoveAsync(item.Id, cancellationToken);
-                    succeeded++;
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-                catch (Exception) { failed++; }
-            }
-            await RefreshAsync(_original?.Id, cancellationToken);
-            _feedback.ShowSuccess("删除完成", $"成功 {succeeded}，跳过 0，失败 {failed}。");
+                    if (!await ConfirmLeaveAsync(token)) return [];
+                    var items = Rules.Where(item => _selection.IsSelected(item.Id)).ToArray();
+                    if (items.Length == 0) return [];
+                    return await _feedback.ConfirmDeletionAsync("删除规则", $"将删除所选 {items.Length} 条规则，此操作不可撤销。", token)
+                        == AppConfirmationDecision.Confirm ? items : [];
+                },
+                async (item, token) =>
+                {
+                    await RemoveAsync(item.Id, token);
+                    return true;
+                },
+                token => RefreshAsync(Original?.Id, token),
+                value => IsBusy = value, linked.Token);
+            if (result is null) return;
+            var message = $"成功 {result.Succeeded}，跳过 {result.Skipped}，失败 {result.Failed}。";
+            if (result.Skipped > 0 || result.Failed > 0) _feedback.ShowWarning("删除完成", message);
+            else _feedback.ShowSuccess("删除完成", message);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { _feedback.ShowProjectedNotification("批量删除失败", _feedback.Project(exception)); }
-        finally { IsBusy = false; _deletingBatch = false; }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+        catch (Exception exception) when (!linked.IsCancellationRequested)
+        {
+            _feedback.ShowProjectedNotification("批量删除失败", _feedback.Project(exception));
+        }
+        catch (Exception) when (linked.IsCancellationRequested) { }
     }
 }

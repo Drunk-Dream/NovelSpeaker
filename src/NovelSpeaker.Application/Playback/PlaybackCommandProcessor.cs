@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Threading.Channels;
+using NovelSpeaker.Application.Books;
 
 namespace NovelSpeaker.Application.Playback;
 
@@ -27,7 +28,6 @@ internal sealed class PlaybackCommandProcessor : IAsyncDisposable
     private bool _accepting = true;
     private bool _disposed;
     private Task? _disposeTask;
-    private long _eventEpoch;
 
     public PlaybackCommandProcessor(
         Func<PlaybackEventCommand, CancellationToken, Task> eventHandler,
@@ -40,8 +40,6 @@ internal sealed class PlaybackCommandProcessor : IAsyncDisposable
 
     public CancellationToken LifecycleToken => _lifecycleCancellation.Token;
 
-    public long CurrentEventEpoch => Volatile.Read(ref _eventEpoch);
-
     public Task RunSerializedAsync(
         Func<CancellationToken, Task> command,
         CancellationToken cancellationToken)
@@ -50,17 +48,18 @@ internal sealed class PlaybackCommandProcessor : IAsyncDisposable
         return RunSerializedCoreAsync(command, cancellationToken);
     }
 
-    public long AdvanceEventEpoch() => Interlocked.Increment(ref _eventEpoch);
-
     public void Enqueue(PlaybackEventCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        if (!_accepting || command.SessionId is null)
+        if (!_accepting ||
+            ((command.Kind is PlaybackEventCommandKind.Completed or PlaybackEventCommandKind.Failed or PlaybackEventCommandKind.SnapshotChanged) &&
+             command.Snapshot?.PlaybackSessionId is null))
         {
             return;
         }
 
-        if (!_pendingEventCommands.TryAdd(command.Key, 0))
+        if (command.Kind is not (PlaybackEventCommandKind.BookChanged or PlaybackEventCommandKind.RegexChanged or PlaybackEventCommandKind.SettingsChanged or PlaybackEventCommandKind.ProviderChanged) &&
+            !_pendingEventCommands.TryAdd(command.Key, 0))
         {
             return;
         }
@@ -196,23 +195,29 @@ internal enum PlaybackEventCommandKind
 {
     Completed,
     Failed,
-    SnapshotChanged
+    SnapshotChanged,
+    BookChanged,
+    RegexChanged,
+    SettingsChanged,
+    ProviderChanged,
+    StopTimerFailed,
+    EventProcessingFailed
 }
 
 internal sealed record PlaybackEventCommand(
     PlaybackEventCommandKind Kind,
-    Guid? SessionId,
     LocalAudioPlaybackSnapshot? Snapshot,
     PlaybackErrorEventArgs? Error,
-    long EventEpoch)
+    BookCommittedChange? BookChange = null,
+    ActiveSourceContext? SourceContext = null)
 {
     public PlaybackEventKey Key => new(
-        EventEpoch,
         Kind,
-        SessionId ?? Guid.Empty,
+        Snapshot?.PlaybackSessionId ?? Guid.Empty,
         Snapshot?.BookId,
         Snapshot?.ChapterIndex ?? -1,
         Snapshot?.SegmentIndex ?? -1,
+        Snapshot?.AudioGeneration ?? 0,
         Snapshot?.State ?? PlaybackState.Idle,
         Snapshot?.PositionMilliseconds ?? 0,
         Snapshot?.DurationMilliseconds ?? 0,
@@ -220,12 +225,12 @@ internal sealed record PlaybackEventCommand(
 }
 
 internal readonly record struct PlaybackEventKey(
-    long EventEpoch,
     PlaybackEventCommandKind Kind,
     Guid SessionId,
     string? BookId,
     int ChapterIndex,
     int SegmentIndex,
+    long AudioGeneration,
     PlaybackState State,
     long PositionMilliseconds,
     long DurationMilliseconds,

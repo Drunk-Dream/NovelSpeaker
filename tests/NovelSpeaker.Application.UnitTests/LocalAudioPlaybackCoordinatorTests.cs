@@ -11,8 +11,9 @@ public sealed class LocalAudioPlaybackCoordinatorTests
         var player = new FakeAudioPlayer();
         player.SetDuration(TimeSpan.FromMilliseconds(2400));
         await using var coordinator = new LocalAudioPlaybackCoordinator(player);
+        var request = CreateRequest("内置演示 WAV", 300);
 
-        await coordinator.StartAsync(CreateRequest("内置演示 WAV", 300), CancellationToken.None);
+        await coordinator.StartAsync(request, CancellationToken.None);
 
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal("内置演示 WAV", coordinator.CurrentSnapshot.DisplayTitle);
@@ -21,6 +22,8 @@ public sealed class LocalAudioPlaybackCoordinatorTests
         Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(300, coordinator.CurrentSnapshot.PositionMilliseconds);
         Assert.Equal(2400, coordinator.CurrentSnapshot.DurationMilliseconds);
+        Assert.Equal(request.PlaybackSessionId, coordinator.CurrentSnapshot.PlaybackSessionId);
+        Assert.True(coordinator.CurrentSnapshot.AudioGeneration > 0);
     }
 
     [Fact]
@@ -121,13 +124,38 @@ public sealed class LocalAudioPlaybackCoordinatorTests
             new InvalidDataException("damaged audio"),
             new PlaybackErrorEventArgs(PlaybackErrorKind.UnsupportedFormat, "音频格式无效。"));
         await using var coordinator = new LocalAudioPlaybackCoordinator(player);
-        PlaybackErrorEventArgs? reported = null;
-        coordinator.PlaybackFailed += (_, error) => reported = error;
+        LocalAudioPlaybackFailure? reported = null;
+        coordinator.PlaybackFailed += (_, failure) => reported = failure;
 
         await coordinator.StartAsync(CreateRequest("损坏音频"), CancellationToken.None);
 
         Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
-        Assert.Equal(PlaybackErrorKind.UnsupportedFormat, reported?.Kind);
+        Assert.Equal(PlaybackErrorKind.UnsupportedFormat, reported?.Error.Kind);
+        Assert.Equal(coordinator.CurrentSnapshot.PlaybackSessionId, reported?.Snapshot.PlaybackSessionId);
+    }
+
+    [Fact]
+    public async Task Completed_callback_carries_the_snapshot_and_identity_that_completed()
+    {
+        var player = new FakeAudioPlayer();
+        await using var coordinator = new LocalAudioPlaybackCoordinator(player);
+        var request = CreateRequest("完成回调身份") with
+        {
+            TargetRevision = 8,
+            PreparationAttemptId = Guid.NewGuid()
+        };
+        var completed = new TaskCompletionSource<LocalAudioPlaybackSnapshot>(TaskCreationOptions.RunContinuationsAsynchronously);
+        coordinator.PlaybackCompleted += (_, snapshot) => completed.TrySetResult(snapshot);
+
+        await coordinator.StartAsync(request, CancellationToken.None);
+        player.RaiseCompleted();
+        var result = await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(request.PlaybackSessionId, result.PlaybackSessionId);
+        Assert.Equal(coordinator.CurrentSnapshot.AudioGeneration, result.AudioGeneration);
+        Assert.Equal(request.TargetRevision, result.TargetRevision);
+        Assert.Equal(request.PreparationAttemptId, result.PreparationAttemptId);
+        Assert.Equal(PlaybackState.Stopped, result.State);
     }
 
     private static LocalAudioPlaybackRequest CreateRequest(
@@ -142,7 +170,8 @@ public sealed class LocalAudioPlaybackCoordinatorTests
             0,
             segmentIndex,
             resumePositionMilliseconds,
-            false);
+            false,
+            Guid.NewGuid());
     }
 
     private static async Task WaitForAsync(

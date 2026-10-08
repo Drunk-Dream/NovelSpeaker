@@ -107,7 +107,6 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IBookCoverGenerator>(provider.GetRequiredService<IBookCoverGenerator>());
                 Assert.IsType<LibraryScrollState>(provider.GetRequiredService<LibraryScrollState>());
                 Assert.IsAssignableFrom<ILibraryImportCoordinator>(provider.GetRequiredService<ILibraryImportCoordinator>());
-                Assert.IsAssignableFrom<IBookCatalogInvalidationState>(provider.GetRequiredService<IBookCatalogInvalidationState>());
                 var themePreferenceService = provider.GetRequiredService<IThemePreferenceService>();
                 Assert.IsAssignableFrom<ThemePreferenceService>(themePreferenceService);
                 Assert.Same(themePreferenceService, provider.GetRequiredService<IThemeToggleService>());
@@ -147,16 +146,19 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IChapterRuleWorkspaceService>(provider.GetRequiredService<IChapterRuleWorkspaceService>());
                 Assert.IsAssignableFrom<ICurrentSpeechProvider>(provider.GetRequiredService<ICurrentSpeechProvider>());
                 Assert.IsAssignableFrom<IDirectBookImportService>(provider.GetRequiredService<IDirectBookImportService>());
+                Assert.Same(provider.GetRequiredService<IBookDeletionService>(), provider.GetRequiredService<IBookSourceRemovalService>());
+                Assert.IsType<BookSourceChanges>(provider.GetRequiredService<IBookSourceChangeSource>());
+                Assert.Equal(2, provider.GetServices<IBookRemovalWorkStopper>().Count());
+                Assert.Single(provider.GetServices<IBookRemovalStorageLeaseProvider>());
                 Assert.IsAssignableFrom<IAppSettingsStore>(provider.GetRequiredService<IAppSettingsStore>());
                 Assert.IsAssignableFrom<IAppSettingsService>(provider.GetRequiredService<IAppSettingsService>());
                 Assert.IsAssignableFrom<IAudioCacheLimitProvider>(provider.GetRequiredService<IAudioCacheLimitProvider>());
                 Assert.IsAssignableFrom<ITextSegmentationOptionsProvider>(
                     provider.GetRequiredService<ITextSegmentationOptionsProvider>());
                 Assert.IsAssignableFrom<ITextSegmenter>(provider.GetRequiredService<ITextSegmenter>());
-                Assert.IsAssignableFrom<IBookContentReader>(provider.GetRequiredService<IBookContentReader>());
+                Assert.IsAssignableFrom<ISourceContentReader>(provider.GetRequiredService<ISourceContentReader>());
                 Assert.IsAssignableFrom<IAudioPlayer>(provider.GetRequiredService<IAudioPlayer>());
                 Assert.IsType<LocalAudioPlaybackCoordinator>(provider.GetRequiredService<ILocalAudioPlaybackCoordinator>());
-                Assert.IsType<PlaybackAudioController>(provider.GetRequiredService<PlaybackAudioController>());
                 Assert.IsType<PlaybackCoordinator>(provider.GetRequiredService<PlaybackCoordinator>());
                 Assert.IsAssignableFrom<IMediaControlCoordinator>(
                     provider.GetRequiredService<IMediaControlCoordinator>());
@@ -172,7 +174,7 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsType<PlaybackSegmentRunner>(provider.GetRequiredService<PlaybackSegmentRunner>());
                 Assert.IsType<PlaybackRecoveryPolicy>(provider.GetRequiredService<PlaybackRecoveryPolicy>());
                 Assert.IsType<AudioGenerationFailureReporter>(provider.GetRequiredService<IAudioGenerationFailureReporter>());
-                Assert.IsAssignableFrom<ITtsRateLimiter>(provider.GetRequiredService<ITtsRateLimiter>());
+                Assert.IsAssignableFrom<IProviderRequestLimiter>(provider.GetRequiredService<IProviderRequestLimiter>());
                 Assert.IsAssignableFrom<IHttpTtsClient>(provider.GetRequiredService<IHttpTtsClient>());
                 Assert.IsAssignableFrom<ITtsHttpTransport>(provider.GetRequiredService<ITtsHttpTransport>());
                 Assert.IsAssignableFrom<ITtsRetryPolicy>(provider.GetRequiredService<ITtsRetryPolicy>());
@@ -185,8 +187,10 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<ICacheInvalidationCoordinator>());
                 Assert.IsAssignableFrom<ISpeechPlanRepairCoordinator>(
                     provider.GetRequiredService<ISpeechPlanRepairCoordinator>());
-                Assert.IsAssignableFrom<ICachePlanRepairRequestor>(
-                    provider.GetRequiredService<ICachePlanRepairRequestor>());
+                Assert.IsAssignableFrom<ICacheReadModel>(provider.GetRequiredService<ICacheReadModel>());
+                Assert.Same(provider.GetRequiredService<ICacheInvalidationCoordinator>(), provider.GetRequiredService<ICacheInvalidationSink>());
+                Assert.Same(provider.GetRequiredService<ICacheInvalidationCoordinator>(), provider.GetRequiredService<ICacheChangeLifetime>());
+                Assert.Same(provider.GetRequiredService<ISpeechPlanRepairCoordinator>(), provider.GetRequiredService<ISpeechPlanRepairLifetime>());
                 Assert.IsAssignableFrom<IExportChaptersService>(provider.GetRequiredService<IExportChaptersService>());
                 Assert.IsAssignableFrom<IAudioCacheProtectionRegistry>(provider.GetRequiredService<IAudioCacheProtectionRegistry>());
                 Assert.IsType<PlaybackPrefetchCoordinator>(provider.GetRequiredService<IPlaybackPrefetchController>());
@@ -200,10 +204,7 @@ public sealed class ServiceCollectionExtensionsTests
                     provider.GetRequiredService<IPlaybackSnapshotSource>());
                 Assert.Same(
                     provider.GetRequiredService<IPlaybackSession>(),
-                    provider.GetRequiredService<IPlaybackBookCommands>());
-                Assert.Same(
-                    provider.GetRequiredService<IPlaybackSession>(),
-                    provider.GetRequiredService<IPlaybackRegexReplacementRefresher>());
+                    provider.GetRequiredService<IPlaybackSnapshotSource>());
                 var processSettings = provider.GetRequiredService<IAppSettingsService>();
                 Assert.Same(processSettings, provider.GetRequiredService<IAppSettingsService>());
                 Assert.Same(processSettings, provider.GetRequiredService<AppSettingsService>());
@@ -367,6 +368,7 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(IChapterRuleManagementService),
             typeof(IDirectBookImportService),
             typeof(IBookDeletionService),
+            typeof(IBookSourceRemovalService),
             typeof(IChapterRuleWorkspaceService),
             typeof(IRegexReplacementRuleWorkspaceService),
             typeof(IRegexReplacementPipeline),
@@ -378,15 +380,17 @@ public sealed class ServiceCollectionExtensionsTests
             typeof(ICacheCoverageQuery),
             typeof(ICacheInvalidationCoordinator),
             typeof(ISpeechPlanRepairCoordinator),
-            typeof(ICachePlanRepairRequestor),
+            typeof(ICacheReadModel),
+            typeof(ICacheInvalidationSink),
+            typeof(ICacheChangeLifetime),
+            typeof(ISpeechPlanRepairLifetime),
             typeof(IAudioGenerationProvider),
             typeof(IActiveCacheCoordinator),
             typeof(IChapterExportCoordinator),
             typeof(ILocalAudioPlaybackCoordinator),
             typeof(IPlaybackPrefetchController),
             typeof(IPlaybackSession),
-            typeof(IPlaybackBookCommands),
-            typeof(IPlaybackRegexReplacementRefresher),
+            typeof(IPlaybackSnapshotSource),
             typeof(ICurrentSpeechProvider),
             typeof(IAppSettingsService)
         };

@@ -52,7 +52,7 @@ public partial class SpeechServicesPage : System.Windows.Controls.Page, INavigat
     {
         using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiRulesLoad);
         var activation = _activation.Activate();
-        activation.Register(ViewModel.HandleNavigatedFrom);
+        ViewModel.HandleNavigatedTo(activation);
         activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
 
         try

@@ -36,7 +36,7 @@ public static class PersistenceRegistration
         services.TryAddSingleton<AudioCacheFormatResetService>();
         services.TryAddSingleton<IBookLibraryQuery, BookLibraryQuery>();
         services.TryAddSingleton<IBookDetailsQuery, BookDetailsQuery>();
-        services.TryAddSingleton<IBookMetadataUpdateService, BookMetadataUpdateService>();
+        services.TryAddSingleton<IBookMetadataStore, SqliteBookMetadataStore>();
         services.TryAddSingleton<IBookDeletionOperationStore, BookDeletionOperationStore>();
         services.TryAddSingleton<IReadingProgressStore, SqliteReadingProgressStore>();
         services.TryAddSingleton<IChapterSpeechPlanStore, SqliteChapterSpeechPlanStore>();

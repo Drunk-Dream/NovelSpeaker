@@ -3,7 +3,7 @@ namespace NovelSpeaker.Application.Cache;
 /// <summary>
 /// Provides immutable physical cache read models for application scenarios.
 /// </summary>
-public interface ICacheCatalog
+internal interface ICacheCatalog
 {
     Task<CacheOverviewModel> GetOverviewAsync(CancellationToken cancellationToken);
 

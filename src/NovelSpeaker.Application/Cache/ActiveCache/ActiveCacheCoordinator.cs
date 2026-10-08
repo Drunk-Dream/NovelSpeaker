@@ -18,21 +18,24 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
     private readonly IBookPlaybackContentService _contentService;
     private readonly ICurrentSpeechProvider _providers;
     private readonly IAudioGenerationProvider _audioProvider;
+    private readonly BookMutationGate _mutations;
     private readonly object _syncRoot = new();
     private ActiveCacheSnapshot? _currentSnapshot;
     private CancellationTokenSource? _activeCancellation;
     private Task? _activeTask;
     private bool _isStarting;
     private bool _disposed;
+    private string? _activeSourceId;
 
     public ActiveCacheCoordinator(
         IBookPlaybackContentService contentService,
         ICurrentSpeechProvider providers,
-        IAudioGenerationProvider audioProvider)
+        IAudioGenerationProvider audioProvider, BookMutationGate mutations)
     {
         _contentService = contentService;
         _providers = providers;
         _audioProvider = audioProvider;
+        _mutations = mutations;
     }
 
     public ActiveCacheSnapshot? CurrentSnapshot => Volatile.Read(ref _currentSnapshot);
@@ -63,90 +66,96 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
 
         try
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (request.ChapterIndices.Count == 0)
-            {
-                return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "请至少选择一个章节。");
-            }
-
-            var provider = await _providers
-                .GetSelectedProviderAsync(cancellationToken)
-                .ConfigureAwait(false);
-            if (provider is null)
-            {
-                return Rejected(
-                    ActiveCacheStartStatus.SelectedProviderUnavailable,
-                    "尚未选择语音服务。");
-            }
-
-            var book = await _contentService
-                .GetBookAsync(request.BookId, cancellationToken)
-                .ConfigureAwait(false);
-            if (book is null)
-            {
-                return Rejected(ActiveCacheStartStatus.BookNotFound, "书籍不存在或已被删除。");
-            }
-
-            var requestedIndices = request.ChapterIndices.ToHashSet();
-            var selectedChapters = book.Chapters
-                .Where(chapter => requestedIndices.Contains(chapter.ChapterIndex))
-                .ToArray();
-            if (selectedChapters.Length == 0)
-            {
-                return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "所选章节不存在。");
-            }
-
-            var frozenChapters = new List<FrozenChapter>(selectedChapters.Length);
-            var loadedChapters = await _contentService.GetChaptersAsync(book.BookId,
-                selectedChapters.Select(chapter => chapter.ChapterIndex).ToArray(), cancellationToken).ConfigureAwait(false);
-            var loadedByIndex = loadedChapters.ToDictionary(chapter => chapter.ChapterIndex);
-            foreach (var chapter in selectedChapters)
+            return await _mutations.RunAsync(async () =>
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!loadedByIndex.TryGetValue(chapter.ChapterIndex, out var loaded))
+                if (request.ChapterIndices.Count == 0)
                 {
-                    return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "所选章节无法读取。");
+                    return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "请至少选择一个章节。");
                 }
 
-                frozenChapters.Add(new FrozenChapter(
-                    loaded.ChapterIndex,
-                    loaded.ChapterId,
-                    loaded.Title,
-                    loaded.Segments
-                        .Where(segment => NarratableText.HasContent(segment.SpeechText))
-                        .Select(segment => new FrozenSegment(
-                            segment.SegmentIndex,
-                            segment.StableIdentity,
-                            segment.SpeechText))
-                        .ToArray()));
-            }
+                var provider = await _providers
+                    .GetSelectedProviderAsync(cancellationToken)
+                    .ConfigureAwait(false);
+                if (provider is null)
+                {
+                    return Rejected(
+                        ActiveCacheStartStatus.SelectedProviderUnavailable,
+                        "尚未选择语音服务。");
+                }
 
-            var batchId = Guid.NewGuid();
-            var frozenProvider = provider with { Provider = CurrentSpeechProvider.Snapshot(provider.Provider) };
-            var batch = new FrozenBatch(
-                batchId,
-                book.BookId,
-                book.BookTitle,
-                frozenProvider,
-                AppSettings.NormalizeSpeakSpeed(request.SpeakSpeed),
-                frozenChapters);
-            var completion = new TaskCompletionSource(
-                TaskCreationOptions.RunContinuationsAsynchronously);
-            CancellationTokenSource batchCancellation;
+                var book = await _contentService
+                    .GetBookAsync(request.BookId, cancellationToken)
+                    .ConfigureAwait(false);
+                if (book is null)
+                {
+                    return Rejected(ActiveCacheStartStatus.BookNotFound, "书籍不存在或已被删除。");
+                }
 
-            lock (_syncRoot)
-            {
-                ThrowIfDisposed();
-                _activeCancellation?.Dispose();
-                batchCancellation = new CancellationTokenSource();
-                _activeCancellation = batchCancellation;
-                _activeTask = completion.Task;
-                _isStarting = false;
-            }
+                var requestedIndices = request.ChapterIndices.ToHashSet();
+                var selectedChapters = book.Chapters
+                    .Where(chapter => requestedIndices.Contains(chapter.ChapterIndex))
+                    .ToArray();
+                if (selectedChapters.Length == 0)
+                {
+                    return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "所选章节不存在。");
+                }
 
-            Publish(CreateInitialSnapshot(batch));
-            _ = RunOwnedBatchAsync(batch, batchCancellation, completion);
-            return new ActiveCacheStartResult(ActiveCacheStartStatus.Accepted, batchId, null);
+                var frozenChapters = new List<FrozenChapter>(selectedChapters.Length);
+                var loadedChapters = await _contentService.GetChaptersAsync(book.BookId,
+                    selectedChapters.Select(chapter => chapter.ChapterIndex).ToArray(), cancellationToken).ConfigureAwait(false);
+                if (!await _contentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false))
+                    return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "活动来源目录已更新，请重新选择章节。");
+                var loadedByIndex = loadedChapters.ToDictionary(chapter => chapter.ChapterIndex);
+                foreach (var chapter in selectedChapters)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!loadedByIndex.TryGetValue(chapter.ChapterIndex, out var loaded) ||
+                        (chapter.ChapterId is not null && chapter.ChapterId != loaded.ChapterId))
+                    {
+                        return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "所选章节无法读取。");
+                    }
+
+                    frozenChapters.Add(new FrozenChapter(
+                        loaded.ChapterIndex,
+                        loaded.ChapterId,
+                        loaded.Title,
+                        loaded.Segments
+                            .Where(segment => NarratableText.HasContent(segment.SpeechText))
+                            .Select(segment => new FrozenSegment(
+                                segment.SegmentIndex,
+                                segment.StableIdentity,
+                                segment.SpeechText))
+                            .ToArray()));
+                }
+
+                var batchId = Guid.NewGuid();
+                var frozenProvider = provider with { Provider = CurrentSpeechProvider.Snapshot(provider.Provider) };
+                var batch = new FrozenBatch(
+                    batchId,
+                    book.BookId,
+                    book.BookTitle,
+                    frozenProvider,
+                    AppSettings.NormalizeSpeakSpeed(request.SpeakSpeed),
+                    frozenChapters);
+                var completion = new TaskCompletionSource(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
+                CancellationTokenSource batchCancellation;
+
+                lock (_syncRoot)
+                {
+                    ThrowIfDisposed();
+                    _activeCancellation?.Dispose();
+                    batchCancellation = new CancellationTokenSource();
+                    _activeCancellation = batchCancellation;
+                    _activeTask = completion.Task;
+                    _activeSourceId = book.SourceContext?.SourceId;
+                }
+
+                Publish(CreateInitialSnapshot(batch));
+                _ = RunOwnedBatchAsync(batch, batchCancellation, completion);
+                return new ActiveCacheStartResult(ActiveCacheStartStatus.Accepted, batchId, null);
+            }, cancellationToken).ConfigureAwait(false);
         }
         finally
         {
@@ -161,27 +170,38 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
     {
         ThrowIfDisposed();
         Task? activeTask;
-        CancellationTokenSource? activeCancellation;
         lock (_syncRoot)
         {
             activeTask = _activeTask;
-            activeCancellation = _activeCancellation;
+            var activeCancellation = _activeCancellation;
+            if (activeTask is null || activeTask.IsCompleted || activeCancellation is null)
+            {
+                return;
+            }
+
+            // Keep the active-slot check and cancellation together so a replacement
+            // batch cannot dispose this token source before it is cancelled.
+            activeCancellation.Cancel();
+
+            var snapshot = CurrentSnapshot;
+            if (snapshot is not null &&
+                snapshot.Status is ActiveCacheBatchStatus.Waiting or ActiveCacheBatchStatus.Running)
+            {
+                Publish(snapshot with { Status = ActiveCacheBatchStatus.Cancelling });
+            }
         }
 
-        if (activeTask is null || activeTask.IsCompleted || activeCancellation is null)
-        {
-            return;
-        }
-
-        var snapshot = CurrentSnapshot;
-        if (snapshot is not null &&
-            snapshot.Status is ActiveCacheBatchStatus.Waiting or ActiveCacheBatchStatus.Running)
-        {
-            Publish(snapshot with { Status = ActiveCacheBatchStatus.Cancelling });
-        }
-
-        activeCancellation.Cancel();
         await activeTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken)
+    {
+        lock (_syncRoot)
+        {
+            if (CurrentSnapshot?.BookId != bookId || (sourceId is not null && _activeSourceId != sourceId))
+                return Task.CompletedTask;
+        }
+        return CancelAsync(cancellationToken);
     }
 
     public async Task WaitForCurrentBatchAsync(CancellationToken cancellationToken)

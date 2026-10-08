@@ -5,7 +5,7 @@ namespace NovelSpeaker.Application.Cache;
 /// <summary>
 /// Reads current-configuration cache coverage for explicitly requested chapters.
 /// </summary>
-public interface ICacheCoverageQuery
+internal interface ICacheCoverageQuery
 {
     Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
         string bookId,

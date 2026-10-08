@@ -9,24 +9,9 @@ on:
         default: ''
 
 jobs:
-  quality:
-    name: Quality / ${{ matrix.layer }} / ${{ matrix.project }}
+  gates:
+    name: Quality / shared gates
     runs-on: windows-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - layer: pure
-            project: tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj
-          - layer: pure
-            project: tests/NovelSpeaker.Application.UnitTests/NovelSpeaker.Application.UnitTests.csproj
-          - layer: presentation
-            project: tests/NovelSpeaker.App.PresentationTests/NovelSpeaker.App.PresentationTests.csproj
-          - layer: infrastructure
-            project: tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj
-          - layer: wpf
-            project: tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -35,6 +20,8 @@ jobs:
         uses: actions/setup-dotnet@v5
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
       - name: Restore locked win-x64 assets
         run: dotnet restore --locked-mode -r win-x64
@@ -60,8 +47,55 @@ jobs:
             dotnet build -c Release --no-restore @versionArguments
           }
 
-      - name: Build Style Gallery
-        run: dotnet build tools/NovelSpeaker.StyleGallery/NovelSpeaker.StyleGallery.csproj -c Release --no-restore
+      - name: Upload test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-test-build
+          path: |
+            src/**/bin/Release/**
+            src/**/obj/**
+            tests/**/bin/Release/**
+            tests/**/obj/**
+            tools/**/bin/Release/**
+            tools/**/obj/**
+          if-no-files-found: error
+          retention-days: 1
+
+  tests:
+    name: Quality / ${{ matrix.layer }} / ${{ matrix.project }}
+    needs: gates
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - layer: pure
+            project: tests/NovelSpeaker.Domain.UnitTests/NovelSpeaker.Domain.UnitTests.csproj
+          - layer: pure
+            project: tests/NovelSpeaker.Application.UnitTests/NovelSpeaker.Application.UnitTests.csproj
+          - layer: presentation
+            project: tests/NovelSpeaker.App.PresentationTests/NovelSpeaker.App.PresentationTests.csproj
+          - layer: infrastructure
+            project: tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj
+          - layer: wpf
+            project: tests/NovelSpeaker.App.WpfTests/NovelSpeaker.App.WpfTests.csproj
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET and restore package cache
+        uses: actions/setup-dotnet@v5
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Download test build
+        uses: actions/download-artifact@v4
+        with:
+          name: quality-test-build
+          path: .
 
       - name: Test ${{ matrix.layer }}
         run: dotnet test ${{ matrix.project }} -c Release --no-build

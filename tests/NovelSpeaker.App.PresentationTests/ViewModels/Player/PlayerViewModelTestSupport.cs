@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Domain.Speech.Providers;
 using System.Collections.Specialized;
@@ -33,13 +34,13 @@ public sealed partial class PlayerViewModelTests
         FakePlayerAutoScrollCoordinator? autoScrollCoordinator = null,
         FakeAppSettingsService? settingsService = null,
         FakeActiveCacheCoordinator? activeCacheCoordinator = null,
-        PlayerCacheTestDouble? cacheDependencies = null,
+        CacheReadModelTestDouble? cacheDependencies = null,
         FakePlaybackStopTimer? stopTimer = null,
         FakeMiniPlayerLauncher? miniPlayerLauncher = null,
         TimeProvider? timeProvider = null,
         IUiScheduler? uiScheduler = null)
     {
-        cacheDependencies ??= new PlayerCacheTestDouble();
+        cacheDependencies ??= new CacheReadModelTestDouble();
         var viewModel = new PlayerViewModel(
             coordinator,
             stopTimer ?? new FakePlaybackStopTimer(),
@@ -52,73 +53,12 @@ public sealed partial class PlayerViewModelTests
             navigationService ?? new FakeNavigationService(),
             autoScrollCoordinator ?? new FakePlayerAutoScrollCoordinator(),
             cacheDependencies,
-            cacheDependencies,
             miniPlayerLauncher ?? new FakeMiniPlayerLauncher(),
             timeProvider ?? TimeProvider.System,
             uiScheduler ?? new ImmediateUiScheduler());
 
-        viewModel.OnPageNavigatedTo(CancellationToken.None);
+        viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
         return viewModel;
-    }
-
-    private sealed class PlayerCacheTestDouble : ICacheCoverageQuery, ICacheInvalidationCoordinator
-    {
-        private readonly CacheCoverageTestDouble _coverage = new();
-        private readonly CacheInvalidationTestDouble _invalidation = new();
-
-        public IReadOnlyList<ChapterCacheStatus> Statuses
-        {
-            get => _coverage.Statuses;
-            set => _coverage.Statuses = value;
-        }
-
-        public Func<
-            string,
-            IReadOnlyCollection<int>,
-            CancellationToken,
-            Task<IReadOnlyList<ChapterCacheStatus>>>?
-            CoverageHandler
-        {
-            get => _coverage.CoverageHandler;
-            set => _coverage.CoverageHandler = value;
-        }
-
-        public int StatusCallCount => _coverage.StatusCallCount;
-
-        public IReadOnlyList<int> LastRequestedChapterIndices => _coverage.LastRequestedChapterIndices;
-
-        public int SubscriberCount => _invalidation.SubscriberCount;
-
-        public event EventHandler<CacheInvalidationBatch>? BatchPublished
-        {
-            add => _invalidation.BatchPublished += value;
-            remove => _invalidation.BatchPublished -= value;
-        }
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            CancellationToken cancellationToken) =>
-            _coverage.GetAsync(bookId, chapterIndices, cancellationToken);
-
-        public Task<IReadOnlyList<ChapterCacheStatus>> GetAsync(
-            string bookId,
-            IReadOnlyCollection<int> chapterIndices,
-            IReadOnlyCollection<PlaybackChapterMetadata> chapters,
-            CancellationToken cancellationToken) =>
-            _coverage.GetAsync(bookId, chapterIndices, chapters, cancellationToken);
-
-        public void Publish(CacheInvalidation invalidation) => _invalidation.Publish(invalidation);
-
-        public Task FlushPendingAsync(CancellationToken cancellationToken) =>
-            _invalidation.FlushPendingAsync(cancellationToken);
-
-        public Task StopAsync(CancellationToken cancellationToken) =>
-            _invalidation.StopAsync(cancellationToken);
-
-        public Task ClearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-        public ValueTask DisposeAsync() => _invalidation.DisposeAsync();
     }
 
     private sealed class FakeActiveCacheCoordinator : IActiveCacheCoordinator
@@ -284,6 +224,8 @@ public sealed partial class PlayerViewModelTests
 
         public int RetryCurrentSegmentCallCount { get; private set; }
 
+        public int PauseCallCount { get; private set; }
+
         public Func<PlayerAutoScrollState>? ReadAutoScrollStateDuringSegmentJump { get; set; }
 
         public PlayerAutoScrollState? AutoScrollStateObservedDuringLastJumpToSegment { get; private set; }
@@ -339,6 +281,7 @@ public sealed partial class PlayerViewModelTests
 
         public Task PauseAsync(CancellationToken cancellationToken)
         {
+            PauseCallCount++;
             Publish(CurrentSnapshot with { State = PlaybackState.Paused });
             return Task.CompletedTask;
         }
@@ -466,10 +409,7 @@ public sealed partial class PlayerViewModelTests
 
         public Task WaitForSpeedChangeAsync() => _speedChanged.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public void SetVolume(double volume)
         {
@@ -703,12 +643,14 @@ public sealed partial class PlayerViewModelTests
 
     private sealed class FakeAppFeedbackService : IAppFeedbackService
     {
+        public List<string> ProjectedFailures { get; } = [];
         public string? LastWarningTitle { get; private set; }
 
         public ProjectedUiError Project(Exception exception) => new(exception.Message, UiMessageSeverity.Error, false);
 
         public void ShowProjectedNotification(string title, ProjectedUiError projected)
         {
+            ProjectedFailures.Add(title);
         }
 
         public void ShowSuccess(string title, string message)

@@ -75,6 +75,7 @@ public sealed partial class DiagnosticsAboutViewModel : SettingsSubpageViewModel
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
+        cancellationToken = ActivationToken;
         _isLoading = true;
         try
         {

@@ -34,8 +34,7 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
         using var operation = _eventOperations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiPlayerLoad);
         var activation = _activation.Activate();
         PlayerView.ActivationToken = activation.CancellationToken;
-        ViewModel.OnPageNavigatedTo(activation.CancellationToken);
-        activation.Register(ViewModel.OnPageNavigatedFrom);
+        ViewModel.OnPageNavigatedTo(activation);
         if (_shortcutTargets is not null)
         {
             activation.Register(_shortcutTargets.Register(this));

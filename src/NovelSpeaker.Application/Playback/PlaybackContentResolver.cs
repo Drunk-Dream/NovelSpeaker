@@ -13,7 +13,7 @@ namespace NovelSpeaker.Application.Playback;
 internal sealed class PlaybackContentResolver : IBookPlaybackContentService
 {
     private readonly IBookPlaybackMetadataQuery _metadataQuery;
-    private readonly IBookContentReader _bookContentReader;
+    private readonly ISourceContentReader _sourceContentReader;
     private readonly ITextSegmenter _textSegmenter;
     private readonly ITextSegmentationOptionsProvider _optionsProvider;
     private readonly IRegexReplacementPipeline _regexReplacementPipeline;
@@ -24,7 +24,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
 
     public PlaybackContentResolver(
         IBookPlaybackMetadataQuery metadataQuery,
-        IBookContentReader bookContentReader,
+        ISourceContentReader sourceContentReader,
         ITextSegmenter textSegmenter,
         ITextSegmentationOptionsProvider optionsProvider,
         IRegexReplacementPipeline regexReplacementPipeline,
@@ -34,7 +34,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
         IRegexReplacementRuleRepository? regexRules = null)
     {
         _metadataQuery = metadataQuery;
-        _bookContentReader = bookContentReader;
+        _sourceContentReader = sourceContentReader;
         _textSegmenter = textSegmenter;
         _optionsProvider = optionsProvider;
         _regexReplacementPipeline = regexReplacementPipeline;
@@ -58,9 +58,10 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             metadata.BookId,
             metadata.Title,
             metadata.Chapters
-                .Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title))
+                .Select(chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title, chapter.ChapterId))
                 .ToArray(),
-            metadata.Author);
+            metadata.Author,
+            metadata.SourceContext);
     }
 
     public async Task<PlaybackBookContent?> GetBookAsync(
@@ -71,18 +72,15 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         ArgumentNullException.ThrowIfNull(catalog);
 
-        var header = await _metadataQuery
-            .GetBookHeaderAsync(bookId, cancellationToken)
-            .ConfigureAwait(false);
-        return header is null
-            ? null
-            : new PlaybackBookContent(
-                header.BookId,
-                header.Title,
-                catalog
-                    .Select(static chapter => PlaybackChapterContent.Unloaded(chapter.ChapterIndex, chapter.Title))
-                    .ToArray(),
-                header.Author);
+        // A page's catalog may predate a source update. Runtime navigation always uses
+        // one current source snapshot, including its technical IDs.
+        return await GetBookAsync(bookId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> IsCurrentAsync(PlaybackBookContent book, CancellationToken cancellationToken)
+    {
+        var header = await _metadataQuery.GetBookHeaderAsync(book.BookId, cancellationToken).ConfigureAwait(false);
+        return header is not null && header.SourceContext == book.SourceContext;
     }
 
     public async Task<PlaybackChapterContent?> GetChapterAsync(
@@ -102,7 +100,9 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
 
         try
         {
-            return await LoadChapterAsync(metadata, cancellationToken).ConfigureAwait(false);
+            var loaded = await LoadChapterAsync(metadata, cancellationToken).ConfigureAwait(false);
+            await EnsureCurrentAsync(bookId, metadata.SourceContext, cancellationToken).ConfigureAwait(false);
+            return loaded;
         }
         catch (OperationCanceledException)
         {
@@ -155,7 +155,16 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             }
         }
 
+        if (metadata.Count > 0)
+            await EnsureCurrentAsync(bookId, metadata[0].SourceContext, cancellationToken).ConfigureAwait(false);
         return chapters;
+    }
+
+    private async Task EnsureCurrentAsync(string bookId, ActiveSourceContext? context, CancellationToken cancellationToken)
+    {
+        var header = await _metadataQuery.GetBookHeaderAsync(bookId, cancellationToken).ConfigureAwait(false);
+        if (header is null || header.SourceContext != context)
+            throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
     }
 
     private void ReportContentFailure(Exception exception)
@@ -190,10 +199,9 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
     {
         var options = frozenOptions ?? _optionsProvider.GetCurrent();
         var readTitle = frozenReadTitle ?? _settingsService?.Current.ReadChapterTitle == true;
-        var chapterText = await _bookContentReader.ReadChapterTextAsync(
-            metadata.StoredFilePath,
-            metadata.StartOffset,
-            metadata.Length,
+        var chapterText = await _sourceContentReader.ReadChapterTextAsync(
+            metadata.SourceId,
+            metadata.ChapterId,
             cancellationToken).ConfigureAwait(false);
         IReadOnlyList<SpeechSegment> replacedSegments;
         if (_speechPlanService is not null && metadata.ChapterId is not null)

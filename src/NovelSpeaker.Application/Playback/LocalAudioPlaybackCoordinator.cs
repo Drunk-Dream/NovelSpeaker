@@ -22,7 +22,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
     private readonly object _disposeGate = new();
     private LocalAudioPlaybackRequest? _currentRequest;
     private LocalAudioPlaybackSnapshot _currentSnapshot = LocalAudioPlaybackSnapshot.Idle;
-    private long _sessionVersion;
+    // Player callbacks carry no operation token. This local generation rejects events
+    // already queued by an older player subscription, including same-session segments.
+    private long _playerGeneration;
     private double _volume = PlaybackVolume.Default;
     private bool _disposed;
     private EventHandler? _playbackCompletedHandler;
@@ -41,9 +43,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
 
     public event EventHandler<LocalAudioPlaybackSnapshot>? SnapshotChanged;
 
-    public event EventHandler? PlaybackCompleted;
+    public event EventHandler<LocalAudioPlaybackSnapshot>? PlaybackCompleted;
 
-    public event EventHandler<PlaybackErrorEventArgs>? PlaybackFailed;
+    public event EventHandler<LocalAudioPlaybackFailure>? PlaybackFailed;
 
     public void SetVolume(double volume)
     {
@@ -72,7 +74,7 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         try
         {
             ThrowIfDisposed();
-            _sessionVersion++;
+            _playerGeneration++;
             _currentRequest = request;
             DetachPlayerHandlers();
 
@@ -86,11 +88,13 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                 0,
                 "正在准备本地音频。",
                 request.IsUsingCache,
-                request.PlaybackSessionId));
+                request.PlaybackSessionId,
+                request.TargetRevision,
+                request.PreparationAttemptId));
 
             _audioPlayer.Stop();
             await _audioPlayer.LoadAsync(request.FilePath, linkedCancellation.Token);
-            AttachPlayerHandlers(_sessionVersion);
+            AttachPlayerHandlers(_playerGeneration);
 
             if (request.ResumePositionMilliseconds > 0)
             {
@@ -108,13 +112,15 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                 ToMilliseconds(_audioPlayer.Duration),
                 null,
                 request.IsUsingCache,
-                request.PlaybackSessionId));
+                request.PlaybackSessionId,
+                request.TargetRevision,
+                request.PreparationAttemptId));
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             var error = PlaybackErrorMapper.Map(exception);
-            PublishFailure(error);
-            PlaybackFailed?.Invoke(this, error);
+            var snapshot = PublishFailure(error);
+            PlaybackFailed?.Invoke(this, new(snapshot, error));
         }
         finally
         {
@@ -147,7 +153,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            PublishFailure(PlaybackErrorMapper.Map(exception));
+            var error = PlaybackErrorMapper.Map(exception);
+            var snapshot = PublishFailure(error);
+            PlaybackFailed?.Invoke(this, new(snapshot, error));
         }
         finally
         {
@@ -252,15 +260,15 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         _lifecycleCancellation.Dispose();
     }
 
-    private void AttachPlayerHandlers(long sessionVersion)
+    private void AttachPlayerHandlers(long playerGeneration)
     {
         _playbackCompletedHandler = (_, _) => EnqueuePlayerEvent(new PlayerEventCommand(
             PlayerEventCommandKind.Completed,
-            sessionVersion,
+            playerGeneration,
             null));
         _playbackFailedHandler = (_, error) => EnqueuePlayerEvent(new PlayerEventCommand(
             PlayerEventCommandKind.Failed,
-            sessionVersion,
+            playerGeneration,
             error));
 
         _audioPlayer.PlaybackCompleted += _playbackCompletedHandler;
@@ -301,7 +309,7 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                     await _mutex.WaitAsync(_lifecycleCancellation.Token).ConfigureAwait(false);
                     try
                     {
-                        if (_disposed || command.SessionVersion != _sessionVersion || _currentRequest is null)
+                        if (_disposed || command.PlayerGeneration != _playerGeneration || _currentRequest is null)
                         {
                             continue;
                         }
@@ -309,12 +317,12 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
                         switch (command.Kind)
                         {
                             case PlayerEventCommandKind.Completed:
-                                PublishSnapshotFromPlayer(PlaybackState.Stopped, "当前音频已播放完成。");
-                                PlaybackCompleted?.Invoke(this, EventArgs.Empty);
+                                var completed = PublishSnapshotFromPlayer(PlaybackState.Stopped, "当前音频已播放完成。");
+                                PlaybackCompleted?.Invoke(this, completed);
                                 break;
                             case PlayerEventCommandKind.Failed:
-                                PublishFailure(command.Error!);
-                                PlaybackFailed?.Invoke(this, command.Error!);
+                                var failure = PublishFailure(command.Error!);
+                                PlaybackFailed?.Invoke(this, new(failure, command.Error!));
                                 break;
                         }
                     }
@@ -348,22 +356,23 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
 
     private sealed record PlayerEventCommand(
         PlayerEventCommandKind Kind,
-        long SessionVersion,
+        long PlayerGeneration,
         PlaybackErrorEventArgs? Error);
 
-    private void PublishFailure(PlaybackErrorEventArgs error)
+    private LocalAudioPlaybackSnapshot PublishFailure(PlaybackErrorEventArgs error)
     {
         if (_currentRequest is null)
         {
-            PublishSnapshot(LocalAudioPlaybackSnapshot.Idle with
+            var idleFailure = LocalAudioPlaybackSnapshot.Idle with
             {
                 State = PlaybackState.Faulted,
                 Message = error.Message
-            });
-            return;
+            };
+            PublishSnapshot(idleFailure);
+            return idleFailure;
         }
 
-        PublishSnapshot(CreateSnapshot(
+        var snapshot = CreateSnapshot(
             PlaybackState.Faulted,
             _currentRequest.DisplayTitle,
             _currentRequest.BookId,
@@ -373,18 +382,22 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             ToMilliseconds(_audioPlayer.Duration),
             error.Message,
             _currentRequest.IsUsingCache,
-            _currentRequest.PlaybackSessionId));
+            _currentRequest.PlaybackSessionId,
+            _currentRequest.TargetRevision,
+            _currentRequest.PreparationAttemptId);
+        PublishSnapshot(snapshot);
+        return snapshot;
     }
 
-    private void PublishSnapshotFromPlayer(PlaybackState state, string? message)
+    private LocalAudioPlaybackSnapshot PublishSnapshotFromPlayer(PlaybackState state, string? message)
     {
         if (_currentRequest is null)
         {
             PublishSnapshot(LocalAudioPlaybackSnapshot.Idle);
-            return;
+            return LocalAudioPlaybackSnapshot.Idle;
         }
 
-        PublishSnapshot(CreateSnapshot(
+        var snapshot = CreateSnapshot(
             state,
             _currentRequest.DisplayTitle,
             _currentRequest.BookId,
@@ -394,7 +407,11 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             ToMilliseconds(_audioPlayer.Duration),
             message,
             _currentRequest.IsUsingCache,
-            _currentRequest.PlaybackSessionId));
+            _currentRequest.PlaybackSessionId,
+            _currentRequest.TargetRevision,
+            _currentRequest.PreparationAttemptId);
+        PublishSnapshot(snapshot);
+        return snapshot;
     }
 
     private void PublishSnapshot(LocalAudioPlaybackSnapshot snapshot)
@@ -413,7 +430,9 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
         long durationMilliseconds,
         string? message,
         bool isUsingCache,
-        Guid? playbackSessionId)
+        Guid? playbackSessionId,
+        long targetRevision,
+        Guid? preparationAttemptId)
     {
         return new LocalAudioPlaybackSnapshot(
             state,
@@ -426,7 +445,10 @@ public sealed class LocalAudioPlaybackCoordinator : ILocalAudioPlaybackCoordinat
             message,
             isUsingCache,
             _volume,
-            playbackSessionId);
+            playbackSessionId,
+            _playerGeneration,
+            targetRevision,
+            preparationAttemptId);
     }
 
     private static long ToMilliseconds(TimeSpan timeSpan)

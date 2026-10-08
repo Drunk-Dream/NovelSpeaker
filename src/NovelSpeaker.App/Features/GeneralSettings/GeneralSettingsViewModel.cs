@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Features.Settings;
 using NovelSpeaker.App.Shared.Feedback;
@@ -12,8 +13,8 @@ public sealed partial class GeneralSettingsViewModel : SettingsSubpageViewModelB
     private readonly IAppSettingsService _settingsService;
     private bool _isLoading;
     private bool _isReverting;
-    private int _closeBehaviorVersion;
-    private int _startMinimizedVersion;
+    private readonly LatestOperationSlot _closeBehaviorSave = new();
+    private readonly LatestOperationSlot _startMinimizedSave = new();
 
     public GeneralSettingsViewModel(
         IAppSettingsService settingsService,
@@ -61,79 +62,46 @@ public sealed partial class GeneralSettingsViewModel : SettingsSubpageViewModelB
             return;
         }
 
-        var version = Interlocked.Increment(ref _closeBehaviorVersion);
-        RunPageOperation(
-            "保存关闭行为失败",
-            cancellationToken => SaveCloseBehaviorAsync(value.Value, version, cancellationToken));
+        ScheduleLatestSave(_closeBehaviorSave, "保存关闭行为失败", async operation =>
+        {
+            try
+            {
+                var settings = await _settingsService.UpdateAsync(
+                    new AppSettingsUpdate { MainWindowCloseBehavior = value.Value }, operation.CancellationToken);
+                operation.TryCommit(() => ApplyCloseBehavior(settings.MainWindowCloseBehavior));
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                operation.TryCommit(() => ApplyCloseBehavior(_settingsService.Current.MainWindowCloseBehavior));
+                throw;
+            }
+        });
     }
 
     partial void OnStartMinimizedToTrayChanged(bool value)
     {
-        if (_isLoading || _isReverting)
+        if (_isLoading || _isReverting) return;
+        ScheduleLatestSave(_startMinimizedSave, "保存启动行为失败", async operation =>
         {
-            return;
-        }
-
-        var version = Interlocked.Increment(ref _startMinimizedVersion);
-        RunPageOperation(
-            "保存启动行为失败",
-            cancellationToken => SaveStartBehaviorAsync(value, version, cancellationToken));
+            try
+            {
+                var settings = await _settingsService.UpdateAsync(
+                    new AppSettingsUpdate { StartMinimizedToTray = value }, operation.CancellationToken);
+                operation.TryCommit(() => ApplyStartMinimized(settings.StartMinimizedToTray));
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                operation.TryCommit(() => ApplyStartMinimized(_settingsService.Current.StartMinimizedToTray));
+                throw;
+            }
+        });
     }
 
-    private async Task SaveCloseBehaviorAsync(
-        MainWindowCloseBehavior value,
-        int version,
-        CancellationToken cancellationToken)
+    public override void Deactivate()
     {
-        try
-        {
-            var settings = await _settingsService.UpdateAsync(
-                new AppSettingsUpdate { MainWindowCloseBehavior = value },
-                cancellationToken).ConfigureAwait(true);
-            if (IsCurrentActivation(cancellationToken) &&
-                version == Volatile.Read(ref _closeBehaviorVersion))
-            {
-                ApplyCloseBehavior(settings.MainWindowCloseBehavior);
-            }
-        }
-        catch
-        {
-            if (IsCurrentActivation(cancellationToken) &&
-                version == Volatile.Read(ref _closeBehaviorVersion))
-            {
-                ApplyCloseBehavior(_settingsService.Current.MainWindowCloseBehavior);
-            }
-
-            throw;
-        }
-    }
-
-    private async Task SaveStartBehaviorAsync(
-        bool value,
-        int version,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            var settings = await _settingsService.UpdateAsync(
-                new AppSettingsUpdate { StartMinimizedToTray = value },
-                cancellationToken).ConfigureAwait(true);
-            if (IsCurrentActivation(cancellationToken) &&
-                version == Volatile.Read(ref _startMinimizedVersion))
-            {
-                ApplyStartMinimized(settings.StartMinimizedToTray);
-            }
-        }
-        catch
-        {
-            if (IsCurrentActivation(cancellationToken) &&
-                version == Volatile.Read(ref _startMinimizedVersion))
-            {
-                ApplyStartMinimized(_settingsService.Current.StartMinimizedToTray);
-            }
-
-            throw;
-        }
+        _closeBehaviorSave.Cancel();
+        _startMinimizedSave.Cancel();
+        base.Deactivate();
     }
 
     private void ApplySettings(AppSettings settings)

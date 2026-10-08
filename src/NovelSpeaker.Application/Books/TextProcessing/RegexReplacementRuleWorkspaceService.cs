@@ -18,14 +18,15 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
     internal void NotifyConfigurationRestored()
     {
         _errorStore.Replace(new Dictionary<Guid, string>());
-        foreach (var handler in Changed?.GetInvocationList() ?? [])
+        Publish(new RegexReplacementRulesChangedEventArgs(RegexReplacementRulesChangeKind.Restored, true));
+    }
+
+    private void Publish(RegexReplacementRulesChangedEventArgs change)
+    {
+        foreach (EventHandler<RegexReplacementRulesChangedEventArgs> handler in Changed?.GetInvocationList() ?? [])
         {
-            try
-            {
-                ((EventHandler<RegexReplacementRulesChangedEventArgs>)handler)(this,
-                new RegexReplacementRulesChangedEventArgs(RegexReplacementRulesChangeKind.Restored, true));
-            }
-            catch { /* Persistence already succeeded; continue notifying the remaining owners. */ }
+            try { handler(this, change); }
+            catch { /* Observers cannot fail a committed mutation or prevent another owner from receiving it. */ }
         }
     }
 
@@ -94,7 +95,7 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
             existing?.CreatedAt ?? now,
             now);
         await _repository.SaveAsync(saved, cancellationToken);
-        Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+        Publish(new RegexReplacementRulesChangedEventArgs(
             RegexReplacementRulesChangeKind.Saved,
             ChangesSpeechProfile(existing, saved)));
         return MapEditor(saved);
@@ -106,11 +107,11 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
             .FirstOrDefault(rule => rule.Id == ruleId);
         var updated = existing is null ? null : existing with { IsEnabled = isEnabled };
         await _repository.UpdateEnabledAsync(ruleId, isEnabled, cancellationToken);
-        if (existing is not null && ChangesSpeechProfile(existing, updated))
+        if (existing is not null && existing.IsEnabled != isEnabled)
         {
-            Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+            Publish(new RegexReplacementRulesChangedEventArgs(
                 RegexReplacementRulesChangeKind.EnabledChanged,
-                true));
+                ChangesSpeechProfile(existing, updated)));
         }
     }
 
@@ -170,7 +171,7 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
                 now);
             await _repository.SaveAsync(rule, cancellationToken);
             existing.Add(rule);
-            Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+            Publish(new RegexReplacementRulesChangedEventArgs(
                 RegexReplacementRulesChangeKind.Imported,
                 ChangesSpeechProfile(null, rule)));
             imported++;
@@ -202,11 +203,11 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
             })
             .ToArray();
         await _repository.SaveOrderAsync(order, cancellationToken);
-        if (rules.Zip(updatedRules).Any(pair => ChangesSpeechProfile(pair.First, pair.Second)))
+        if (rules.Zip(updatedRules).Any(pair => pair.First.SortOrder != pair.Second.SortOrder))
         {
-            Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+            Publish(new RegexReplacementRulesChangedEventArgs(
                 RegexReplacementRulesChangeKind.Reordered,
-                true));
+                rules.Zip(updatedRules).Any(pair => ChangesSpeechProfile(pair.First, pair.Second))));
         }
     }
 
@@ -215,11 +216,11 @@ public sealed class RegexReplacementRuleWorkspaceService : IRegexReplacementRule
         var existing = (await _repository.GetAllAsync(cancellationToken))
             .FirstOrDefault(rule => rule.Id == ruleId);
         await _repository.DeleteAsync(ruleId, cancellationToken);
-        if (existing is not null && ChangesSpeechProfile(existing, null))
+        if (existing is not null)
         {
-            Changed?.Invoke(this, new RegexReplacementRulesChangedEventArgs(
+            Publish(new RegexReplacementRulesChangedEventArgs(
                 RegexReplacementRulesChangeKind.Deleted,
-                true));
+                ChangesSpeechProfile(existing, null)));
         }
     }
 

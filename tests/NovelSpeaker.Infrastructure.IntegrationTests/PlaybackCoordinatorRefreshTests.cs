@@ -1,4 +1,5 @@
 using NovelSpeaker.Application.Books;
+using NovelSpeaker.Application.Books.Library;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Execution;
@@ -23,6 +24,7 @@ public sealed partial class PlaybackCoordinatorTests
         var audio = new FakeAudioGenerationProvider();
         await using var coordinator = CreateCoordinator(local, audioProvider: audio);
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 50), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         var currentAudio = local.LastStartedRequest;
         await coordinator.ChangeSpeedAsync(speed, CancellationToken.None);
         Assert.Same(currentAudio, local.LastStartedRequest);
@@ -51,6 +53,8 @@ public sealed partial class PlaybackCoordinatorTests
             new PlaybackStartRequest("book-1", 0, 0, null, 10),
             CancellationToken.None);
 
+        await WaitForPlayingAsync(coordinator);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.SegmentIndex == 1);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal(1, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal([0, 1], audioProvider.Requests.Select(request => request.SegmentIndex));
@@ -72,6 +76,7 @@ public sealed partial class PlaybackCoordinatorTests
             new PlaybackStartRequest("book-1", 0, 2, null, 10),
             CancellationToken.None);
 
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
         Assert.Equal(PlaybackState.Stopped, coordinator.CurrentSnapshot.State);
         Assert.Contains("已跳过并结束播放", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
         Assert.Single(audioProvider.Requests);
@@ -94,6 +99,8 @@ public sealed partial class PlaybackCoordinatorTests
             new PlaybackStartRequest("book-1", 0, 0, null, 10),
             CancellationToken.None);
 
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Paused &&
+            coordinator.CurrentSnapshot.SegmentIndex == 3);
         Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
         Assert.Equal(3, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Contains("连续跳过 3", coordinator.CurrentSnapshot.Message, StringComparison.Ordinal);
@@ -101,6 +108,7 @@ public sealed partial class PlaybackCoordinatorTests
 
         await coordinator.ResumeAsync(CancellationToken.None);
 
+        await WaitForPlayingAsync(coordinator);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal(3, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal([0, 1, 2, 3], audioProvider.Requests.Select(request => request.SegmentIndex));
@@ -121,20 +129,28 @@ public sealed partial class PlaybackCoordinatorTests
             book: CreateSegmentBook(5));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Paused &&
+            coordinator.CurrentSnapshot.SegmentIndex == 3);
         Assert.Equal(PlaybackState.Paused, coordinator.CurrentSnapshot.State);
 
         await coordinator.RetryCurrentSegmentAsync(CancellationToken.None);
 
+        await WaitForPlayingAsync(coordinator);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal("audio-retry.mp3", localCoordinator.LastStartedRequest?.FilePath);
         Assert.Equal(3, coordinator.CurrentSnapshot.SegmentIndex);
         Assert.Equal(4, audioProvider.Requests.Count);
     }
 
-    [Fact]
-    public async Task A_successful_segment_resets_the_consecutive_failure_count()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_successful_segment_resets_the_consecutive_failure_count(bool completeDuringStart)
     {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
+        var localCoordinator = new FakeLocalAudioPlaybackCoordinator
+        {
+            CompleteOnStartCall = completeDuringStart ? 1 : null
+        };
         var audioProvider = new FakeAudioGenerationProvider();
         audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
         audioProvider.EnqueueFailure(TtsErrorKind.ServerError, "服务错误。");
@@ -148,19 +164,17 @@ public sealed partial class PlaybackCoordinatorTests
             book: CreateSegmentBook(6));
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
-        var lastSegmentStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        coordinator.SnapshotChanged += (_, snapshot) =>
+        if (!completeDuringStart) await WaitForPlayingAsync(coordinator);
+        if (!completeDuringStart)
         {
-            if (snapshot.State == PlaybackState.Playing && snapshot.SegmentIndex == 5)
-            {
-                lastSegmentStarted.TrySetResult();
-            }
-        };
+            Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+            Assert.Equal(2, coordinator.CurrentSnapshot.SegmentIndex);
+            localCoordinator.RaiseCompleted();
+        }
 
-        localCoordinator.RaiseCompleted();
-        await lastSegmentStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await WaitForAsync(coordinator, () =>
+            coordinator.CurrentSnapshot.State == PlaybackState.Playing &&
+            coordinator.CurrentSnapshot.SegmentIndex == 5);
 
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal([0, 1, 2, 3, 4, 5], audioProvider.Requests.Select(request => request.SegmentIndex));
@@ -193,10 +207,12 @@ public sealed partial class PlaybackCoordinatorTests
             audioProvider: audioProvider);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         localCoordinator.RaiseFailed(PlaybackErrorKind.AudioDecode, "音频损坏。");
 
         await WaitForAsync(audioProvider, () => audioProvider.InvalidateCallCount == 1);
         await WaitForAsync(audioProvider, () => audioProvider.Requests.Count == 2);
+        await WaitForPlayingAsync(coordinator);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
     }
 
@@ -213,6 +229,7 @@ public sealed partial class PlaybackCoordinatorTests
             prefetchScheduler: prefetchScheduler);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
         await coordinator.ChangeProviderAsync(TestSpeechProviders.Id(2), CancellationToken.None);
 
         Assert.Equal("默认规则", coordinator.CurrentSnapshot.ProviderName);
@@ -224,68 +241,38 @@ public sealed partial class PlaybackCoordinatorTests
         Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
     }
 
-    [Fact]
-    public async Task RefreshBookMetadataAsync_updates_active_snapshot_without_changing_playback_state()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Metadata_committed_change_updates_active_snapshot_without_changing_playback_state(bool stopBeforeMutation)
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var bookContentService = new FakeBookPlaybackContentService(CreateBook());
-        await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: bookContentService);
+        var changes = new BookSourceChanges();
+        changes.Changed += (_, _) => throw new InvalidOperationException("observer failure");
+        var metadata = new BookMetadataUpdateService(new PlaybackMetadataStore(bookContentService), new BookMutationGate(), changes);
+        await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: bookContentService, sourceChanges: changes);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        bookContentService.Book = new PlaybackBookContent(
-            "book-1",
-            "已更新书名",
-            CreateBook().Chapters,
-            "已更新作者");
+        await WaitForPlayingAsync(coordinator);
+        if (stopBeforeMutation) await coordinator.StopAsync(CancellationToken.None);
+        await metadata.UpdateMetadataAsync(new("book-1", "已更新书名", "已更新作者"), CancellationToken.None);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookTitle == "已更新书名");
 
-        await coordinator.RefreshBookMetadataAsync("book-1", CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(stopBeforeMutation ? PlaybackState.Stopped : PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal("已更新书名", coordinator.CurrentSnapshot.BookTitle);
         Assert.Equal("已更新作者", coordinator.CurrentSnapshot.BookAuthor);
+        Assert.Equal(1, localCoordinator.StartCallCount);
+        Assert.Equal(stopBeforeMutation ? 1 : 0, localCoordinator.StopCallCount);
     }
 
-    [Fact]
-    public async Task RefreshRegexReplacementAsync_restarts_playback_when_mapped_speech_changes()
+    private sealed class PlaybackMetadataStore(FakeBookPlaybackContentService content) : IBookMetadataStore
     {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakeAudioGenerationProvider();
-        var content = new FakeBookPlaybackContentService(CreateBook());
-        await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: content, audioProvider: audioProvider);
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        content.Book = new PlaybackBookContent(
-            "book-1",
-            "示例小说",
-            [PlaybackChapterContent.FromLoaded(0, "第一章 开始", [new SpeechSegment(0, 0, 6, "新展示", "新语音")])]);
-
-        await coordinator.RefreshRegexReplacementAsync(CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Equal(2, audioProvider.Requests.Count);
-        Assert.Equal("新语音", audioProvider.Requests[1].SpeechText);
-        Assert.Equal(1, coordinator.CurrentSnapshot.ContentRevision);
-    }
-
-    [Fact]
-    public async Task RefreshRegexReplacementAsync_keeps_current_audio_when_only_display_changes()
-    {
-        var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        var audioProvider = new FakeAudioGenerationProvider();
-        var content = new FakeBookPlaybackContentService(CreateBook());
-        await using var coordinator = CreateCoordinator(localCoordinator, bookContentService: content, audioProvider: audioProvider);
-
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        content.Book = new PlaybackBookContent(
-            "book-1",
-            "示例小说",
-            [PlaybackChapterContent.FromLoaded(0, "第一章 开始", [new SpeechSegment(0, 0, 6, "新展示", "第一段")])]);
-
-        await coordinator.RefreshRegexReplacementAsync(CancellationToken.None);
-
-        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
-        Assert.Single(audioProvider.Requests);
-        Assert.Equal(1, coordinator.CurrentSnapshot.ContentRevision);
+        public Task<BookDetailsHeader> UpdateAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
+        {
+            content.Book = content.Book! with { BookTitle = request.Title, BookAuthor = request.Author };
+            return Task.FromResult(new BookDetailsHeader(request.BookId, request.Title, request.Author));
+        }
     }
 
     [Fact]
@@ -308,6 +295,7 @@ public sealed partial class PlaybackCoordinatorTests
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
 
+        await WaitForPlayingAsync(coordinator);
         var request = Assert.Single(audioProvider.Requests);
         Assert.Equal(2, request.SegmentIndex);
         Assert.Equal("可朗读", request.SpeechText);
@@ -334,28 +322,34 @@ public sealed partial class PlaybackCoordinatorTests
             new PlaybackStartRequest("book-1", 0, null, null, 10),
             CancellationToken.None);
 
+        await WaitForPlayingAsync(coordinator);
         Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
         Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
         Assert.Equal(1, content.GetChapterCallCounts[0]);
 
         localCoordinator.RaiseCompleted();
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped);
+        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.State == PlaybackState.Stopped &&
+            coordinator.CurrentSnapshot.Message == "全书播放完成。");
 
         Assert.Equal("全书播放完成。", coordinator.CurrentSnapshot.Message);
         Assert.Equal(1, content.GetChapterCallCounts[0]);
     }
 
     [Fact]
-    public async Task HandleBookDeletedAsync_stops_current_session_and_publishes_idle()
+    public async Task Removal_stops_once_and_committed_fact_does_not_stop_again()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
         var prefetchScheduler = new FakePrefetchScheduler();
+        var changes = new SourceChanges();
         await using var coordinator = CreateCoordinator(
             localCoordinator,
-            prefetchScheduler: prefetchScheduler);
+            prefetchScheduler: prefetchScheduler, sourceChanges: changes);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        await coordinator.HandleBookDeletedAsync("book-1", CancellationToken.None);
+        await WaitForPlayingAsync(coordinator);
+        await coordinator.StopForRemovalAsync("book-1", null, CancellationToken.None);
+        changes.Publish(new BookCommittedChange.BookRemoved("book-1"));
+        await coordinator.PauseAsync(CancellationToken.None);
 
         Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
         Assert.Null(coordinator.CurrentSnapshot.BookId);
@@ -364,16 +358,18 @@ public sealed partial class PlaybackCoordinatorTests
     }
 
     [Fact]
-    public async Task RefreshBookMetadataAsync_and_HandleBookDeletedAsync_ignore_other_books()
+    public async Task Committed_changes_ignore_other_books()
     {
         var localCoordinator = new FakeLocalAudioPlaybackCoordinator();
-        await using var coordinator = CreateCoordinator(localCoordinator);
+        var changes = new SourceChanges();
+        await using var coordinator = CreateCoordinator(localCoordinator, sourceChanges: changes);
 
         await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
         var snapshotBefore = coordinator.CurrentSnapshot;
 
-        await coordinator.RefreshBookMetadataAsync("book-2", CancellationToken.None);
-        await coordinator.HandleBookDeletedAsync("book-2", CancellationToken.None);
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-2"));
+        changes.Publish(new BookCommittedChange.BookRemoved("book-2"));
+        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-2", "other-source", "new"));
 
         Assert.Equal(snapshotBefore, coordinator.CurrentSnapshot);
     }

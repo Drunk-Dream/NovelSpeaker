@@ -21,8 +21,8 @@ public sealed class BookTextExportTests
         await File.WriteAllTextAsync(source, text);
         var destination = Path.Combine(root.Path, "export");
         Directory.CreateDirectory(destination);
-        var metadata = new ExportMetadata(resolver.GetStorageKey(source));
-        var exporter = new BookTextExportService(metadata, resolver, new ExportFileNameSanitizer());
+        var metadata = new ExportMetadata();
+        var exporter = new BookTextExportService(metadata, new ExportContent(source), new ExportFileNameSanitizer());
         await File.WriteAllTextAsync(Path.Combine(destination, "_CON.txt"), "existing");
         Assert.True(await exporter.ExportAsync("a", destination, CancellationToken.None));
         Assert.True(await exporter.ExportAsync("b", destination, CancellationToken.None));
@@ -35,11 +35,19 @@ public sealed class BookTextExportTests
         Assert.False(await exporter.ExportAsync("a", destination, CancellationToken.None));
     }
 
-    private sealed class ExportMetadata(string path) : IBookPlaybackMetadataQuery
+    private sealed class ExportContent(string path) : ISourceContentReader
+    {
+        public Task<string> ReadSourceTextAsync(string sourceId, CancellationToken cancellationToken) =>
+            File.ReadAllTextAsync(path, cancellationToken);
+        public Task<string> ReadChapterTextAsync(string sourceId, string chapterId, CancellationToken cancellationToken) =>
+            File.ReadAllTextAsync(path, cancellationToken);
+    }
+
+    private sealed class ExportMetadata : IBookPlaybackMetadataQuery
     {
         public Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
-            Task.FromResult<PlaybackBookMetadata?>(new(bookId, "CON", null, [new(0, "Chapter")]));
+            Task.FromResult<PlaybackBookMetadata?>(new(bookId, "CON", null, [new(0, "Chapter")], new ActiveSourceContext("source", "chapter")));
         public Task<PlaybackChapterMetadata?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) =>
-            Task.FromResult<PlaybackChapterMetadata?>(new(0, "Chapter", path, 5, 3));
+            Task.FromResult<PlaybackChapterMetadata?>(new(0, "Chapter", "source", "chapter", new ActiveSourceContext("source", "chapter")));
     }
 }

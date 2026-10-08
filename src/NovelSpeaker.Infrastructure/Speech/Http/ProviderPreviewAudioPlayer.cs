@@ -1,6 +1,6 @@
-using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Infrastructure.FileSystem;
 
 namespace NovelSpeaker.Infrastructure.Speech.Http;
 
@@ -9,20 +9,17 @@ internal sealed class ProviderPreviewAudioPlayer : IProviderPreviewAudioPlayer
 {
     private readonly IAudioPlayerFactory _playerFactory;
     private IAudioPlayer? _player;
-    private readonly IAppDataDirectoryProvider _directories;
-    private readonly IAppStoragePathResolver _paths;
+    private readonly TemporarySpeechFileLease _temporaryFiles;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _currentPath;
     private bool _disposed;
 
     public ProviderPreviewAudioPlayer(
         IAudioPlayerFactory playerFactory,
-        IAppDataDirectoryProvider directories,
-        IAppStoragePathResolver paths)
+        TemporarySpeechFileLease temporaryFiles)
     {
         _playerFactory = playerFactory;
-        _directories = directories;
-        _paths = paths;
+        _temporaryFiles = temporaryFiles;
     }
 
     public event EventHandler<ProviderPreviewPlaybackFailedEventArgs>? PlaybackFailed;
@@ -43,9 +40,12 @@ internal sealed class ProviderPreviewAudioPlayer : IProviderPreviewAudioPlayer
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
-            var directory = _paths.ResolvePath(Path.Combine(_directories.CacheDirectoryPath, "ProviderPreviews"));
+            var path = _temporaryFiles.CreatePath(
+                "ProviderPreviews",
+                $"preview-{Guid.NewGuid():N}.{audioFormat}");
+            var directory = Path.GetDirectoryName(path)!;
             Directory.CreateDirectory(directory);
-            candidate = _paths.ResolvePath(Path.Combine(directory, $"preview-{Guid.NewGuid():N}.{audioFormat}"));
+            candidate = path;
             await using (var file = new FileStream(candidate, FileMode.CreateNew, FileAccess.Write,
                              FileShare.None, 4096, FileOptions.Asynchronous))
             {

@@ -6,4 +6,6 @@ namespace NovelSpeaker.Application.Books;
 public sealed record DirectBookImportRequest(
     string FilePath,
     string? EncodingOverride,
-    string SourceFileName);
+    string SourceFileName,
+    string? TargetBookId = null,
+    bool CreateNewBook = false);

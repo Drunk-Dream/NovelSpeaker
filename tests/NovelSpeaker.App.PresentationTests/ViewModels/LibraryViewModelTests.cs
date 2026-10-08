@@ -1,3 +1,5 @@
+using NovelSpeaker.App.Shell.Activation;
+using NovelSpeaker.TestKit.Books;
 using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Speech.Providers;
@@ -15,6 +17,147 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed partial class LibraryViewModelTests
 {
+    [Fact]
+    public async Task Replaced_sort_suppresses_late_failure_but_current_sort_still_reports_failure()
+    {
+        var scheduler = new FailingCommitUiScheduler();
+        var feedback = new FakeFeedbackService();
+        var viewModel = CreateViewModel(
+            catalogService: new FakeBookCatalogService([
+                new("book-1", "Beta", null, "Chapter", DateTimeOffset.UnixEpoch.AddDays(1)),
+                new("book-2", "Alpha", null, "Chapter", DateTimeOffset.UnixEpoch)]),
+            uiScheduler: scheduler, feedback: feedback);
+        using var activation = new PageActivationController().Activate();
+        viewModel.HandleNavigatedTo(activation);
+        await viewModel.LoadAsync(CancellationToken.None);
+        var late = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        scheduler.NextCommit = late.Task;
+        viewModel.SelectedSortMode = LibrarySortMode.Title;
+        viewModel.SelectedSortMode = LibrarySortMode.RecentImport;
+        late.SetException(new IOException("obsolete projection"));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Empty(feedback.Notifications);
+        Assert.Equal(["book-1", "book-2"], viewModel.Books.Select(book => book.BookId));
+
+        var current = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        scheduler.NextCommit = current.Task;
+        viewModel.SelectedSortMode = LibrarySortMode.Title;
+        current.SetException(new IOException("current projection"));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("更新书库排序失败", Assert.Single(feedback.Notifications).Title);
+    }
+
+    [Fact]
+    public async Task Replaced_load_and_search_from_a_previous_activation_cannot_overwrite_current_cards()
+    {
+        var time = new ManualTimeProvider();
+        var query = new FakeBookCatalogService([new("book-1", "Alpha", null, "Chapter", DateTimeOffset.UnixEpoch)]);
+        var viewModel = CreateViewModel(catalogService: query, timeProvider: time);
+        using var controller = new PageActivationController();
+        var oldActivation = controller.Activate();
+        viewModel.HandleNavigatedTo(oldActivation);
+        var oldResult = new TaskCompletionSource<IReadOnlyList<BookSummary>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        query.FullResult = oldResult.Task;
+        var oldLoad = viewModel.LoadAsync(CancellationToken.None);
+        viewModel.SearchText = "Alpha";
+        viewModel.SearchText = "Beta";
+        controller.Deactivate();
+        var activation = controller.Activate();
+        viewModel.HandleNavigatedTo(activation);
+        query.FullResult = null;
+        query.Books = [new("book-2", "Beta", null, "Chapter", DateTimeOffset.UnixEpoch)];
+        await viewModel.LoadAsync(CancellationToken.None);
+        oldResult.SetResult([new("book-1", "Alpha", null, "Chapter", DateTimeOffset.UnixEpoch)]);
+        Assert.False(await oldLoad);
+        await oldActivation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        time.Advance(TimeSpan.FromSeconds(1));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("book-2", Assert.Single(viewModel.Books).BookId);
+        Assert.Equal("Beta", viewModel.SearchText);
+
+        // Two live searches share the same debounce owner; only the final term commits.
+        viewModel.SearchText = "Alpha";
+        viewModel.SearchText = "Beta";
+        time.Advance(TimeSpan.FromSeconds(1));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("book-2", Assert.Single(viewModel.Books).BookId);
+
+        var lateFailure = new TaskCompletionSource<IReadOnlyList<BookSummary>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        query.FullResult = lateFailure.Task;
+        var replacedLoad = viewModel.LoadAsync(CancellationToken.None);
+        query.FullResult = null;
+        await viewModel.LoadAsync(CancellationToken.None);
+        lateFailure.SetException(new IOException("superseded load"));
+        Assert.False(await replacedLoad);
+        Assert.Equal("book-2", Assert.Single(viewModel.Books).BookId);
+    }
+
+    [Fact]
+    public async Task Book_refresh_failure_after_leave_does_not_notify_the_next_page()
+    {
+        var changes = new FakeBookChanges();
+        var feedback = new FakeFeedbackService();
+        var catalog = new FakeBookCatalogService([new("book-1", "Book", null, "Chapter", DateTimeOffset.UnixEpoch)]);
+        var viewModel = CreateViewModel(catalogService: catalog, bookChanges: changes, feedback: feedback);
+        using var activation = new PageActivationController().Activate();
+        viewModel.HandleNavigatedTo(activation);
+        await viewModel.LoadAsync(CancellationToken.None);
+        var pending = new TaskCompletionSource<IReadOnlyList<BookSummary>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        catalog.TargetedResult = pending.Task;
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-1"));
+        viewModel.HandleNavigatedFrom();
+        pending.SetException(new IOException("late query failure"));
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Empty(feedback.Notifications);
+    }
+
+    [Fact]
+    public async Task Committed_changes_refresh_affected_book_and_detach_on_deactivation()
+    {
+        var changes = new FakeBookChanges();
+        var catalog = new FakeBookCatalogService([
+            new("book-1", "Alpha", null, "Chapter", DateTimeOffset.UnixEpoch),
+            new("book-2", "Beta", null, "Chapter", DateTimeOffset.UnixEpoch)]);
+        var viewModel = CreateViewModel(catalogService: catalog, bookChanges: changes);
+        await viewModel.LoadAsync(CancellationToken.None);
+        var unchanged = viewModel.Books.Single(book => book.BookId == "book-2");
+        catalog.Books = [catalog.Books[0] with { Title = "Updated" }, catalog.Books[1]];
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-1"));
+        Assert.Equal("Updated", viewModel.Books.Single(book => book.BookId == "book-1").Title);
+        Assert.Same(unchanged, viewModel.Books.Single(book => book.BookId == "book-2"));
+        // A removal's authoritative query no longer contains that book.
+        catalog.Books = [catalog.Books[1]];
+        changes.Publish(new BookCommittedChange.BookRemoved("book-1"));
+        Assert.Same(unchanged, Assert.Single(viewModel.Books));
+        viewModel.HandleNavigatedFrom();
+        Assert.Equal(0, changes.SubscriberCount);
+        catalog.Books = [catalog.Books[0] with { Title = "Inactive" }];
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-2"));
+        Assert.Equal("Beta", Assert.Single(viewModel.Books).Title);
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
+        await viewModel.LoadAsync(CancellationToken.None);
+        Assert.Equal("Inactive", Assert.Single(viewModel.Books).Title);
+        viewModel.HandleNavigatedFrom();
+    }
+
+    [Fact]
+    public async Task Queued_book_change_cannot_refresh_a_new_activation()
+    {
+        var changes = new FakeBookChanges();
+        var scheduler = new QueuedUiScheduler { QueueActions = false, QueueLaterActions = true };
+        var catalog = new FakeBookCatalogService([new("book-1", "Before", null, "Chapter", DateTimeOffset.UnixEpoch)]);
+        var viewModel = CreateViewModel(catalogService: catalog, bookChanges: changes, uiScheduler: scheduler);
+        await viewModel.LoadAsync(CancellationToken.None);
+        scheduler.QueueActions = true;
+        catalog.Books = [catalog.Books[0] with { Title = "After" }];
+        changes.Publish(new BookCommittedChange.MetadataCommitted("book-1"));
+        viewModel.HandleNavigatedFrom();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
+        scheduler.RunNext();
+        Assert.Equal("Before", Assert.Single(viewModel.Books).Title);
+        viewModel.HandleNavigatedFrom();
+    }
+
     private async Task LoadAsync_maps_book_summary_to_card_fields()
     {
         var viewModel = CreateViewModel(
@@ -208,7 +351,7 @@ public sealed partial class LibraryViewModelTests
         Assert.Equal("Beta", book.Title);
     }
 
-    private async Task DeleteBookAsync_allows_current_playing_book_and_stops_playback_first()
+    private async Task DeleteBookAsync_allows_current_playing_book_through_books_use_case()
     {
         var playbackCoordinator = new FakePlaybackCoordinator(
             PlaybackSnapshot.Idle with
@@ -235,7 +378,7 @@ public sealed partial class LibraryViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.DeleteBookCommand.ExecuteAsync(viewModel.Books[0]);
 
-        Assert.Equal("book-1", playbackCoordinator.LastHandledDeletedBookId);
+        Assert.True(deleteDialogService.Requests[0].IsCurrentPlaybackBook);
         Assert.False(managementService.Requests[0].DeleteAudioCache);
     }
 
@@ -375,7 +518,7 @@ public sealed partial class LibraryViewModelTests
         await viewModel.LoadAsync(CancellationToken.None);
         var book = Assert.Single(viewModel.Books);
         viewModel.HandleNavigatedFrom();
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
 
         playbackCoordinator.Publish(
             PlaybackSnapshot.Idle with
@@ -632,14 +775,14 @@ public sealed partial class LibraryViewModelTests
         Assert.Single(importCoordinator.Requests);
     }
 
-    private async Task ImportFilesAsync_shows_duplicate_warning_without_refreshing_books()
+    private async Task ImportFilesAsync_shows_invalid_chapters_warning_without_refreshing_books()
     {
         var feedback = new FakeFeedbackService();
         var importCoordinator = new FakeLibraryImportCoordinator
         {
             NextResult = new LibraryImportCoordinatorResult(
                 LibraryImportCoordinatorStatus.Failed,
-                BookImportFailureReason.DuplicateBook)
+                BookImportFailureReason.NoValidChapters)
         };
         var catalogService = new FakeBookCatalogService([]);
         var viewModel = CreateViewModel(
@@ -650,7 +793,7 @@ public sealed partial class LibraryViewModelTests
         await viewModel.ImportFilesAsync([CreateTempTxtFile()], CancellationToken.None);
 
         Assert.Equal("无法导入", feedback.LastTitle);
-        Assert.Equal("该小说已经导入", feedback.LastMessage);
+        Assert.Equal("章节解析失败，请检查文件内容。", feedback.LastMessage);
         Assert.Equal(UiMessageSeverity.Warning, Assert.Single(feedback.Notifications).Severity);
         Assert.Empty(viewModel.Books);
     }
@@ -749,7 +892,7 @@ public sealed partial class LibraryViewModelTests
     public async Task Library_deletion_contracts_cover_filters_and_playback_cleanup()
     {
         await DeleteBookAsync_keeps_current_filter_and_removes_deleted_book();
-        await DeleteBookAsync_allows_current_playing_book_and_stops_playback_first();
+        await DeleteBookAsync_allows_current_playing_book_through_books_use_case();
     }
 
     [Fact]
@@ -766,7 +909,7 @@ public sealed partial class LibraryViewModelTests
     public async Task Library_import_contracts_cover_refresh_warnings_cancellation_and_inputs()
     {
         await ImportFilesAsync_refreshes_books_when_import_coordinator_reports_imported();
-        await ImportFilesAsync_shows_duplicate_warning_without_refreshing_books();
+        await ImportFilesAsync_shows_invalid_chapters_warning_without_refreshing_books();
         await ImportFilesAsync_cancels_previous_inflight_import_when_new_request_starts();
         await ImportFilesAsync_rejects_invalid_inputs();
         await ImportFilesAsync_projects_invalid_source_reported_by_coordinator();
@@ -784,15 +927,29 @@ public sealed partial class LibraryViewModelTests
         IUiScheduler? uiScheduler = null,
         IBookTextExportService? textExporter = null,
         IPresentationFileDialogService? fileDialogs = null,
-        IBookCatalogInvalidationState? invalidation = null)
+        IBookSourceChangeSource? bookChanges = null)
     {
+        var changes = new FakeBookChanges();
+        catalogService ??= new FakeBookCatalogService([]);
+        managementService ??= new FakeBookManagementService();
+        managementService.OnCommitted = request =>
+        {
+            catalogService.Books = catalogService.Books.Where(book => book.Id != request.BookId).ToArray();
+            (bookChanges as FakeBookChanges ?? changes).Publish(new BookCommittedChange.BookRemoved(request.BookId));
+        };
+        importCoordinator ??= new FakeLibraryImportCoordinator();
+        importCoordinator.OnImported = () =>
+        {
+            foreach (var book in catalogService.Books)
+                (bookChanges as FakeBookChanges ?? changes).Publish(new BookCommittedChange.MetadataCommitted(book.Id));
+        };
         var viewModel = new LibraryViewModel(
-            catalogService ?? new FakeBookCatalogService([]),
-            managementService ?? new FakeBookManagementService(),
+            catalogService,
+            managementService,
             new BookCoverGenerator(),
-            importCoordinator ?? new FakeLibraryImportCoordinator(),
+            importCoordinator,
             deleteDialogService ?? new FakeBookDeleteDialogService(),
-            invalidation ?? new BookCatalogInvalidationState(),
+            bookChanges ?? changes,
             feedback ?? new FakeFeedbackService(),
             navigationService ?? new FakeNavigationService(),
             playbackCoordinator ?? new FakePlaybackCoordinator(PlaybackSnapshot.Idle),
@@ -802,7 +959,7 @@ public sealed partial class LibraryViewModelTests
             textExportService: textExporter,
             fileDialogs: fileDialogs);
 
-        viewModel.HandleNavigatedTo();
+        viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         return viewModel;
     }
 
@@ -822,15 +979,21 @@ public sealed partial class LibraryViewModelTests
 
         public IReadOnlyList<BookSummary> Books { get; set; }
 
+        public Task<IReadOnlyList<BookSummary>>? TargetedResult { get; set; }
+        public Task<IReadOnlyList<BookSummary>>? FullResult { get; set; }
+
         public Task<IReadOnlyList<BookSummary>> GetBooksAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult(Books);
+            return FullResult ?? Task.FromResult(Books);
         }
 
+        public Task<IReadOnlyList<BookSummary>> GetBooksAsync(IReadOnlyCollection<string> bookIds, CancellationToken cancellationToken) =>
+            TargetedResult ?? Task.FromResult<IReadOnlyList<BookSummary>>(Books.Where(book => bookIds.Contains(book.Id)).ToArray());
     }
 
     private sealed class FakeLibraryImportCoordinator : ILibraryImportCoordinator
     {
+        public Action? OnImported { get; set; }
         private readonly object _requestSignalSync = new();
         private TaskCompletionSource _requestSignal = CreateRequestSignal();
 
@@ -841,7 +1004,7 @@ public sealed partial class LibraryViewModelTests
         public LibraryImportCoordinatorResult NextResult { get; set; } =
             new(LibraryImportCoordinatorStatus.Cancelled);
 
-        public Task<LibraryImportCoordinatorResult> ImportAsync(
+        public async Task<LibraryImportCoordinatorResult> ImportAsync(
             string filePath,
             CancellationToken cancellationToken)
         {
@@ -854,9 +1017,9 @@ public sealed partial class LibraryViewModelTests
                 completedSignal.TrySetResult();
             }
 
-            return PendingResults.Count > 0
-                ? PendingResults.Dequeue()
-                : Task.FromResult(NextResult);
+            var result = PendingResults.Count > 0 ? await PendingResults.Dequeue() : NextResult;
+            if (result.Status == LibraryImportCoordinatorStatus.Imported) OnImported?.Invoke();
+            return result;
         }
 
         public async Task WaitForRequestCountAsync(int expectedCount)
@@ -900,6 +1063,7 @@ public sealed partial class LibraryViewModelTests
         public string? FailingBookId { get; set; }
         public string? MissingBookId { get; set; }
         public Action<BookDeleteRequest>? OnDelete { get; set; }
+        public Action<BookDeleteRequest>? OnCommitted { get; set; }
         public List<BookDeleteRequest> Requests { get; } = [];
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
@@ -908,6 +1072,7 @@ public sealed partial class LibraryViewModelTests
             OnDelete?.Invoke(request);
             if (request.BookId == FailingBookId) throw new IOException("test failure");
             if (request.BookId == MissingBookId) return Task.FromResult<BookDeleteResult?>(null);
+            OnCommitted?.Invoke(request);
             return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, request.DeleteAudioCache, 12, true));
         }
     }
@@ -972,7 +1137,7 @@ public sealed partial class LibraryViewModelTests
         }
     }
 
-    private sealed class FakePlaybackCoordinator : IPlaybackBookCommands
+    private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource
     {
         public FakePlaybackCoordinator(PlaybackSnapshot snapshot)
         {
@@ -981,7 +1146,6 @@ public sealed partial class LibraryViewModelTests
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
 
-        public string? LastHandledDeletedBookId { get; private set; }
 
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
@@ -1018,22 +1182,31 @@ public sealed partial class LibraryViewModelTests
 
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task RefreshBookMetadataAsync(string bookId, CancellationToken cancellationToken) => Task.CompletedTask;
-        public Task RefreshRegexReplacementAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task HandleBookDeletedAsync(string bookId, CancellationToken cancellationToken)
-        {
-            LastHandledDeletedBookId = bookId;
-            CurrentSnapshot = PlaybackSnapshot.Idle;
-            SnapshotChanged?.Invoke(this, CurrentSnapshot);
-            return Task.CompletedTask;
-        }
 
         public void Publish(PlaybackSnapshot snapshot)
         {
             CurrentSnapshot = snapshot;
             SnapshotChanged?.Invoke(this, snapshot);
         }
+    }
+
+    private sealed class FailingCommitUiScheduler : IUiScheduler
+    {
+        public Task? NextCommit { get; set; }
+        public bool CheckAccess() => true;
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            if (NextCommit is { } next)
+            {
+                NextCommit = null;
+                return next;
+            }
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default) => action();
     }
 
     private sealed class ImmediateUiScheduler : IUiScheduler
@@ -1059,6 +1232,16 @@ public sealed partial class LibraryViewModelTests
         private readonly Queue<Action> _pending = [];
 
         public bool QueueActions { get; set; } = true;
+
+        public bool QueueLaterActions { get; set; }
+
+        public Task InvokeLaterAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            if (QueueLaterActions) return InvokeAsync(action, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            action();
+            return Task.CompletedTask;
+        }
 
         public bool CheckAccess() => !QueueActions;
 

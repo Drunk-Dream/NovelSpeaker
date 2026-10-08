@@ -10,7 +10,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 11;
+    private const int CurrentSchemaVersion = 12;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -313,7 +313,96 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                  '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00'),
                 ('default:header-description', '简介', '^简介[:：]\s*(?<description>.+)$', 30, 1,
                  '1970-01-01T00:00:00.0000000+00:00', '1970-01-01T00:00:00.0000000+00:00');
-            """)
+            """),
+        new(12,
+            """
+            CREATE TABLE BookSources (
+                Id TEXT NOT NULL PRIMARY KEY,
+                BookId TEXT NOT NULL,
+                SourceType INTEGER NOT NULL CHECK(SourceType = 1),
+                Title TEXT NOT NULL,
+                Author TEXT NULL,
+                Description TEXT NULL,
+                CreatedAt TEXT NOT NULL,
+                UpdatedAt TEXT NOT NULL,
+                FOREIGN KEY(BookId) REFERENCES Books(Id) ON DELETE CASCADE,
+                UNIQUE(Id, BookId)
+            );
+
+            CREATE UNIQUE INDEX IX_BookSources_LocalSingleton
+                ON BookSources(BookId) WHERE SourceType = 1;
+
+            CREATE INDEX IX_BookSources_BookId ON BookSources(BookId);
+
+            CREATE TABLE LocalBookSources (
+                SourceId TEXT NOT NULL PRIMARY KEY,
+                OriginalFileName TEXT NOT NULL,
+                StoredContentPath TEXT NOT NULL,
+                SourceHash TEXT NOT NULL,
+                Encoding TEXT NOT NULL,
+                ImportedAt TEXT NOT NULL,
+                LastImportedAt TEXT NOT NULL,
+                FOREIGN KEY(SourceId) REFERENCES BookSources(Id) ON DELETE CASCADE
+            );
+
+            INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt)
+            SELECT 'local:' || Id, Id, 1, Title, Author, Description, ImportedAt, UpdatedAt FROM Books;
+
+            INSERT INTO LocalBookSources
+                (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt)
+            SELECT 'local:' || Id, OriginalFileName, StoredFilePath, SourceHash, Encoding,
+                   ImportedAt, COALESCE(LastImportedAt, ImportedAt) FROM Books;
+
+            CREATE TABLE Books_V12 (
+                Id TEXT NOT NULL PRIMARY KEY,
+                Title TEXT NOT NULL,
+                Author TEXT NULL,
+                Description TEXT NULL,
+                ActiveSourceId TEXT NULL,
+                ImportedAt TEXT NOT NULL,
+                LastPlayedAt TEXT NULL,
+                UpdatedAt TEXT NOT NULL,
+                FOREIGN KEY(ActiveSourceId, Id) REFERENCES BookSources(Id, BookId)
+                    DEFERRABLE INITIALLY DEFERRED
+            );
+
+            INSERT INTO Books_V12 (Id, Title, Author, Description, ActiveSourceId, ImportedAt, LastPlayedAt, UpdatedAt)
+            SELECT Id, Title, Author, Description, 'local:' || Id, ImportedAt, LastPlayedAt, UpdatedAt FROM Books;
+
+            CREATE TABLE Chapters_V12 (
+                Id TEXT NOT NULL PRIMARY KEY,
+                SourceId TEXT NOT NULL,
+                ChapterIndex INTEGER NOT NULL,
+                SortOrder INTEGER NOT NULL DEFAULT 0,
+                Title TEXT NOT NULL,
+                FOREIGN KEY(SourceId) REFERENCES BookSources(Id) ON DELETE CASCADE,
+                UNIQUE(SourceId, ChapterIndex)
+            );
+
+            INSERT INTO Chapters_V12 (Id, SourceId, ChapterIndex, SortOrder, Title)
+            SELECT Id, 'local:' || BookId, ChapterIndex, SortOrder, Title FROM Chapters;
+
+            CREATE TABLE LocalChapterContents (
+                ChapterId TEXT NOT NULL PRIMARY KEY,
+                StartOffset INTEGER NOT NULL CHECK(StartOffset >= 0),
+                Length INTEGER NOT NULL CHECK(Length > 0),
+                FOREIGN KEY(ChapterId) REFERENCES Chapters(Id) ON DELETE CASCADE
+            );
+
+            INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length)
+            SELECT Id, StartOffset, Length FROM Chapters;
+
+            DROP TABLE Chapters;
+            DROP TABLE Books;
+            ALTER TABLE Books_V12 RENAME TO Books;
+            ALTER TABLE Chapters_V12 RENAME TO Chapters;
+
+            CREATE TRIGGER BookSources_ClearActiveSource BEFORE DELETE ON BookSources
+            BEGIN
+                UPDATE Books SET ActiveSourceId = NULL WHERE Id = OLD.BookId AND ActiveSourceId = OLD.Id;
+            END;
+            """,
+            RebuildsReferencedTables: true)
     ];
 
     internal static IReadOnlyList<SqliteMigration> AllMigrations => Migrations;
@@ -351,26 +440,63 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
 
         foreach (var migration in _migrations.Where(migration => migration.Version > currentVersion))
         {
-            await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
-
-            using var command = connection.CreateCommand();
-            command.Transaction = transaction;
-            command.CommandText = migration.Sql;
-            await command.ExecuteNonQueryAsync(cancellationToken);
-
-            if (migration.ApplyDataAsync is not null)
+            // SQLite requires foreign_keys to be disabled outside the transaction when rebuilding
+            // referenced tables. Otherwise DROP TABLE cascades into progress, plans and audio cache.
+            try
             {
-                await migration.ApplyDataAsync(connection, transaction, cancellationToken);
+                if (migration.RebuildsReferencedTables)
+                {
+                    await SetForeignKeysAsync(connection, enabled: false, cancellationToken);
+                }
+
+                await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken);
+
+                using var command = connection.CreateCommand();
+                command.Transaction = transaction;
+                command.CommandText = migration.Sql;
+                await command.ExecuteNonQueryAsync(cancellationToken);
+
+                if (migration.ApplyDataAsync is not null)
+                {
+                    await migration.ApplyDataAsync(connection, transaction, cancellationToken);
+                }
+
+                if (migration.RebuildsReferencedTables)
+                {
+                    using var integrityCommand = connection.CreateCommand();
+                    integrityCommand.Transaction = transaction;
+                    integrityCommand.CommandText = "PRAGMA foreign_key_check;";
+                    await using var reader = await integrityCommand.ExecuteReaderAsync(cancellationToken);
+                    if (await reader.ReadAsync(cancellationToken))
+                    {
+                        throw new InvalidDataException("Migration would leave invalid database relationships.");
+                    }
+                }
+
+                using var versionCommand = connection.CreateCommand();
+                versionCommand.Transaction = transaction;
+                versionCommand.CommandText = "INSERT INTO SchemaVersion (Version) VALUES ($version);";
+                versionCommand.Parameters.AddWithValue("$version", migration.Version);
+                await versionCommand.ExecuteNonQueryAsync(cancellationToken);
+
+                await transaction.CommitAsync(cancellationToken);
             }
-
-            using var versionCommand = connection.CreateCommand();
-            versionCommand.Transaction = transaction;
-            versionCommand.CommandText = "INSERT INTO SchemaVersion (Version) VALUES ($version);";
-            versionCommand.Parameters.AddWithValue("$version", migration.Version);
-            await versionCommand.ExecuteNonQueryAsync(cancellationToken);
-
-            await transaction.CommitAsync(cancellationToken);
+            finally
+            {
+                if (migration.RebuildsReferencedTables)
+                {
+                    // Restore enforcement even after failure/cancellation before returning a pooled connection.
+                    await SetForeignKeysAsync(connection, enabled: true, CancellationToken.None);
+                }
+            }
         }
+    }
+
+    private static async Task SetForeignKeysAsync(SqliteConnection connection, bool enabled, CancellationToken cancellationToken)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = enabled ? "PRAGMA foreign_keys=ON;" : "PRAGMA foreign_keys=OFF;";
+        await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
     private static async Task EnsureMigrationTableAsync(SqliteConnection connection, CancellationToken cancellationToken)
