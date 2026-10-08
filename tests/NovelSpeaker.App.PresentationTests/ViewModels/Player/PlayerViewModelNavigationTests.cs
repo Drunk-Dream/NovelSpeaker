@@ -8,6 +8,7 @@ using NovelSpeaker.Application.Speech;
 using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.App.Shared.Feedback;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
@@ -21,6 +22,49 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels.Player;
 
 public sealed partial class PlayerViewModelTests
 {
+    [Fact]
+    public async Task Leaving_and_returning_rejects_old_content_failure_without_stopping_the_session()
+    {
+        var oldChapter = new TaskCompletionSource<PlaybackChapterContent?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var latestChapter = PlaybackChapterContent.FromLoaded(1, "New chapter",
+            [new SpeechSegment(0, 0, 3, "new", "new")]);
+        var content = new DelayedBookPlaybackContentService(
+            new("book-1", "Book", [PlaybackChapterContent.Unloaded(0, "Old"), PlaybackChapterContent.Unloaded(1, "New chapter")]),
+            [oldChapter.Task, Task.FromResult<PlaybackChapterContent?>(latestChapter)]);
+        var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle with
+        {
+            State = PlaybackState.Playing,
+            BookId = "book-1",
+            ChapterIndex = 0,
+            SegmentCount = 1
+        });
+        var feedback = new FakeAppFeedbackService();
+        var viewModel = CreateViewModel(coordinator, content, feedbackService: feedback);
+        using var owner = new PageActivationController();
+        var oldActivation = owner.Activate();
+        viewModel.OnPageNavigatedTo(oldActivation);
+        await viewModel.LoadAsync(oldActivation.CancellationToken);
+        var oldNavigation = viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession), CancellationToken.None);
+        await content.WaitForChapterRequestCountAsync(1);
+        owner.Deactivate();
+        coordinator.Publish(coordinator.CurrentSnapshot with { ChapterIndex = 1 });
+        var latest = owner.Activate();
+        viewModel.OnPageNavigatedTo(latest);
+        await viewModel.LoadAsync(latest.CancellationToken);
+        await viewModel.HandleNavigationAsync(
+            new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession), latest.CancellationToken);
+        oldChapter.SetException(new IOException("late content failure"));
+        await oldNavigation;
+        await oldActivation.WaitForPendingOperationsAsync();
+        await latest.WaitForPendingOperationsAsync();
+        Assert.Equal("new", Assert.Single(viewModel.Segments).Text);
+        Assert.Equal(1, viewModel.CurrentChapterIndex);
+        Assert.Equal(PlaybackState.Playing, coordinator.CurrentSnapshot.State);
+        Assert.Equal(0, coordinator.PauseCallCount);
+        Assert.Empty(feedback.ProjectedFailures);
+    }
+
     private async Task LoadAsync_uses_persisted_global_speed_after_restart()
     {
         var coordinator = new FakePlaybackCoordinator(PlaybackSnapshot.Idle);

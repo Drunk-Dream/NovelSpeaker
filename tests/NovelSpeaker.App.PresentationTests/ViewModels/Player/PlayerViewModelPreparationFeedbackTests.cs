@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Features.Playback.Presentation;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.TestKit.Common;
@@ -70,7 +71,7 @@ public sealed partial class PlayerViewModelTests
             timeProvider.Advance(TimeSpan.FromSeconds(1));
             Assert.False(viewModel.ShowInlineLoadingState);
 
-            viewModel.OnPageNavigatedTo(CancellationToken.None);
+            viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
             timeProvider.Advance(TimeSpan.FromMilliseconds(200));
             Assert.False(viewModel.ShowInlineLoadingState);
             timeProvider.Advance(TimeSpan.FromMilliseconds(100));

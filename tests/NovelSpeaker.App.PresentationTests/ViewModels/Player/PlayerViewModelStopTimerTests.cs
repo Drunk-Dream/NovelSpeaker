@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Application.Books;
@@ -137,7 +138,7 @@ public sealed partial class PlayerViewModelTests
             stopTimer: stopTimer,
             timeProvider: timeProvider);
 
-        viewModel.OnPageNavigatedTo(CancellationToken.None);
+        viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
         viewModel.ScheduleStopAfter15MinutesCommand.Execute(null);
 
         Assert.Equal("15", viewModel.StopTimerRemainingText);

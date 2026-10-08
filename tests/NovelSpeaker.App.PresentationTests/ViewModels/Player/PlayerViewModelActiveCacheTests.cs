@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Application.Books;
@@ -187,7 +188,7 @@ public sealed partial class PlayerViewModelTests
         Assert.Same(snapshot, activeCache.CurrentSnapshot);
         Assert.Equal(0, activeCache.CancelCallCount);
 
-        viewModel.OnPageNavigatedTo(CancellationToken.None);
+        viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
 
         Assert.Equal(1, activeCache.SubscriberCount);
         Assert.True(viewModel.HasActiveCacheBatch);
@@ -299,7 +300,7 @@ public sealed partial class PlayerViewModelTests
             ChapterTitle = "第三章"
         });
 
-        viewModel.OnPageNavigatedTo(CancellationToken.None);
+        viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
 
         Assert.True(cacheDependencies.StatusCallCount > initialStatusCallCount);
         Assert.Contains(2, cacheDependencies.LastRequestedChapterIndices);

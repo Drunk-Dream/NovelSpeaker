@@ -16,6 +16,7 @@ using NovelSpeaker.App.Shared.Presentation.Cache;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.App.Features.Playback.Components;
 using NovelSpeaker.App.Features.Playback.Scrolling;
 using NovelSpeaker.Domain.Settings;
@@ -42,7 +43,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private readonly PlayerSpeechControlController _speechControlController;
     private readonly PlayerCacheDecorationController _cacheDecorationController;
     private readonly PlayerInteractionController _interactionController;
-    private readonly OwnedTaskRegistry _pageTasks = new();
+    private readonly LatestOperationSlot _providerLoad = new();
+    private readonly LatestOperationSlot _contentLoad = new();
+    private readonly LatestOperationSlot _navigationLoad = new();
+    private PageActivationScope? _activation;
 
     private string? _requestedBookId;
     private PlaybackSnapshot _lastAppliedSnapshot = PlaybackSnapshot.Idle;
@@ -51,9 +55,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private ITimer? _preparationFeedbackTimer;
     private PreparationFeedbackIdentity? _preparationFeedbackIdentity;
     private long _preparationFeedbackGeneration;
-    private CancellationTokenSource _pageEventCancellation = new();
     private bool _isPageEventsRegistered;
-    private int _pageEventGeneration;
 
     public PlayerViewModel(
         IPlaybackSession playbackCoordinator,
@@ -293,8 +295,18 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     [ObservableProperty]
     private double volume = PlaybackVolume.Default;
 
-    public async Task LoadAsync(CancellationToken cancellationToken)
+    public Task LoadAsync(CancellationToken cancellationToken)
     {
+        var task = LoadCoreAsync(cancellationToken);
+        _activation?.Register(task);
+        return task;
+    }
+
+    private async Task LoadCoreAsync(CancellationToken cancellationToken)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken,
+            _activation?.CancellationToken ?? new CancellationToken(canceled: true));
+        cancellationToken = linked.Token;
         cancellationToken.ThrowIfCancellationRequested();
         _speechControlController.RefreshDefaultSpeakSpeed();
 
@@ -309,49 +321,67 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
     }
 
-    public async Task HandleNavigationAsync(PlayerRoute request, CancellationToken cancellationToken)
+    public Task HandleNavigationAsync(PlayerRoute request, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
+        var task = HandleNavigationCoreAsync(request, cancellationToken);
+        _activation?.Register(task);
+        return task;
+    }
 
-        _requestedBookId = request.BookId;
-        _cacheDecorationController.ExitSelectionMode();
-        CloseTransientPanels();
-        _interactionController.ResumeAutoCenterForExplicitNavigation();
-
-        var book = await EnsureBookLoadedAsync(request.BookId, cancellationToken);
-        if (book is null)
+    private async Task HandleNavigationCoreAsync(PlayerRoute request, CancellationToken cancellationToken)
+    {
+        if (_activation is not { IsCurrent: true }) return;
+        using var operation = _navigationLoad.Begin(cancellationToken, _activation);
+        cancellationToken = operation.CancellationToken;
+        try
         {
-            await HandleMissingBookAsync(cancellationToken);
-            return;
-        }
+            ArgumentNullException.ThrowIfNull(request);
 
-        var snapshot = _playbackCoordinator.CurrentSnapshot;
-        if (request.ChapterIndex is not null)
-        {
-            await HandleChapterTargetNavigationAsync(request, snapshot, cancellationToken);
-            return;
-        }
+            _requestedBookId = request.BookId;
+            _cacheDecorationController.ExitSelectionMode();
+            CloseTransientPanels();
+            _interactionController.ResumeAutoCenterForExplicitNavigation();
 
-        if (request.Mode == PlayerNavigationMode.ReturnToCurrentSession ||
-            string.Equals(snapshot.BookId, request.BookId, StringComparison.Ordinal))
-        {
+            var book = await EnsureBookLoadedAsync(request.BookId, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!operation.IsCurrent) return;
+            if (book is null)
+            {
+                await HandleMissingBookAsync(cancellationToken);
+                return;
+            }
+
+            var snapshot = _playbackCoordinator.CurrentSnapshot;
+            if (request.ChapterIndex is not null)
+            {
+                await HandleChapterTargetNavigationAsync(request, snapshot, cancellationToken);
+                return;
+            }
+
+            if (request.Mode == PlayerNavigationMode.ReturnToCurrentSession ||
+                string.Equals(snapshot.BookId, request.BookId, StringComparison.Ordinal))
+            {
+                ApplySnapshot(snapshot);
+                await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+                await RestoreMissingProviderSessionAsync(request.BookId, snapshot, cancellationToken);
+                return;
+            }
+
+            await _playbackCoordinator.OpenPausedAsync(
+                new OpenBookPlaybackRequest(
+                    request.BookId,
+                    null,
+                    null,
+                    ResolveSpeakSpeedForOpen()),
+                cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+            snapshot = _playbackCoordinator.CurrentSnapshot;
             ApplySnapshot(snapshot);
             await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
-            await RestoreMissingProviderSessionAsync(request.BookId, snapshot, cancellationToken);
-            return;
         }
-
-        await _playbackCoordinator.OpenPausedAsync(
-            new OpenBookPlaybackRequest(
-                request.BookId,
-                null,
-                null,
-                ResolveSpeakSpeedForOpen()),
-            cancellationToken);
-
-        snapshot = _playbackCoordinator.CurrentSnapshot;
-        ApplySnapshot(snapshot);
-        await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception) when (!operation.IsCurrent) { }
     }
 
     private async Task HandleChapterTargetNavigationAsync(
@@ -375,6 +405,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
                 await _playbackCoordinator.JumpToChapterAsync(targetChapterIndex, cancellationToken);
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             snapshot = _playbackCoordinator.CurrentSnapshot;
             ApplySnapshot(snapshot);
             await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
@@ -407,6 +438,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
                 cancellationToken);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
         snapshot = _playbackCoordinator.CurrentSnapshot;
         ApplySnapshot(snapshot);
         await EnsureContentLoadedForSnapshotAsync(snapshot, cancellationToken);
@@ -414,53 +446,50 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     public void OnPageNavigatedFrom()
     {
-        Interlocked.Increment(ref _pageEventGeneration);
-        _pageEventCancellation.Cancel();
+        if (_activation is null && !_isPageEventsRegistered) return;
+        var activation = _activation;
+        _activation = null;
+        activation?.Dispose();
+        _providerLoad.Cancel();
+        _contentLoad.Cancel();
+        _navigationLoad.Cancel();
         ClearPreparationFeedback();
         _contentController.InvalidatePendingLoads();
         StopStopTimerDisplayTimer();
         _cacheDecorationController.Deactivate();
-        _speechControlController.CancelPendingSpeakSpeedChange();
+        _speechControlController.Deactivate();
         CloseTransientPanels();
         _interactionController.Deactivate();
-        if (!_isPageEventsRegistered)
-        {
-            return;
-        }
-
-        _providersSource.Changed -= OnProvidersChanged;
-        _playbackCoordinator.SnapshotChanged -= OnSnapshotChanged;
-        _stopTimer.SnapshotChanged -= OnStopTimerSnapshotChanged;
         _isPageEventsRegistered = false;
     }
 
-    public void OnPageNavigatedTo(CancellationToken cancellationToken)
+    public void OnPageNavigatedTo(PageActivationScope activation)
     {
-        Interlocked.Increment(ref _pageEventGeneration);
-        _pageEventCancellation.Dispose();
-        _pageEventCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        _cacheDecorationController.Activate(_pageEventCancellation.Token);
+        OnPageNavigatedFrom();
+        _activation = activation;
+        activation.Register(() =>
+        {
+            if (ReferenceEquals(_activation, activation)) OnPageNavigatedFrom();
+        });
+        _cacheDecorationController.Activate(activation);
+        _speechControlController.Activate(activation);
         _interactionController.Activate();
-        RegisterPageEvents();
+        _providersSource.Changed += OnProvidersChanged;
+        _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
+        _stopTimer.SnapshotChanged += OnStopTimerSnapshotChanged;
+        activation.Register(() =>
+        {
+            _providersSource.Changed -= OnProvidersChanged;
+            _playbackCoordinator.SnapshotChanged -= OnSnapshotChanged;
+            _stopTimer.SnapshotChanged -= OnStopTimerSnapshotChanged;
+        });
+        _isPageEventsRegistered = true;
         ApplySnapshot(_playbackCoordinator.CurrentSnapshot);
         _cacheDecorationController.RequestStatusRefresh(chapterIndex: null);
         var stopTimerSnapshot = _stopTimer.CurrentSnapshot;
         ApplyStopTimerSnapshot(stopTimerSnapshot);
         RefreshStopTimerDisplay();
         UpdateStopTimerDisplayTimer(stopTimerSnapshot.IsActive);
-    }
-
-    private void RegisterPageEvents()
-    {
-        if (_isPageEventsRegistered)
-        {
-            return;
-        }
-
-        _providersSource.Changed += OnProvidersChanged;
-        _playbackCoordinator.SnapshotChanged += OnSnapshotChanged;
-        _stopTimer.SnapshotChanged += OnStopTimerSnapshotChanged;
-        _isPageEventsRegistered = true;
     }
 
     public void NotifyUserScrollInput()
@@ -1036,58 +1065,27 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private void OnProvidersChanged(object? sender, SpeechProvidersChangedEventArgs e)
     {
-        if (!_isPageEventsRegistered) return;
-        var generation = _pageEventGeneration;
-        _pageTasks.Register(RefreshProvidersForPageAsync(generation));
-    }
-
-    private async Task RefreshProvidersForPageAsync(int generation)
-    {
-        try
+        if (_activation is not { IsCurrent: true } activation) return;
+        activation.Run(token => _uiScheduler.InvokeAsync(async () =>
         {
-            await _uiScheduler.InvokeAsync(async () =>
-            {
-                if (IsCurrentPageEvent(generation)) await RefreshProvidersAsync(_pageEventCancellation.Token);
-            }, _pageEventCancellation.Token);
-        }
-        catch (OperationCanceledException) { }
+            if (activation.IsCurrent) await RefreshProvidersAsync(token);
+        }, token), exception => ReportViewOperationFailure("更新语音服务失败", exception));
     }
 
     private void OnSnapshotChanged(object? sender, PlaybackSnapshot snapshot)
     {
-        var pageEventGeneration = Volatile.Read(ref _pageEventGeneration);
-        if (!_uiScheduler.CheckAccess())
-        {
-            try
-            {
-                _pageTasks.Register(
-                    _uiScheduler.InvokeAsync(
-                        () => HandleSnapshotUpdateAsync(snapshot, pageEventGeneration),
-                        _pageEventCancellation.Token),
-                    exception => ReportViewOperationFailure("更新播放页面失败", exception));
-            }
-            catch (OperationCanceledException) when (_pageEventCancellation.IsCancellationRequested)
-            {
-            }
-            return;
-        }
-
-        _pageTasks.Register(
-            HandleSnapshotUpdateAsync(snapshot, pageEventGeneration),
+        if (_activation is not { IsCurrent: true } activation) return;
+        activation.Run(token => _uiScheduler.InvokeAsync(
+            () => HandleSnapshotUpdateAsync(snapshot, activation), token),
             exception => ReportViewOperationFailure("更新播放页面失败", exception));
     }
 
     private void OnStopTimerSnapshotChanged(object? sender, PlaybackStopTimerSnapshot snapshot)
     {
-        if (!_uiScheduler.CheckAccess())
-        {
-            _pageTasks.Register(
-                _uiScheduler.InvokeAsync(() => ApplyStopTimerSnapshot(snapshot), _pageEventCancellation.Token),
-                exception => ReportViewOperationFailure("更新定时停止状态失败", exception));
-            return;
-        }
-
-        ApplyStopTimerSnapshot(snapshot);
+        if (_activation is not { IsCurrent: true } activation) return;
+        activation.Run(token => _uiScheduler.InvokeAsync(
+            () => activation.TryCommit(() => ApplyStopTimerSnapshot(snapshot)), token),
+            exception => ReportViewOperationFailure("更新定时停止状态失败", exception));
     }
 
     private void OnCacheDecorationStateChanged(object? sender, EventArgs eventArgs)
@@ -1109,24 +1107,24 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             return;
         }
 
-        var pageEventGeneration = Volatile.Read(ref _pageEventGeneration);
+        if (_activation is not { IsCurrent: true } activation) return;
         if (!_uiScheduler.CheckAccess())
         {
-            _pageTasks.Register(
+            activation.Register(
                 _uiScheduler.InvokeAsync(
                     () =>
                     {
-                        if (IsCurrentPageEvent(pageEventGeneration))
+                        if (activation.IsCurrent)
                         {
                             NotifyInteractionStateChanged(eventArgs);
                         }
                     },
-                    _pageEventCancellation.Token),
+                    activation.CancellationToken),
                 exception => ReportViewOperationFailure("更新滚动状态失败", exception));
             return;
         }
 
-        if (IsCurrentPageEvent(pageEventGeneration))
+        if (activation.IsCurrent)
         {
             NotifyInteractionStateChanged(eventArgs);
         }
@@ -1148,9 +1146,9 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         }
     }
 
-    private async Task HandleSnapshotUpdateAsync(PlaybackSnapshot snapshot, int pageEventGeneration)
+    private async Task HandleSnapshotUpdateAsync(PlaybackSnapshot snapshot, PageActivationScope activation)
     {
-        if (!IsCurrentPageEvent(pageEventGeneration))
+        if (!activation.IsCurrent)
         {
             return;
         }
@@ -1160,11 +1158,11 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
         try
         {
-            await EnsureContentLoadedForSnapshotAsync(
+            if (!await EnsureContentLoadedForSnapshotAsync(
                 snapshot,
-                _pageEventCancellation.Token,
-                pageEventGeneration);
-            if (!IsCurrentPageEvent(pageEventGeneration))
+                activation.CancellationToken,
+                activation)) return;
+            if (!activation.IsCurrent)
             {
                 return;
             }
@@ -1183,40 +1181,46 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private async Task RefreshProvidersAsync(CancellationToken cancellationToken)
     {
-        var providers = await _speechControlController.LoadProvidersAsync(cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        _providers.ReplaceWith(providers, static provider => provider);
-        ApplyProviderSelection(_settingsService.Current.CurrentProviderId);
-        OnPropertyChanged(nameof(HasProviders));
-        OnPropertyChanged(nameof(ProviderUnavailableTitle));
-        UpdateProviderAvailability(_playbackCoordinator.CurrentSnapshot);
+        using var operation = _providerLoad.Begin(cancellationToken, _activation);
+        try
+        {
+            var providers = await _speechControlController.LoadProvidersAsync(operation.CancellationToken);
+            operation.TryCommit(() =>
+            {
+                _providers.ReplaceWith(providers, static provider => provider);
+                ApplyProviderSelection(_settingsService.Current.CurrentProviderId);
+                OnPropertyChanged(nameof(HasProviders));
+                OnPropertyChanged(nameof(ProviderUnavailableTitle));
+                UpdateProviderAvailability(_playbackCoordinator.CurrentSnapshot);
+            });
+        }
+        catch (OperationCanceledException) when (operation.CancellationToken.IsCancellationRequested) { }
+        catch (Exception) when (!operation.IsCurrent) { }
     }
 
-    private async Task EnsureContentLoadedForSnapshotAsync(
+    private async Task<bool> EnsureContentLoadedForSnapshotAsync(
         PlaybackSnapshot snapshot,
         CancellationToken cancellationToken,
-        int? expectedPageEventGeneration = null)
+        PageActivationScope? expectedActivation = null)
     {
-        if (expectedPageEventGeneration is int generation && !IsCurrentPageEvent(generation))
+        var activation = expectedActivation ?? _activation;
+        if (activation is not { IsCurrent: true }) return false;
+        var accepted = false;
+        var operation = _contentLoad.Begin(cancellationToken, activation);
+        var task = operation.RunAsync(async current =>
         {
-            return;
-        }
-
-        await _contentController.EnsureContentLoadedAsync(snapshot, cancellationToken);
-        if (expectedPageEventGeneration is int completedGeneration &&
-            !IsCurrentPageEvent(completedGeneration))
-        {
-            return;
-        }
-
-        SynchronizeContentProjection(includeChapterTitle: true);
-        _cacheDecorationController.EnsureBookInitialized();
+            await _contentController.EnsureContentLoadedAsync(snapshot, current.CancellationToken);
+            current.TryCommit(() =>
+            {
+                SynchronizeContentProjection(includeChapterTitle: true);
+                _cacheDecorationController.EnsureBookInitialized();
+                accepted = true;
+            });
+        }, exception => ReportViewOperationFailure("加载播放内容失败", exception));
+        activation.Register(task);
+        await task;
+        return accepted;
     }
-
-    private bool IsCurrentPageEvent(int generation) =>
-        generation == Volatile.Read(ref _pageEventGeneration) &&
-        _isPageEventsRegistered &&
-        !_pageEventCancellation.IsCancellationRequested;
 
     private async Task<PlaybackBookContent?> EnsureBookLoadedAsync(string bookId, CancellationToken cancellationToken)
     {
@@ -1225,6 +1229,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             CurrentChapterIndex,
             CurrentSegmentIndex,
             cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
         SynchronizeContentProjection(includeChapterTitle: false);
         if (book is not null)
         {
@@ -1295,10 +1300,10 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
         ClearPreparationFeedback();
         _preparationFeedbackIdentity = identity;
         var generation = ++_preparationFeedbackGeneration;
-        var pageEventGeneration = Volatile.Read(ref _pageEventGeneration);
-        var cancellationToken = _pageEventCancellation.Token;
+        if (_activation is not { IsCurrent: true } activation) return;
+        var cancellationToken = activation.CancellationToken;
         _preparationFeedbackTimer = _timeProvider.CreateTimer(
-            _ => OnPreparationFeedbackDelayElapsed(generation, pageEventGeneration, cancellationToken),
+            _ => OnPreparationFeedbackDelayElapsed(generation, activation, cancellationToken),
             null,
             PreparationFeedbackDelay,
             Timeout.InfiniteTimeSpan);
@@ -1306,14 +1311,14 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private void OnPreparationFeedbackDelayElapsed(
         long generation,
-        int pageEventGeneration,
+        PageActivationScope activation,
         CancellationToken cancellationToken)
     {
         void RevealFeedback()
         {
             if (cancellationToken.IsCancellationRequested ||
                 generation != _preparationFeedbackGeneration ||
-                !IsCurrentPageEvent(pageEventGeneration) ||
+                !activation.IsCurrent ||
                 _preparationFeedbackIdentity is null)
             {
                 return;
@@ -1338,7 +1343,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
         try
         {
-            _pageTasks.Register(
+            activation.Register(
                 _uiScheduler.InvokeAsync(RevealFeedback, cancellationToken),
                 exception => ReportViewOperationFailure("更新播放等待状态失败", exception));
         }
@@ -1467,6 +1472,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
     private void OnStopTimerDisplayTick(object? state)
     {
+        if (_activation is not { IsCurrent: true } activation) return;
         if (!_isPageEventsRegistered)
         {
             return;
@@ -1474,8 +1480,8 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
 
         if (!_uiScheduler.CheckAccess())
         {
-            _pageTasks.Register(
-                _uiScheduler.InvokeAsync(RefreshStopTimerDisplay, _pageEventCancellation.Token),
+            activation.Register(
+                _uiScheduler.InvokeAsync(() => activation.TryCommit(RefreshStopTimerDisplay), activation.CancellationToken),
                 exception => ReportViewOperationFailure("更新定时停止倒计时失败", exception));
             return;
         }
@@ -1567,6 +1573,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
                 ResolveSpeakSpeedForOpen()),
             cancellationToken);
 
+        cancellationToken.ThrowIfCancellationRequested();
         var refreshedSnapshot = _playbackCoordinator.CurrentSnapshot;
         ApplySnapshot(refreshedSnapshot);
         await EnsureContentLoadedForSnapshotAsync(refreshedSnapshot, cancellationToken);

@@ -14,14 +14,12 @@ internal sealed class ChapterCacheViewQuerySlot
     private readonly IUiScheduler _uiScheduler;
     private readonly Action<string, IReadOnlyCollection<int>, IReadOnlyList<CacheChapterView>> _applyViews;
     private readonly Action<Exception> _reportFailure;
-    private readonly OwnedTaskRegistry _tasks = new();
+    private readonly LatestOperationSlot _catalogObservation = new();
     private readonly object _syncRoot = new();
     private readonly HashSet<int> _pendingChapterIndices = [];
 
-    private CancellationTokenSource? _activationCancellationTokenSource;
     private string? _pendingBookId;
     private bool _isRefreshRunning;
-    private int _activationGeneration;
     private PageActivationScope? _pageActivation;
 
     public ChapterCacheViewQuerySlot(
@@ -36,32 +34,26 @@ internal sealed class ChapterCacheViewQuerySlot
         _reportFailure = reportFailure;
     }
 
-    public void Activate(CancellationToken cancellationToken, PageActivationScope? pageActivation = null)
+    public void Activate(CancellationToken cancellationToken, PageActivationScope pageActivation)
     {
         Deactivate();
         lock (_syncRoot)
         {
-            _activationCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            _catalogObservation.Begin(cancellationToken, pageActivation);
             _pageActivation = pageActivation;
         }
     }
 
     public void Deactivate()
     {
-        CancellationTokenSource? cancellationTokenSource;
         lock (_syncRoot)
         {
-            cancellationTokenSource = _activationCancellationTokenSource;
-            _activationCancellationTokenSource = null;
+            _catalogObservation.Cancel();
             _pageActivation = null;
-            _activationGeneration++;
             _pendingChapterIndices.Clear();
             _pendingBookId = null;
             _isRefreshRunning = false;
         }
-
-        cancellationTokenSource?.Cancel();
-        cancellationTokenSource?.Dispose();
     }
 
     public void Request(
@@ -76,17 +68,17 @@ internal sealed class ChapterCacheViewQuerySlot
             return;
         }
 
-        int generation;
+        LatestOperationSlot.Operation observation;
         CancellationToken cancellationToken;
         PageActivationScope? pageActivation;
         lock (_syncRoot)
         {
-            if (_activationCancellationTokenSource is not { IsCancellationRequested: false } cancellationTokenSource)
+            if (_catalogObservation.Current is not { IsCurrent: true } current)
             {
                 return;
             }
 
-            cancellationToken = cancellationTokenSource.Token;
+            cancellationToken = current.CancellationToken;
             if (!string.Equals(_pendingBookId, bookId, StringComparison.Ordinal))
             {
                 _pendingChapterIndices.Clear();
@@ -100,28 +92,27 @@ internal sealed class ChapterCacheViewQuerySlot
             }
 
             _isRefreshRunning = true;
-            generation = _activationGeneration;
+            observation = current;
             pageActivation = _pageActivation;
         }
 
-        StartRefresh(generation, cancellationToken, pageActivation);
+        StartRefresh(observation, cancellationToken, pageActivation!);
     }
 
-    private void StartRefresh(int generation, CancellationToken cancellationToken, PageActivationScope? pageActivation)
+    private void StartRefresh(LatestOperationSlot.Operation observation, CancellationToken cancellationToken, PageActivationScope pageActivation)
     {
-        var task = ProcessRefreshesAsync(generation, cancellationToken);
+        var task = ProcessRefreshesAsync(observation, cancellationToken);
         void ReportFailure(Exception exception)
         {
-            if (IsCurrentGeneration(generation))
+            if (observation.IsCurrent)
             {
                 _reportFailure(exception);
             }
         }
-        if (pageActivation is not null) pageActivation.Register(task, ReportFailure);
-        else _tasks.Register(task, ReportFailure);
+        pageActivation.Register(task, ReportFailure);
     }
 
-    private async Task ProcessRefreshesAsync(int generation, CancellationToken cancellationToken)
+    private async Task ProcessRefreshesAsync(LatestOperationSlot.Operation observation, CancellationToken cancellationToken)
     {
         try
         {
@@ -131,7 +122,7 @@ internal sealed class ChapterCacheViewQuerySlot
                 int[] chapterIndices;
                 lock (_syncRoot)
                 {
-                    if (generation != _activationGeneration)
+                    if (!observation.IsCurrent)
                     {
                         return;
                     }
@@ -156,7 +147,7 @@ internal sealed class ChapterCacheViewQuerySlot
                 await _uiScheduler.InvokeAsync(
                     () =>
                     {
-                        if (IsCurrentGeneration(generation))
+                        if (observation.IsCurrent)
                         {
                             _applyViews(bookId, chapterIndices, result.Value);
                         }
@@ -170,11 +161,10 @@ internal sealed class ChapterCacheViewQuerySlot
             PageActivationScope? pageActivation = null;
             lock (_syncRoot)
             {
-                if (generation == _activationGeneration)
+                if (observation.IsCurrent)
                 {
                     _isRefreshRunning = false;
-                    restartPending = _pendingChapterIndices.Count > 0 &&
-                                     _activationCancellationTokenSource is { IsCancellationRequested: false };
+                    restartPending = _pendingChapterIndices.Count > 0;
                     if (restartPending)
                     {
                         _isRefreshRunning = true;
@@ -185,19 +175,10 @@ internal sealed class ChapterCacheViewQuerySlot
 
             if (restartPending)
             {
-                StartRefresh(generation, cancellationToken, pageActivation);
+                StartRefresh(observation, cancellationToken, pageActivation!);
             }
 
             throw;
-        }
-    }
-
-    private bool IsCurrentGeneration(int generation)
-    {
-        lock (_syncRoot)
-        {
-            return generation == _activationGeneration &&
-                   _activationCancellationTokenSource is { IsCancellationRequested: false };
         }
     }
 }

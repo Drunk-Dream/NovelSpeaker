@@ -726,8 +726,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private void ActivateCacheStatusUpdates(CancellationToken cancellationToken)
     {
         DeactivateCacheStatusUpdates();
-        var observation = _cacheObservation.Begin(cancellationToken, _activation);
-        _cacheStatusRefresh.Activate(observation.CancellationToken, _activation);
+        if (_activation is not { IsCurrent: true } activation) return;
+        var observation = _cacheObservation.Begin(cancellationToken, activation);
+        _cacheStatusRefresh.Activate(observation.CancellationToken, activation);
     }
 
     private void DeactivateCacheStatusUpdates()

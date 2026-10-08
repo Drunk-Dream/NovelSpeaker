@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.TestKit.Speech;
 using System.Collections.ObjectModel;
@@ -178,7 +179,7 @@ public sealed partial class PlayerViewTests
                 new CacheReadModelTestDouble(),
                 new FakeMiniPlayerLauncher());
 
-            viewModel.OnPageNavigatedTo(CancellationToken.None);
+            viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
             viewModel.LoadAsync(CancellationToken.None).GetAwaiter().GetResult();
             viewModel.HandleNavigationAsync(
                 new PlayerNavigationRequest("book-1", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession),

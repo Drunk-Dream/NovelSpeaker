@@ -1,3 +1,4 @@
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.TestKit.Speech;
 using NovelSpeaker.Domain.Speech.Providers;
 using System.Collections.Specialized;
@@ -56,7 +57,7 @@ public sealed partial class PlayerViewModelTests
             timeProvider ?? TimeProvider.System,
             uiScheduler ?? new ImmediateUiScheduler());
 
-        viewModel.OnPageNavigatedTo(CancellationToken.None);
+        viewModel.OnPageNavigatedTo(new PageActivationController().Activate());
         return viewModel;
     }
 
@@ -642,12 +643,14 @@ public sealed partial class PlayerViewModelTests
 
     private sealed class FakeAppFeedbackService : IAppFeedbackService
     {
+        public List<string> ProjectedFailures { get; } = [];
         public string? LastWarningTitle { get; private set; }
 
         public ProjectedUiError Project(Exception exception) => new(exception.Message, UiMessageSeverity.Error, false);
 
         public void ShowProjectedNotification(string title, ProjectedUiError projected)
         {
+            ProjectedFailures.Add(title);
         }
 
         public void ShowSuccess(string title, string message)

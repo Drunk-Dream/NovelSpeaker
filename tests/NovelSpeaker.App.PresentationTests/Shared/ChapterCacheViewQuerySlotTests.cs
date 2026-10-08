@@ -80,7 +80,7 @@ public sealed class ChapterCacheViewQuerySlotTests
                 }
             },
             _ => { });
-        controller.Activate(CancellationToken.None);
+        controller.Activate(CancellationToken.None, new PageActivationController().Activate());
 
         controller.Request("book-1", [0]);
         await firstRequestStarted.Task;
@@ -103,10 +103,10 @@ public sealed class ChapterCacheViewQuerySlotTests
         var applied = new List<CacheChapterView>();
         var controller = new ChapterCacheViewQuerySlot(service, scheduler,
             (_, _, views) => applied.AddRange(views), _ => { });
-        controller.Activate(CancellationToken.None);
+        controller.Activate(CancellationToken.None, new PageActivationController().Activate());
         controller.Request("book-1", [0]);
 
-        controller.Activate(CancellationToken.None);
+        controller.Activate(CancellationToken.None, new PageActivationController().Activate());
         service.Statuses = [new(0, 4, 4)];
         controller.Request("book-1", [0]);
         scheduler.RunNext();
@@ -132,7 +132,7 @@ public sealed class ChapterCacheViewQuerySlotTests
             scheduler,
             (_, _, _) => applyCount++,
             _ => { });
-        controller.Activate(CancellationToken.None);
+        controller.Activate(CancellationToken.None, new PageActivationController().Activate());
 
         controller.Request("book-1", [0]);
         Assert.Equal(1, scheduler.PendingCount);

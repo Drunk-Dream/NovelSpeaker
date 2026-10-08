@@ -5,6 +5,7 @@ using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Cache;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using NovelSpeaker.App.Shared.Presentation.Selection;
+using NovelSpeaker.App.Shell.Activation;
 
 namespace NovelSpeaker.App.Features.Playback.Presentation;
 
@@ -24,12 +25,9 @@ internal sealed class PlayerCacheDecorationController
     private readonly Action<string, Exception> _reportFailure;
     private readonly PlayerChapterManagementController _selectionController;
     private readonly ChapterCacheViewQuerySlot _statusRefreshController;
-    private readonly OwnedTaskRegistry _pageTasks = new();
     private readonly HashSet<int> _explicitStatusRequests = [];
 
-    private CancellationToken _activationToken;
-    private bool _isActive;
-    private int _activationVersion;
+    private PageActivationScope? _activation;
     private int _currentChapterIndex = -1;
     private string? _initializedBookId;
     private int _synchronizedCatalogVersion = -1;
@@ -69,28 +67,28 @@ internal sealed class PlayerCacheDecorationController
 
     public bool CanStart => _selectionController.CanStart;
 
-    public void Activate(CancellationToken cancellationToken)
+    public void Activate(PageActivationScope activation)
     {
         Deactivate();
-        _activationToken = cancellationToken;
-        _activationVersion++;
-        _isActive = true;
-        _statusRefreshController.Activate(cancellationToken);
+        _activation = activation;
+        _statusRefreshController.Activate(activation.CancellationToken, activation);
         _activeCacheCoordinator.SnapshotChanged += OnActiveCacheSnapshotChanged;
         _readModel.Changed += OnCacheReadModelChanged;
+        activation.Register(() =>
+        {
+            _activeCacheCoordinator.SnapshotChanged -= OnActiveCacheSnapshotChanged;
+            _readModel.Changed -= OnCacheReadModelChanged;
+        });
+        activation.Register(() =>
+        {
+            if (ReferenceEquals(_activation, activation)) Deactivate();
+        });
         _selectionController.ApplySnapshot(_activeCacheCoordinator.CurrentSnapshot);
     }
 
     public void Deactivate()
     {
-        _activationVersion++;
-        if (_isActive)
-        {
-            _activeCacheCoordinator.SnapshotChanged -= OnActiveCacheSnapshotChanged;
-            _readModel.Changed -= OnCacheReadModelChanged;
-            _isActive = false;
-        }
-
+        _activation = null;
         _statusRefreshController.Deactivate();
         _selectionController.ExitSelectionMode();
         _explicitStatusRequests.Clear();
@@ -105,7 +103,8 @@ internal sealed class PlayerCacheDecorationController
             return;
         }
 
-        _statusRefreshController.Activate(_activationToken);
+        if (_activation is not { IsCurrent: true } activation) return;
+        _statusRefreshController.Activate(activation.CancellationToken, activation);
         _initializedBookId = null;
         _explicitStatusRequests.Clear();
         _selectionController.SetIndexedItems(
@@ -164,7 +163,7 @@ internal sealed class PlayerCacheDecorationController
 
         void Request()
         {
-            if (!IsCurrentActivation(_activationVersion) ||
+            if (_activation is not { IsCurrent: true } ||
                 _contentController.LoadedBook is not { BookId: { Length: > 0 } bookId } ||
                 _contentController.ChapterIndices.Count == 0)
             {
@@ -205,7 +204,7 @@ internal sealed class PlayerCacheDecorationController
 
     private void QueueStatusRefresh(int? chapterIndex)
     {
-        if (!IsCurrentActivation(_activationVersion) ||
+        if (_activation is not { IsCurrent: true } ||
             _contentController.LoadedBook is not { BookId: { Length: > 0 } bookId })
         {
             return;
@@ -251,7 +250,7 @@ internal sealed class PlayerCacheDecorationController
         IReadOnlyCollection<int> requestedChapterIndices,
         IReadOnlyList<CacheChapterView> views)
     {
-        if (!IsCurrentActivation(_activationVersion) ||
+        if (_activation is not { IsCurrent: true } ||
             !string.Equals(_contentController.LoadedBook?.BookId, bookId, StringComparison.Ordinal))
         {
             return;
@@ -300,16 +299,16 @@ internal sealed class PlayerCacheDecorationController
 
     private void OnActiveCacheSnapshotChanged(object? sender, ActiveCacheSnapshot snapshot)
     {
-        var activationVersion = _activationVersion;
+        var activation = _activation;
         RunOnUi(
             () => _selectionController.ApplySnapshot(snapshot),
-            activationVersion,
+            activation,
             "更新主动缓存状态失败");
     }
 
     private void OnCacheReadModelChanged(object? sender, CacheReadModelChange change)
     {
-        RunOnUi(() => ApplyCacheReadModelChange(change), _activationVersion, "刷新章节缓存进度失败");
+        RunOnUi(() => ApplyCacheReadModelChange(change), _activation, "刷新章节缓存进度失败");
     }
 
     private void ApplyCacheReadModelChange(CacheReadModelChange change)
@@ -361,43 +360,14 @@ internal sealed class PlayerCacheDecorationController
         _statusRefreshController.Request(bookId, indices);
     }
 
-    private void RunOnUi(Action action, int activationVersion, string failureTitle)
+    private void RunOnUi(Action action, PageActivationScope? activation, string failureTitle)
     {
-        if (!_uiScheduler.CheckAccess())
-        {
-            RegisterUiTask(
-                () =>
-                {
-                    if (IsCurrentActivation(activationVersion))
-                    {
-                        action();
-                    }
-                },
-                failureTitle);
-            return;
-        }
-
-        if (IsCurrentActivation(activationVersion))
-        {
-            action();
-        }
+        if (activation is not { IsCurrent: true }) return;
+        activation.Run(token => _uiScheduler.InvokeAsync(
+            () => activation.TryCommit(action), token),
+            exception => _reportFailure(failureTitle, exception));
     }
 
-    private void RegisterUiTask(Action action, string failureTitle)
-    {
-        try
-        {
-            _pageTasks.Register(
-                _uiScheduler.InvokeAsync(action, _activationToken),
-                exception => _reportFailure(failureTitle, exception));
-        }
-        catch (OperationCanceledException) when (_activationToken.IsCancellationRequested)
-        {
-        }
-    }
-
-    private bool IsCurrentActivation(int activationVersion) =>
-        _isActive &&
-        activationVersion == _activationVersion &&
-        !_activationToken.IsCancellationRequested;
+    private void RegisterUiTask(Action action, string failureTitle) =>
+        RunOnUi(action, _activation, failureTitle);
 }

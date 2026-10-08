@@ -31,15 +31,14 @@ internal sealed class PlayerContentController
     private IndexedCatalog<BookChapterSummary> _chapterCatalog =
         new([], static chapter => chapter.ChapterIndex);
     private int _loadedChapterIndex = -1;
-    private int _bookLoadVersion;
-    private int _chapterLoadVersion;
+    private readonly LatestOperationSlot _bookLoad = new();
+    private readonly LatestOperationSlot _chapterLoad = new();
     private long _lastContentRevision;
     private long _positionRevision;
     private int _latestPositionChapterIndex = -1;
     private int _latestPositionSegmentIndex;
     private int _latestPositionSegmentCount;
     private string? _bookLoadTarget;
-    private CancellationTokenSource? _bookProjectionCancellation;
 
     public PlayerContentController(
         IBookDetailsQuery bookDetailsQuery,
@@ -84,17 +83,9 @@ internal sealed class PlayerContentController
 
     public void InvalidatePendingLoads()
     {
-        CancellationTokenSource? projectionCancellation;
-        lock (_syncRoot)
-        {
-            ++_bookLoadVersion;
-            ++_chapterLoadVersion;
-            _bookLoadTarget = null;
-            projectionCancellation = _bookProjectionCancellation;
-            _bookProjectionCancellation = null;
-        }
-
-        projectionCancellation?.Cancel();
+        _bookLoad.Cancel();
+        _chapterLoad.Cancel();
+        _bookLoadTarget = null;
     }
 
     public bool TryGetChapterItem(int chapterIndex, out PlayerChapterItemViewModel item)
@@ -253,58 +244,66 @@ internal sealed class PlayerContentController
             return _loadedBook;
         }
 
-        var loadVersion = BeginBookLoad(bookId);
-        var catalog = await _bookDetailsQuery
-            .GetCatalogAsync(bookId, cancellationToken)
-            .ConfigureAwait(true);
-        var book = await _contentService
-            .GetBookAsync(bookId, catalog, cancellationToken)
-            .ConfigureAwait(true);
-        if (loadVersion != _bookLoadVersion || book is null)
+        using var operation = _bookLoad.Begin(cancellationToken);
+        _bookLoadTarget = bookId;
+        _chapterLoad.Cancel();
+        cancellationToken = operation.CancellationToken;
+        try
         {
-            if (loadVersion == _bookLoadVersion)
+            var catalog = await _bookDetailsQuery
+                .GetCatalogAsync(bookId, cancellationToken)
+                .ConfigureAwait(true);
+            var book = await _contentService
+                .GetBookAsync(bookId, catalog, cancellationToken)
+                .ConfigureAwait(true);
+            if (!operation.IsCurrent || book is null)
             {
-                _bookLoadTarget = null;
+                if (operation.IsCurrent)
+                {
+                    _bookLoadTarget = null;
+                }
+
+                return null;
             }
 
-            return null;
-        }
-
-        if (expectedSourceContext is not null && book.SourceContext != expectedSourceContext)
-        {
-            _bookLoadTarget = null;
-            return null;
-        }
-
-        if (catalog.Count != book.Chapters.Count || (catalog.Count > 0 && catalog[0].SourceContext != book.SourceContext))
-        {
-            // A source commit between the two queries must not mix an old page
-            // catalog with new playback content.
-            catalog = await Task.Run(() => book.Chapters.Select(chapter => new BookChapterSummary(
-                chapter.ChapterIndex, chapter.Title, chapter.ChapterId, book.SourceContext)).ToArray(), cancellationToken);
-        }
-
-        if (!await ApplyLoadedBookAsync(
-                book,
-                catalog,
-                loadVersion,
-                currentChapterIndex,
-                currentSegmentIndex,
-                cancellationToken) ||
-            loadVersion != Volatile.Read(ref _bookLoadVersion))
-        {
-            return null;
-        }
-
-        lock (_syncRoot)
-        {
-            if (loadVersion == _bookLoadVersion)
+            if (expectedSourceContext is not null && book.SourceContext != expectedSourceContext)
             {
                 _bookLoadTarget = null;
+                return null;
             }
-        }
 
-        return loadVersion == Volatile.Read(ref _bookLoadVersion) ? book : null;
+            if (catalog.Count != book.Chapters.Count || (catalog.Count > 0 && catalog[0].SourceContext != book.SourceContext))
+            {
+                // A source commit between the two queries must not mix an old page
+                // catalog with new playback content.
+                catalog = await Task.Run(() => book.Chapters.Select(chapter => new BookChapterSummary(
+                    chapter.ChapterIndex, chapter.Title, chapter.ChapterId, book.SourceContext)).ToArray(), cancellationToken);
+            }
+
+            if (!await ApplyLoadedBookAsync(
+                    book,
+                    catalog,
+                    operation,
+                    currentChapterIndex,
+                    currentSegmentIndex,
+                    cancellationToken) ||
+                !operation.IsCurrent)
+            {
+                return null;
+            }
+
+            lock (_syncRoot)
+            {
+                if (operation.IsCurrent)
+                {
+                    _bookLoadTarget = null;
+                }
+            }
+
+            return operation.IsCurrent ? book : null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return null; }
+        catch (Exception) when (!operation.IsCurrent) { return null; }
     }
 
     public async Task EnsureContentLoadedAsync(PlaybackSnapshot snapshot, CancellationToken cancellationToken)
@@ -349,7 +348,7 @@ internal sealed class PlayerContentController
 
         if (book.SourceContext != snapshot.SourceContext) return;
 
-        var bookLoadVersion = _bookLoadVersion;
+        var bookLoadIdentity = _bookLoad.Identity;
         if (!ReferenceEquals(_loadedBook, book))
         {
             return;
@@ -367,7 +366,7 @@ internal sealed class PlayerContentController
         }
 
         if (!await EnsureChapterLoadedAsync(book.BookId, snapshot.ChapterIndex, cancellationToken) ||
-            bookLoadVersion != _bookLoadVersion ||
+            bookLoadIdentity != _bookLoad.Identity ||
             !ReferenceEquals(_loadedBook, book))
         {
             return;
@@ -413,6 +412,9 @@ internal sealed class PlayerContentController
         int chapterIndex,
         CancellationToken cancellationToken)
     {
+        using var operation = _chapterLoad.Begin(cancellationToken);
+        cancellationToken = operation.CancellationToken;
+        if (!operation.IsCurrent) return false;
         if (_loadedBook is null || !string.Equals(_loadedBook.BookId, bookId, StringComparison.Ordinal))
         {
             return false;
@@ -431,189 +433,150 @@ internal sealed class PlayerContentController
             return true;
         }
 
-        var loadVersion = ++_chapterLoadVersion;
         var expectedBook = _loadedBook;
         var expectedChapter = expectedBook.Chapters.FirstOrDefault(chapter => chapter.ChapterIndex == chapterIndex);
-        var chapter = await _contentService.GetChapterAsync(bookId, chapterIndex, cancellationToken);
-        if (loadVersion != _chapterLoadVersion || chapter is null || !ReferenceEquals(_loadedBook, expectedBook) ||
-            (expectedChapter?.ChapterId is not null && chapter.ChapterId != expectedChapter.ChapterId))
+        try
         {
-            return false;
+            var chapter = await _contentService.GetChapterAsync(bookId, chapterIndex, cancellationToken);
+            if (!operation.IsCurrent || chapter is null || !ReferenceEquals(_loadedBook, expectedBook) ||
+                (expectedChapter?.ChapterId is not null && chapter.ChapterId != expectedChapter.ChapterId))
+            {
+                return false;
+            }
+
+            _chapterCache[chapter.ChapterIndex] = chapter;
+            ApplyChapterContent(chapter);
+            return true;
         }
-
-        _chapterCache[chapter.ChapterIndex] = chapter;
-        ApplyChapterContent(chapter);
-        return true;
-    }
-
-    private int BeginBookLoad(string bookId)
-    {
-        CancellationTokenSource? previousProjectionCancellation;
-        int loadVersion;
-        lock (_syncRoot)
-        {
-            loadVersion = ++_bookLoadVersion;
-            _bookLoadTarget = bookId;
-            ++_chapterLoadVersion;
-            previousProjectionCancellation = _bookProjectionCancellation;
-            _bookProjectionCancellation = null;
-        }
-
-        previousProjectionCancellation?.Cancel();
-        return loadVersion;
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return false; }
+        catch (Exception) when (!operation.IsCurrent) { return false; }
     }
 
     private async Task<bool> ApplyLoadedBookAsync(
         PlaybackBookContent book,
         IReadOnlyList<BookChapterSummary> catalog,
-        int loadVersion,
+        LatestOperationSlot.Operation operation,
         int currentChapterIndex,
         int currentSegmentIndex,
         CancellationToken cancellationToken)
     {
-        var projectionCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cancellationToken = operation.CancellationToken;
+        long initialPositionRevision;
         lock (_syncRoot)
         {
-            if (loadVersion != _bookLoadVersion)
+            initialPositionRevision = _positionRevision;
+        }
+
+        var chapterCatalog = catalog.Count >= CatalogIndexingTaskThreshold
+            ? await Task.Run(
+                () => CreateChapterCatalog(catalog),
+                cancellationToken).ConfigureAwait(true)
+            : CreateChapterCatalog(catalog);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (_syncRoot)
+        {
+            if (!operation.IsCurrent)
             {
-                projectionCancellation.Dispose();
                 return false;
             }
 
-            _bookProjectionCancellation = projectionCancellation;
+            var isDifferentBook = !string.Equals(_loadedBook?.BookId, book.BookId, StringComparison.Ordinal) ||
+                _loadedBook?.SourceContext != book.SourceContext;
+            var projectedChapterIndex = initialPositionRevision == _positionRevision
+                ? currentChapterIndex
+                : _latestPositionChapterIndex;
+            var projectedSegmentIndex = initialPositionRevision == _positionRevision
+                ? currentSegmentIndex
+                : _latestPositionSegmentIndex;
+            var projectedSegmentCount = _latestPositionSegmentCount;
+            _loadedBook = book;
+
+            if (isDifferentBook)
+            {
+                _chapterLoad.Cancel();
+                _chapterCache.Clear();
+                _loadedChapterIndex = -1;
+                _lastContentRevision = 0;
+                CurrentChapterSegmentCount = 0;
+                _segments.Clear();
+            }
+
+            _chapterCatalog = chapterCatalog;
+            _currentChapterDecoration.Clear();
+            var hasCurrentChapter = _chapterCatalog.TryGetPosition(projectedChapterIndex, out var currentChapterPosition);
+            if (hasCurrentChapter)
+            {
+                _currentChapterDecoration.Set(projectedChapterIndex, true);
+            }
+
+            _latestPositionChapterIndex = projectedChapterIndex;
+            _latestPositionSegmentIndex = projectedSegmentIndex;
+            _latestPositionSegmentCount = projectedSegmentCount;
+
+            _chapterSelectionDecoration.Clear();
+            _cacheDecorations.Clear();
+            _cacheDecorationWindow.Clear();
+            ChapterCatalogVersion++;
         }
 
-        try
+        var currentDecoration = _currentChapterDecoration.Snapshot();
+        var selectionDecoration = _chapterSelectionDecoration.Snapshot();
+        var cacheDecoration = _cacheDecorations.Snapshot();
+        await _chapters.ReplaceWithInBatchesAsync(
+            _chapterCatalog.Items,
+            chapter => CreateChapterItem(chapter, currentDecoration, selectionDecoration, cacheDecoration),
+            _uiScheduler,
+            cancellationToken);
+
+        lock (_syncRoot)
         {
-            long initialPositionRevision;
-            lock (_syncRoot)
+            if (!operation.IsCurrent)
             {
-                initialPositionRevision = _positionRevision;
+                return false;
             }
 
-            var chapterCatalog = catalog.Count >= CatalogIndexingTaskThreshold
-                ? await Task.Run(
-                    () => CreateChapterCatalog(catalog),
-                    projectionCancellation.Token).ConfigureAwait(true)
-                : CreateChapterCatalog(catalog);
-
-            projectionCancellation.Token.ThrowIfCancellationRequested();
-
-            lock (_syncRoot)
+            var finalChapterIndex = _latestPositionChapterIndex;
+            var finalSegmentIndex = _latestPositionSegmentIndex;
+            var finalSegmentCount = _latestPositionSegmentCount;
+            var previouslyCurrentChapters = _currentChapterDecoration
+                .Snapshot()
+                .Keys
+                .ToArray();
+            _currentChapterDecoration.Clear();
+            if (_chapterCatalog.TryGetPosition(finalChapterIndex, out _))
             {
-                if (loadVersion != _bookLoadVersion)
-                {
-                    return false;
-                }
-
-                var isDifferentBook = !string.Equals(_loadedBook?.BookId, book.BookId, StringComparison.Ordinal) ||
-                    _loadedBook?.SourceContext != book.SourceContext;
-                var projectedChapterIndex = initialPositionRevision == _positionRevision
-                    ? currentChapterIndex
-                    : _latestPositionChapterIndex;
-                var projectedSegmentIndex = initialPositionRevision == _positionRevision
-                    ? currentSegmentIndex
-                    : _latestPositionSegmentIndex;
-                var projectedSegmentCount = _latestPositionSegmentCount;
-                _loadedBook = book;
-
-                if (isDifferentBook)
-                {
-                    ++_chapterLoadVersion;
-                    _chapterCache.Clear();
-                    _loadedChapterIndex = -1;
-                    _lastContentRevision = 0;
-                    CurrentChapterSegmentCount = 0;
-                    _segments.Clear();
-                }
-
-                _chapterCatalog = chapterCatalog;
-                _currentChapterDecoration.Clear();
-                var hasCurrentChapter = _chapterCatalog.TryGetPosition(projectedChapterIndex, out var currentChapterPosition);
-                if (hasCurrentChapter)
-                {
-                    _currentChapterDecoration.Set(projectedChapterIndex, true);
-                }
-
-                _latestPositionChapterIndex = projectedChapterIndex;
-                _latestPositionSegmentIndex = projectedSegmentIndex;
-                _latestPositionSegmentCount = projectedSegmentCount;
-
-                _chapterSelectionDecoration.Clear();
-                _cacheDecorations.Clear();
-                _cacheDecorationWindow.Clear();
-                ChapterCatalogVersion++;
+                _currentChapterDecoration.Set(finalChapterIndex, true);
             }
 
-            var currentDecoration = _currentChapterDecoration.Snapshot();
-            var selectionDecoration = _chapterSelectionDecoration.Snapshot();
-            var cacheDecoration = _cacheDecorations.Snapshot();
-            await _chapters.ReplaceWithInBatchesAsync(
-                _chapterCatalog.Items,
-                chapter => CreateChapterItem(chapter, currentDecoration, selectionDecoration, cacheDecoration),
-                _uiScheduler,
-                projectionCancellation.Token);
-
-            lock (_syncRoot)
+            foreach (var chapterIndex in previouslyCurrentChapters
+                .Append(finalChapterIndex)
+                .Distinct())
             {
-                if (loadVersion != _bookLoadVersion)
+                if (_chapterCatalog.TryGetPosition(chapterIndex, out var position))
                 {
-                    return false;
+                    ReplaceChapterItem(
+                        chapterIndex,
+                        CreateChapterItem(_chapterCatalog[position]));
                 }
-
-                var finalChapterIndex = _latestPositionChapterIndex;
-                var finalSegmentIndex = _latestPositionSegmentIndex;
-                var finalSegmentCount = _latestPositionSegmentCount;
-                var previouslyCurrentChapters = _currentChapterDecoration
-                    .Snapshot()
-                    .Keys
-                    .ToArray();
-                _currentChapterDecoration.Clear();
-                if (_chapterCatalog.TryGetPosition(finalChapterIndex, out _))
-                {
-                    _currentChapterDecoration.Set(finalChapterIndex, true);
-                }
-
-                foreach (var chapterIndex in previouslyCurrentChapters
-                    .Append(finalChapterIndex)
-                    .Distinct())
-                {
-                    if (_chapterCatalog.TryGetPosition(chapterIndex, out var position))
-                    {
-                        ReplaceChapterItem(
-                            chapterIndex,
-                            CreateChapterItem(_chapterCatalog[position]));
-                    }
-                }
-                var hasCurrentChapter = _chapterCatalog.TryGetPosition(finalChapterIndex, out var currentChapterPosition);
-                CurrentChapterItem = null;
-                CurrentChapterTitle = hasCurrentChapter
-                    ? _chapterCatalog.Items[currentChapterPosition].Title
-                    : "尚未定位章节";
-                if (finalSegmentCount > 0)
-                {
-                    CurrentChapterSegmentCount = finalSegmentCount;
-                }
-
-                UpdateChapterProjection(finalChapterIndex);
-                UpdateSegmentProjection(finalSegmentIndex);
-                UpdateNavigationAvailability(finalChapterIndex, finalSegmentIndex);
+            }
+            var hasCurrentChapter = _chapterCatalog.TryGetPosition(finalChapterIndex, out var currentChapterPosition);
+            CurrentChapterItem = null;
+            CurrentChapterTitle = hasCurrentChapter
+                ? _chapterCatalog.Items[currentChapterPosition].Title
+                : "尚未定位章节";
+            if (finalSegmentCount > 0)
+            {
+                CurrentChapterSegmentCount = finalSegmentCount;
             }
 
-            return true;
+            UpdateChapterProjection(finalChapterIndex);
+            UpdateSegmentProjection(finalSegmentIndex);
+            UpdateNavigationAvailability(finalChapterIndex, finalSegmentIndex);
         }
-        finally
-        {
-            lock (_syncRoot)
-            {
-                if (ReferenceEquals(_bookProjectionCancellation, projectionCancellation))
-                {
-                    _bookProjectionCancellation = null;
-                }
-            }
 
-            projectionCancellation.Dispose();
-        }
+        return true;
     }
 
     private static IndexedCatalog<BookChapterSummary> CreateChapterCatalog(
