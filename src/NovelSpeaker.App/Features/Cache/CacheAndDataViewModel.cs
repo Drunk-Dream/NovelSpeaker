@@ -206,6 +206,7 @@ public sealed partial class CacheAndDataViewModel : SettingsSubpageViewModelBase
     public override async Task LoadAsync(CancellationToken cancellationToken)
     {
         Activate(cancellationToken);
+        cancellationToken = ActivationToken;
         RegisterReadModelSubscription();
         _isLoading = true;
         NotifyClearAllCommandState();

@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.App.Shared.Feedback;
@@ -16,11 +17,9 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
     private readonly IPlaybackSession _playbackCoordinator;
     private readonly TimeProvider _timeProvider;
     private bool _isLoading;
-    private CancellationTokenSource? _defaultSpeakSpeedDebounceCts;
-    private CancellationTokenSource? _prefetchCountDebounceCts;
-    private int _defaultSpeakSpeedVersion;
-    private int _prefetchCountVersion;
-    private int _readChapterTitleVersion;
+    private readonly LatestOperationSlot _defaultSpeakSpeedSave = new();
+    private readonly LatestOperationSlot _prefetchCountSave = new();
+    private readonly LatestOperationSlot _readChapterTitleSave = new();
 
     public PlaybackSettingsViewModel(
         IAppSettingsService settingsService,
@@ -72,244 +71,90 @@ public sealed partial class PlaybackSettingsViewModel : SettingsSubpageViewModel
 
     public override void Deactivate()
     {
-        CancelPendingSave(ref _defaultSpeakSpeedDebounceCts);
-        CancelPendingSave(ref _prefetchCountDebounceCts);
+        _defaultSpeakSpeedSave.Cancel();
+        _prefetchCountSave.Cancel();
+        _readChapterTitleSave.Cancel();
         base.Deactivate();
     }
 
-    public async Task CommitDefaultSpeakSpeedAsync(CancellationToken cancellationToken)
-    {
-        CompleteOrCancelPendingSave(ref _defaultSpeakSpeedDebounceCts, cancellationToken);
-        var version = Interlocked.Increment(ref _defaultSpeakSpeedVersion);
+    public Task CommitDefaultSpeakSpeedAsync(CancellationToken cancellationToken) =>
+        RunLatestSaveAsync(_defaultSpeakSpeedSave, "更新语速失败", SaveDefaultSpeakSpeedAsync, cancellationToken);
 
-        if (!int.TryParse(DefaultSpeakSpeedText, out var parsedSpeed))
+    private async Task SaveDefaultSpeakSpeedAsync(LatestOperationSlot.Operation operation)
+    {
+        if (!int.TryParse(DefaultSpeakSpeedText, out var speed))
         {
-            DefaultSpeakSpeedErrorText = $"请输入 {AppSettings.MinSpeakSpeed} 到 {AppSettings.MaxSpeakSpeed} 的整数。";
+            operation.TryCommit(() => DefaultSpeakSpeedErrorText = $"请输入 {AppSettings.MinSpeakSpeed} 到 {AppSettings.MaxSpeakSpeed} 的整数。");
             return;
         }
 
-        try
+        var settings = await _settingsService.UpdateAsync(
+            new AppSettingsUpdate { DefaultSpeakSpeed = speed }, operation.CancellationToken);
+        if (!operation.TryCommit(() =>
         {
-            var settings = await _settingsService.UpdateAsync(
-                new AppSettingsUpdate
-                {
-                    DefaultSpeakSpeed = parsedSpeed
-                },
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (version != Volatile.Read(ref _defaultSpeakSpeedVersion))
+            _isLoading = true;
+            try
             {
-                return;
+                DefaultSpeakSpeedText = settings.DefaultSpeakSpeed.ToString();
+                DefaultSpeakSpeedErrorText = string.Empty;
             }
+            finally { _isLoading = false; }
+        })) return;
 
-            DefaultSpeakSpeedText = settings.DefaultSpeakSpeed.ToString();
-            DefaultSpeakSpeedErrorText = string.Empty;
-
-            if (!string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
-                _playbackCoordinator.CurrentSnapshot.SpeakSpeed != settings.DefaultSpeakSpeed)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                await _playbackCoordinator.ChangeSpeedAsync(settings.DefaultSpeakSpeed, cancellationToken);
-            }
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            if (!cancellationToken.IsCancellationRequested &&
-                version == Volatile.Read(ref _defaultSpeakSpeedVersion))
-            {
-                ShowSaveFailure("更新语速失败", exception);
-            }
-        }
+        if (!string.IsNullOrWhiteSpace(_playbackCoordinator.CurrentSnapshot.BookId) &&
+            _playbackCoordinator.CurrentSnapshot.SpeakSpeed != settings.DefaultSpeakSpeed)
+            await _playbackCoordinator.ChangeSpeedAsync(settings.DefaultSpeakSpeed, operation.CancellationToken);
     }
 
-    public async Task CommitPrefetchCountAsync(CancellationToken cancellationToken)
-    {
-        CompleteOrCancelPendingSave(ref _prefetchCountDebounceCts, cancellationToken);
-        var version = Interlocked.Increment(ref _prefetchCountVersion);
+    public Task CommitPrefetchCountAsync(CancellationToken cancellationToken) =>
+        RunLatestSaveAsync(_prefetchCountSave, "保存预取段落数量失败", SavePrefetchCountAsync, cancellationToken);
 
-        if (!int.TryParse(PrefetchCountText, out var parsedCount))
+    private async Task SavePrefetchCountAsync(LatestOperationSlot.Operation operation)
+    {
+        if (!int.TryParse(PrefetchCountText, out var count))
         {
-            PrefetchCountErrorText = $"请输入 0 到 {AppSettings.DefaultPrefetchCountValue} 的整数。";
+            operation.TryCommit(() => PrefetchCountErrorText = $"请输入 0 到 {AppSettings.DefaultPrefetchCountValue} 的整数。");
             return;
         }
 
-        try
+        var settings = await _settingsService.UpdateAsync(
+            new AppSettingsUpdate { PrefetchCount = count }, operation.CancellationToken);
+        operation.TryCommit(() =>
         {
-            var settings = await _settingsService.UpdateAsync(
-                new AppSettingsUpdate
-                {
-                    PrefetchCount = parsedCount
-                },
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (version != Volatile.Read(ref _prefetchCountVersion))
+            _isLoading = true;
+            try
             {
-                return;
+                PrefetchCountText = settings.PrefetchCount.ToString();
+                PrefetchCountErrorText = string.Empty;
             }
-
-            PrefetchCountText = settings.PrefetchCount.ToString();
-            PrefetchCountErrorText = string.Empty;
-        }
-        catch (OperationCanceledException)
-        {
-        }
-        catch (Exception exception)
-        {
-            if (!cancellationToken.IsCancellationRequested &&
-                version == Volatile.Read(ref _prefetchCountVersion))
-            {
-                ShowSaveFailure("保存预取段落数量失败", exception);
-            }
-        }
+            finally { _isLoading = false; }
+        });
     }
 
     partial void OnDefaultSpeakSpeedTextChanged(string value)
     {
-        if (_isLoading)
+        if (_isLoading) return;
+        ScheduleLatestSave(_defaultSpeakSpeedSave, "更新语速失败", async operation =>
         {
-            return;
-        }
-
-        ScheduleDebouncedCommit(ref _defaultSpeakSpeedDebounceCts, ct => CommitDefaultSpeakSpeedAsync(ct));
+            await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, operation.CancellationToken);
+            if (operation.IsCurrent) await SaveDefaultSpeakSpeedAsync(operation);
+        });
     }
 
     partial void OnPrefetchCountTextChanged(string value)
     {
-        if (_isLoading)
+        if (_isLoading) return;
+        ScheduleLatestSave(_prefetchCountSave, "保存预取段落数量失败", async operation =>
         {
-            return;
-        }
-
-        ScheduleDebouncedCommit(ref _prefetchCountDebounceCts, ct => CommitPrefetchCountAsync(ct));
+            await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, operation.CancellationToken);
+            if (operation.IsCurrent) await SavePrefetchCountAsync(operation);
+        });
     }
 
     partial void OnReadChapterTitleChanged(bool value)
     {
-        if (_isLoading)
-        {
-            return;
-        }
-
-        var version = Interlocked.Increment(ref _readChapterTitleVersion);
-        RunPageOperation(
-            "保存朗读标题设置失败",
-            cancellationToken => SaveReadChapterTitleAsync(value, version, cancellationToken));
-    }
-
-    private async Task SaveReadChapterTitleAsync(
-        bool value,
-        int version,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            await _settingsService.UpdateAsync(
-                new AppSettingsUpdate { ReadChapterTitle = value },
-                cancellationToken);
-
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!IsCurrentActivation(cancellationToken) ||
-                version != Volatile.Read(ref _readChapterTitleVersion))
-            {
-                return;
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            if (IsCurrentActivation(cancellationToken) &&
-                version == Volatile.Read(ref _readChapterTitleVersion))
-            {
-                ShowSaveFailure("保存朗读标题设置失败", exception);
-            }
-        }
-    }
-
-    private void ScheduleDebouncedCommit(
-        ref CancellationTokenSource? cancellationTokenSource,
-        Func<CancellationToken, Task> commitAsync)
-    {
-        CancelPendingSave(ref cancellationTokenSource);
-        CancellationTokenSource? operationCts = null;
-
-        RunPageOperation(
-            "保存播放设置失败",
-            currentActivationToken =>
-            {
-                operationCts = CancellationTokenSource.CreateLinkedTokenSource(currentActivationToken);
-                return RunDebouncedCommitAsync(
-                    operationCts,
-                    currentActivationToken,
-                    commitAsync);
-            });
-        cancellationTokenSource = operationCts;
-    }
-
-    private async Task RunDebouncedCommitAsync(
-        CancellationTokenSource operationCts,
-        CancellationToken activationToken,
-        Func<CancellationToken, Task> commitAsync)
-    {
-        var cancellationToken = operationCts.Token;
-        try
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(DebounceDelayMilliseconds), _timeProvider, cancellationToken);
-            activationToken.ThrowIfCancellationRequested();
-            if (!IsCurrentActivation(activationToken))
-            {
-                return;
-            }
-
-            await commitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-        }
-        finally
-        {
-            operationCts.Dispose();
-        }
-    }
-
-    private static void CancelPendingSave(ref CancellationTokenSource? cancellationTokenSource)
-    {
-        var pendingSave = Interlocked.Exchange(ref cancellationTokenSource, null);
-        if (pendingSave is null)
-        {
-            return;
-        }
-
-        try
-        {
-            pendingSave.Cancel();
-        }
-        catch (ObjectDisposedException)
-        {
-            // The debounce operation completed and disposed this CTS concurrently.
-        }
-        finally
-        {
-            pendingSave.Dispose();
-        }
-    }
-
-    private static void CompleteOrCancelPendingSave(
-        ref CancellationTokenSource? cancellationTokenSource,
-        CancellationToken commitToken)
-    {
-        if (cancellationTokenSource is not null && cancellationTokenSource.Token == commitToken)
-        {
-            cancellationTokenSource = null;
-            return;
-        }
-
-        CancelPendingSave(ref cancellationTokenSource);
+        if (_isLoading) return;
+        ScheduleLatestSave(_readChapterTitleSave, "保存朗读标题设置失败", operation =>
+            _settingsService.UpdateAsync(new AppSettingsUpdate { ReadChapterTitle = value }, operation.CancellationToken));
     }
 }
