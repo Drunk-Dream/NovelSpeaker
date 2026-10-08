@@ -1,3 +1,5 @@
+using NovelSpeaker.App.Shared.Dialogs;
+
 namespace NovelSpeaker.App.Features.Rules.Shared;
 
 /// <summary>
@@ -7,10 +9,12 @@ internal sealed class EditorSession<TId, TEditor>
     where TEditor : class
 {
     private readonly Func<TEditor, TEditor, bool> _editorsEqual;
+    private readonly bool _newIsDirty;
 
-    public EditorSession(Func<TEditor, TEditor, bool> editorsEqual)
+    public EditorSession(Func<TEditor, TEditor, bool> editorsEqual, bool newIsDirty = false)
     {
         _editorsEqual = editorsEqual;
+        _newIsDirty = newIsDirty;
     }
 
     public bool HasEditor { get; private set; }
@@ -37,7 +41,7 @@ internal sealed class EditorSession<TId, TEditor>
         Baseline = editor;
         HasEditor = true;
         IsNew = isNew;
-        IsDirty = false;
+        IsDirty = isNew && _newIsDirty;
     }
 
     public void Close()
@@ -55,7 +59,29 @@ internal sealed class EditorSession<TId, TEditor>
         ArgumentNullException.ThrowIfNull(editor);
         IsDirty = HasEditor &&
                   Baseline is not null &&
-                  !_editorsEqual(Baseline, editor);
+                  (IsNew && _newIsDirty || !_editorsEqual(Baseline, editor));
         return IsDirty;
+    }
+
+    public async Task<bool> ConfirmLeaveAsync(
+        Func<CancellationToken, Task<UnsavedChangesDecision>> decide,
+        Func<CancellationToken, Task<bool>> save,
+        Func<CancellationToken, Task> discard,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsDirty) return true;
+        var decision = await decide(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (decision == UnsavedChangesDecision.Save)
+        {
+            var saved = await save(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return saved;
+        }
+        if (decision != UnsavedChangesDecision.Discard) return false;
+        await discard(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return true;
     }
 }

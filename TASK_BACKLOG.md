@@ -191,11 +191,13 @@
 
 ## 8. Phase E：编辑工作台做减法
 
-## [ ] T018（P2）：提取 Rules 编辑工作台的明确行为 owner
+## [x] T018（P2）：提取 Rules 编辑工作台的明确行为 owner
 
 依赖：T017。
 
 目标：围绕现有 `EditorSession`、`RuleImportSession`、`RuleReorderController`、`ManagementSelectionController` 收敛 Chapter/Regex/Metadata 的编辑、交换、排序和批量管理流程，不建立通用泛型 ViewModel。
+
+完成成果：三类工作台组合现有 EditorSession 的 original/new/dirty 与保存/放弃/取消保护，Metadata 删除 original/isNew/HasEditor 平行 bookkeeping，保留空白新草稿即 dirty 和自身 typed read/write/remove/order、validation 与交换格式。ManagementSelectionController 拥有异步进入保护，页面直接连接既有 activation，删除三个管理 CTS 与各页 entering/deleting flags。小型 WorkbenchExchangeInteraction 拥有单文档构建、文件/剪贴板写入和取消检查；BatchDeleteSession 拥有单次确认后的 busy lifetime、逐项成功/跳过/失败继续处理与最终 reconciliation，不持有业务 repository、规则字段或反馈文案。Chapter 合并备用排序与 draft change 的重复路径，Metadata 使用稳定键 offset 计算并在排序失败后恢复投影；内建 Chapter 限制、Regex scope/timeout、normal/management selection 分离保持。三类 ViewModel 净删 123 行重复 orchestration，新增/扩展 owner 与 activation 接线后生产代码总量基本持平（+2 行）。保留既有核心测试，新增六项合并 owner 行为回归，覆盖失败保存不丢 dirty、迟到取消决定、管理进入串行、批量 partial continuation/取消重试及取消后迟到文档拒绝。Rules/Shared/selection/architecture focused 87/87、WPF navigation/DI 7/7、Release build（0 warning/error）、全仓 format verify、LF 与 diff 检查通过。无持久化变化、临时产物、环境限制或长期文档冲突；最终全量门禁留给 T019。
 
 ## [ ] T019（P2）：收敛 Provider 工作台并完成本轮架构验收
 

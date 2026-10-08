@@ -10,6 +10,7 @@ using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shell.Activation;
 using NovelSpeaker.Domain.Books;
 using RegularExpression = System.Text.RegularExpressions.Regex;
 
@@ -28,9 +29,9 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     private readonly RuleImportSession _importSession = new();
     private bool _loading;
 
-    private CancellationTokenSource? _managementLifetime;
-    private bool _enteringManagement;
-    private bool _deletingBatch;
+    private PageActivationScope? _activation;
+    private readonly BatchDeleteSession _batchDelete = new();
+    private readonly WorkbenchExchangeInteraction _exchange;
 
     public RegexReplacementRulesViewModel(
         IRegexReplacementRuleWorkspaceService workspace,
@@ -44,6 +45,7 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         _dialogs = dialogs;
         _navigator = navigator;
         _ruleDocuments = ruleDocuments;
+        _exchange = new(_ruleDocuments);
         _selection.StateChanged += (_, _) =>
         {
             UpdateRuleItemStates();
@@ -85,13 +87,20 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        ActivateManagement(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_activation?.IsCurrent != true)
+        {
+            HandleNavigatedTo(new PageActivationController().Activate());
+            _activation!.Register(cancellationToken.Register(_activation.Dispose));
+        }
         await RefreshAsync(SelectedRuleId, false, cancellationToken);
     }
 
     public void HandleNavigatedFrom()
     {
-        _managementLifetime?.Cancel();
+        var activation = _activation;
+        _activation = null;
+        activation?.Dispose();
         _selection.Reset();
         IsHelpDrawerOpen = false;
         ClearDragTarget();
@@ -150,59 +159,36 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
             warnWhenMissing: true);
 
     [RelayCommand]
-    public async Task ExportRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
-    {
-        if ((!IsManagementMode && rule is null) || (IsManagementMode && SelectedCount == 0)) return;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        cancellationToken = linked.Token;
-        try
-        {
-            var ids = RulesForExchange(rule);
-            var successMessage = IsManagementMode ? $"成功 {ids.Count}，跳过 0，失败 0。" : rule!.Name;
-            var json = await _workspace.ExportRulesJsonAsync(ids, cancellationToken);
-            if (json is null)
-            {
-                _feedback.ShowWarning("导出失败", "未找到要导出的正则替换规则。");
-                return;
-            }
-
-            if (await _ruleDocuments.ExportAsync("regex-replacement-rule.json", json, cancellationToken))
-            {
-                _feedback.ShowSuccess("正则替换规则已导出", successMessage);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            _feedback.ShowProjectedNotification("正则替换规则导出失败", _feedback.Project(exception));
-        }
-    }
+    public Task ExportRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken) =>
+        ExchangeRuleAsync(rule, false, cancellationToken);
 
     [RelayCommand]
-    public async Task CopyRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken)
+    public Task CopyRuleAsync(RegexReplacementRuleListItemViewModel? rule, CancellationToken cancellationToken) =>
+        ExchangeRuleAsync(rule, true, cancellationToken);
+
+    private async Task ExchangeRuleAsync(RegexReplacementRuleListItemViewModel? rule, bool clipboard, CancellationToken cancellationToken)
     {
         if ((!IsManagementMode && rule is null) || (IsManagementMode && SelectedCount == 0)) return;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        cancellationToken = linked.Token;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
+        var action = clipboard ? "复制" : "导出";
         try
         {
             var ids = RulesForExchange(rule);
             var successMessage = IsManagementMode ? $"成功 {ids.Count}，跳过 0，失败 0。" : rule!.Name;
-            var json = await _workspace.ExportRulesJsonAsync(ids, cancellationToken);
-            if (json is null)
-            {
-                _feedback.ShowWarning("复制失败", "未找到要复制的正则替换规则。");
-                return;
-            }
-
-            await _ruleDocuments.CopyAsync(json, cancellationToken);
-            _feedback.ShowSuccess("正则替换规则已复制", successMessage);
+            var result = await _exchange.WriteAsync(
+                token => _workspace.ExportRulesJsonAsync(ids, token), clipboard, "regex-replacement-rule.json", linked.Token);
+            if (result == ExchangeWriteResult.MissingDocument)
+                _feedback.ShowWarning($"{action}失败", $"未找到要{action}的正则替换规则。");
+            else if (result == ExchangeWriteResult.Completed)
+                _feedback.ShowSuccess($"正则替换规则已{action}", successMessage);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+        catch (Exception exception) when (exception is not OperationCanceledException && !linked.IsCancellationRequested)
         {
-            _feedback.ShowProjectedNotification("正则替换规则复制失败", _feedback.Project(exception));
+            _feedback.ShowProjectedNotification($"正则替换规则{action}失败", _feedback.Project(exception));
         }
+        catch (Exception) when (linked.IsCancellationRequested) { }
     }
 
     private IReadOnlyList<Guid> RulesForExchange(RegexReplacementRuleListItemViewModel? rule) =>
@@ -458,13 +444,16 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         CancellationToken cancellationToken,
         bool warnWhenMissing = false)
     {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
+        cancellationToken = linked.Token;
         try
         {
             var execution = await _importSession.RunAsync(
                 readDocument,
                 ImportJsonAsyncCore,
                 () => IsBusy,
-                SetBusy,
+                value => IsBusy = value,
                 cancellationToken,
                 reportMissingDocument: warnWhenMissing
                     ? () => _feedback.ShowWarning("无法导入", "剪贴板中没有可导入的文本内容。")
@@ -477,10 +466,11 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
                 "正则替换规则导入完成",
                 $"{execution.Document.SourceDescription}：新增 {execution.Result.ImportedCount} 条，跳过重复 {execution.Result.SkippedCount} 条，失败 {execution.Result.FailedCount} 条。");
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (exception is not OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
             _feedback.ShowProjectedNotification(failureTitle, _feedback.Project(exception));
         }
+        catch (Exception) when (cancellationToken.IsCancellationRequested) { }
     }
 
     private async Task<RuleImportResult> ImportJsonAsyncCore(
@@ -492,30 +482,13 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         return new RuleImportResult(result.ImportedCount, result.SkippedCount, result.TotalCount, result.FailedCount);
     }
 
-    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
-    {
-        if (!HasUnsavedChanges) return true;
-        var decision = await _dialogs.ShowUnsavedChangesAsync(
-            "未保存的修改",
-            "当前正则替换规则有未保存的修改。要先保存再继续吗？",
-            "保存",
-            "放弃",
-            "取消",
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        return decision switch
-        {
-            UnsavedChangesDecision.Save => await SaveCoreAsync(cancellationToken) is not null,
-            UnsavedChangesDecision.Discard => await DiscardDraftAndReturnAsync(cancellationToken),
-            _ => false
-        };
-    }
-
-    private async Task<bool> DiscardDraftAndReturnAsync(CancellationToken cancellationToken)
-    {
-        await DiscardDraftAsync(cancellationToken);
-        return true;
-    }
+    public Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken) =>
+        _editorSession.ConfirmLeaveAsync(
+            token => _dialogs.ShowUnsavedChangesAsync(
+                "未保存的修改", "当前正则替换规则有未保存的修改。要先保存再继续吗？",
+                "保存", "放弃", "取消", token),
+            async token => await SaveCoreAsync(token) is not null,
+            DiscardDraftAsync, cancellationToken);
 
     private async Task DiscardDraftAsync(CancellationToken cancellationToken)
     {
@@ -663,17 +636,14 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
         }
     }
 
-    private void SetBusy(bool value)
+    public void HandleNavigatedTo(PageActivationScope activation)
     {
-        IsBusy = value;
-        NotifyCommandState();
-    }
-
-    private void ActivateManagement(CancellationToken cancellationToken)
-    {
-        _managementLifetime?.Cancel();
-        _managementLifetime?.Dispose();
-        _managementLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        HandleNavigatedFrom();
+        _activation = activation;
+        activation.Register(() =>
+        {
+            if (ReferenceEquals(_activation, activation)) HandleNavigatedFrom();
+        });
     }
 
     [RelayCommand]
@@ -682,19 +652,9 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
 
     private async Task<bool> TryEnterManagementAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy || _enteringManagement) return false;
-        if (IsManagementMode) return true;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        _enteringManagement = true;
-        try
-        {
-            if (!await ConfirmLeaveAsync(linked.Token)) return false;
-            linked.Token.ThrowIfCancellationRequested();
-            _selection.Enter();
-            return true;
-        }
-        catch (OperationCanceledException) when (linked.IsCancellationRequested) { return false; }
-        finally { _enteringManagement = false; }
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
+        return await _selection.TryEnterAsync(() => IsBusy, ConfirmLeaveAsync, linked.Token);
     }
 
     [RelayCommand]
@@ -708,44 +668,37 @@ public sealed partial class RegexReplacementRulesViewModel : ObservableObject, I
     [RelayCommand]
     private async Task DeleteSelectedRulesAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy || _deletingBatch || !IsManagementMode || SelectedCount == 0) return;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        cancellationToken = linked.Token;
-        _deletingBatch = true;
-        var succeeded = 0;
+        if (IsBusy || !IsManagementMode || SelectedCount == 0) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
         try
         {
-            if (!await ConfirmLeaveAsync(cancellationToken)) return;
-            var items = Rules.Where(item => _selection.IsSelected(item.Id)).ToArray();
-            if (items.Length == 0) return;
-            if (await _feedback.ConfirmDeletionAsync("删除规则", $"将删除所选 {items.Length} 条规则，此操作不可撤销。", cancellationToken)
-                != AppConfirmationDecision.Confirm) return;
-            SetBusy(true);
-            var failed = 0;
-            foreach (var item in items)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                try
+            var result = await _batchDelete.RunAsync<RegexReplacementRuleListItemViewModel>(
+                async token =>
                 {
-                    await _workspace.DeleteRuleAsync(item.Id, cancellationToken);
-                    succeeded++;
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-                catch (Exception) { failed++; }
-            }
-            await RefreshAsync(SelectedRuleId, selectFirst: false, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            var message = $"成功 {succeeded}，跳过 0，失败 {failed}。";
-            if (failed > 0) _feedback.ShowWarning("删除完成", message);
+                    if (!await ConfirmLeaveAsync(token)) return [];
+                    var items = Rules.Where(item => _selection.IsSelected(item.Id)).ToArray();
+                    if (items.Length == 0) return [];
+                    return await _feedback.ConfirmDeletionAsync("删除规则", $"将删除所选 {items.Length} 条规则，此操作不可撤销。", token)
+                        == AppConfirmationDecision.Confirm ? items : [];
+                },
+                async (item, token) =>
+                {
+                    await _workspace.DeleteRuleAsync(item.Id, token);
+                    return true;
+                },
+                token => RefreshAsync(SelectedRuleId, selectFirst: false, token),
+                value => IsBusy = value, linked.Token);
+            if (result is null) return;
+            var message = $"成功 {result.Succeeded}，跳过 {result.Skipped}，失败 {result.Failed}。";
+            if (result.Skipped > 0 || result.Failed > 0) _feedback.ShowWarning("删除完成", message);
             else _feedback.ShowSuccess("删除完成", message);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { _feedback.ShowProjectedNotification("批量删除失败", _feedback.Project(exception)); }
-        finally
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+        catch (Exception exception) when (!linked.IsCancellationRequested)
         {
-            SetBusy(false);
-            _deletingBatch = false;
+            _feedback.ShowProjectedNotification("批量删除失败", _feedback.Project(exception));
         }
+        catch (Exception) when (linked.IsCancellationRequested) { }
     }
 }

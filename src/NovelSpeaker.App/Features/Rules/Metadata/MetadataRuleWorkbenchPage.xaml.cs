@@ -53,7 +53,7 @@ public partial class MetadataRuleWorkbenchPage : System.Windows.Controls.Page,
     {
         using var operation = _operations.StartCriticalLoad(NovelSpeaker.Application.Observability.OperationCatalog.UiRulesLoad);
         var activation = _activation.Activate();
-        activation.Register(ViewModel.HandleNavigatedFrom);
+        ViewModel.HandleNavigatedTo(activation);
         activation.Register(_guards.Register(ViewModel.ConfirmLeaveAsync));
         try
         {

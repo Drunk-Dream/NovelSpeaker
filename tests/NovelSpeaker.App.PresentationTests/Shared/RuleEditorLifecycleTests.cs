@@ -1,4 +1,5 @@
 using NovelSpeaker.App.Features.Rules.Shared;
+using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using Xunit;
 
@@ -33,6 +34,27 @@ public sealed class RuleEditorLifecycleTests
         Assert.True(session.IsNew);
         Assert.Equal(7, session.FallbackId);
         Assert.False(session.IsEditing(7));
+    }
+
+    [Fact]
+    public async Task Editor_guard_keeps_failed_save_dirty_and_rejects_cancelled_discard()
+    {
+        var session = new EditorSession<int, Editor>(EditorsEqual);
+        session.Open(1, new Editor("original"), false, 1);
+        session.UpdateDirty(new Editor("draft"));
+        Assert.False(await session.ConfirmLeaveAsync(_ => Task.FromResult(UnsavedChangesDecision.Save),
+            _ => Task.FromResult(false), _ => throw new InvalidOperationException("unexpected discard"), CancellationToken.None));
+        Assert.True(session.IsDirty);
+        Assert.Equal("original", session.Baseline!.Value);
+        using var cancellation = new CancellationTokenSource();
+        var decision = new TaskCompletionSource<UnsavedChangesDecision>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var leave = session.ConfirmLeaveAsync(_ => decision.Task,
+            _ => throw new InvalidOperationException("cancelled save"),
+            _ => throw new InvalidOperationException("cancelled discard"), cancellation.Token);
+        cancellation.Cancel();
+        decision.SetResult(UnsavedChangesDecision.Discard);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => leave);
+        Assert.True(session.IsDirty);
     }
 
     [Fact]

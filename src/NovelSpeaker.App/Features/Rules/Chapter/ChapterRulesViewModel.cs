@@ -11,6 +11,7 @@ using NovelSpeaker.App.Shared.Presentation;
 using NovelSpeaker.App.Shared.Presentation.Rules;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using NovelSpeaker.App.Shell.Navigation;
+using NovelSpeaker.App.Shell.Activation;
 using RegularExpression = System.Text.RegularExpressions.Regex;
 
 namespace NovelSpeaker.App.Features.Rules.Chapter;
@@ -31,9 +32,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     private readonly ResettableObservableCollection<ChapterRuleListItemViewModel> _rules = [];
     private bool _suppressDraftStateUpdates;
 
-    private CancellationTokenSource? _managementLifetime;
-    private bool _enteringManagement;
-    private bool _deletingBatch;
+    private PageActivationScope? _activation;
+    private readonly BatchDeleteSession _batchDelete = new();
+    private readonly WorkbenchExchangeInteraction _exchange;
 
     public ChapterRulesViewModel(
         IChapterRuleWorkspaceService workspaceService,
@@ -47,6 +48,7 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
         _dialogService = dialogService;
         _navigator = navigator;
         _ruleDocuments = ruleDocuments;
+        _exchange = new(_ruleDocuments);
         _selection.StateChanged += (_, _) =>
         {
             UpdateRuleItemStates();
@@ -104,13 +106,20 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
 
     public async Task LoadAsync(CancellationToken cancellationToken)
     {
-        ActivateManagement(cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_activation?.IsCurrent != true)
+        {
+            HandleNavigatedTo(new PageActivationController().Activate());
+            _activation!.Register(cancellationToken.Register(_activation.Dispose));
+        }
         await RefreshRulesAsync(HighlightedRuleId, openEditorIfNeeded: false, cancellationToken);
     }
 
     public void HandleNavigatedFrom()
     {
-        _managementLifetime?.Cancel();
+        var activation = _activation;
+        _activation = null;
+        activation?.Dispose();
         _selection.Reset();
         IsHelpDrawerOpen = false;
         ClearDragTarget();
@@ -210,67 +219,36 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
             warnWhenMissing: true);
 
     [RelayCommand]
-    public async Task ExportRuleAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
-    {
-        if ((!IsManagementMode && rule is null) || (IsManagementMode && SelectedCount == 0))
-        {
-            return;
-        }
-
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        cancellationToken = linked.Token;
-        try
-        {
-            var ids = RulesForExchange(rule);
-            var successMessage = IsManagementMode ? $"成功 {ids.Count}，跳过 0，失败 0。" : $"已导出规则：{rule!.Name}。";
-            var json = await _workspaceService.ExportRulesJsonAsync(ids, cancellationToken);
-            if (json is null)
-            {
-                _feedbackService.ShowWarning("导出失败", "未找到要导出的章节规则。");
-                return;
-            }
-
-            if (await _ruleDocuments.ExportAsync("chapter-rule.json", json, cancellationToken))
-            {
-                _feedbackService.ShowSuccess("章节规则已导出", successMessage);
-            }
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            HandleProjectedError("章节规则导出失败", exception);
-        }
-    }
+    public Task ExportRuleAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken) =>
+        ExchangeRuleAsync(rule, false, cancellationToken);
 
     [RelayCommand]
-    public async Task CopyRuleAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
-    {
-        if ((!IsManagementMode && rule is null) || (IsManagementMode && SelectedCount == 0))
-        {
-            return;
-        }
+    public Task CopyRuleAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken) =>
+        ExchangeRuleAsync(rule, true, cancellationToken);
 
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        cancellationToken = linked.Token;
+    private async Task ExchangeRuleAsync(ChapterRuleListItemViewModel? rule, bool clipboard, CancellationToken cancellationToken)
+    {
+        if ((!IsManagementMode && rule is null) || (IsManagementMode && SelectedCount == 0)) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
+        var action = clipboard ? "复制" : "导出";
         try
         {
             var ids = RulesForExchange(rule);
-            var successMessage = IsManagementMode ? $"成功 {ids.Count}，跳过 0，失败 0。" : $"已复制规则：{rule!.Name}。";
-            var json = await _workspaceService.ExportRulesJsonAsync(ids, cancellationToken);
-            if (json is null)
-            {
-                _feedbackService.ShowWarning("复制失败", "未找到要复制的章节规则。");
-                return;
-            }
-
-            await _ruleDocuments.CopyAsync(json, cancellationToken);
-            _feedbackService.ShowSuccess("章节规则已复制", successMessage);
+            var successMessage = IsManagementMode ? $"成功 {ids.Count}，跳过 0，失败 0。" : $"已{action}规则：{rule!.Name}。";
+            var result = await _exchange.WriteAsync(
+                token => _workspaceService.ExportRulesJsonAsync(ids, token), clipboard, "chapter-rule.json", linked.Token);
+            if (result == ExchangeWriteResult.MissingDocument)
+                _feedbackService.ShowWarning($"{action}失败", $"未找到要{action}的章节规则。");
+            else if (result == ExchangeWriteResult.Completed)
+                _feedbackService.ShowSuccess($"章节规则已{action}", successMessage);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+        catch (Exception exception) when (exception is not OperationCanceledException && !linked.IsCancellationRequested)
         {
-            HandleProjectedError("章节规则复制失败", exception);
+            _feedbackService.ShowProjectedNotification($"章节规则{action}失败", _feedbackService.Project(exception));
         }
+        catch (Exception) when (linked.IsCancellationRequested) { }
     }
 
     private IReadOnlyList<string> RulesForExchange(ChapterRuleListItemViewModel? rule) =>
@@ -464,67 +442,31 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     }
 
     [RelayCommand]
-    private async Task MoveRuleUpAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
-    {
-        if (rule is not null)
-        {
-            await MoveRuleUpFromListAsync(rule, cancellationToken);
-        }
-    }
+    private Task MoveRuleUpAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken) =>
+        MoveRuleAsync(rule, -1, cancellationToken);
 
-    public async Task MoveRuleUpFromListAsync(
-        ChapterRuleListItemViewModel rule,
-        CancellationToken cancellationToken)
+    public Task MoveRuleUpFromListAsync(ChapterRuleListItemViewModel rule, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(rule);
-        if (!rule.CanMoveUp)
-        {
-            return;
-        }
-
-        if (!RuleReorderController.TryMoveByOffset(
-                Rules.Select(item => item.Id).ToArray(),
-                rule.Id,
-                -1,
-                out var orderedIds,
-                StringComparer.Ordinal))
-        {
-            return;
-        }
-
-        await SaveRuleOrderAsync(orderedIds, cancellationToken);
+        return MoveRuleAsync(rule, -1, cancellationToken);
     }
 
     [RelayCommand]
-    private async Task MoveRuleDownAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken)
-    {
-        if (rule is not null)
-        {
-            await MoveRuleDownFromListAsync(rule, cancellationToken);
-        }
-    }
+    private Task MoveRuleDownAsync(ChapterRuleListItemViewModel? rule, CancellationToken cancellationToken) =>
+        MoveRuleAsync(rule, 1, cancellationToken);
 
-    public async Task MoveRuleDownFromListAsync(
-        ChapterRuleListItemViewModel rule,
-        CancellationToken cancellationToken)
+    public Task MoveRuleDownFromListAsync(ChapterRuleListItemViewModel rule, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(rule);
-        if (!rule.CanMoveDown)
-        {
-            return;
-        }
+        return MoveRuleAsync(rule, 1, cancellationToken);
+    }
 
-        if (!RuleReorderController.TryMoveByOffset(
-                Rules.Select(item => item.Id).ToArray(),
-                rule.Id,
-                1,
-                out var orderedIds,
-                StringComparer.Ordinal))
-        {
-            return;
-        }
-
-        await SaveRuleOrderAsync(orderedIds, cancellationToken);
+    private async Task MoveRuleAsync(ChapterRuleListItemViewModel? rule, int offset, CancellationToken cancellationToken)
+    {
+        if (rule is null || (offset < 0 ? !rule.CanMoveUp : !rule.CanMoveDown)) return;
+        if (RuleReorderController.TryMoveByOffset(Rules.Select(item => item.Id).ToArray(),
+                rule.Id, offset, out var orderedIds, StringComparer.Ordinal))
+            await SaveRuleOrderAsync(orderedIds, cancellationToken);
     }
 
     [RelayCommand]
@@ -539,24 +481,12 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
         IsHelpDrawerOpen = false;
     }
 
-    partial void OnDraftNameChanged(string value)
+    partial void OnDraftNameChanged(string value) => UpdateDraftState();
+    partial void OnDraftPatternChanged(string value) => UpdateDraftState();
+
+    private void UpdateDraftState()
     {
-        if (_suppressDraftStateUpdates)
-        {
-            return;
-        }
-
-        ValidateDraft();
-        UpdateUnsavedChanges();
-    }
-
-    partial void OnDraftPatternChanged(string value)
-    {
-        if (_suppressDraftStateUpdates)
-        {
-            return;
-        }
-
+        if (_suppressDraftStateUpdates) return;
         ValidateDraft();
         UpdateUnsavedChanges();
     }
@@ -597,6 +527,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
         CancellationToken cancellationToken,
         bool warnWhenMissing = false)
     {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
+        cancellationToken = linked.Token;
         try
         {
             var execution = await _importSession.RunAsync(
@@ -616,10 +549,11 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
                 "章节规则导入完成",
                 $"{execution.Document.SourceDescription}：新增 {execution.Result.ImportedCount} 条，跳过重复 {execution.Result.SkippedCount} 条，失败 {execution.Result.FailedCount} 条。");
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (exception is not OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
             HandleProjectedError(failureTitle, exception);
         }
+        catch (Exception) when (cancellationToken.IsCancellationRequested) { }
     }
 
     private async Task<RuleImportResult> ImportJsonAsyncCore(
@@ -731,33 +665,13 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
             true);
     }
 
-    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
-    {
-        if (!HasUnsavedChanges)
-        {
-            return true;
-        }
-
-        var decision = await _dialogService.ShowUnsavedChangesAsync(
-            "未保存的修改",
-            "当前章节规则有未保存的修改。要先保存再继续吗？",
-            "保存",
-            "放弃",
-            "取消",
-            cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        switch (decision)
-        {
-            case UnsavedChangesDecision.Save:
-                return await SaveDraftCoreAsync(cancellationToken) is not null;
-            case UnsavedChangesDecision.Discard:
-                await DiscardCurrentDraftAsync(cancellationToken);
-                return true;
-            default:
-                return false;
-        }
-    }
+    public Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken) =>
+        _editorSession.ConfirmLeaveAsync(
+            token => _dialogService.ShowUnsavedChangesAsync(
+                "未保存的修改", "当前章节规则有未保存的修改。要先保存再继续吗？",
+                "保存", "放弃", "取消", token),
+            async token => await SaveDraftCoreAsync(token) is not null,
+            DiscardCurrentDraftAsync, cancellationToken);
 
     private async Task DiscardCurrentDraftAsync(CancellationToken cancellationToken)
     {
@@ -971,11 +885,14 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
         _feedbackService.ShowProjectedNotification(title, projected);
     }
 
-    private void ActivateManagement(CancellationToken cancellationToken)
+    public void HandleNavigatedTo(PageActivationScope activation)
     {
-        _managementLifetime?.Cancel();
-        _managementLifetime?.Dispose();
-        _managementLifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        HandleNavigatedFrom();
+        _activation = activation;
+        activation.Register(() =>
+        {
+            if (ReferenceEquals(_activation, activation)) HandleNavigatedFrom();
+        });
     }
 
     [RelayCommand]
@@ -984,19 +901,9 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
 
     private async Task<bool> TryEnterManagementAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy || _enteringManagement) return false;
-        if (IsManagementMode) return true;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        _enteringManagement = true;
-        try
-        {
-            if (!await ConfirmLeaveAsync(linked.Token)) return false;
-            linked.Token.ThrowIfCancellationRequested();
-            _selection.Enter();
-            return true;
-        }
-        catch (OperationCanceledException) when (linked.IsCancellationRequested) { return false; }
-        finally { _enteringManagement = false; }
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
+        return await _selection.TryEnterAsync(() => IsBusy, ConfirmLeaveAsync, linked.Token);
     }
 
     [RelayCommand]
@@ -1010,41 +917,38 @@ public sealed partial class ChapterRulesViewModel : ObservableObject, ITransient
     [RelayCommand]
     private async Task DeleteSelectedRulesAsync(CancellationToken cancellationToken)
     {
-        if (IsBusy || _deletingBatch || !IsManagementMode || SelectedCount == 0) return;
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _managementLifetime?.Token ?? CancellationToken.None);
-        cancellationToken = linked.Token;
-        _deletingBatch = true;
+        if (IsBusy || !IsManagementMode || SelectedCount == 0) return;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _activation?.CancellationToken ?? CancellationToken.None);
         try
         {
-            if (!await ConfirmLeaveAsync(cancellationToken)) return;
-            var items = Rules.Where(item => _selection.IsSelected(item.Id)).ToArray();
-            if (items.Length == 0) return;
-            if (await _feedbackService.ConfirmDeletionAsync("删除规则", $"将删除所选 {items.Length} 条规则，此操作不可撤销。", cancellationToken)
-                != AppConfirmationDecision.Confirm) return;
-            SetBusy(true);
-            var succeeded = 0;
-            var skipped = 0;
-            var failed = 0;
-            foreach (var item in items)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!item.CanDelete) { skipped++; continue; }
-                try
+            var result = await _batchDelete.RunAsync<ChapterRuleListItemViewModel>(
+                async token =>
                 {
-                    await _workspaceService.DeleteRuleAsync(item.Id, cancellationToken);
-                    succeeded++;
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-                catch (Exception) { failed++; }
-            }
-            await RefreshRulesAsync(CurrentRuleId, openEditorIfNeeded: false, cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            var message = $"成功 {succeeded}，跳过 {skipped}，失败 {failed}。";
-            if (skipped > 0 || failed > 0) _feedbackService.ShowWarning("删除完成", message);
+                    if (!await ConfirmLeaveAsync(token)) return [];
+                    var items = Rules.Where(item => _selection.IsSelected(item.Id)).ToArray();
+                    if (items.Length == 0) return [];
+                    return await _feedbackService.ConfirmDeletionAsync("删除规则", $"将删除所选 {items.Length} 条规则，此操作不可撤销。", token)
+                        == AppConfirmationDecision.Confirm ? items : [];
+                },
+                async (item, token) =>
+                {
+                    if (!item.CanDelete) return false;
+                    await _workspaceService.DeleteRuleAsync(item.Id, token);
+                    return true;
+                },
+                token => RefreshRulesAsync(CurrentRuleId, openEditorIfNeeded: false, token),
+                SetBusy, linked.Token);
+            if (result is null) return;
+            var message = $"成功 {result.Succeeded}，跳过 {result.Skipped}，失败 {result.Failed}。";
+            if (result.Skipped > 0 || result.Failed > 0) _feedbackService.ShowWarning("删除完成", message);
             else _feedbackService.ShowSuccess("删除完成", message);
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { _feedbackService.ShowProjectedNotification("批量删除失败", _feedbackService.Project(exception)); }
-        finally { SetBusy(false); _deletingBatch = false; }
+        catch (OperationCanceledException) when (linked.IsCancellationRequested) { }
+        catch (Exception exception) when (!linked.IsCancellationRequested)
+        {
+            _feedbackService.ShowProjectedNotification("批量删除失败", _feedbackService.Project(exception));
+        }
+        catch (Exception) when (linked.IsCancellationRequested) { }
     }
 }

@@ -9,6 +9,7 @@ public sealed class ManagementSelectionController<TKey>
     where TKey : notnull
 {
     private readonly DesktopSelectionController<TKey> _selection;
+    private bool _entering;
 
     public ManagementSelectionController(IEqualityComparer<TKey>? comparer = null)
     {
@@ -53,6 +54,27 @@ public sealed class ManagementSelectionController<TKey>
 
         IsManagementMode = true;
         PublishStateChange([]);
+    }
+
+    /// <summary>Serializes the feature's dirty-draft guard before entering management mode.</summary>
+    internal async Task<bool> TryEnterAsync(
+        Func<bool> isBusy,
+        Func<CancellationToken, Task<bool>> confirmLeave,
+        CancellationToken cancellationToken)
+    {
+        if (isBusy() || _entering) return false;
+        if (IsManagementMode) return true;
+        _entering = true;
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!await confirmLeave(cancellationToken)) return false;
+            cancellationToken.ThrowIfCancellationRequested();
+            Enter();
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { return false; }
+        finally { _entering = false; }
     }
 
     /// <summary>Exits management mode and clears selection while retaining the item set.</summary>
