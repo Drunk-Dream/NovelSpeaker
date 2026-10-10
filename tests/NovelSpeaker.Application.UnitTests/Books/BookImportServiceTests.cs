@@ -28,36 +28,37 @@ public sealed class BookImportServiceTests
         Assert.Equal(BookImportFailureReason.ChapterRuleTimedOut, result.FailureReason);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task ImportAsync_notifies_committed_active_catalog_changes_and_isolates_observer_failures(bool active)
+    [Fact]
+    public async Task ImportAsync_notifies_committed_active_catalog_changes_and_isolates_observer_failures()
     {
-        var target = ExistingTarget("existing");
-        if (!active) target = target with { Book = target.Book with { ActiveSourceId = null } };
-        var repository = new CapturingBookImportRepository { Target = target };
-        var changes = new BookSourceChanges();
-        var service = CreateService(repository: repository, sourceChanges: changes);
-        var committed = new List<BookCommittedChange>();
-        changes.Changed += (_, _) => throw new InvalidOperationException("observer failure");
-        changes.Changed += (_, value) =>
+        foreach (var active in new[] { true, false })
         {
-            Assert.NotNull(repository.SavedSnapshot);
-            committed.Add(value);
-        };
-        var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt", TargetBookId: "existing"),
-            null, CancellationToken.None);
-        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
-        if (active)
-        {
-            Assert.Equal(2, committed.Count);
-            Assert.Equal(new BookCommittedChange.MetadataCommitted("existing"), committed[0]);
-            var change = Assert.IsType<BookCommittedChange.ActiveCatalogCommitted>(committed[1]);
-            Assert.Equal("existing", change.BookId);
-            Assert.Equal("existing-source", change.SourceId);
-            Assert.Equal(repository.SavedSnapshot!.Catalog[0].Id, change.CatalogVersion);
+            var target = ExistingTarget("existing");
+            if (!active) target = target with { Book = target.Book with { ActiveSourceId = null } };
+            var repository = new CapturingBookImportRepository { Target = target };
+            var changes = new BookSourceChanges();
+            var service = CreateService(repository: repository, sourceChanges: changes);
+            var committed = new List<BookCommittedChange>();
+            changes.Changed += (_, _) => throw new InvalidOperationException("observer failure");
+            changes.Changed += (_, value) =>
+            {
+                Assert.NotNull(repository.SavedSnapshot);
+                committed.Add(value);
+            };
+            var result = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt", TargetBookId: "existing"),
+                null, CancellationToken.None);
+            Assert.Equal(DirectBookImportStatus.Imported, result.Status);
+            if (active)
+            {
+                Assert.Equal(2, committed.Count);
+                Assert.Equal(new BookCommittedChange.MetadataCommitted("existing"), committed[0]);
+                var change = Assert.IsType<BookCommittedChange.ActiveCatalogCommitted>(committed[1]);
+                Assert.Equal("existing", change.BookId);
+                Assert.Equal("existing-source", change.SourceId);
+                Assert.Equal(repository.SavedSnapshot!.Catalog[0].Id, change.CatalogVersion);
+            }
+            else Assert.Empty(committed);
         }
-        else Assert.Empty(committed);
     }
 
     [Fact]
@@ -86,22 +87,23 @@ public sealed class BookImportServiceTests
             new BookCommittedChange.ActiveCatalogCommitted("book-id", "local-source-id", "chapter-id")], committed);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ImportAsync_does_not_publish_when_file_or_database_commit_fails(bool fileFailure)
+    [Fact]
+    public async Task ImportAsync_does_not_publish_when_file_or_database_commit_fails()
     {
-        var changes = new BookSourceChanges();
-        var committed = new List<BookCommittedChange>();
-        changes.Changed += (_, value) => committed.Add(value);
-        var service = CreateService(sourceChanges: changes,
-            fileStore: new FakeBookFileStore { FinalizeException = fileFailure ? new InvalidOperationException("file failed") : null },
-            repository: new ThrowingBookImportRepository());
+        foreach (var fileFailure in new[] { false, true })
+        {
+            var changes = new BookSourceChanges();
+            var committed = new List<BookCommittedChange>();
+            changes.Changed += (_, value) => committed.Add(value);
+            var service = CreateService(sourceChanges: changes,
+                fileStore: new FakeBookFileStore { FinalizeException = fileFailure ? new InvalidOperationException("file failed") : null },
+                repository: new ThrowingBookImportRepository());
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportAsync(
-            new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => service.ImportAsync(
+                new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None));
 
-        Assert.Empty(committed);
+            Assert.Empty(committed);
+        }
     }
 
     [Fact]
@@ -121,30 +123,31 @@ public sealed class BookImportServiceTests
         Assert.Equal(3, committed.Count);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task ImportAsync_requires_explicit_choice_for_multiple_candidates(bool createNew)
+    [Fact]
+    public async Task ImportAsync_requires_explicit_choice_for_multiple_candidates()
     {
-        var candidates = new[]
+        foreach (var createNew in new[] { false, true })
         {
-            new BookImportCandidate("a", "demo", null, DateTimeOffset.UnixEpoch, null),
-            new BookImportCandidate("b", "demo", null, DateTimeOffset.UnixEpoch, null)
-        };
-        var repository = new CapturingBookImportRepository { Candidates = candidates, Target = ExistingTarget("b") };
-        var fileStore = new FakeBookFileStore();
-        var service = CreateService(repository: repository, fileStore: fileStore);
-        var unresolved = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None);
-        Assert.Equal(DirectBookImportStatus.RequiresBookSelection, unresolved.Status);
-        Assert.Equal(candidates, unresolved.BookCandidates);
-        Assert.Null(repository.SavedSnapshot);
-        Assert.Null(fileStore.LastNormalizedText);
+            var candidates = new[]
+            {
+                new BookImportCandidate("a", "demo", null, DateTimeOffset.UnixEpoch, null),
+                new BookImportCandidate("b", "demo", null, DateTimeOffset.UnixEpoch, null)
+            };
+            var repository = new CapturingBookImportRepository { Candidates = candidates, Target = ExistingTarget("b") };
+            var fileStore = new FakeBookFileStore();
+            var service = CreateService(repository: repository, fileStore: fileStore);
+            var unresolved = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt"), null, CancellationToken.None);
+            Assert.Equal(DirectBookImportStatus.RequiresBookSelection, unresolved.Status);
+            Assert.Equal(candidates, unresolved.BookCandidates);
+            Assert.Null(repository.SavedSnapshot);
+            Assert.Null(fileStore.LastNormalizedText);
 
-        var resolved = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt",
-            TargetBookId: createNew ? null : "b", CreateNewBook: createNew), null, CancellationToken.None);
-        Assert.Equal(DirectBookImportStatus.Imported, resolved.Status);
-        Assert.Equal(createNew ? "book-id" : "b", resolved.ImportedBook?.BookId);
-        Assert.Equal(createNew, repository.SavedSnapshot?.IsNewBook);
+            var resolved = await service.ImportAsync(new DirectBookImportRequest("demo.txt", null, "demo.txt",
+                TargetBookId: createNew ? null : "b", CreateNewBook: createNew), null, CancellationToken.None);
+            Assert.Equal(DirectBookImportStatus.Imported, resolved.Status);
+            Assert.Equal(createNew ? "book-id" : "b", resolved.ImportedBook?.BookId);
+            Assert.Equal(createNew, repository.SavedSnapshot?.IsNewBook);
+        }
     }
 
     [Fact]
@@ -338,33 +341,6 @@ public sealed class BookImportServiceTests
         Assert.True(fileStore.FinalizeCalled);
         Assert.True(fileStore.CleanupCalled);
         Assert.Null(repository.SavedBook);
-    }
-
-    [Fact]
-    public async Task ImportAsync_uses_injected_time_and_identifier_sequence()
-    {
-        var repository = new CapturingBookImportRepository();
-        var now = new DateTimeOffset(2026, 7, 17, 10, 30, 0, TimeSpan.Zero);
-        var service = CreateService(
-            repository: repository,
-            splitter: new FakeChapterSplitter(
-            [
-                new BookImportChapter(0, 0, "第一章", 0, 2),
-                new BookImportChapter(1, 1, "第二章", 2, 2)
-            ]),
-            timeProvider: new FixedTimeProvider(now),
-            idGenerator: new SequenceBookImportIdGenerator("book-fixed", "chapter-1", "chapter-2"));
-
-        var result = await service.ImportAsync(
-            new DirectBookImportRequest("demo.txt", null, "demo.txt"),
-            progress: null,
-            CancellationToken.None);
-
-        Assert.Equal("book-fixed", result.ImportedBook?.BookId);
-        Assert.Equal(now, repository.SavedBook?.ImportedAt);
-        Assert.Equal(now, repository.SavedBook?.UpdatedAt);
-        Assert.Equal(now, repository.SavedSnapshot?.LocalSource.LastImportedAt);
-        Assert.Equal(["chapter-1", "chapter-2"], repository.SavedChapters?.Select(chapter => chapter.Id));
     }
 
     [Fact]

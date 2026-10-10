@@ -112,29 +112,34 @@ public sealed class ProviderFoundationTests
         Assert.Equal(ProviderRuntimeUnavailableReason.ProviderNotConfigured, result.UnavailableReason);
     }
 
-    [Theory]
-    [InlineData("not-a-url")]
-    [InlineData("file:///tmp/voice.wav")]
-    [InlineData("file://{{speakText}}")]
-    [InlineData("/api/{{speakText}}")]
-    [InlineData("https://?token={{speakText}}")]
-    public async Task Runtime_resolver_rejects_invalid_HTTP_URLs(string url)
+    [Fact]
+    public async Task Runtime_resolver_rejects_invalid_HTTP_URLs()
     {
-        var provider = CreateProvider(ProviderId.New(), "Voice", 0) with
+        foreach (var url in new[]
+                 {
+                     "not-a-url",
+                     "file:///tmp/voice.wav",
+                     "file://{{speakText}}",
+                     "/api/{{speakText}}",
+                     "https://?token={{speakText}}"
+                 })
         {
-            Configuration = new HttpSpeechProviderConfiguration(
-                url,
-                "GET",
-                new Dictionary<string, string>(),
-                null,
-                null)
-        };
-        var resolver = new ProviderRuntimeResolver(new FakeProviderStore(provider), new FakeRuntime());
+            var provider = CreateProvider(ProviderId.New(), "Voice", 0) with
+            {
+                Configuration = new HttpSpeechProviderConfiguration(
+                    url,
+                    "GET",
+                    new Dictionary<string, string>(),
+                    null,
+                    null)
+            };
+            var resolver = new ProviderRuntimeResolver(new FakeProviderStore(provider), new FakeRuntime());
 
-        var result = await resolver.ResolveAsync(provider.Id, CancellationToken.None);
+            var result = await resolver.ResolveAsync(provider.Id, CancellationToken.None);
 
-        Assert.False(result.IsAvailable);
-        Assert.Equal(ProviderRuntimeUnavailableReason.ProviderNotConfigured, result.UnavailableReason);
+            Assert.False(result.IsAvailable);
+            Assert.Equal(ProviderRuntimeUnavailableReason.ProviderNotConfigured, result.UnavailableReason);
+        }
     }
 
     [Fact]
@@ -227,23 +232,28 @@ public sealed class ProviderFoundationTests
         Assert.True(ProviderConfigurationValidator.Validate(provider).IsValid);
     }
 
-    [Theory]
-    [InlineData("X Voice", "value")]
-    [InlineData("X-Voice", "value\r\ninjected: true")]
-    [InlineData("X-Voice", "value\u007f")]
-    public void Provider_configuration_rejects_invalid_HTTP_headers(string headerName, string headerValue)
+    [Fact]
+    public void Provider_configuration_rejects_invalid_HTTP_headers()
     {
-        var provider = CreateProvider(ProviderId.New(), "Voice", 0) with
+        foreach (var (headerName, headerValue) in new[]
+                 {
+                     ("X Voice", "value"),
+                     ("X-Voice", "value\r\ninjected: true"),
+                     ("X-Voice", "value\u007f")
+                 })
         {
-            Configuration = new HttpSpeechProviderConfiguration(
-                "https://example.invalid/tts",
-                "GET",
-                new Dictionary<string, string> { [headerName] = headerValue },
-                null,
-                null)
-        };
+            var provider = CreateProvider(ProviderId.New(), "Voice", 0) with
+            {
+                Configuration = new HttpSpeechProviderConfiguration(
+                    "https://example.invalid/tts",
+                    "GET",
+                    new Dictionary<string, string> { [headerName] = headerValue },
+                    null,
+                    null)
+            };
 
-        Assert.False(ProviderConfigurationValidator.Validate(provider).IsValid);
+            Assert.False(ProviderConfigurationValidator.Validate(provider).IsValid);
+        }
     }
 
     private static SpeechProviderInstance CreateProvider(

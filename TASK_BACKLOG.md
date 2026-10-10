@@ -30,7 +30,7 @@
 ### Phase B — WPF 与业务单元测试收敛
 
 - [x] **T003（P1）**：完成成果：WPF 由 102 降至 51 例，总计 1143 例（Domain 15、Application 293、Infrastructure 472、Presentation 312、WPF 51）。删除非核心动画、像素布局、重复交互和纯视觉细节覆盖，保留隔离 Desktop/fail-closed、关键窗口/导航/托盘生命周期、Provider Popup 渲染、焦点上下文、真实滚轮路由及 10,000 项目录尾部有界定位。51 例比建议上限多 1：焦点上下文与长目录尾部映射是独有 WPF 风险。清理失效的 PlayerView 布局 fixture 和视觉辅助；保留 Popup 所需最小 fake 服务。WPF 51/51、Release build（0 warnings/errors）、format verify 通过；独立复审 PASS，NS-01/02 不适用、NS-03 通过。
-- [ ] **T004（P1）**：合并 Application 的同风险多场景、内部转换及重复状态测试。依赖 T003，详见 `tasks/T004_APPLICATION_TESTS.md`。阶段建议值：Application ≈180；Domain 原则上维持原有 15 例。
+- [x] **T004（P1）**：完成成果：Application 由 293 降至 244 例，Domain 保留 15 例，总计由 1143 降至 1094 例（Infrastructure 472、Presentation 312、WPF 51）。合并等价导入/删除/元数据失败/规则导入排列、Provider 配置边界与播放投影输入，移除重复投影、仅验证注入时钟/ID 序列的用例及无调用方 fake 成员；保留文件名/编码识别、导入提交与回滚/取消、Playback 旧结果拒绝及保存恢复、Active Cache 配置冻结/取消所有权、导出完整性、Provider 凭据与模板安全、Observability 隐私和失败隔离。244 例高于建议上限 49 例；复核剩余用例后确认其覆盖不同状态所有权、跨异步边界或安全/数据完整性风险，没有可由现有高层行为测试替代的重复组，故未为数量目标删除这些契约。Application 244/244、Domain 15/15、Infrastructure 导入仓储 focused tests 18/18；Release build 0 warnings/errors、format verify、diff check 通过。独立复审 PASS，NS-01/02/03 不适用。
 
 ### Phase C — 集成测试去重复与整体门禁
 

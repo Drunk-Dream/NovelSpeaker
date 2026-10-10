@@ -29,48 +29,48 @@ public sealed class BookDeletionServiceTests
         Assert.Equal(new BookCommittedChange.BookRemoved("book-1"), Assert.Single(committed));
     }
 
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task RemoveAsync_distinguishes_source_removal_active_clear_and_last_source_book_removal(bool lastSource, bool active)
+    [Fact]
+    public async Task RemoveAsync_distinguishes_source_removal_active_clear_and_last_source_book_removal()
     {
-        var store = new RecordingDeletionOperationStore { DeletesBook = lastSource, ActiveSourceId = active ? "source-1" : null };
-        var changes = new BookSourceChanges();
-        var committed = new List<BookCommittedChange>();
-        changes.Changed += (_, _) => throw new InvalidOperationException("observer failed");
-        changes.Changed += (_, change) => committed.Add(change);
-        var service = new BookDeletionService(store, new BookMutationGate(), changes, [], []);
+        foreach (var (lastSource, active) in new[] { (false, false), (false, true), (true, false), (true, true) })
+        {
+            var store = new RecordingDeletionOperationStore { DeletesBook = lastSource, ActiveSourceId = active ? "source-1" : null };
+            var changes = new BookSourceChanges();
+            var committed = new List<BookCommittedChange>();
+            changes.Changed += (_, _) => throw new InvalidOperationException("observer failed");
+            changes.Changed += (_, change) => committed.Add(change);
+            var service = new BookDeletionService(store, new BookMutationGate(), changes, [], []);
 
-        var result = await service.RemoveAsync(new("book-1", "source-1"), CancellationToken.None);
+            var result = await service.RemoveAsync(new("book-1", "source-1"), CancellationToken.None);
 
-        Assert.Equal(lastSource, result!.DeletedBook);
-        var expected = new List<BookCommittedChange> { new BookCommittedChange.SourceRemoved("book-1", "source-1") };
-        if (lastSource) expected.Add(new BookCommittedChange.BookRemoved("book-1"));
-        else if (active) expected.Add(new BookCommittedChange.ActiveSourceChanged("book-1", "source-1", null));
-        Assert.Equal(expected, committed);
+            Assert.Equal(lastSource, result!.DeletedBook);
+            var expected = new List<BookCommittedChange> { new BookCommittedChange.SourceRemoved("book-1", "source-1") };
+            if (lastSource) expected.Add(new BookCommittedChange.BookRemoved("book-1"));
+            else if (active) expected.Add(new BookCommittedChange.ActiveSourceChanged("book-1", "source-1", null));
+            Assert.Equal(expected, committed);
+        }
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Removal_commit_failure_rolls_back_without_publishing(bool removeSource)
+    [Fact]
+    public async Task Removal_commit_failure_rolls_back_without_publishing()
     {
-        var store = new RecordingDeletionOperationStore { CommitException = new IOException("commit failed") };
-        var changes = new BookSourceChanges();
-        var committed = new List<BookCommittedChange>();
-        changes.Changed += (_, change) => committed.Add(change);
-        var service = new BookDeletionService(store, new BookMutationGate(), changes, [], []);
-
-        await Assert.ThrowsAsync<IOException>(async () =>
+        foreach (var removeSource in new[] { false, true })
         {
-            if (removeSource) await service.RemoveAsync(new("book-1", "source-1"), CancellationToken.None);
-            else await service.DeleteAsync(new("book-1", true), CancellationToken.None);
-        });
+            var store = new RecordingDeletionOperationStore { CommitException = new IOException("commit failed") };
+            var changes = new BookSourceChanges();
+            var committed = new List<BookCommittedChange>();
+            changes.Changed += (_, change) => committed.Add(change);
+            var service = new BookDeletionService(store, new BookMutationGate(), changes, [], []);
 
-        Assert.Equal(["begin", "commit", "rollback"], store.Calls);
-        Assert.Empty(committed);
+            await Assert.ThrowsAsync<IOException>(async () =>
+            {
+                if (removeSource) await service.RemoveAsync(new("book-1", "source-1"), CancellationToken.None);
+                else await service.DeleteAsync(new("book-1", true), CancellationToken.None);
+            });
+
+            Assert.Equal(["begin", "commit", "rollback"], store.Calls);
+            Assert.Empty(committed);
+        }
     }
 
     [Fact]
@@ -90,20 +90,6 @@ public sealed class BookDeletionServiceTests
         Assert.Equal(new BookCommittedChange.BookRemoved("book-1"), Assert.Single(committed));
     }
 
-    [Fact]
-    public async Task DeleteAsync_returns_null_without_committing_when_book_is_missing()
-    {
-        var store = new RecordingDeletionOperationStore { IsMissing = true };
-        var changes = new BookSourceChanges();
-        var committed = new List<BookCommittedChange>();
-        changes.Changed += (_, change) => committed.Add(change);
-        var service = new BookDeletionService(store, new BookMutationGate(), changes, [], []);
-
-        Assert.Null(await service.DeleteAsync(new BookDeleteRequest("missing", false), CancellationToken.None));
-        Assert.Equal(["begin"], store.Calls);
-        Assert.Empty(committed);
-    }
-
     private sealed class RecordingStopper(RecordingDeletionOperationStore store) : IBookRemovalWorkStopper
     {
         public Task StopForRemovalAsync(string bookId, string? sourceId, CancellationToken cancellationToken)
@@ -116,7 +102,6 @@ public sealed class BookDeletionServiceTests
     private sealed class RecordingDeletionOperationStore : IBookDeletionOperationStore
     {
         public List<string> Calls { get; } = [];
-        public bool IsMissing { get; init; }
         public Exception? CompleteException { get; init; }
         public Exception? CommitException { get; init; }
         public bool DeletesBook { get; init; } = true;
@@ -126,11 +111,9 @@ public sealed class BookDeletionServiceTests
         public Task<BookDeletionPreparation?> BeginAsync(BookDeleteRequest request, CancellationToken cancellationToken)
         {
             Calls.Add("begin");
-            return Task.FromResult(IsMissing
-                ? null
-                : new BookDeletionPreparation(
-                    "operation-1",
-                    new BookDeleteResult(request.BookId, request.DeleteAudioCache, 2, true), DeletesBook, ActiveSourceId));
+            return Task.FromResult<BookDeletionPreparation?>(new BookDeletionPreparation(
+                "operation-1",
+                new BookDeleteResult(request.BookId, request.DeleteAudioCache, 2, true), DeletesBook, ActiveSourceId));
         }
 
         public Task<BookDeletionPreparation?> BeginSourceRemovalAsync(BookSourceRemoveRequest request, CancellationToken cancellationToken) =>

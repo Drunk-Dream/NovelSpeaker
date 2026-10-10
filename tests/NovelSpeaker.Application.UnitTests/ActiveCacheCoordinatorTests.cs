@@ -168,35 +168,36 @@ public sealed class ActiveCacheCoordinatorTests
         await coordinator.CancelAsync(CancellationToken.None);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Failed_chapter_preserves_safe_summary_and_continues_remaining_chapters(bool unexpectedException)
+    [Fact]
+    public async Task Failed_chapter_preserves_safe_summary_and_continues_remaining_chapters()
     {
-        var audio = new ControlledAudioProvider();
-        if (unexpectedException) audio.EnqueueException();
-        else audio.EnqueueFailure(new TtsExecutionFailure(
-            TtsErrorKind.Network,
-            "安全错误摘要",
-            null,
-            null,
-            null,
-            null));
-        await using var coordinator = new ActiveCacheCoordinator(
-            new FakeContentService(),
-            new MutableRuleProvider(CreateRule(7, "批次规则")),
-            audio, new BookMutationGate());
+        foreach (var unexpectedException in new[] { false, true })
+        {
+            var audio = new ControlledAudioProvider();
+            if (unexpectedException) audio.EnqueueException();
+            else audio.EnqueueFailure(new TtsExecutionFailure(
+                TtsErrorKind.Network,
+                "安全错误摘要",
+                null,
+                null,
+                null,
+                null));
+            await using var coordinator = new ActiveCacheCoordinator(
+                new FakeContentService(),
+                new MutableRuleProvider(CreateRule(7, "批次规则")),
+                audio, new BookMutationGate());
 
-        await coordinator.StartAsync(
-            new StartActiveCacheRequest("book-1", [3, 8], 10),
-            CancellationToken.None);
-        await coordinator.WaitForCurrentBatchAsync(CancellationToken.None);
+            await coordinator.StartAsync(
+                new StartActiveCacheRequest("book-1", [3, 8], 10),
+                CancellationToken.None);
+            await coordinator.WaitForCurrentBatchAsync(CancellationToken.None);
 
-        Assert.Equal(ActiveCacheBatchStatus.Failed, coordinator.CurrentSnapshot!.Status);
-        Assert.Equal(unexpectedException ? "主动缓存失败，请重试。" : "安全错误摘要", coordinator.CurrentSnapshot.ErrorSummary);
-        Assert.Equal(ActiveCacheChapterStatus.Failed, coordinator.CurrentSnapshot.Chapters[0].Status);
-        Assert.Equal(ActiveCacheChapterStatus.Completed, coordinator.CurrentSnapshot.Chapters[1].Status);
-        Assert.Equal([3, 8], audio.Calls.Select(call => call.Request.ChapterIndex));
+            Assert.Equal(ActiveCacheBatchStatus.Failed, coordinator.CurrentSnapshot!.Status);
+            Assert.Equal(unexpectedException ? "主动缓存失败，请重试。" : "安全错误摘要", coordinator.CurrentSnapshot.ErrorSummary);
+            Assert.Equal(ActiveCacheChapterStatus.Failed, coordinator.CurrentSnapshot.Chapters[0].Status);
+            Assert.Equal(ActiveCacheChapterStatus.Completed, coordinator.CurrentSnapshot.Chapters[1].Status);
+            Assert.Equal([3, 8], audio.Calls.Select(call => call.Request.ChapterIndex));
+        }
     }
 
     [Fact]

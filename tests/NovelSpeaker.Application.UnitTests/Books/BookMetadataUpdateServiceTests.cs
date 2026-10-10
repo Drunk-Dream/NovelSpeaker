@@ -28,30 +28,31 @@ public sealed class BookMetadataUpdateServiceTests
         Assert.Equal(new BookCommittedChange.MetadataCommitted("book"), Assert.Single(committed));
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task UpdateMetadataAsync_does_not_publish_failed_or_cancelled_persistence(bool cancel)
+    [Fact]
+    public async Task UpdateMetadataAsync_does_not_publish_failed_or_cancelled_persistence()
     {
-        using var cancellation = new CancellationTokenSource();
-        var store = new DeferredMetadataStore();
-        var changes = new BookSourceChanges();
-        var committed = new List<BookCommittedChange>();
-        changes.Changed += (_, change) => committed.Add(change);
-        var service = new BookMetadataUpdateService(store, new BookMutationGate(), changes);
-        var update = service.UpdateMetadataAsync(new("book", "title", "author"), cancellation.Token);
-        await store.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        if (cancel)
+        foreach (var cancel in new[] { false, true })
         {
-            cancellation.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => update);
+            using var cancellation = new CancellationTokenSource();
+            var store = new DeferredMetadataStore();
+            var changes = new BookSourceChanges();
+            var committed = new List<BookCommittedChange>();
+            changes.Changed += (_, change) => committed.Add(change);
+            var service = new BookMetadataUpdateService(store, new BookMutationGate(), changes);
+            var update = service.UpdateMetadataAsync(new("book", "title", "author"), cancellation.Token);
+            await store.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            if (cancel)
+            {
+                cancellation.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => update);
+            }
+            else
+            {
+                store.Committed.SetException(new InvalidOperationException("commit failed"));
+                await Assert.ThrowsAsync<InvalidOperationException>(() => update);
+            }
+            Assert.Empty(committed);
         }
-        else
-        {
-            store.Committed.SetException(new InvalidOperationException("commit failed"));
-            await Assert.ThrowsAsync<InvalidOperationException>(() => update);
-        }
-        Assert.Empty(committed);
     }
 
     [Fact]
