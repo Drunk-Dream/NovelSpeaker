@@ -29,7 +29,7 @@
 
 ### Phase B — WPF 与业务单元测试收敛
 
-- [ ] **T003（P1）**：删去非核心的 WPF 外观、布局和重复交互测试，保留核心窗口/页面/隔离行为。依赖 T002，详见 `tasks/T003_WPF_TESTS.md`。阶段建议值：WPF ≈40。
+- [x] **T003（P1）**：完成成果：WPF 由 102 降至 51 例，总计 1143 例（Domain 15、Application 293、Infrastructure 472、Presentation 312、WPF 51）。删除非核心动画、像素布局、重复交互和纯视觉细节覆盖，保留隔离 Desktop/fail-closed、关键窗口/导航/托盘生命周期、Provider Popup 渲染、焦点上下文、真实滚轮路由及 10,000 项目录尾部有界定位。51 例比建议上限多 1：焦点上下文与长目录尾部映射是独有 WPF 风险。清理失效的 PlayerView 布局 fixture 和视觉辅助；保留 Popup 所需最小 fake 服务。WPF 51/51、Release build（0 warnings/errors）、format verify 通过；独立复审 PASS，NS-01/02 不适用、NS-03 通过。
 - [ ] **T004（P1）**：合并 Application 的同风险多场景、内部转换及重复状态测试。依赖 T003，详见 `tasks/T004_APPLICATION_TESTS.md`。阶段建议值：Application ≈180；Domain 原则上维持原有 15 例。
 
 ### Phase C — 集成测试去重复与整体门禁

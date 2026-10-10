@@ -250,16 +250,6 @@ public sealed class FeedbackServicesTests
     }
 
     [Fact]
-    public void Feedback_dialog_contracts_cover_confirmation_encoding_and_progress_lifecycle()
-    {
-        AppDialogService_maps_confirmation_and_unsaved_changes_results();
-        EncodingSelectionDialogService_uses_standard_dialog_content_and_input_styles();
-        ImportProgressDialogService_uses_standard_content_progress_and_cancel_styles();
-        ImportProgressDialogService_cancels_operation_when_host_closes_dialog();
-        ImportProgressDialogService_closes_dialog_and_preserves_operation_failure();
-    }
-
-    [Fact]
     public void Feedback_notification_contracts_route_messages_and_projected_notifications()
     {
         AppNotificationService_routes_messages_to_snackbar_service();

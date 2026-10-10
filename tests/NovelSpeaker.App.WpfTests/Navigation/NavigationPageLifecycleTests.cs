@@ -22,51 +22,6 @@ namespace NovelSpeaker.App.WpfTests.Navigation;
 public sealed class NavigationPageLifecycleTests
 {
     [Fact]
-    public void PlayerPage_applies_strongly_typed_navigation_route()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var contentService = new FakeBookPlaybackContentService(
-                new PlaybackBookContent("book-7", "示例小说", [PlaybackChapterContent.FromLoaded(0, "第一章", [])], "作者甲"),
-                PlaybackChapterContent.FromLoaded(0, "第一章", [new SpeechSegment(0, 0, 4, "第一段", "第一段")]));
-            var viewModel = new PlayerViewModel(
-                new FakePlaybackCoordinator(new PlaybackSnapshot(PlaybackState.Paused,
-            "book-7",
-            "示例小说",
-            0,
-            "第一章",
-            0,
-            1,
-            TestSpeechProviders.Id(1),
-            "默认规则",
-            10,
-            0,
-            0,
-            null,
-            false,
-            false)),
-                new FakePlaybackStopTimer(),
-                new FakeActiveCacheCoordinator(),
-                new PlaybackBackedBookDetailsQuery(contentService),
-                contentService,
-                new FakeProviders([TestSpeechProviders.Item(1, "默认规则", true)]),
-                new FakeAppSettingsService(AppSettings.Default),
-                new FakeAppFeedbackService(),
-                new FakeNavigationService(),
-                new FakePlayerAutoScrollCoordinator(),
-                new CacheReadModelTestDouble(),
-                new FakeMiniPlayerLauncher());
-            var page = new PlayerPage(viewModel);
-            page.DataContext = new PlayerNavigationRequest("book-7", AppRoutes.Library, PlayerNavigationMode.ReturnToCurrentSession);
-
-            page.OnNavigatedToAsync().GetAwaiter().GetResult();
-
-            Assert.Equal("book-7", contentService.LastRequestedBookId);
-            Assert.Equal("示例小说", viewModel.CurrentTitle);
-        });
-    }
-
-    [Fact]
     public void Leaving_player_page_does_not_stop_the_playback_session()
     {
         WpfTestHost.RunInSta(() =>

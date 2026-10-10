@@ -59,20 +59,6 @@ public sealed class WpfTestHostIsolationTests
     }
 
     [Fact]
-    public void Visible_attach_keeps_the_interactive_strategy_without_native_desktop_changes()
-    {
-        var nativeApi = new FakeWindowsTestDesktopNativeApi();
-
-        using var desktop = WindowsTestDesktop.Attach(allowVisibleWindows: true, nativeApi);
-
-        Assert.False(desktop.Info.IsIsolated);
-        Assert.Equal("interactive", desktop.Info.Name);
-        Assert.Equal(0, nativeApi.CreateCallCount);
-        Assert.Equal(0, nativeApi.BindCallCount);
-        Assert.Equal(0, nativeApi.CloseCallCount);
-    }
-
-    [Fact]
     public void Visible_window_policy_requires_the_explicit_value()
     {
         foreach (var (value, expected) in new[]

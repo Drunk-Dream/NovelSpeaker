@@ -259,58 +259,11 @@ public sealed class MiniPlayerWindowTests
     }
 
     [Fact]
-    public void Mini_player_surface_contracts_cover_controls_drag_and_layout()
-    {
-        Window_exposes_required_controls_and_accessibility_contract();
-        Drag_policy_allows_blank_surface_but_excludes_interactive_controls();
-        Width_resize_thumb_changes_only_width_within_window_bounds();
-    }
-
-    [Fact]
-    public void Mini_player_placement_contracts_cover_valid_invalid_and_monitor_gap_positions()
-    {
-        Invalid_or_offscreen_placement_uses_safe_fallback();
-        Valid_placement_is_preserved();
-        Placement_in_gap_between_monitors_is_rejected();
-    }
-
-    [Fact]
     public void Mini_player_lifecycle_contracts_cover_close_and_persisted_position_commands()
     {
         User_close_requests_application_exit_instead_of_restoring_main_window();
         Close_button_requests_application_exit_without_restoring_main_window();
         Saved_position_is_available_and_a_user_move_is_persisted();
-    }
-
-    [Fact]
-    public void Mini_player_pause_action_is_available_while_target_audio_is_preparing()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var fixture = CreateWindow(PlaybackSnapshot.Idle with
-            {
-                State = PlaybackState.Preparing,
-                BookId = "book-1",
-                BookTitle = "示例小说",
-                ChapterTitle = "新目标章节",
-                TargetRevision = 2
-            });
-            try
-            {
-                Assert.True(fixture.ViewModel.CanTogglePlayback);
-                Assert.Equal("暂停", fixture.ViewModel.PlaybackActionText);
-                Assert.Equal("新目标章节", fixture.ViewModel.ChapterTitle);
-
-                fixture.ViewModel.TogglePlaybackCommand.ExecuteAsync(null).GetAwaiter().GetResult();
-
-                Assert.Equal(1, fixture.Playback.PauseCallCount);
-                Assert.Equal(0, fixture.Playback.ResumeCallCount);
-            }
-            finally
-            {
-                CloseFixture(fixture);
-            }
-        });
     }
 
     private static void AssertControl<T>(MiniPlayerWindow window, string name, string automationName)

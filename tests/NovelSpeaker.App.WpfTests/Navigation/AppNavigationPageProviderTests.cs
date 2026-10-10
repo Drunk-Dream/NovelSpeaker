@@ -62,19 +62,6 @@ public sealed class AppNavigationPageProviderTests
         });
     }
 
-    [Fact]
-    public void GetPage_throws_for_unregistered_page()
-    {
-        using var provider = new ServiceCollection().BuildServiceProvider();
-        var pageProvider = new AppNavigationPageProvider(provider);
-
-        Assert.Throws<InvalidOperationException>(() => pageProvider.GetPage(typeof(UnregisteredPage)));
-    }
-
-    private sealed class UnregisteredPage : System.Windows.Controls.Page
-    {
-    }
-
     private sealed class FakeNavigationService : INavigationService, IAppNavigator
     {
         public INavigationView GetNavigationControl()

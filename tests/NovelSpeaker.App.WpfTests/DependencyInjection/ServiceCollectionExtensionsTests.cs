@@ -47,27 +47,6 @@ namespace NovelSpeaker.App.WpfTests.DependencyInjection;
 public sealed class ServiceCollectionExtensionsTests
 {
     [Fact]
-    public void Production_service_provider_builder_validates_missing_dependencies()
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton<MissingDependencyConsumer>();
-
-        Assert.Throws<AggregateException>(
-            () => WpfStartupRuntime.BuildValidatedServiceProvider(services));
-    }
-
-    [Fact]
-    public void Production_service_provider_builder_validates_scoped_dependencies()
-    {
-        var services = new ServiceCollection();
-        services.AddScoped<ScopedDependency>();
-        services.AddSingleton<ScopedDependencyConsumer>();
-
-        Assert.Throws<AggregateException>(
-            () => WpfStartupRuntime.BuildValidatedServiceProvider(services));
-    }
-
-    [Fact]
     public void Composition_root_registers_and_validates_core_services()
     {
         WpfTestHost.RunInSta(() =>
@@ -335,71 +314,6 @@ public sealed class ServiceCollectionExtensionsTests
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         });
-    }
-
-    [Fact]
-    public void Registration_methods_are_idempotent()
-    {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddNovelSpeakerApplication();
-        services.AddNovelSpeakerInfrastructure();
-        services.AddNovelSpeakerDesktop();
-        var descriptorCount = services.Count;
-
-        services.AddNovelSpeakerApplication();
-        services.AddNovelSpeakerInfrastructure();
-        services.AddNovelSpeakerDesktop();
-
-        Assert.Equal(descriptorCount, services.Count);
-    }
-
-    [Fact]
-    public void Application_registration_owns_all_application_use_cases()
-    {
-        var services = new ServiceCollection();
-
-        services.AddNovelSpeakerApplication();
-
-        var applicationAssembly =
-            typeof(NovelSpeaker.Application.DependencyInjection.ServiceCollectionExtensions).Assembly;
-        var expectedUseCases = new[]
-        {
-            typeof(IChapterRuleManagementService),
-            typeof(IDirectBookImportService),
-            typeof(IBookDeletionService),
-            typeof(IBookSourceRemovalService),
-            typeof(IChapterRuleWorkspaceService),
-            typeof(IRegexReplacementRuleWorkspaceService),
-            typeof(IRegexReplacementPipeline),
-            typeof(ITextSegmenter),
-            typeof(ICurrentSpeechProvider),
-            typeof(IHttpTtsClient),
-            typeof(IBookPlaybackContentService),
-            typeof(ICacheCatalog),
-            typeof(ICacheCoverageQuery),
-            typeof(ICacheInvalidationCoordinator),
-            typeof(ISpeechPlanRepairCoordinator),
-            typeof(ICacheReadModel),
-            typeof(ICacheInvalidationSink),
-            typeof(ICacheChangeLifetime),
-            typeof(ISpeechPlanRepairLifetime),
-            typeof(IAudioGenerationProvider),
-            typeof(IActiveCacheCoordinator),
-            typeof(IChapterExportCoordinator),
-            typeof(ILocalAudioPlaybackCoordinator),
-            typeof(IPlaybackPrefetchController),
-            typeof(IPlaybackSession),
-            typeof(IPlaybackSnapshotSource),
-            typeof(ICurrentSpeechProvider),
-            typeof(IAppSettingsService)
-        };
-
-        foreach (var useCase in expectedUseCases)
-        {
-            var descriptor = Assert.Single(services, candidate => candidate.ServiceType == useCase);
-            Assert.Equal(applicationAssembly, GetImplementationAssembly(descriptor));
-        }
     }
 
     [Fact]
