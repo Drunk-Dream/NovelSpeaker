@@ -89,9 +89,6 @@ internal sealed class ArchitectureTestRepository
             properties);
     }
 
-    public IReadOnlyList<ProjectDescriptor> ReadProductProjects() =>
-        ProductProjectRelativePaths.Select(ReadProject).ToArray();
-
     public IReadOnlyList<SourceFileDescriptor> ReadProductSourceFiles()
     {
         var files = new List<SourceFileDescriptor>();

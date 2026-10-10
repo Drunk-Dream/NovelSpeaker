@@ -35,7 +35,7 @@
 ### Phase C — 集成测试去重复与整体门禁
 
 - [x] **T005（P0）**：完成成果：Infrastructure Integration Tests 从 472 减至 327 例，删除/合并重复状态排列、内部实现细节和等价跨层路径，主要涉及 PlaybackCoordinator、Diagnostics、Provider/HTTP、设置存储及 Cache 测试。保留正式迁移与 rollback、SQLite 外键/导入候选、缓存文件与索引一致及清理、目录身份/路径边界、Provider/HTTP/Jint 安全与取消及 Retry-After 冷却、诊断隐私/恢复/不可用归因、真实音频解码及导出有效性等不可替代风险；327 高于建议值约 240，未为数量目标削减这些保护。总量由 T004 的 1094 降至 949（Domain 15、Application 244、Infrastructure 327、Presentation 312、WPF 51）。Infrastructure 327/327、Application 244/244、Presentation 312/312；Release build 0 warnings/errors、format verify、diff check 通过。独立复审 PASS，NS-01/02/03 不适用。
-- [ ] **T006（P0）**：统一清点已保留的风险覆盖、消除残余无用 fixture，复核约 600 例与完整质量门禁。依赖 T005，详见 `tasks/T006_CLOSURE.md`。目标总数 575–625；不可替代的高风险用例允许使实际数量略超预算，必须记录原因，不得为凑数删除。
+- [x] **T006（P0）**：完成成果：在 T005 验证代码 HEAD `32fc0fd2` 上重新运行无过滤完整门禁；T001 重测基线 1233（Domain 15、Application 293、Infrastructure 472、Presentation 351、WPF 102）降至 949（15、244、327、312、51），减少 284。五个测试项目均被发现并执行，分别 15/15、244/244、327/327、312/312、51/51 通过，0 失败、0 跳过；未使用过滤或禁用项目。复核导入/删除/恢复、已发布迁移与回滚、TXT 与目录链接边界、播放 logical target/迟到结果/进度、缓存身份与原子清理、Provider/HTTP/Jint、真实音频与导出、页面生命周期、诊断隐私/失败隔离、WPF 隔离 Desktop/Popup 入口及分层架构；保留相应风险测试和仍有调用方的 TestKit/audio fixture，并删除已无调用方的 `ArchitectureTestRepository.ReadProductProjects`，未发现可由现有更高层合同替代的安全删减项。总数比 575–625 目标上限多 324：Application 244、Infrastructure 327、Presentation 312、WPF 51 分别高于规划配额 180/240/125/40；超额主要来自不同数据完整性、安全边界、异步所有权和页面生命周期合同，前序 T001–T005 已按各自模块完成去重和独立复审，未为凑数删除独有保护。完整门禁通过：`dotnet restore --locked-mode -r win-x64`、`dotnet format --verify-no-changes --no-restore`、`dotnet build -c Release --no-restore`（0 warnings/errors）、`dotnet test -c Release --no-build`；无环境限制，`git diff --check` 通过。独立复审 PASS，NS-01/02 不适用，NS-03 通过（虚拟化列表的逻辑行滚动及应用级滚轮处理测试保留；WPF 51/51 通过）。
 
 ## 4. 非目标与结果记录
 
