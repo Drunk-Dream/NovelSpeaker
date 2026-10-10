@@ -42,7 +42,7 @@ public sealed partial class BookDetailsPageTests
                 Details = CreateDetails(chapterCount, currentChapterIndex)
             };
             var viewModel = CreateViewModel(managementService);
-            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService())
+            var page = new BookDetailsPage(viewModel)
             {
                 DataContext = new BookDetailsRoute("book-1")
             };
@@ -103,7 +103,6 @@ public sealed partial class BookDetailsPageTests
     {
         managementService ??= new FakeBookManagementService();
         return new BookDetailsViewModel(
-            managementService,
             managementService,
             managementService,
             new CacheStoreTestDouble(),
@@ -215,7 +214,7 @@ public sealed partial class BookDetailsPageTests
             => Task.FromResult(true);
     }
 
-    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookMetadataUpdateService, IBookDeletionService
+    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookDeletionService
     {
         public BookDetailsHeader? Header { get; init; }
 
@@ -240,9 +239,6 @@ public sealed partial class BookDetailsPageTests
 
         public Task<BookDetailsStatistics?> GetStatisticsAsync(string bookId, CancellationToken cancellationToken)
             => Task.FromResult<BookDetailsStatistics?>(Details is null ? null : Details.Statistics);
-
-        public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
             => Task.FromResult<BookDeleteResult?>(null);

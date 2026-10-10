@@ -17,6 +17,42 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookImportRepositoryTests
 {
+    [Fact]
+    public async Task Imported_local_book_remains_readable_after_reimport_and_deletes_only_owned_content()
+    {
+        using var fixture = await Fixture.CreateAsync();
+        var first = await fixture.ImportAsync("Fixture.txt", "original body");
+        var bookId = first.ImportedBook!.BookId;
+        var library = new BookLibraryQuery(fixture.Factory);
+        var details = new BookDetailsQuery(fixture.Factory);
+        var metadata = new SqliteBookPlaybackMetadataQuery(fixture.Factory);
+        var reader = new SourceContentReader(fixture.Resolver, fixture.Factory);
+        var oldChapter = (await metadata.GetChapterAsync(bookId, 0, CancellationToken.None))!;
+        Assert.Equal("original body", await reader.ReadChapterTextAsync(oldChapter, CancellationToken.None));
+        Assert.Equal("Fixture", Assert.Single(await library.GetBooksAsync(CancellationToken.None)).Title);
+        Assert.Equal(oldChapter.ChapterId, Assert.Single(await details.GetCatalogAsync(bookId, CancellationToken.None)).ChapterId);
+        var progress = new SqliteReadingProgressStore(fixture.Factory);
+        await progress.SaveAsync(new(bookId, 9, 9, 99, 500), CancellationToken.None);
+
+        var second = await fixture.ImportAsync("Replacement.txt", "short", "Fixture");
+        Assert.Equal(bookId, second.ImportedBook!.BookId);
+        var chapter = (await metadata.GetChapterAsync(bookId, 0, CancellationToken.None))!;
+        Assert.Equal("short", await reader.ReadChapterTextAsync(chapter, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() => reader.ReadChapterTextAsync(oldChapter, CancellationToken.None));
+        var checkpoint = (await progress.GetAsync(bookId, CancellationToken.None))!;
+        Assert.Equal((0, 4, -1, 0L), (checkpoint.ChapterIndex, checkpoint.CharacterOffset,
+            checkpoint.SegmentIndex, checkpoint.AudioPositionMilliseconds));
+        Assert.Equal(0, (await details.GetReadingPositionAsync(bookId, CancellationToken.None))!.ChapterIndex);
+
+        await fixture.Deletion.DeleteAsync(new(bookId, true), CancellationToken.None);
+        Assert.Empty(await library.GetBooksAsync(CancellationToken.None));
+        Assert.Null(await metadata.GetBookAsync(bookId, CancellationToken.None));
+        Assert.Null(await progress.GetAsync(bookId, CancellationToken.None));
+        Assert.Empty(Directory.EnumerateFiles(fixture.Directories.BooksDirectoryPath, "*.txt", SearchOption.AllDirectories));
+        Assert.Equal("original body", await File.ReadAllTextAsync(Path.Combine(fixture.Root, "Fixture.txt")));
+        Assert.Equal("short", await File.ReadAllTextAsync(Path.Combine(fixture.Root, "Replacement.txt")));
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -168,8 +204,10 @@ public sealed class BookImportRepositoryTests
         Assert.Equal(old.Book.ImportedAt, updated.Book.ImportedAt);
         Assert.Equal(old.LocalBinding!.ImportedAt, updated.LocalBinding!.ImportedAt);
         Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM BookSourceBindings;"));
-        Assert.Equal(7L, await fixture.ScalarAsync("SELECT ChapterIndex FROM ReadingProgress;"));
-        Assert.Equal(123L, await fixture.ScalarAsync("SELECT AudioPositionMilliseconds FROM ReadingProgress;"));
+        Assert.Equal(active ? 0L : 7L, await fixture.ScalarAsync("SELECT ChapterIndex FROM ReadingProgress;"));
+        Assert.Equal(active ? 7L : 9L, await fixture.ScalarAsync("SELECT CharacterOffset FROM ReadingProgress;"));
+        Assert.Equal(active ? -1L : 2L, await fixture.ScalarAsync("SELECT SegmentIndex FROM ReadingProgress;"));
+        Assert.Equal(active ? 0L : 123L, await fixture.ScalarAsync("SELECT AudioPositionMilliseconds FROM ReadingProgress;"));
         if (active)
             Assert.NotEqual(chapterId, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"));
         else

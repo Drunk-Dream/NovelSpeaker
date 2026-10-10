@@ -363,14 +363,14 @@ public sealed class ChapterMp3ExportWriterTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                INSERT INTO Books (Id, Title, Author, Description, ImportedAt, UpdatedAt) VALUES
-                ('book-1', '示例书', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-1', 'book-1', 1, '示例书', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-1', 'book.txt', 'Books/book-1/content.txt', 'export-fixture', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                UPDATE Books SET ActiveSourceId = 'local:' || 'book-1' WHERE Id = 'book-1';
-                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
-                ('chapter-1', 'local:' || 'book-1', 0, 0, '第一章'),
-                ('chapter-2', 'local:' || 'book-1', 1, 1, '第二章');
+                INSERT INTO Books (Id, Title, Author, Description, NormalizedTitle, NormalizedAuthor, ImportedAt, UpdatedAt) VALUES
+                ('book-1', '示例书', NULL, NULL, '示例书', '', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO BookSourceBindings (Id, BookId, SourceType, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-1', 'book-1', 1, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO LocalBookSourceBindings (BindingId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-1', 'book.txt', 'Books/book-1/content.txt', 'export-fixture', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                UPDATE Books SET ActiveSourceBindingId = 'local:' || 'book-1' WHERE Id = 'book-1';
+                INSERT INTO Chapters (Id, BookId, SourceBindingId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter-1', 'book-1', 'local:' || 'book-1', 0, 0, '第一章'),
+                ('chapter-2', 'book-1', 'local:' || 'book-1', 1, 1, '第二章');
                 INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
                 ('chapter-1', 0, 1),
                 ('chapter-2', 0, 1);

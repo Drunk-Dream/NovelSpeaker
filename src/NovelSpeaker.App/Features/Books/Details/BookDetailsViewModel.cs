@@ -20,7 +20,6 @@ namespace NovelSpeaker.App.Features.Books.Details;
 public sealed partial class BookDetailsViewModel : ObservableObject
 {
     private readonly IBookDetailsQuery _bookDetailsQuery;
-    private readonly IBookMetadataUpdateService _bookMetadataUpdateService;
     private readonly IBookDeletionService _bookDeletionService;
     private readonly IAudioCacheStore _cacheStore;
     private readonly ICacheReadModel _readModel;
@@ -49,7 +48,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public BookDetailsViewModel(
         IBookDetailsQuery bookDetailsQuery,
-        IBookMetadataUpdateService bookMetadataUpdateService,
         IBookDeletionService bookDeletionService,
         IAudioCacheStore cacheStore,
         ICacheReadModel readModel,
@@ -63,7 +61,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IUiScheduler? uiScheduler = null)
     {
         _bookDetailsQuery = bookDetailsQuery;
-        _bookMetadataUpdateService = bookMetadataUpdateService;
         _bookDeletionService = bookDeletionService;
         _cacheStore = cacheStore;
         _readModel = readModel;
@@ -104,12 +101,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private string title = string.Empty;
 
     [ObservableProperty]
-    private string editTitle = string.Empty;
-
-    [ObservableProperty]
-    private string editAuthor = string.Empty;
-
-    [ObservableProperty]
     private string displayAuthor = "未知作者";
 
     [ObservableProperty]
@@ -144,17 +135,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     public int? CurrentChapterPosition => _projection.CurrentChapterPosition;
 
     public bool IsChapterCatalogReady => _projection.IsCatalogReady;
-
-    public bool HasUnsavedChanges => _loadedHeader is not null &&
-        (!string.Equals(_loadedHeader.Title, NormalizeTitle(EditTitle), StringComparison.Ordinal) ||
-         !string.Equals(NormalizeAuthor(_loadedHeader.Author), NormalizeAuthor(EditAuthor), StringComparison.Ordinal));
-
-    public bool CanSave => _loadedHeader is not null &&
-        !IsBusy &&
-        !string.IsNullOrWhiteSpace(NormalizeTitle(EditTitle)) &&
-        HasUnsavedChanges;
-
-    public bool CanCancelEdit => _loadedHeader is not null && !IsBusy && HasUnsavedChanges;
 
     public bool CanClearCache => _loadedHeader is not null &&
         !string.IsNullOrWhiteSpace(_bookId) &&
@@ -208,7 +188,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         return task;
     }
 
-    private async Task LoadCoreAsync(string bookId, CancellationToken cancellationToken, bool preserveEditor = false)
+    private async Task LoadCoreAsync(string bookId, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         if (_activation is not { IsCurrent: true } activation) return;
@@ -243,7 +223,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
                 return;
             }
 
-            ApplyHeader(header, preserveEditor);
+            ApplyHeader(header);
             await ApplyCriticalCatalogAsync(
                 bookId,
                 await catalogTask.ConfigureAwait(true),
@@ -272,7 +252,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
             var projected = _feedbackService.Project(exception);
             ClearBook();
-            StatusMessage = projected.UserMessage;
             _feedbackService.ShowProjectedNotification("加载书籍详情失败", projected);
             IsBusy = false;
             NotifyCommandStateChanged();
@@ -335,38 +314,10 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         return RequestNavigateBackAsync(cancellationToken);
     }
 
-    [RelayCommand(CanExecute = nameof(CanSave))]
-    private async Task SaveAsync(CancellationToken cancellationToken)
-    {
-        if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId))
-        {
-            return;
-        }
-
-        await SaveCoreAsync(cancellationToken);
-    }
-
-    [RelayCommand(CanExecute = nameof(CanCancelEdit))]
-    private void CancelEdit()
-    {
-        if (_loadedHeader is null)
-        {
-            return;
-        }
-
-        EditTitle = _loadedHeader.Title;
-        EditAuthor = _loadedHeader.Author ?? string.Empty;
-    }
-
     [RelayCommand(CanExecute = nameof(CanClearCache), AllowConcurrentExecutions = false)]
     private async Task ClearCacheAsync(CancellationToken cancellationToken)
     {
         if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
-        {
-            return;
-        }
-
-        if (!await ConfirmLeaveAsync(cancellationToken).ConfigureAwait(true))
         {
             return;
         }
@@ -407,7 +358,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         catch (Exception exception)
         {
             var projected = _feedbackService.Project(exception);
-            StatusMessage = projected.UserMessage;
             _feedbackService.ShowProjectedNotification("清理失败", projected);
         }
         finally
@@ -420,11 +370,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private async Task DeleteBookAsync(CancellationToken cancellationToken)
     {
         if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
-        {
-            return;
-        }
-
-        if (!await ConfirmLeaveAsync(cancellationToken).ConfigureAwait(true))
         {
             return;
         }
@@ -459,7 +404,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         catch (Exception exception)
         {
             var projected = _feedbackService.Project(exception);
-            StatusMessage = projected.UserMessage;
             _feedbackService.ShowProjectedNotification("删除书籍失败", projected);
         }
         finally
@@ -470,11 +414,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
     public async Task RequestNavigateBackAsync(CancellationToken cancellationToken)
     {
-        if (!await ConfirmLeaveAsync(cancellationToken).ConfigureAwait(true))
-        {
-            return;
-        }
-
         await _navigator.NavigateBackAsync(cancellationToken, bypassGuard: true).ConfigureAwait(true);
     }
 
@@ -482,11 +421,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
     private async Task SelectChapterAsync(BookDetailsChapterProjection? chapter, CancellationToken cancellationToken)
     {
         if (chapter is null || string.IsNullOrWhiteSpace(_bookId) || IsBusy)
-        {
-            return;
-        }
-
-        if (!await ConfirmLeaveAsync(cancellationToken).ConfigureAwait(true))
         {
             return;
         }
@@ -500,74 +434,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
                 0),
             cancellationToken,
             bypassGuard: true).ConfigureAwait(true);
-    }
-
-    public async Task<bool> ConfirmLeaveAsync(CancellationToken cancellationToken)
-    {
-        if (!HasUnsavedChanges)
-        {
-            return true;
-        }
-
-        var decision = await _dialogService.ShowUnsavedChangesAsync(
-            "未保存的修改",
-            "书名或作者尚未保存。要先保存再继续当前操作吗？",
-            "保存",
-            "放弃",
-            "取消",
-            cancellationToken).ConfigureAwait(true);
-
-        return decision switch
-        {
-            UnsavedChangesDecision.Save => await SaveCoreAsync(cancellationToken).ConfigureAwait(true),
-            UnsavedChangesDecision.Discard => DiscardChangesAndContinue(),
-            _ => false
-        };
-    }
-
-    partial void OnEditTitleChanged(string value)
-    {
-        NotifyCommandStateChanged();
-    }
-
-    partial void OnEditAuthorChanged(string value)
-    {
-        NotifyCommandStateChanged();
-    }
-
-    private async Task<bool> SaveCoreAsync(CancellationToken cancellationToken)
-    {
-        if (_loadedHeader is null || string.IsNullOrWhiteSpace(_bookId))
-        {
-            return false;
-        }
-
-        BeginMutation();
-        StatusMessage = string.Empty;
-
-        try
-        {
-            var updated = await _bookMetadataUpdateService.UpdateMetadataAsync(
-                new BookMetadataUpdateRequest(
-                    _bookId,
-                    NormalizeTitle(EditTitle),
-                    NormalizeAuthor(EditAuthor)),
-                cancellationToken);
-            ApplyHeader(updated);
-            _feedbackService.ShowSuccess("已保存", "书名和作者已更新。");
-            return true;
-        }
-        catch (Exception exception)
-        {
-            var projected = _feedbackService.Project(exception);
-            StatusMessage = projected.UserMessage;
-            _feedbackService.ShowProjectedNotification("保存书籍信息失败", projected);
-            return false;
-        }
-        finally
-        {
-            EndMutation();
-        }
     }
 
     private async Task LoadSecondaryEnrichmentAsync(
@@ -609,7 +475,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             }
 
             var projected = _feedbackService.Project(exception);
-            StatusMessage = projected.UserMessage;
             _feedbackService.ShowProjectedNotification("加载书籍详情失败", projected);
         }
         finally
@@ -627,9 +492,8 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         }
     }
 
-    private void ApplyHeader(BookDetailsHeader header, bool preserveEditor = false)
+    private void ApplyHeader(BookDetailsHeader header)
     {
-        var hadUnsavedChanges = HasUnsavedChanges;
         _loadedHeader = header;
         HasBook = true;
         Title = header.Title;
@@ -637,12 +501,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         DisplayDescription = header.Description?.Trim() ?? string.Empty;
         HasDescription = DisplayDescription.Length > 0;
         Cover = _bookCoverGenerator.Generate(header.Title);
-
-        if (!preserveEditor || !hadUnsavedChanges)
-        {
-            EditTitle = header.Title;
-            EditAuthor = header.Author ?? string.Empty;
-        }
 
         NotifyCommandStateChanged();
     }
@@ -702,8 +560,6 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         IsBusy = false;
         HasBook = false;
         Title = string.Empty;
-        EditTitle = string.Empty;
-        EditAuthor = string.Empty;
         DisplayAuthor = "未知作者";
         DisplayDescription = string.Empty;
         HasDescription = false;
@@ -923,7 +779,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
                 var header = await _bookDetailsQuery.GetHeaderAsync(change.BookId, cancellationToken);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (loadIdentity != _loadOperation.Identity) return;
-                if (header is not null) ApplyHeader(header, preserveEditor: true);
+                if (header is not null) ApplyHeader(header);
             }
             else if (change is BookCommittedChange.BookRemoved)
             {
@@ -934,7 +790,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             }
             else if (change is not BookCommittedChange.SourceRemoved)
             {
-                await (_criticalLoadTask = LoadCoreAsync(change.BookId, cancellationToken, preserveEditor: true));
+                await (_criticalLoadTask = LoadCoreAsync(change.BookId, cancellationToken));
                 StartStagedLoading();
             }
         }
@@ -998,20 +854,9 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         ProgressText = $"{ProgressRatio:P0}";
     }
 
-    private bool DiscardChangesAndContinue()
-    {
-        CancelEdit();
-        return true;
-    }
-
     private void NotifyCommandStateChanged()
     {
-        OnPropertyChanged(nameof(HasUnsavedChanges));
-        OnPropertyChanged(nameof(CanSave));
-        OnPropertyChanged(nameof(CanCancelEdit));
         OnPropertyChanged(nameof(CanClearCache));
-        SaveCommand.NotifyCanExecuteChanged();
-        CancelEditCommand.NotifyCanExecuteChanged();
         ClearCacheCommand.NotifyCanExecuteChanged();
     }
 
@@ -1029,15 +874,5 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         NotifyCommandStateChanged();
     }
 
-    private static string NormalizeTitle(string? value)
-    {
-        return (value ?? string.Empty).Trim();
-    }
-
-    private static string? NormalizeAuthor(string? value)
-    {
-        var trimmed = (value ?? string.Empty).Trim();
-        return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed;
-    }
 
 }

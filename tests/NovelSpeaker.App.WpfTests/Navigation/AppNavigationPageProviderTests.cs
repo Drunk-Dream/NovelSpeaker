@@ -32,7 +32,6 @@ public sealed class AppNavigationPageProviderTests
             services.AddSingleton<INavigationGuardService, FakeNavigationGuardService>();
             services.AddSingleton<FakeBookManagementService>();
             services.AddSingleton<IBookDetailsQuery>(provider => provider.GetRequiredService<FakeBookManagementService>());
-            services.AddSingleton<IBookMetadataUpdateService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IBookDeletionService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IAudioCacheStore, CacheStoreTestDouble>();
             services.AddSingleton<ICacheReadModel, CacheReadModelTestDouble>();
@@ -118,7 +117,7 @@ public sealed class AppNavigationPageProviderTests
         }
     }
 
-    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookMetadataUpdateService, IBookDeletionService
+    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookDeletionService
     {
         public Task<BookDetailsHeader?> GetHeaderAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -133,11 +132,6 @@ public sealed class AppNavigationPageProviderTests
 
         public Task<BookDetailsStatistics?> GetStatisticsAsync(string bookId, CancellationToken cancellationToken)
             => Task.FromResult<BookDetailsStatistics?>(null);
-
-        public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
         {

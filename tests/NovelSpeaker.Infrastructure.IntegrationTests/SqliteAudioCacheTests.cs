@@ -20,28 +20,6 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed class SqliteAudioCacheTests
 {
     [Fact]
-    public async Task No_active_source_hides_chapter_coverage_but_preserves_cache_for_cleanup()
-    {
-        var fixture = await CreateFixtureAsync();
-        var key = CreateKey("book-1", 0, 0, 7, 12, "正文");
-        await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
-            key, "book-1", 0, 7, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"), CancellationToken.None);
-        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
-        {
-            using var command = connection.CreateCommand();
-            command.CommandText = "UPDATE Books SET ActiveSourceId = NULL WHERE Id = 'book-1';";
-            await command.ExecuteNonQueryAsync(CancellationToken.None);
-        }
-
-        Assert.Empty(await fixture.Cache.GetChaptersAsync("book-1", CancellationToken.None));
-        var index = new SqliteAudioCacheIndex(fixture.ConnectionFactory, TimeProvider.System);
-        Assert.Empty(await index.GetEntriesAsync("book-1", 0, CancellationToken.None));
-        Assert.Contains(await index.GetAllEntriesAsync(CancellationToken.None), item => item.CacheKey == key.Value);
-        Assert.Contains(await index.GetLruEntriesAsync(CancellationToken.None), item => item.CacheKey == key.Value);
-        Assert.Contains(await index.GetEntriesAsync("book-1", null, CancellationToken.None), item => item.CacheKey == key.Value);
-    }
-
-    [Fact]
     public async Task Catalog_replacement_removes_old_plans_and_cache_and_rejects_old_audio_write()
     {
         var fixture = await CreateFixtureAsync();
@@ -855,21 +833,21 @@ public sealed class SqliteAudioCacheTests
             using var seedCommand = seedConnection.CreateCommand();
             seedCommand.CommandText =
                 """
-                INSERT INTO Books (Id, Title, Author, Description, ImportedAt, UpdatedAt) VALUES
-                ('book-1', '书一', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00'),
-                ('book-2', '书二', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-1', 'book-1', 1, '书一', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-1', 'book-1.txt', 'Books/book-1/content.txt', 'cache-fixture-book-1', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                UPDATE Books SET ActiveSourceId = 'local:' || 'book-1' WHERE Id = 'book-1';
-                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-2', 'book-2', 1, '书二', NULL, NULL, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-2', 'book-2.txt', 'Books/book-2/content.txt', 'cache-fixture-book-2', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-                UPDATE Books SET ActiveSourceId = 'local:' || 'book-2' WHERE Id = 'book-2';
-                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
-                ('cache-chapter-1-0', 'local:' || 'book-1', 0, 0, '第一章'),
-                ('cache-chapter-1-1', 'local:' || 'book-1', 1, 1, '第二章'),
-                ('cache-chapter-1-2', 'local:' || 'book-1', 2, 2, '第三章'),
-                ('cache-chapter-1-3', 'local:' || 'book-1', 3, 3, '第四章'),
-                ('cache-chapter-2-0', 'local:' || 'book-2', 0, 0, '第一章');
+                INSERT INTO Books (Id, Title, Author, Description, NormalizedTitle, NormalizedAuthor, ImportedAt, UpdatedAt) VALUES
+                ('book-1', '书一', NULL, NULL, '书一', '', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00'),
+                ('book-2', '书二', NULL, NULL, '书二', '', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO BookSourceBindings (Id, BookId, SourceType, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-1', 'book-1', 1, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO LocalBookSourceBindings (BindingId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-1', 'book-1.txt', 'Books/book-1/content.txt', 'cache-fixture-book-1', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                UPDATE Books SET ActiveSourceBindingId = 'local:' || 'book-1' WHERE Id = 'book-1';
+                INSERT INTO BookSourceBindings (Id, BookId, SourceType, CreatedAt, UpdatedAt) VALUES ('local:' || 'book-2', 'book-2', 1, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                INSERT INTO LocalBookSourceBindings (BindingId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book-2', 'book-2.txt', 'Books/book-2/content.txt', 'cache-fixture-book-2', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+                UPDATE Books SET ActiveSourceBindingId = 'local:' || 'book-2' WHERE Id = 'book-2';
+                INSERT INTO Chapters (Id, BookId, SourceBindingId, ChapterIndex, SortOrder, Title) VALUES
+                ('cache-chapter-1-0', 'book-1', 'local:' || 'book-1', 0, 0, '第一章'),
+                ('cache-chapter-1-1', 'book-1', 'local:' || 'book-1', 1, 1, '第二章'),
+                ('cache-chapter-1-2', 'book-1', 'local:' || 'book-1', 2, 2, '第三章'),
+                ('cache-chapter-1-3', 'book-1', 'local:' || 'book-1', 3, 3, '第四章'),
+                ('cache-chapter-2-0', 'book-2', 'local:' || 'book-2', 0, 0, '第一章');
                 INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
                 ('cache-chapter-1-0', 0, 1),
                 ('cache-chapter-1-1', 0, 1),

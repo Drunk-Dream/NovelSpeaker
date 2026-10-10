@@ -301,13 +301,13 @@ public sealed class ProviderProductionPipelineTests
             await using var connection = await fixture.Services.GetRequiredService<ISqliteConnectionFactory>().OpenConnectionAsync(CancellationToken.None);
             using var command = connection.CreateCommand();
             command.CommandText = """
-                INSERT INTO Books (Id, Title, Author, Description, ImportedAt, UpdatedAt) VALUES
-                ('book', 'Book', NULL, NULL, '2026-01-01', '2026-01-01');
-                INSERT INTO BookSources (Id, BookId, SourceType, Title, Author, Description, CreatedAt, UpdatedAt) VALUES ('local:' || 'book', 'book', 1, 'Book', NULL, NULL, '2026-01-01', '2026-01-01');
-                INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book', 'book.txt', 'Books/content.txt', 'provider-pipeline', 'utf-8', '2026-01-01', '2026-01-01');
-                UPDATE Books SET ActiveSourceId = 'local:' || 'book' WHERE Id = 'book';
-                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
-                ('chapter', 'local:' || 'book', 0, 0, 'Chapter');
+                INSERT INTO Books (Id, Title, Author, Description, NormalizedTitle, NormalizedAuthor, ImportedAt, UpdatedAt) VALUES
+                ('book', 'Book', NULL, NULL, 'Book', '', '2026-01-01', '2026-01-01');
+                INSERT INTO BookSourceBindings (Id, BookId, SourceType, CreatedAt, UpdatedAt) VALUES ('local:' || 'book', 'book', 1, '2026-01-01', '2026-01-01');
+                INSERT INTO LocalBookSourceBindings (BindingId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt) VALUES ('local:' || 'book', 'book.txt', 'Books/content.txt', 'provider-pipeline', 'utf-8', '2026-01-01', '2026-01-01');
+                UPDATE Books SET ActiveSourceBindingId = 'local:' || 'book' WHERE Id = 'book';
+                INSERT INTO Chapters (Id, BookId, SourceBindingId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter', 'book', 'local:' || 'book', 0, 0, 'Chapter');
                 INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
                 ('chapter', 0, 14);
                 """;

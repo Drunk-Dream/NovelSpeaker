@@ -92,8 +92,8 @@ public sealed class PlaybackContentResolverTests
             using var command = connection.CreateCommand();
             command.CommandText =
                 """
-                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
-                ('chapter-2', 'local:' || 'book-1', 1, 1, '第二章');
+                INSERT INTO Chapters (Id, BookId, SourceBindingId, ChapterIndex, SortOrder, Title) VALUES
+                ('chapter-2', 'book-1', 'local:' || 'book-1', 1, 1, '第二章');
                 INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
                 ('chapter-2', 3, 9);
                 """;
@@ -208,47 +208,17 @@ public sealed class PlaybackContentResolverTests
         using var connection = new SqliteConnection(connectionString);
         connection.Open();
 
-        using var createBooks = connection.CreateCommand();
-        createBooks.CommandText =
-            """
-            CREATE TABLE Books (
-                Id TEXT NOT NULL PRIMARY KEY,
-                Title TEXT NOT NULL,
-                Author TEXT NULL,
-                ActiveSourceId TEXT NULL,
-                ImportedAt TEXT NOT NULL,
-                UpdatedAt TEXT NOT NULL,
-                Description TEXT NULL
-            );
-            """;
-        createBooks.ExecuteNonQuery();
-
-        using var createChapters = connection.CreateCommand();
-        createChapters.CommandText =
-            """
-            CREATE TABLE Chapters (
-                Id TEXT NOT NULL PRIMARY KEY,
-                SourceId TEXT NOT NULL,
-                ChapterIndex INTEGER NOT NULL,
-                SortOrder INTEGER NOT NULL,
-                Title TEXT NOT NULL
-            );
-            """;
-        createChapters.ExecuteNonQuery();
-        using var createSources = connection.CreateCommand();
-        createSources.CommandText = """
-            CREATE TABLE BookSources (Id TEXT PRIMARY KEY, BookId TEXT, SourceType INTEGER, Title TEXT, Author TEXT, Description TEXT, CreatedAt TEXT, UpdatedAt TEXT);
-            CREATE TABLE LocalBookSources (SourceId TEXT PRIMARY KEY, OriginalFileName TEXT, StoredContentPath TEXT, SourceHash TEXT, Encoding TEXT, ImportedAt TEXT, LastImportedAt TEXT);
-            CREATE TABLE LocalChapterContents (ChapterId TEXT PRIMARY KEY, StartOffset INTEGER, Length INTEGER);
-            """;
-        createSources.ExecuteNonQuery();
+        new SqliteMigrationRunner(new TestSqliteConnectionFactory(connectionString))
+            .InitializeAsync(CancellationToken.None).GetAwaiter().GetResult();
 
         using var insertBook = connection.CreateCommand();
         insertBook.CommandText = """
-            INSERT INTO Books (Id, Title, Author, ActiveSourceId, ImportedAt, UpdatedAt)
-            VALUES ('book-1', '示例小说', NULL, 'local:book-1', 'time', 'time');
-            INSERT INTO BookSources (Id, BookId, SourceType) VALUES ('local:book-1', 'book-1', 1);
-            INSERT INTO LocalBookSources (SourceId, StoredContentPath) VALUES ('local:book-1', $storedFilePath);
+            INSERT INTO Books (Id, Title, Author, NormalizedTitle, NormalizedAuthor, ImportedAt, UpdatedAt)
+            VALUES ('book-1', '示例小说', NULL, '示例小说', '', '2026-01-01', '2026-01-01');
+            INSERT INTO BookSourceBindings (Id, BookId, SourceType, CreatedAt, UpdatedAt) VALUES ('local:book-1', 'book-1', 1, '2026-01-01', '2026-01-01');
+            INSERT INTO LocalBookSourceBindings (BindingId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt)
+            VALUES ('local:book-1', 'fixture.txt', $storedFilePath, 'hash', 'utf-8', '2026-01-01', '2026-01-01');
+            UPDATE Books SET ActiveSourceBindingId = 'local:book-1' WHERE Id = 'book-1';
             """;
         insertBook.Parameters.AddWithValue("$storedFilePath", createContentFile ? contentPath : Path.Combine(directory, "missing-content.txt"));
         insertBook.ExecuteNonQuery();
@@ -256,8 +226,8 @@ public sealed class PlaybackContentResolverTests
         using var insertChapter = connection.CreateCommand();
         insertChapter.CommandText =
             """
-            INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
-            ('chapter-1', 'local:' || 'book-1', 0, 0, '第一章');
+            INSERT INTO Chapters (Id, BookId, SourceBindingId, ChapterIndex, SortOrder, Title) VALUES
+            ('chapter-1', 'book-1', 'local:' || 'book-1', 0, 0, '第一章');
             INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
             ('chapter-1', 3, 9);
             """;
@@ -389,7 +359,7 @@ public sealed class PlaybackContentResolverTests
     {
         public ActiveSourceContext? Context { get; set; }
         private static readonly PlaybackChapterMetadata Chapter =
-            new(0, "第一章", "local:book-1", "chapter-1");
+            new("book-1", 0, "第一章", "local:book-1", "chapter-1");
 
         public Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -420,11 +390,10 @@ public sealed class PlaybackContentResolverTests
             _content = content;
         }
 
-        public Task<string> ReadSourceTextAsync(string sourceId, CancellationToken cancellationToken) => Task.FromResult(_content);
+        public Task<string> ReadBookTextAsync(string bookId, ActiveSourceContext expectedContext, CancellationToken cancellationToken) => Task.FromResult(_content);
 
         public Task<string> ReadChapterTextAsync(
-            string sourceId,
-            string chapterId,
+            PlaybackChapterMetadata chapter,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -434,11 +403,10 @@ public sealed class PlaybackContentResolverTests
 
     private sealed class ThrowingSourceContentReader(Exception exception) : ISourceContentReader
     {
-        public Task<string> ReadSourceTextAsync(string sourceId, CancellationToken cancellationToken) => Task.FromException<string>(exception);
+        public Task<string> ReadBookTextAsync(string bookId, ActiveSourceContext expectedContext, CancellationToken cancellationToken) => Task.FromException<string>(exception);
 
         public Task<string> ReadChapterTextAsync(
-            string sourceId,
-            string chapterId,
+            PlaybackChapterMetadata chapter,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

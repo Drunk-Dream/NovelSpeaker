@@ -9,7 +9,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 public sealed class BookLibraryQueryTests
 {
     [Fact]
-    public async Task Catalog_replacement_clamps_read_projections_without_rewriting_book_progress()
+    public async Task Catalog_replacement_clamps_book_progress_and_invalidates_old_audio_coordinates()
     {
         var (factory, library, details) = await CreateCatalogAsync();
         await SourceBookFixture.SaveAsync(factory, "book-1", ["一", "二", "三"]);
@@ -22,12 +22,16 @@ public sealed class BookLibraryQueryTests
         Assert.Equal(1, summary.CurrentChapterIndex);
         Assert.Equal("新二", summary.CurrentChapterTitle);
         Assert.Equal(1, position!.ChapterIndex);
-        Assert.Equal(99, position.SegmentIndex);
+        Assert.Equal(-1, position.SegmentIndex);
+        Assert.Equal(2, position.CharacterOffset);
+        Assert.Equal(0, position.AudioPositionMilliseconds);
         Assert.NotEqual(oldCatalog[0].ChapterId, catalog[0].ChapterId);
         Assert.Equal(summary.SourceContext, catalog[0].SourceContext);
         var persisted = await new SqliteReadingProgressStore(factory).GetAsync("book-1", CancellationToken.None);
-        Assert.Equal(2, persisted!.ChapterIndex);
-        Assert.Equal(99, persisted.SegmentIndex);
+        Assert.Equal(1, persisted!.ChapterIndex);
+        Assert.Equal(-1, persisted.SegmentIndex);
+        Assert.Equal(2, persisted.CharacterOffset);
+        Assert.Equal(0, persisted.AudioPositionMilliseconds);
     }
 
     [Fact]
@@ -38,7 +42,7 @@ public sealed class BookLibraryQueryTests
         await SeedReadingProgressAsync(factory, "book-1", 1, 0, "2026-06-25T09:00:00.0000000Z");
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
         using var command = connection.CreateCommand();
-        command.CommandText = "UPDATE Books SET ActiveSourceId = NULL WHERE Id = 'book-1';";
+        command.CommandText = "DELETE FROM Chapters; UPDATE Books SET ActiveSourceBindingId = NULL WHERE Id = 'book-1';";
         await command.ExecuteNonQueryAsync();
         var summary = Assert.Single(await library.GetBooksAsync(CancellationToken.None));
         Assert.Null(summary.SourceContext);
@@ -52,7 +56,7 @@ public sealed class BookLibraryQueryTests
         Assert.Null(metadata!.SourceContext);
         Assert.Empty(metadata.Chapters);
 
-        command.CommandText = "UPDATE Books SET ActiveSourceId = 'local:book-1'; DELETE FROM Chapters WHERE SourceId = 'local:book-1';";
+        command.CommandText = "UPDATE Books SET ActiveSourceBindingId = 'local:book-1'; DELETE FROM Chapters WHERE SourceBindingId = 'local:book-1';";
         await command.ExecuteNonQueryAsync();
         Assert.Null(await details.GetReadingPositionAsync("book-1", CancellationToken.None));
         Assert.Empty(await details.GetCatalogAsync("book-1", CancellationToken.None));

@@ -20,10 +20,10 @@ public sealed class SqliteReadingProgressStoreTests
         var restarted = new SqliteReadingProgressStore(factory);
         await restarted.SaveAsync(new PlaybackProgressUpdate("book-1", 0, 0, 0, 0, old!.SourceContext), CancellationToken.None);
         var progress = await restarted.GetAsync("book-1", CancellationToken.None);
-        Assert.Equal(3, progress!.ChapterIndex);
-        Assert.Equal(4, progress.SegmentIndex);
-        Assert.Equal(50, progress.CharacterOffset);
-        Assert.Equal(600, progress.AudioPositionMilliseconds);
+        Assert.Equal(0, progress!.ChapterIndex);
+        Assert.Equal(-1, progress.SegmentIndex);
+        Assert.Equal(2, progress.CharacterOffset);
+        Assert.Equal(0, progress.AudioPositionMilliseconds);
     }
 
     [Fact]

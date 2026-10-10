@@ -147,6 +147,30 @@ public sealed class BookImportRepository(ISqliteConnectionFactory connectionFact
                 await ExecuteAsync("INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES ($id, $start, $length);",
                     ("$id", content.ChapterId), ("$start", content.StartOffset), ("$length", content.Length));
             }
+
+            // Progress is Book-owned. Preserve ordinals/raw offsets, never match technical
+            // chapter identities, and invalidate segment/audio coordinates from the old text.
+            using var progress = connection.CreateCommand();
+            progress.Transaction = transaction;
+            progress.CommandText = "SELECT ChapterIndex, CharacterOffset FROM ReadingProgress WHERE BookId = $book;";
+            progress.Parameters.AddWithValue("$book", book.Id);
+            ReadingState? state;
+            await using (var reader = await progress.ExecuteReaderAsync(cancellationToken))
+            {
+                state = await reader.ReadAsync(cancellationToken)
+                    ? new ReadingState(reader.GetInt32(0), reader.GetInt32(1))
+                    : null;
+            }
+
+            var lengths = snapshot.Contents.ToDictionary(content => content.ChapterId, content => content.Length);
+            var clamped = state?.Clamp(catalog.Entries.Select(chapter => lengths[chapter.Id]).ToArray());
+            if (clamped is not null)
+            {
+                await ExecuteAsync("""
+                    UPDATE ReadingProgress SET ChapterIndex = $chapter, CharacterOffset = $offset,
+                        SegmentIndex = -1, AudioPositionMilliseconds = 0 WHERE BookId = $book;
+                    """, ("$book", book.Id), ("$chapter", clamped.ChapterIndex), ("$offset", clamped.CharacterOffset));
+            }
         }
 
         await ExecuteAsync("""

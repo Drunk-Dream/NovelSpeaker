@@ -144,37 +144,32 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(3, viewModel.Chapters.Count);
         Assert.Null(feedback.LastTitle);
 
-        viewModel.EditTitle = "Unsaved draft";
         service.BlockDetailsLoad = true;
         changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source", "catalog-2"));
         service.BlockDetailsLoad = false;
         changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source", "catalog-3"));
         service.ReleaseBlockedDetailsLoad();
         await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.Equal("Unsaved draft", viewModel.EditTitle);
         Assert.Null(feedback.LastTitle);
     }
 
     [Fact]
-    public async Task Committed_changes_update_active_details_preserve_draft_and_detach_on_leave()
+    public async Task Committed_changes_update_active_details_and_detach_on_leave()
     {
         var changes = new FakeBookChanges();
         var service = new FakeBookManagementService { Details = CreateDetails() };
         var viewModel = CreateViewModel(managementService: service, bookChanges: changes);
         viewModel.HandleNavigatedTo(new PageActivationController().Activate());
         await viewModel.LoadAsync("book-1", CancellationToken.None);
-        viewModel.EditTitle = "Unsaved draft";
-        service.Details = service.Details with { Header = service.Details.Header with { Title = "Committed" } };
+        service.Details = service.Details with { Header = service.Details.Header with { Description = "Committed description" } };
         changes.Publish(new BookCommittedChange.MetadataCommitted("book-2"));
         Assert.Equal("示例小说", viewModel.Title);
         changes.Publish(new BookCommittedChange.MetadataCommitted("book-1"));
-        Assert.Equal("Committed", viewModel.Title);
-        Assert.Equal("Unsaved draft", viewModel.EditTitle);
-        Assert.True(viewModel.HasUnsavedChanges);
+        Assert.Equal("示例小说", viewModel.Title);
+        Assert.Equal("Committed description", viewModel.DisplayDescription);
         service.Details = service.Details with { Catalog = [service.Details.Catalog[0]] };
         changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source", "updated"));
         Assert.Single(viewModel.Chapters);
-        Assert.Equal("Unsaved draft", viewModel.EditTitle);
         changes.Publish(new BookCommittedChange.BookRemoved("book-1"));
         Assert.False(viewModel.HasBook);
         Assert.Empty(viewModel.Chapters);
@@ -533,7 +528,7 @@ public sealed class BookDetailsViewModelTests
     public Task Book_details_large_catalog_projection_is_batched() =>
         Loading_a_10000_chapter_catalog_uses_batched_collection_projection();
 
-    private async Task SelectChapterCommand_navigates_to_player_with_first_segment_after_confirming_unsaved_changes()
+    private async Task SelectChapterCommand_navigates_to_player_with_first_segment()
     {
         var dialogService = new FakeAppDialogService
         {
@@ -545,11 +540,9 @@ public sealed class BookDetailsViewModelTests
             guardedNavigationService: guardedNavigationService);
 
         await LoadViewModelAsync(viewModel);
-        viewModel.EditTitle = "待保存的新标题";
 
         await viewModel.SelectChapterCommand.ExecuteAsync(viewModel.Chapters[2]);
 
-        Assert.Equal("示例小说", viewModel.EditTitle);
         var request = Assert.IsType<PlayerNavigationRequest>(guardedNavigationService.LastNavigationRoute);
         Assert.Equal("book-1", request.BookId);
         Assert.Equal(new BookDetailsRoute("book-1"), request.ReturnRoute);
@@ -558,8 +551,8 @@ public sealed class BookDetailsViewModelTests
     }
 
     [Fact]
-    public Task Selecting_a_chapter_opens_playback_at_its_first_segment_after_unsaved_changes() =>
-        SelectChapterCommand_navigates_to_player_with_first_segment_after_confirming_unsaved_changes();
+    public Task Selecting_a_chapter_opens_playback_at_its_first_segment() =>
+        SelectChapterCommand_navigates_to_player_with_first_segment();
 
     private static BookDetailsViewModel CreateViewModel(
         FakeBookManagementService? managementService = null,
@@ -575,7 +568,6 @@ public sealed class BookDetailsViewModelTests
         managementService ??= new FakeBookManagementService();
         cacheDependencies ??= new FakeCacheDetailsDependencies();
         var viewModel = new BookDetailsViewModel(
-            managementService,
             managementService,
             managementService,
             cacheDependencies,
@@ -669,16 +661,12 @@ public sealed class BookDetailsViewModelTests
         BookReadingPosition? ReadingPosition,
         BookDetailsStatistics Statistics);
 
-    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookMetadataUpdateService, IBookDeletionService
+    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookDeletionService
     {
         private FakeDetailsState _details = CreateDetails();
         private TaskCompletionSource<IReadOnlyList<BookChapterSummary>>? _blockedDetailsLoadSource;
         private TaskCompletionSource<BookDetailsStatistics?>? _blockedStatisticsLoadSource;
         private BookDetailsStatistics? _blockedStatisticsResult;
-
-        public BookMetadataUpdateRequest? LastUpdateRequest { get; private set; }
-
-        public bool ThrowOnUpdate { get; set; }
 
         public FakeDetailsState? NextDetailsAfterClear { get; set; }
 
@@ -763,25 +751,6 @@ public sealed class BookDetailsViewModelTests
         {
             BlockStatisticsLoad = false;
             _blockedStatisticsLoadSource?.TrySetResult(_blockedStatisticsResult);
-        }
-
-        public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
-        {
-            if (ThrowOnUpdate)
-            {
-                throw new InvalidOperationException("更新失败");
-            }
-
-            LastUpdateRequest = request;
-            _details = _details with
-            {
-                Header = _details.Header with
-                {
-                    Title = request.Title,
-                    Author = request.Author
-                }
-            };
-            return Task.FromResult(_details.Header);
         }
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
@@ -1095,8 +1064,6 @@ public sealed class BookDetailsViewModelTests
 
         public PlaybackSnapshot CurrentSnapshot { get; private set; }
 
-
-
         public event EventHandler<PlaybackSnapshot>? SnapshotChanged;
 
         public Task StartAsync(PlaybackStartRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
@@ -1114,8 +1081,6 @@ public sealed class BookDetailsViewModelTests
         public Task RetryCurrentSegmentAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeProviderAsync(NovelSpeaker.Domain.Speech.Providers.ProviderId providerId, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task ChangeSpeedAsync(int speakSpeed, CancellationToken cancellationToken) => Task.CompletedTask;
-
-
 
 
         public void Publish(PlaybackSnapshot snapshot)

@@ -11,10 +11,10 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 public sealed class SourceContentReaderTests
 {
     [Fact]
-    public async Task ReadChapterTextAsync_resolves_source_owned_slice()
+    public async Task ReadChapterTextAsync_resolves_current_catalog_slice()
     {
         using var fixture = await Fixture.CreateAsync("第一章第二章正文", 3, 5);
-        Assert.Equal("第二章正文", await fixture.Reader.ReadChapterTextAsync("local:book", fixture.ChapterId, CancellationToken.None));
+        Assert.Equal("第二章正文", await fixture.Reader.ReadChapterTextAsync(fixture.Chapter, CancellationToken.None));
     }
 
     [Theory]
@@ -24,7 +24,7 @@ public sealed class SourceContentReaderTests
     {
         using var fixture = await Fixture.CreateAsync("正文", start, length);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            fixture.Reader.ReadChapterTextAsync("local:book", fixture.ChapterId, CancellationToken.None));
+            fixture.Reader.ReadChapterTextAsync(fixture.Chapter, CancellationToken.None));
     }
 
     [Fact]
@@ -33,23 +33,23 @@ public sealed class SourceContentReaderTests
         using var fixture = await Fixture.CreateAsync("正文", 0, 2);
         File.Delete(fixture.ContentPath);
         await Assert.ThrowsAsync<FileNotFoundException>(() =>
-            fixture.Reader.ReadChapterTextAsync("local:book", fixture.ChapterId, CancellationToken.None));
+            fixture.Reader.ReadChapterTextAsync(fixture.Chapter, CancellationToken.None));
     }
 
     [Fact]
     public async Task Replacement_reads_new_snapshot_and_rejects_old_technical_chapter()
     {
         using var fixture = await Fixture.CreateAsync("旧正文", 0, 3);
-        Assert.Equal("旧正文", await fixture.Reader.ReadChapterTextAsync("local:book", fixture.ChapterId, CancellationToken.None));
+        Assert.Equal("旧正文", await fixture.Reader.ReadChapterTextAsync(fixture.Chapter, CancellationToken.None));
         var replacement = Path.Combine(fixture.Root.Path, "new.txt");
         await File.WriteAllTextAsync(replacement, "新正文");
         await SourceBookFixture.SaveAsync(fixture.Factory, "book", ["章"], replacement);
         var chapter = await new SqliteBookPlaybackMetadataQuery(fixture.Factory).GetChapterAsync("book", 0, CancellationToken.None);
-        Assert.Equal("新正文", await fixture.Reader.ReadChapterTextAsync("local:book", chapter!.ChapterId, CancellationToken.None));
+        Assert.Equal("新正文", await fixture.Reader.ReadChapterTextAsync(chapter!, CancellationToken.None));
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            fixture.Reader.ReadChapterTextAsync("local:book", fixture.ChapterId, CancellationToken.None));
+            fixture.Reader.ReadChapterTextAsync(fixture.Chapter, CancellationToken.None));
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            fixture.Reader.ReadChapterTextAsync("another-source", chapter.ChapterId, CancellationToken.None));
+            fixture.Reader.ReadChapterTextAsync(chapter! with { SourceBindingId = "another-source" }, CancellationToken.None));
     }
 
     private sealed class Fixture : IDisposable
@@ -57,7 +57,7 @@ public sealed class SourceContentReaderTests
         public TemporaryDirectory Root { get; } = new();
         public SqliteConnectionFactory Factory { get; private set; } = null!;
         public ISourceContentReader Reader { get; private set; } = null!;
-        public string ChapterId { get; private set; } = "";
+        public PlaybackChapterMetadata Chapter { get; private set; } = null!;
         public string ContentPath { get; private set; } = "";
 
         public static async Task<Fixture> CreateAsync(string text, int start, int length)
@@ -71,7 +71,7 @@ public sealed class SourceContentReaderTests
             await File.WriteAllTextAsync(fixture.ContentPath, text);
             await SourceBookFixture.SaveAsync(fixture.Factory, "book", ["章"], fixture.ContentPath);
             var chapter = await new SqliteBookPlaybackMetadataQuery(fixture.Factory).GetChapterAsync("book", 0, CancellationToken.None);
-            fixture.ChapterId = chapter!.ChapterId;
+            fixture.Chapter = chapter!;
             await using var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
             using var command = connection.CreateCommand();
             command.CommandText = "UPDATE LocalChapterContents SET StartOffset = $start, Length = $length;";

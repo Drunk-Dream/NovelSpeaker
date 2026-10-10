@@ -61,8 +61,10 @@
 
 ### Phase D — 本地书主链路集成
 
-- [ ] **T004（P0）— 恢复书库 / 详情 / 播放 / 进度 / 删除并关闭 breaking window**
-  规格：`tasks/T004_LOCAL_BOOK_INTEGRATION.md`
+- [x] **T004（P0）— 恢复书库 / 详情 / 播放 / 进度 / 删除并关闭 breaking window**
+  完成成果：恢复书库、详情、播放、缓存/朗读计划及导出调用方在 Book + Binding + CurrentCatalog 模型上的编译和核心运行路径；详情页仅展示 Book 身份，删除书名/作者编辑、保存/取消命令和草稿离页拦截，瞬时失败统一使用已有 Snackbar。活动 Local 重新导入在目录/正文提交事务中复用 `ReadingState.Clamp` 截断章序与正文位置，并使旧段落/音频坐标失效；非活动 Local 更新不改 Book 进度。启动组合根将无法安全迁移的书库分类交给已有启动失败窗口，明确要求保留数据并重新导入，不自动合并、删除或重建。保留 typed committed changes、Playback logical-target/迟到音频拒绝、SQLite checkpoint 优先级和删除文件协调/reparse-point 边界；未新增 schema migration、兼容层或 Online runtime。
+  自动验收：Release build（零警告/错误）、全解决方案 format verify、全部 977 个永久测试通过（Domain 34、Application 245、Infrastructure 336、Presentation 312、隔离 Desktop WPF 50），包含架构、全量 XAML 主题、播放 target-before-audio、持久化/删除恢复和路径边界回归。新增真实导入→书库/详情/正文读取→重新导入→删除的核心集成回归与迁移失败启动提示回归；更新旧模型 fixture、进度 clamp 与详情刷新测试，删除已失效的身份修改测试及依赖非活动持久目录的缓存测试，相关风险由目录替换/删除核心回归继续保护。临时隔离 Desktop 验证覆盖 Light/Dark 先应用主题再创建详情页、已有页切换主题、切换后新建页、身份绑定与编辑入口删除，验证源码已删除；LF、`git diff --check`、身份 mutation API 和运行时旧 schema 残留检查通过。
+  阶段状态：staged breaking migration window 已关闭，标准可构建/可测试状态恢复。无环境限制、未发现长期合同冲突；本任务未重新执行 restore，T005 仍负责最终残留复核与标准完整门禁，不在本任务继续执行。
 
 ### Phase E — 收口
 

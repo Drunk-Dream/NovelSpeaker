@@ -63,7 +63,7 @@ public sealed class BookLibraryPersistenceTests
             new BookCommittedChange.BookRemoved("book-1")], changes);
         Assert.Null(await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None));
         Assert.False(File.Exists(path));
-        await AssertTablesEmptyAsync(fixture, "Books", "BookSources", "LocalBookSources", "Chapters", "LocalChapterContents");
+        await AssertTablesEmptyAsync(fixture, "Books", "BookSourceBindings", "LocalBookSourceBindings", "Chapters", "LocalChapterContents");
     }
 
     [Theory]
@@ -73,20 +73,17 @@ public sealed class BookLibraryPersistenceTests
     {
         var fixture = await CreateFixtureAsync();
         var path = await SeedBookAsync(fixture, "book-1", "最后显示快照", "作者", "保留简介");
-        await SeedFutureSourceAsync(fixture, true);
+        await SeedFutureSourceAsync(fixture, active);
         await fixture.ProgressStore.SaveAsync(new("book-1", 0, 0, 1, 0), CancellationToken.None);
+        var key = TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "正文");
+        if (!active) key = AudioCacheKey.FromIdentity(key.Identity with { ChapterId = "future-chapter" });
         var cache = await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
-            TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "正文"), "book-1", 0, 1,
+            key, "book-1", 0, 1,
             CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"), CancellationToken.None);
-        // An unrelated source has its own technical ChapterId and physical audio file.
-        var otherFile = Path.Combine(fixture.Directories.CacheDirectoryPath, "other.mp3");
-        File.Copy(cache.FilePath, otherFile);
-        await ExecuteAsync(fixture, """
-            INSERT INTO AudioCacheEntries (CacheKey, BookId, ChapterId, SpeechTextHash, SynthesisProfileFingerprint, FilePath, FileSize, CreatedAt, LastAccessedAt)
-            SELECT x'1234', BookId, 'future-chapter', SpeechTextHash, SynthesisProfileFingerprint, $file, FileSize, CreatedAt, LastAccessedAt FROM AudioCacheEntries LIMIT 1;
-            INSERT INTO ChapterSpeechPlans VALUES ('future-chapter', zeroblob(32), zeroblob(32), zeroblob(32), 1, 1, 'time');
-            """, ("$file", otherFile));
-        if (!active) await ExecuteAsync(fixture, "UPDATE Books SET ActiveSourceId = 'future-source' WHERE Id = 'book-1';");
+        if (!active)
+        {
+            await ExecuteAsync(fixture, "INSERT INTO ChapterSpeechPlans VALUES ('future-chapter', zeroblob(32), zeroblob(32), zeroblob(32), 1, 1, 'time');");
+        }
 
         var changes = new List<BookCommittedChange>();
         fixture.Changes.Changed += (_, _) => throw new InvalidOperationException("observer failed");
@@ -95,13 +92,12 @@ public sealed class BookLibraryPersistenceTests
 
         Assert.False(result!.DeletedBook);
         Assert.False(File.Exists(path));
-        Assert.False(File.Exists(cache.FilePath));
-        Assert.True(File.Exists(otherFile));
+        Assert.Equal(!active, File.Exists(cache.FilePath));
         var header = (await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None))!;
         Assert.Equal("最后显示快照", header.Title);
         Assert.Equal("保留简介", header.Description);
         Assert.NotNull(await fixture.ProgressStore.GetAsync("book-1", CancellationToken.None));
-        await AssertTablesEmptyAsync(fixture, "LocalBookSources", "LocalChapterContents");
+        await AssertTablesEmptyAsync(fixture, "LocalBookSourceBindings", "LocalChapterContents");
         if (active)
         {
             Assert.Null(header.ActiveSource);
@@ -122,9 +118,9 @@ public sealed class BookLibraryPersistenceTests
         await using var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
         using var verify = connection.CreateCommand();
         verify.CommandText = "SELECT COUNT(*) FROM AudioCacheEntries WHERE ChapterId = 'future-chapter';";
-        Assert.Equal(1L, await verify.ExecuteScalarAsync());
+        Assert.Equal(active ? 0L : 1L, await verify.ExecuteScalarAsync());
         verify.CommandText = "SELECT COUNT(*) FROM ChapterSpeechPlans WHERE ChapterId = 'future-chapter';";
-        Assert.Equal(1L, await verify.ExecuteScalarAsync());
+        Assert.Equal(active ? 0L : 1L, await verify.ExecuteScalarAsync());
     }
 
     [Theory]
@@ -183,7 +179,7 @@ public sealed class BookLibraryPersistenceTests
         var path = await SeedBookAsync(fixture, "book-1", "失败保留", null);
         await SeedFutureSourceAsync(fixture, true);
         await ExecuteAsync(fixture, """
-            CREATE TRIGGER BlockSourceDelete BEFORE DELETE ON BookSources
+            CREATE TRIGGER BlockSourceDelete BEFORE DELETE ON BookSourceBindings
             BEGIN SELECT RAISE(ABORT, 'blocked'); END;
             """);
         var changes = new List<BookCommittedChange>();
@@ -195,24 +191,6 @@ public sealed class BookLibraryPersistenceTests
         Assert.Equal("local:book-1", (await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None))!.ActiveSource!.Context.SourceId);
         Assert.Equal(2, (await fixture.DetailsQuery.GetCatalogAsync("book-1", CancellationToken.None)).Count);
         Assert.Empty(await new SqliteBookOperationJournal(fixture.Factory, TimeProvider.System).GetIncompleteAsync(CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task UpdateMetadataAsync_persists_fields_for_subsequent_queries()
-    {
-        var fixture = await CreateFixtureAsync();
-        await SeedBookAsync(fixture, "book-1", title: "原书名", author: null, description: "旧简介");
-
-        var updated = await fixture.Metadata.UpdateMetadataAsync(
-            new BookMetadataUpdateRequest("book-1", "新书名", "作者甲"),
-            CancellationToken.None);
-        var persisted = await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None);
-
-        Assert.Equal("新书名", updated.Title);
-        Assert.Equal("作者甲", updated.Author);
-        Assert.Equal("新书名", persisted!.Title);
-        Assert.Equal("作者甲", persisted.Author);
-        Assert.Equal("旧简介", persisted.Description);
     }
 
     [Fact]
@@ -284,8 +262,8 @@ public sealed class BookLibraryPersistenceTests
         foreach (var table in new[]
                  {
                      "Books",
-                     "BookSources",
-                     "LocalBookSources",
+                     "BookSourceBindings",
+                     "LocalBookSourceBindings",
                      "Chapters",
                      "LocalChapterContents",
                      "ReadingProgress",
@@ -402,7 +380,7 @@ public sealed class BookLibraryPersistenceTests
         await using (var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None))
         {
             using var command = connection.CreateCommand();
-            command.CommandText = "UPDATE LocalBookSources SET StoredContentPath = $path WHERE SourceId = 'local:book-1';";
+            command.CommandText = "UPDATE LocalBookSourceBindings SET StoredContentPath = $path WHERE BindingId = 'local:book-1';";
             command.Parameters.AddWithValue("$path", externalPath);
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
@@ -494,9 +472,8 @@ public sealed class BookLibraryPersistenceTests
             TimeProvider.System);
         var changes = new BookSourceChanges();
         var mutations = new BookMutationGate();
-        var metadata = new Application.Books.Library.BookMetadataUpdateService(new SqliteBookMetadataStore(factory), mutations, changes);
         var deletion = new Application.Books.Library.BookDeletionService(deletionStore, mutations, changes, [], [cache]);
-        return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, query, detailsQuery, metadata, deletion, changes);
+        return new TestFixture(directories, factory, cache, progressStore, protectionRegistry, query, detailsQuery, deletion, changes);
     }
 
     private static async Task<string> SeedBookAsync(
@@ -534,18 +511,28 @@ public sealed class BookLibraryPersistenceTests
         AudioCacheProtectionRegistry ProtectionRegistry,
         BookLibraryQuery Query,
         BookDetailsQuery DetailsQuery,
-        IBookMetadataUpdateService Metadata,
         IBookDeletionService Deletion,
         BookSourceChanges Changes);
 
-    private static Task SeedFutureSourceAsync(TestFixture fixture, bool localActive) => ExecuteAsync(fixture, """
-        -- Exercise the generic lifecycle without introducing Online schema into production.
-        PRAGMA ignore_check_constraints = ON;
-        INSERT INTO BookSources VALUES ('future-source', 'book-1', 2, '其它来源', NULL, NULL, 'time', 'time');
-        PRAGMA ignore_check_constraints = OFF;
-        INSERT INTO Chapters VALUES ('future-chapter', 'future-source', 0, 0, '其它章节');
-        UPDATE Books SET ActiveSourceId = $active WHERE Id = 'book-1';
-        """, ("$active", localActive ? "local:book-1" : "future-source"));
+    private static async Task SeedFutureSourceAsync(TestFixture fixture, bool localActive)
+    {
+        // Only a synthetic binding to exercise generic removal; no Online runtime/schema.
+        await ExecuteAsync(fixture, """
+            PRAGMA ignore_check_constraints = ON;
+            INSERT INTO BookSourceBindings VALUES ('future-source', 'book-1', 2, 'time', 'time');
+            PRAGMA ignore_check_constraints = OFF;
+            """);
+        if (!localActive)
+        {
+            await ExecuteAsync(fixture, """
+                BEGIN;
+                DELETE FROM Chapters WHERE BookId = 'book-1';
+                UPDATE Books SET ActiveSourceBindingId = 'future-source' WHERE Id = 'book-1';
+                INSERT INTO Chapters VALUES ('future-chapter', 'book-1', 'future-source', 0, 0, '其它章节');
+                COMMIT;
+                """);
+        }
+    }
 
     private static async Task ExecuteAsync(TestFixture fixture, string sql, params (string Name, object Value)[] parameters)
     {
