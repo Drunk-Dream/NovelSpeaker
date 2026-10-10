@@ -11,13 +11,9 @@ public sealed class KeyboardShortcutCoordinatorTests
 {
     [Theory]
     [InlineData(false, false, true, ModifierKeys.None, true, false, false)]
-    [InlineData(true, false, true, ModifierKeys.None, true, false, false)]
     [InlineData(false, true, true, ModifierKeys.None, false, true, false)]
-    [InlineData(true, true, true, ModifierKeys.None, false, true, false)]
     [InlineData(false, false, false, ModifierKeys.None, true, false, true)]
     [InlineData(true, false, false, ModifierKeys.None, false, false, false)]
-    [InlineData(false, false, true, ModifierKeys.Control, false, true, false)]
-    [InlineData(true, false, true, ModifierKeys.Shift, false, true, false)]
     public async Task Escape_prioritizes_surfaces_then_page_interactions_before_editing_and_navigation(
         bool editing, bool surfaceOpen, bool interactionOpen, ModifierKeys modifiers,
         bool expectedHandled, bool expectedInteractionOpen, bool expectedBack)

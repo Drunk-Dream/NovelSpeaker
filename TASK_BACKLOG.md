@@ -24,8 +24,8 @@
 
 ### Phase A — Presentation 测试去细节化
 
-- [x] **T001（P0）**：完成成果：真实用例由 1233 降至 1214（Domain 15、Application 293、Infrastructure 472、Presentation 332、WPF 102）；移除项目/测试目录布局、工作流与 fixture 清单断言、重复 Cache 投影排列及非核心播放计时器细节，保留分层依赖、模块环、关键 state owner、书库操作、页面迟到结果和大目录/cache scope 风险；Presentation 332/332、Release build、format verify 均通过。
-- [ ] **T002（P0）**：精简 Presentation 的 Rules / Providers / Shell / Shared 等其余测试并完成分层收口。依赖 T001，详见 `tasks/T002_PRESENTATION_REST.md`。阶段建议值：Presentation ≈125。
+- [x] **T001（P0）**：完成成果：真实用例由 1233 降至 1214（Domain 15、Application 293、Infrastructure 472、Presentation 332、WPF 102）；移除项目/测试目录布局、工作流与 fixture 清单断言、重复 Cache 投影排列及非核心播放计时器细节，保留分层依赖、模块环、关键 state owner、书库操作、页面迟到结果和大目录/cache scope 风险。Presentation 阶段建议值未达（332）；上述不可替代风险及跨层页面生命周期合同仍由各自最合适的 Presentation 行为测试保护。Presentation 332/332、Release build、format verify 均通过。
+- [x] **T002（P0）**：完成成果：Presentation 由 332 降至 312 例；合计真实用例由 1214 降至 1194（Domain 15、Application 293、Infrastructure 472、Presentation 312、WPF 102）。合并重复的 Rules/Metadata 编辑决策矩阵与管理手势/槽位排列，保留 dirty 保存与取消、Provider 保存/切换和安全、批量部分失败、异步旧结果拒绝、诊断隐私/fatal 归因、主题文字与关键架构边界。Presentation 建议区间未达（312，建议 110–145）；保留项分别保护不同数据覆盖风险、页面/进程生命周期及安全/隐私行为，未为达数量预算删除这些独立契约。Presentation 312/312、全项目 Release build、format verify 通过。
 
 ### Phase B — WPF 与业务单元测试收敛
 
