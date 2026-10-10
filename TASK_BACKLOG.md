@@ -24,7 +24,7 @@
 
 ### Phase A — Presentation 测试去细节化
 
-- [ ] **T001（P0）**：重新统计测试、建立核心风险对应表，精简 Presentation 的 Architecture / Books / Player / Cache 测试。详见 `tasks/T001_PRESENTATION_CORE.md`。阶段建议值：Presentation ≤约 230；不将数值作为任务通过的唯一条件。
+- [x] **T001（P0）**：完成成果：真实用例由 1233 降至 1214（Domain 15、Application 293、Infrastructure 472、Presentation 332、WPF 102）；移除项目/测试目录布局、工作流与 fixture 清单断言、重复 Cache 投影排列及非核心播放计时器细节，保留分层依赖、模块环、关键 state owner、书库操作、页面迟到结果和大目录/cache scope 风险；Presentation 332/332、Release build、format verify 均通过。
 - [ ] **T002（P0）**：精简 Presentation 的 Rules / Providers / Shell / Shared 等其余测试并完成分层收口。依赖 T001，详见 `tasks/T002_PRESENTATION_REST.md`。阶段建议值：Presentation ≈125。
 
 ### Phase B — WPF 与业务单元测试收敛

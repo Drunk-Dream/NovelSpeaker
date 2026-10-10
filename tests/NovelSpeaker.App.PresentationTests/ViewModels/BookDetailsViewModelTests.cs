@@ -125,7 +125,6 @@ public sealed class BookDetailsViewModelTests
     }
 
     [Theory]
-    [InlineData(false)]
     [InlineData(true)]
     public async Task Catalog_change_supersedes_initial_load_without_failure(bool ignoreCancellation)
     {
@@ -202,24 +201,6 @@ public sealed class BookDetailsViewModelTests
         Assert.Empty(viewModel.Chapters);
         Assert.Null(viewModel.CurrentChapterItem);
         Assert.Equal(0, viewModel.ProgressRatio);
-    }
-
-    [Fact]
-    public async Task Details_display_persisted_description_when_present()
-    {
-        var service = new FakeBookManagementService
-        {
-            Details = CreateDetails() with
-            {
-                Header = new BookDetailsHeader("book-1", "示例小说", "作者甲", "  简介内容  ")
-            }
-        };
-        var viewModel = CreateViewModel(managementService: service);
-
-        await LoadViewModelAsync(viewModel);
-
-        Assert.True(viewModel.HasDescription);
-        Assert.Equal("简介内容", viewModel.DisplayDescription);
     }
 
     private async Task LoadAsync_projects_read_only_fields_and_chapters()

@@ -100,38 +100,6 @@ public sealed class CacheManagementViewModelTests
     }
 
     [Fact]
-    public async Task Queued_book_load_requeries_window_after_notification_already_projected_selected_book()
-    {
-        var fixture = CreateCache();
-        fixture.ReadModel.Books = [.. fixture.ReadModel.Books, new("book-2", "Other", null, 1, 1, 100),
-            .. Enumerable.Range(0, 998).Select(index => new CachedBookSummary($"other-{index:D5}", "Other", null, 1, 1, 100))];
-        fixture.ReadModel.ChaptersByBook["book-2"] = [new(0, new("book-2", 0, "Other chapter", 1, 1, 100), new(0, 1, 1))];
-        var viewModel = CreateViewModel(fixture);
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
-        var otherBook = viewModel.Books[1];
-        var books = new PausingBookList(fixture.ReadModel.Books.Select(book => book with { Title = "Updated " + book.Title }).ToArray());
-        fixture.ReadModel.Books = books;
-        fixture.ReadModel.Publish(new CacheReadModelScope.Global());
-        await books.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Task selection;
-        try
-        {
-            selection = viewModel.SelectBookCommand.ExecuteAsync(otherBook);
-        }
-        finally
-        {
-            books.Release.TrySetResult();
-        }
-        await selection;
-        var chapter = Assert.Single(viewModel.Chapters);
-        Assert.Equal("Other chapter", chapter.Title);
-        Assert.True(chapter.IsExportable);
-        Assert.Contains("100%", chapter.CompletenessText);
-        Assert.Equal("book-2", Assert.Single(viewModel.Books, book => book.IsSelected).BookId);
-    }
-
-    [Fact]
     public async Task Click_during_staged_book_reordering_cannot_inject_old_positions_into_new_catalog()
     {
         var fixture = CreateCache();
@@ -186,39 +154,6 @@ public sealed class CacheManagementViewModelTests
             () => fixture.ReadModel.Publish(new CacheReadModelScope.Global()));
         Assert.DoesNotContain(System.Collections.Specialized.NotifyCollectionChangedAction.Add, actions);
         Assert.Equal([0], viewModel.SelectedChapterIndices);
-    }
-
-    [Fact]
-    public async Task Global_configuration_change_keeps_large_book_list_projection_and_selection()
-    {
-        var fixture = CreateCache();
-        fixture.ReadModel.Books = [.. fixture.ReadModel.Books, .. Enumerable.Range(0, 9999)
-            .Select(index => new CachedBookSummary($"other-{index:D5}", "Other", null, 1, 1, 100))];
-        var viewModel = CreateViewModel(fixture);
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
-        var first = viewModel.Books[0];
-        var middle = viewModel.Books[5000];
-        var last = viewModel.Books[^1];
-        var actions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
-        viewModel.Books.CollectionChanged += (_, args) => actions.Add(args.Action);
-        var catalogRequested = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        fixture.ReadModel.BookHandler = (bookId, _) =>
-        {
-            catalogRequested.TrySetResult();
-            return Task.FromResult(new CacheReadResult<CachedBookCatalog>(fixture.ReadModel.Revision,
-                new(fixture.ReadModel.Books[0], fixture.ReadModel.ChaptersByBook[bookId]
-                    .Select(view => new CachedChapterCatalogEntry(bookId, view.ChapterIndex, view.Physical!.Title)).ToArray())));
-        };
-        fixture.ReadModel.Publish(new CacheReadModelScope.Global());
-        // The selected catalog query starts after the entire book projection has committed.
-        await catalogRequested.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Empty(actions);
-        Assert.Same(first, viewModel.Books[0]);
-        Assert.Same(middle, viewModel.Books[5000]);
-        Assert.Same(last, viewModel.Books[^1]);
-        Assert.True(viewModel.Books[0].IsSelected);
-        Assert.True(viewModel.HasSelection);
     }
 
     [Fact]
@@ -304,23 +239,6 @@ public sealed class CacheManagementViewModelTests
         Assert.Equal(0, fixture.ReadModel.SubscriberCount);
         var requests = fixture.ReadModel.ChapterQueries.Count;
         fixture.ReadModel.Publish(new CacheReadModelScope.Global());
-        Assert.Equal(requests, fixture.ReadModel.ChapterQueries.Count);
-    }
-
-    [Fact]
-    public async Task Unrelated_book_changes_do_not_requery_selected_chapters()
-    {
-        var fixture = CreateCache();
-        fixture.ReadModel.Books = [.. fixture.ReadModel.Books, new("book-2", "Other", null, 1, 1, 100)];
-        var viewModel = CreateViewModel(fixture);
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
-        var chapter = viewModel.Chapters[0];
-        var requests = fixture.ReadModel.ChapterQueries.Count;
-        fixture.ReadModel.Books = [fixture.ReadModel.Books[0], fixture.ReadModel.Books[1] with { Title = "Updated" }];
-        await AwaitStateAsync(viewModel, () => viewModel.Books[1].Title == "Updated",
-            () => fixture.ReadModel.Publish(new CacheReadModelScope.Book("book-2")));
-        Assert.Same(chapter, viewModel.Chapters[0]);
         Assert.Equal(requests, fixture.ReadModel.ChapterQueries.Count);
     }
 

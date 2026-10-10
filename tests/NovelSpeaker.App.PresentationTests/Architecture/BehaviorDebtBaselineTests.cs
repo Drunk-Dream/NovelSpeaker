@@ -1,4 +1,3 @@
-using System.Xml.Linq;
 using System.Text.RegularExpressions;
 using Xunit;
 
@@ -22,18 +21,6 @@ public sealed class BehaviorDebtBaselineTests
                 Assert.DoesNotContain("ISpeechPlanRepairLifetime", file.Content, StringComparison.Ordinal);
             }
         }
-    }
-
-    [Fact]
-    public void Restore_graph_always_includes_the_release_runtime_identifier()
-    {
-        var buildProperties = XDocument.Load(Absolute("Directory.Build.props"));
-        var properties = buildProperties.Descendants("PropertyGroup")
-            .Elements()
-            .ToDictionary(element => element.Name.LocalName, element => element.Value, StringComparer.Ordinal);
-
-        Assert.Equal("true", properties["RestorePackagesWithLockFile"]);
-        Assert.Equal("win-x64", properties["RuntimeIdentifiers"]);
     }
 
     [Fact]
@@ -75,61 +62,6 @@ public sealed class BehaviorDebtBaselineTests
             sources,
             source => Regex.IsMatch(source, @"\.Result\s*[\]\),;]"));
         Assert.DoesNotContain(sources, source => source.Contains(".Wait(", StringComparison.Ordinal));
-    }
-
-    [Fact]
-    public void Test_audio_fixtures_are_owned_by_tests_and_excluded_from_the_app()
-    {
-        var expected = new[] { "corrupt-tone.mp3", "demo-tone.mp3", "demo-tone.wav" };
-        var audioDirectory = Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/TestAssets/Audio");
-        var actual = Directory.EnumerateFiles(audioDirectory)
-            .Select(Path.GetFileName)
-            .Where(static name => name is not null)
-            .Cast<string>()
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        Assert.Equal(expected.Order(StringComparer.OrdinalIgnoreCase), actual);
-        Assert.False(Directory.Exists(Absolute("src/NovelSpeaker.App/Assets/Audio")));
-
-        var projectText = File.ReadAllText(
-            Absolute("tests/NovelSpeaker.Infrastructure.IntegrationTests/NovelSpeaker.Infrastructure.IntegrationTests.csproj"));
-        Assert.Contains(@"TestAssets\Audio\*.*", projectText, StringComparison.Ordinal);
-        Assert.DoesNotContain(@"src\NovelSpeaker.App\Assets\Audio", projectText, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Release_and_quality_workflows_keep_locked_build_test_and_package_boundaries()
-    {
-        var release = File.ReadAllText(Absolute(".github/workflows/release.yml"));
-        var releasePackageValidation = File.ReadAllText(Absolute("tools/ReleasePackageValidation.ps1"));
-        var quality = File.ReadAllText(Absolute(".github/workflows/quality-matrix.yml"));
-
-        Assert.Contains("uses: ./.github/workflows/quality-matrix.yml", release, StringComparison.Ordinal);
-        Assert.Contains(
-            "dotnet publish src/NovelSpeaker.App/NovelSpeaker.App.csproj -c Release -r win-x64 --self-contained true --no-restore",
-            release,
-            StringComparison.Ordinal);
-        Assert.Contains("Assert-ReleasePackageDirectory -Path artifacts/publish", release, StringComparison.Ordinal);
-        Assert.Contains("Assert-ReleasePackageZip -Path $zip", release, StringComparison.Ordinal);
-        Assert.Contains("TestAssets", releasePackageValidation, StringComparison.Ordinal);
-        Assert.Contains("StyleGallery", releasePackageValidation, StringComparison.Ordinal);
-        Assert.Contains("visual-review", releasePackageValidation, StringComparison.Ordinal);
-
-        foreach (var command in new[]
-                 {
-                     "dotnet restore --locked-mode -r win-x64",
-                     "dotnet format --verify-no-changes --no-restore",
-                     "dotnet build -c Release --no-restore",
-                     "dotnet test",
-                     "matrix.project"
-                 })
-        {
-            Assert.Contains(command, quality, StringComparison.Ordinal);
-        }
-
-        Assert.Contains("NovelSpeaker.Domain.UnitTests", quality, StringComparison.Ordinal);
-        Assert.DoesNotContain("retry", quality, StringComparison.OrdinalIgnoreCase);
     }
 
     private static string Absolute(string relativePath) =>
