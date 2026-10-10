@@ -301,7 +301,7 @@ public sealed partial class BookDetailsPageTests
     private sealed class FakeBookDeleteDialogService : IBookDeleteDialogService
     {
         public Task<BookDeleteDialogResult> ShowAsync(BookDeleteDialogRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new BookDeleteDialogResult(false, true));
+            => Task.FromResult(new BookDeleteDialogResult(false));
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource

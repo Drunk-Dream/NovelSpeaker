@@ -5,6 +5,5 @@ namespace NovelSpeaker.Application.Books;
 /// </summary>
 public sealed record BookDeleteResult(
     string BookId,
-    bool DeletedAudioCache,
     int DeletedChapterCount,
     bool DeletedReadingProgress);

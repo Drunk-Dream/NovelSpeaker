@@ -21,11 +21,10 @@ public sealed class BookDeleteDialogServiceTests
             var service = new BookDeleteDialogService(contentDialogService);
 
             var result = await service.ShowAsync(
-                new BookDeleteDialogRequest("三体", false, true),
+                new BookDeleteDialogRequest("三体", false),
                 CancellationToken.None);
 
             Assert.True(result.IsConfirmed);
-            Assert.False(result.DeleteAudioCache);
         });
     }
 
@@ -64,10 +63,9 @@ public sealed class BookDeleteDialogServiceTests
             Assert.Equal(new Thickness(0), body.BorderThickness);
             Assert.Null(body.Effect);
             var stackPanel = Assert.IsType<StackPanel>(body.Child);
-            var deleteCacheCheckBox = Assert.IsType<CheckBox>(stackPanel.Children[4]);
-            Assert.Equal("同时清理音频缓存", deleteCacheCheckBox.Content);
-            Assert.Same(global::System.Windows.Application.Current.FindResource("App.Input.CheckBox.Standard"), deleteCacheCheckBox.Style);
-            deleteCacheCheckBox.IsChecked = false;
+            Assert.Contains(stackPanel.Children.OfType<global::System.Windows.Controls.TextBlock>(), text => text.Text.Contains("关联音频缓存", StringComparison.Ordinal));
+            Assert.Contains(stackPanel.Children.OfType<global::System.Windows.Controls.TextBlock>(), text => text.Text.Contains("外部 TXT", StringComparison.Ordinal));
+            Assert.DoesNotContain(stackPanel.Children.Cast<UIElement>(), child => child is CheckBox);
 
             return Task.Run(() => NextResult, cancellationToken);
         }

@@ -44,7 +44,7 @@ public sealed class BookImportRepositoryTests
             checkpoint.SegmentIndex, checkpoint.AudioPositionMilliseconds));
         Assert.Equal(0, (await details.GetReadingPositionAsync(bookId, CancellationToken.None))!.ChapterIndex);
 
-        await fixture.Deletion.DeleteAsync(new(bookId, true), CancellationToken.None);
+        await fixture.Deletion.DeleteAsync(new(bookId), CancellationToken.None);
         Assert.Empty(await library.GetBooksAsync(CancellationToken.None));
         Assert.Null(await metadata.GetBookAsync(bookId, CancellationToken.None));
         Assert.Null(await progress.GetAsync(bookId, CancellationToken.None));
@@ -70,7 +70,7 @@ public sealed class BookImportRepositoryTests
                 await fixture.Deletion.RemoveAsync(new BookSourceRemoveRequest(target.Book.Id, target.Binding!.BindingId),
                     CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
             else
-                await fixture.Deletion.DeleteAsync(new BookDeleteRequest(target.Book.Id, true),
+                await fixture.Deletion.DeleteAsync(new BookDeleteRequest(target.Book.Id),
                     CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
         }
         finally

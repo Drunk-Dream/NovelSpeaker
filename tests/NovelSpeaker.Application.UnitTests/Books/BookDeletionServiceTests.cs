@@ -21,7 +21,7 @@ public sealed class BookDeletionServiceTests
         };
         var service = new BookDeletionService(store, new BookMutationGate(), changes, [new RecordingStopper(store)], []);
 
-        var result = await service.DeleteAsync(new BookDeleteRequest("book-1", true), CancellationToken.None);
+        var result = await service.DeleteAsync(new BookDeleteRequest("book-1"), CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal(["stop", "begin", "commit", "complete"], store.Calls);
@@ -65,7 +65,7 @@ public sealed class BookDeletionServiceTests
             await Assert.ThrowsAsync<IOException>(async () =>
             {
                 if (removeSource) await service.RemoveAsync(new("book-1", "source-1"), CancellationToken.None);
-                else await service.DeleteAsync(new("book-1", true), CancellationToken.None);
+                else await service.DeleteAsync(new("book-1"), CancellationToken.None);
             });
 
             Assert.Equal(["begin", "commit", "rollback"], store.Calls);
@@ -83,7 +83,7 @@ public sealed class BookDeletionServiceTests
         var service = new BookDeletionService(store, new BookMutationGate(), changes, [], []);
 
         await Assert.ThrowsAsync<IOException>(() =>
-            service.DeleteAsync(new BookDeleteRequest("book-1", true), CancellationToken.None));
+            service.DeleteAsync(new BookDeleteRequest("book-1"), CancellationToken.None));
 
         Assert.Equal(["begin", "commit", "complete", "rollback"], store.Calls);
         Assert.False(store.RollbackToken.CanBeCanceled);
@@ -113,11 +113,11 @@ public sealed class BookDeletionServiceTests
             Calls.Add("begin");
             return Task.FromResult<BookDeletionPreparation?>(new BookDeletionPreparation(
                 "operation-1",
-                new BookDeleteResult(request.BookId, request.DeleteAudioCache, 2, true), DeletesBook, ActiveSourceId));
+                new BookDeleteResult(request.BookId, 2, true), DeletesBook, ActiveSourceId));
         }
 
         public Task<BookDeletionPreparation?> BeginSourceRemovalAsync(BookSourceRemoveRequest request, CancellationToken cancellationToken) =>
-            BeginAsync(new BookDeleteRequest(request.BookId, true), cancellationToken);
+            BeginAsync(new BookDeleteRequest(request.BookId), cancellationToken);
 
         public Task CommitAsync(BookDeletionPreparation preparation, CancellationToken cancellationToken)
         {

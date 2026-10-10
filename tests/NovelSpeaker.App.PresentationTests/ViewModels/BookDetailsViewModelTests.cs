@@ -756,7 +756,7 @@ public sealed class BookDetailsViewModelTests
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
         {
             DeleteCallCount++;
-            return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, request.DeleteAudioCache, 3, true));
+            return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, 3, true));
         }
     }
 
@@ -1042,7 +1042,7 @@ public sealed class BookDetailsViewModelTests
 
     private sealed class FakeBookDeleteDialogService : IBookDeleteDialogService
     {
-        public BookDeleteDialogResult NextResult { get; set; } = new(false, true);
+        public BookDeleteDialogResult NextResult { get; set; } = new(false);
 
         public Task<BookDeleteDialogResult> ShowAsync(BookDeleteDialogRequest request, CancellationToken cancellationToken)
         {

@@ -42,7 +42,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.SourceId);
-        return await BeginCoreAsync(new BookDeleteRequest(request.BookId, true), request.SourceId, cancellationToken).ConfigureAwait(false);
+        return await BeginCoreAsync(new BookDeleteRequest(request.BookId), request.SourceId, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<BookDeletionPreparation?> BeginCoreAsync(BookDeleteRequest request, string? sourceId, CancellationToken cancellationToken)
@@ -75,7 +75,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
             book.DeletesBook ? null : sourceId);
         var preparation = new BookDeletionPreparation(
             operationId,
-            new BookDeleteResult(request.BookId, request.DeleteAudioCache, book.ChapterCount, book.DeletesBook && book.HasReadingProgress),
+            new BookDeleteResult(request.BookId, book.ChapterCount, book.DeletesBook && book.HasReadingProgress),
             book.DeletesBook, book.ActiveSourceBindingId == sourceId || book.DeletesBook ? book.ActiveSourceBindingId : null);
 
         try
@@ -99,7 +99,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         var operation = await FindOperationAsync(preparation.OperationId, cancellationToken).ConfigureAwait(false);
         await DeleteRowsAsync(
             connection,
-            new BookDeleteRequest(preparation.Result.BookId, preparation.Result.DeletedAudioCache),
+            new BookDeleteRequest(preparation.Result.BookId),
             operation.SourceId,
             preparation.OperationId,
             _timeProvider.GetUtcNow(),
@@ -232,11 +232,6 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         if (book.DeletesBook)
             paths.Add(new BookOperationPath(_pathResolver.GetStorageKey(bookDirectory),
                 _pathResolver.GetStorageKey(Path.Combine(stageRoot, "book")), true));
-
-        if (!request.DeleteAudioCache)
-        {
-            return paths;
-        }
 
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT FilePath FROM AudioCacheEntries WHERE BookId = $bookId AND ($sourceId IS NULL OR ChapterId IN (SELECT Id FROM Chapters WHERE SourceBindingId = $sourceId)) ORDER BY CacheKey;";

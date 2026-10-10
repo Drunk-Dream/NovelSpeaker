@@ -389,7 +389,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         try
         {
             var result = await _bookDeletionService.DeleteAsync(
-                new BookDeleteRequest(_bookId, deleteDecision.DeleteAudioCache),
+                new BookDeleteRequest(_bookId),
                 cancellationToken);
             if (result is null)
             {

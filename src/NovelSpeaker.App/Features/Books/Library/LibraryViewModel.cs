@@ -470,7 +470,7 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
         try
         {
             var result = await _bookDeletionService.DeleteAsync(
-                new BookDeleteRequest(book.BookId, decision.DeleteAudioCache),
+                new BookDeleteRequest(book.BookId),
                 cancellationToken);
 
             if (result is null)
@@ -520,7 +520,7 @@ public sealed partial class LibraryViewModel : ObservableObject, ITransientEscap
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    var result = await _bookDeletionService.DeleteAsync(new BookDeleteRequest(book.BookId, decision.DeleteAudioCache), cancellationToken);
+                    var result = await _bookDeletionService.DeleteAsync(new BookDeleteRequest(book.BookId), cancellationToken);
                     if (result is null) skipped++;
                     else succeeded++;
                 }

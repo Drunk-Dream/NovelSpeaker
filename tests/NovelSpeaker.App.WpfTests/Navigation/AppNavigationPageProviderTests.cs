@@ -205,7 +205,7 @@ public sealed class AppNavigationPageProviderTests
     {
         public Task<BookDeleteDialogResult> ShowAsync(BookDeleteDialogRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new BookDeleteDialogResult(false, true));
+            return Task.FromResult(new BookDeleteDialogResult(false));
         }
     }
 

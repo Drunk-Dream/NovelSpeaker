@@ -68,7 +68,7 @@ public sealed partial class LibraryViewModelTests
         var deletion = new FakeBookManagementService();
         var feedback = new FakeFeedbackService();
         var viewModel = CreateViewModel(catalogService: new FakeBookCatalogService(ManagementBooks), managementService: deletion,
-            deleteDialogService: new FakeBookDeleteDialogService { NextResult = new(true, true) }, bookChanges: changes, feedback: feedback);
+            deleteDialogService: new FakeBookDeleteDialogService { NextResult = new(true) }, bookChanges: changes, feedback: feedback);
         await viewModel.LoadAsync(CancellationToken.None);
         deletion.OnDelete = _ =>
         {
@@ -88,7 +88,7 @@ public sealed partial class LibraryViewModelTests
     public async Task Batch_delete_confirms_once_and_reports_results_after_processing_all_books(
         string? failingBookId, string? missingBookId, int succeeded, int skipped, int failed, UiMessageSeverity severity)
     {
-        var dialog = new FakeBookDeleteDialogService { NextResult = new(true, true) };
+        var dialog = new FakeBookDeleteDialogService { NextResult = new(true) };
         var deletion = new FakeBookManagementService { FailingBookId = failingBookId, MissingBookId = missingBookId };
         var feedback = new FakeFeedbackService();
         var viewModel = CreateViewModel(catalogService: new FakeBookCatalogService(ManagementBooks), managementService: deletion, deleteDialogService: dialog, feedback: feedback);
@@ -179,7 +179,7 @@ public sealed partial class LibraryViewModelTests
         var feedback = new FakeFeedbackService();
         var deletion = new FakeBookManagementService { FailingBookId = fails ? "a" : null, MissingBookId = fails ? null : "a" };
         var viewModel = CreateViewModel(catalogService: catalog, managementService: deletion, feedback: feedback,
-            deleteDialogService: new FakeBookDeleteDialogService { NextResult = new(true, true) });
+            deleteDialogService: new FakeBookDeleteDialogService { NextResult = new(true) });
         await viewModel.LoadAsync(CancellationToken.None);
         var book = viewModel.Books.Single(book => book.BookId == "a");
         catalog.Books = fails ? ManagementBooks : ManagementBooks.Where(book => book.Id != "a").ToArray();

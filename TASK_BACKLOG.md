@@ -3,6 +3,7 @@
 ## 1. 当前阶段：Book / Source / CurrentCatalog / DB 基础重构
 
 - **规划基线：** `dev` @ `4ed4c4750bbdd72d1f7978caad7a1c22d6084219`（`test: close permanent coverage reduction phase`）。执行时以本地实际 HEAD 为准复核，不回退用户后续合法修改。
+- **T005A 补充审查基线：** `dev` @ `29e746504f71dfb0a4d518945e012466a07db1a5`（`test(books): close foundation migration and core regression review`）。T001–T005 历史完成记录保持不变；执行 T005A 时仍以实际 HEAD 为准。
 - **阶段目标：** 把当前已经部分 Source 化但仍使用“Source-owned Catalog / 可编辑 Book metadata”语义的实现，收敛到新的 Book Identity + BookSourceBinding + Active Source + CurrentCatalog + Book-level ReadingState 模型，并让现有 Local TXT 书籍功能稳定运行。
 - **本轮实现：** 领域模型、Application 边界、SQLite schema/migration、Local TXT 导入与元数据确认、书库/详情/播放/进度/删除等本地书主链路。
 - **本轮不实现：** Online Source Definition 规则 schema、Legado 兼容、在线书源编辑器、全局搜索、SearchSession、RefreshSession、在线目录获取、在线正文获取、Online Text Cache 运行时或换源 UI。
@@ -12,10 +13,10 @@
 ## 2. 执行规则
 
 - `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 仅用于发现超出已授权边界且必须由用户决策的问题。
-- 按 **T001 → T005** 串行执行。
+- 原定 **T001 → T005** 已串行完成；本次仅追加 **T005A** 作为收口后发现问题的定向修复，不重开 staged breaking migration window。
 - **T001–T003 属于一个 staged breaking migration window。** 这些切片允许在 task spec 明确列出的 Book/Source/Catalog/Import 调用方上暂时处于中间破坏态，不得为保持旧调用方编译而新增长期 Compat/V2/forwarder。
 - **T004 必须关闭 staged breaking migration window**：恢复本地书核心用户路径、Release build 与对应 focused tests。
-- **T005 是最终收口**：清理旧模型残留、复核核心回归、执行标准完整门禁。
+- **T005 已完成原定收口**：清理旧模型残留、复核核心回归、执行标准完整门禁。**T005A 完成后再确认本阶段最终收口**，只处理删除与音频缓存语义不一致问题及相邻生命周期风险。
 - staged window 不等于跳过验证：每个任务仍必须完成 task spec 声明的静态检查、结构验证或 focused tests。
 - 不为本轮设新的“测试数量目标”。只按 `docs/08_QUALITY_AND_TESTING.md` 保留/新增高价值核心测试；若临时验证测试不值得永久保留，任务结束前删除。
 - 人工验收始终可选，不阻塞 Agent 连续执行。
@@ -73,9 +74,14 @@
   清理与核心回归：累计删除 Source-owned Catalog 运行时、Binding metadata 真值、入库后身份编辑、多候选选择和旧 API；残留扫描确认无双读双写、Compat/V2 或无调用方的旧模型 fixture，历史迁移及对应升级 fixture 保留。删除 3 个重复导入 smoke/内部 journal 调用测试及专用 fake 记录字段；身份与 Hash 区分、正常提交/恢复继续由真实 SQLite/文件集成回归和提交后通知测试保护，不新增永久测试。其余 normalization、迁移回滚、身份确认、原子提交、目录所有权、进度 clamp、正文/播放、删除与信任边界、logical target/迟到结果核心测试全部保留。
   自动验收：标准完整门禁四项全部通过：locked restore（win-x64）、全解决方案 format verify、Release build（零警告/错误）、全部 974 个永久测试（Domain 34、Application 242、Infrastructure 336、Presentation 312、隔离 Desktop WPF 50；零失败/跳过），包含架构与全量 XAML 主题检查。已发布 v4–v12 migration 定义未变，累计改动 LF 与 `git diff --check` 通过；无临时验证产物、无环境限制、未发现长期文档冲突。Online Source 规则、Legado、search/refresh、在线目录/正文和正文缓存 runtime/UI 继续留待后续阶段；本阶段完成。
 
+- [x] **T005A（P0）— 统一书籍删除与音频缓存清理语义，完成最后一轮收口**
+  完成成果：删除确认框及无 Dialog Host fallback 均明确提示会清理关联音频缓存，并说明不会删除外部 TXT；单本、批量和详情页统一执行始终删除语义。移除 UI/Application/Infrastructure 间 `DeleteAudioCache`、`DeletedAudioCache` 可选状态及死分支。Book 删除和 Binding 移除继续复用既有 operation journal：先暂存目标 Local 正文/Book 目录与作用域内的音频文件，再事务删除记录和缓存索引；提交失败回滚实体文件，提交后中断由启动恢复完成。路径仍受应用数据根、缓存根、reparse point 与缓存保护注册表约束；未修改 schema/migration。
+  相邻生命周期与回归：真实 SQLite/文件集成测试确认删除 Book 后关联 AudioCacheEntries 和实体文件同时消失、其它 Book 的缓存索引与实体文件保留、数据库删除失败恢复已暂存缓存；既有受保护缓存拒绝、部分暂存恢复、路径篡改拒绝、Binding 移除/无 fallback、提交/恢复幂等和删除期间迟到缓存写入测试继续通过。未新增 schema migration 或临时产物。v1–v13 migration 定义未变。
+  自动验收：标准完整门禁四项全部通过：locked restore（win-x64）、全解决方案 format verify、Release build（零警告/错误）、全部 975 个永久测试（Domain 34、Application 242、Infrastructure 337、Presentation 312、隔离 Desktop WPF 50；零失败/跳过）；`git diff --check` 与 LF 检查通过。无环境限制；未发现长期文档冲突或本任务范围内遗留风险。本阶段最终收口。
+
 ## 5. 阶段完成标准
 
-T005 完成后至少满足：
+T005A 执行结束后确认：
 
 - Local TXT 从导入到播放的主链路完全运行在新模型上；
 - 数据库不存在运行时 Source-owned Catalog 双模型；
@@ -84,4 +90,5 @@ T005 完成后至少满足：
 - v12 正常本地书库可以有界升级并保留关键正式数据；冲突数据不会被静默合并/覆盖；
 - 未实现任何本轮明确排除的 Online Source 业务功能；
 - 没有为了迁移留下 Old/New/V2/Compat 双读双写；
+- 删除书籍时不存在“保留音频缓存”虚假选项；关联音频缓存索引与实体文件的删除、失败回滚及启动恢复语义一致；
 - 标准完整门禁通过，或对确属环境限制的未执行项如实记录。

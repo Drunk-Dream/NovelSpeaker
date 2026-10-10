@@ -33,7 +33,7 @@ public sealed class BookLibraryPersistenceTests
         var service = new Application.Books.Library.BookDeletionService(store, new BookMutationGate(), fixture.Changes, [], [fixture.Cache]);
         Task removal = removeSource
             ? service.RemoveAsync(new("book-1", "local:book-1"), CancellationToken.None)
-            : service.DeleteAsync(new("book-1", true), CancellationToken.None);
+            : service.DeleteAsync(new("book-1"), CancellationToken.None);
         await store.SnapshotReady.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var lateWrite = fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
             TestAudioCacheKey.Create("book-1", 0, 5, 1, 10, "迟到正文"), "book-1", 0, 1,
@@ -160,7 +160,7 @@ public sealed class BookLibraryPersistenceTests
         DirectoryLinkTestHelper.CreateDirectoryLink(link, external);
         try
         {
-            await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Deletion.DeleteAsync(new("book-1", true), CancellationToken.None));
+            await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Deletion.DeleteAsync(new("book-1"), CancellationToken.None));
             Assert.True(File.Exists(path));
             Assert.Equal("external", await File.ReadAllTextAsync(externalFile));
             Assert.NotNull(await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None));
@@ -200,13 +200,12 @@ public sealed class BookLibraryPersistenceTests
         var storedFilePath = await SeedBookAsync(fixture, "book-1", title: "待删除书籍", author: "作者");
         await fixture.ProgressStore.SaveAsync(new PlaybackProgressUpdate("book-1", 0, 0, 0, 120), CancellationToken.None);
 
-        var result = await fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None);
+        var result = await fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1"), CancellationToken.None);
         var remainingDetails = await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None);
         var remainingProgress = await fixture.ProgressStore.GetAsync("book-1", CancellationToken.None);
 
         Assert.NotNull(result);
         Assert.Equal("book-1", result!.BookId);
-        Assert.False(result.DeletedAudioCache);
         Assert.Equal(2, result.DeletedChapterCount);
         Assert.True(result.DeletedReadingProgress);
         Assert.Null(remainingDetails);
@@ -244,7 +243,7 @@ public sealed class BookLibraryPersistenceTests
             await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
 
-        await fixture.Cache.StoreAsync(
+        var cacheEntry = await fixture.Cache.StoreAsync(
             new AudioCacheWriteRequest(
                 TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "第一段"),
                 "book-1",
@@ -255,7 +254,7 @@ public sealed class BookLibraryPersistenceTests
             CancellationToken.None);
 
         await fixture.Deletion.DeleteAsync(
-            new BookDeleteRequest("book-1", true),
+            new BookDeleteRequest("book-1"),
             CancellationToken.None);
 
         await using var verifyConnection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
@@ -276,6 +275,36 @@ public sealed class BookLibraryPersistenceTests
             command.CommandText = $"SELECT COUNT(*) FROM {table};";
             Assert.Equal(0L, (long)(await command.ExecuteScalarAsync(CancellationToken.None))!);
         }
+        Assert.False(File.Exists(cacheEntry.FilePath));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_removes_only_the_deleted_books_audio_cache_files_and_entries()
+    {
+        var fixture = await CreateFixtureAsync();
+        await SeedBookAsync(fixture, "book-1", "删除目标", null);
+        await SeedBookAsync(fixture, "book-2", "其它书籍", null);
+        var deletedCache = await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
+            TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "目标正文"), "book-1", 0, 1,
+            CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"), CancellationToken.None);
+        var retainedCache = await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
+            TestAudioCacheKey.Create("book-2", 0, 0, 1, 10, "保留正文"), "book-2", 0, 1,
+            CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"), CancellationToken.None);
+
+        await fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1"), CancellationToken.None);
+
+        Assert.False(File.Exists(deletedCache.FilePath));
+        Assert.Null(await fixture.Cache.TryGetAsync(deletedCache.Key, CancellationToken.None));
+        Assert.True(File.Exists(retainedCache.FilePath));
+        Assert.NotNull(await fixture.Cache.TryGetAsync(retainedCache.Key, CancellationToken.None));
+        await using var connection = await fixture.Factory.OpenConnectionAsync(CancellationToken.None);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT BookId, COUNT(*) FROM AudioCacheEntries GROUP BY BookId;";
+        await using var reader = await command.ExecuteReaderAsync(CancellationToken.None);
+        Assert.True(await reader.ReadAsync(CancellationToken.None));
+        Assert.Equal("book-2", reader.GetString(0));
+        Assert.Equal(1L, reader.GetInt64(1));
+        Assert.False(await reader.ReadAsync(CancellationToken.None));
     }
 
     [Fact]
@@ -283,6 +312,9 @@ public sealed class BookLibraryPersistenceTests
     {
         var fixture = await CreateFixtureAsync();
         var storedFilePath = await SeedBookAsync(fixture, "book-1", title: "触发回滚", author: null);
+        var cacheEntry = await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
+            TestAudioCacheKey.Create("book-1", 0, 0, 1, 10, "需回滚缓存"), "book-1", 0, 1,
+            CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"), CancellationToken.None);
         var changes = new List<BookCommittedChange>();
         fixture.Changes.Changed += (_, change) => changes.Add(change);
 
@@ -301,9 +333,11 @@ public sealed class BookLibraryPersistenceTests
         }
 
         await Assert.ThrowsAsync<SqliteException>(() =>
-            fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None));
+            fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1"), CancellationToken.None));
 
         Assert.True(File.Exists(storedFilePath));
+        Assert.True(File.Exists(cacheEntry.FilePath));
+        Assert.NotNull(await fixture.Cache.TryGetAsync(cacheEntry.Key, CancellationToken.None));
         Assert.Empty(changes);
         Assert.NotNull(await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None));
     }
@@ -325,7 +359,7 @@ public sealed class BookLibraryPersistenceTests
         using var protection = fixture.ProtectionRegistry.Protect(cacheEntry.FilePath);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Deletion.DeleteAsync(
-            new BookDeleteRequest("book-1", true),
+            new BookDeleteRequest("book-1"),
             CancellationToken.None));
 
         Assert.True(File.Exists(storedFilePath));
@@ -357,7 +391,7 @@ public sealed class BookLibraryPersistenceTests
         using var protection = fixture.ProtectionRegistry.Protect(ordered[1].FilePath);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Deletion.DeleteAsync(
-            new BookDeleteRequest("book-1", true),
+            new BookDeleteRequest("book-1"),
             CancellationToken.None));
 
         Assert.True(File.Exists(storedFilePath));
@@ -386,7 +420,7 @@ public sealed class BookLibraryPersistenceTests
         }
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1", false), CancellationToken.None));
+            fixture.Deletion.DeleteAsync(new BookDeleteRequest("book-1"), CancellationToken.None));
 
         Assert.True(File.Exists(externalPath));
         Assert.Equal("external source", await File.ReadAllTextAsync(externalPath, CancellationToken.None));
@@ -423,7 +457,7 @@ public sealed class BookLibraryPersistenceTests
         try
         {
             await Assert.ThrowsAsync<InvalidDataException>(() => fixture.Deletion.DeleteAsync(
-                new BookDeleteRequest("book-1", true),
+                new BookDeleteRequest("book-1"),
                 CancellationToken.None));
 
             Assert.True(File.Exists(externalPath));

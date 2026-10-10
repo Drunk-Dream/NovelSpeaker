@@ -1,5 +1,3 @@
-using System.Windows;
-using System.Windows.Controls;
 using NovelSpeaker.App.Shared.Dialogs;
 using Wpf.Ui;
 using Wpf.Ui.Controls;
@@ -26,30 +24,20 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
                 "删除书籍",
                 global::System.Windows.MessageBoxButton.OKCancel,
                 global::System.Windows.MessageBoxImage.Warning);
-            return new BookDeleteDialogResult(
-                fallback == global::System.Windows.MessageBoxResult.OK,
-                request.DeleteAudioCacheByDefault);
+            return new BookDeleteDialogResult(fallback == global::System.Windows.MessageBoxResult.OK);
         }
 
-        var deleteCacheCheckBox = new global::System.Windows.Controls.CheckBox
-        {
-            Content = "同时清理音频缓存",
-            IsChecked = request.DeleteAudioCacheByDefault,
-            Margin = new Thickness(0, 16, 0, 0)
-        };
-        deleteCacheCheckBox.SetResourceReference(FrameworkElement.StyleProperty, "App.Input.CheckBox.Standard");
         var content = new global::System.Windows.Controls.StackPanel
         {
             Children =
             {
                 AppDialogVisuals.CreateTitle(request.BookCount > 1 ? $"将删除 {request.BookCount} 本书籍" : $"将删除《{request.BookTitle}》"),
-                AppDialogVisuals.CreateMessage("书籍记录、章节、阅读进度和应用内部 TXT 副本将被删除。"),
+                AppDialogVisuals.CreateMessage("书籍记录、当前目录、阅读进度、应用内部 TXT 副本及关联音频缓存将被删除。"),
                 AppDialogVisuals.CreateMessage("不会删除用户最初选择的外部 TXT 文件。"),
                 AppDialogVisuals.CreateMessage(
                     request.IsCurrentPlaybackBook
                         ? "这本书当前正在播放，确认后会先停止播放并结束当前会话。"
-                        : "此操作不可撤销。"),
-                deleteCacheCheckBox
+                        : "此操作不可撤销。")
             }
         };
         var dialog = AppDialogVisuals.Create(
@@ -61,9 +49,7 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
             ControlAppearance.Danger);
 
         var result = await _contentDialogService.ShowAsync(dialog, cancellationToken);
-        return new BookDeleteDialogResult(
-            result == ContentDialogResult.Primary,
-            deleteCacheCheckBox.IsChecked != false);
+        return new BookDeleteDialogResult(result == ContentDialogResult.Primary);
     }
 
     private static string BuildFallbackMessage(BookDeleteDialogRequest request)
@@ -72,6 +58,6 @@ public sealed class BookDeleteDialogService : IBookDeleteDialogService
             ? "删除后会先停止当前播放。"
             : "此操作不可撤销。";
         var subject = request.BookCount > 1 ? $"{request.BookCount} 本书籍" : $"《{request.BookTitle}》";
-        return $"将删除{subject}的书籍记录、章节、阅读进度和应用内部 TXT 副本。\n不会删除用户最初选择的外部 TXT 文件。\n{playbackLine}";
+        return $"将删除{subject}的书籍记录、当前目录、阅读进度、应用内部 TXT 副本和关联音频缓存。\n不会删除用户最初选择的外部 TXT 文件。\n{playbackLine}";
     }
 }
