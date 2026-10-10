@@ -60,6 +60,24 @@ public sealed class BookLibraryQueryTests
     }
 
     [Fact]
+    public async Task GetBooksAsync_accepts_legacy_times_and_skips_rows_with_damaged_times()
+    {
+        var (factory, service, _) = await CreateCatalogAsync();
+        await SeedBookAsync(factory, "legacy-time", "第一章", "第二章");
+        await SeedBookAsync(factory, "damaged-time", "第一章", "第二章");
+        await SetImportedAtAsync(factory, "legacy-time", "2026-07-16 09:08:07");
+        await SetImportedAtAsync(factory, "damaged-time", "not-a-date");
+
+        var books = await service.GetBooksAsync(CancellationToken.None);
+
+        var legacy = Assert.Single(books);
+        Assert.Equal("legacy-time", legacy.Id);
+        Assert.Equal(
+            new DateTimeOffset(2026, 7, 16, 9, 8, 7, TimeSpan.Zero),
+            legacy.ImportedAt);
+    }
+
+    [Fact]
     public async Task GetBooksAsync_prefers_recent_progress_chapter_title_and_exposes_last_played_at()
     {
         var (factory, service, _) = await CreateCatalogAsync();
@@ -79,63 +97,14 @@ public sealed class BookLibraryQueryTests
     }
 
     [Fact]
-    public async Task GetBooksAsync_orders_by_import_time_then_id()
-    {
-        var (factory, service, _) = await CreateCatalogAsync();
-        await SeedBookAsync(factory, "book-b", "B 第一章", "B 第二章");
-        await SeedBookAsync(factory, "book-a", "A 第一章", "A 第二章");
-        await SetImportedAtAsync(factory, "book-b", "2026-01-01T00:00:00.0000000Z");
-        await SetImportedAtAsync(factory, "book-a", "2026-01-01T00:00:00.0000000Z");
-
-        var books = await service.GetBooksAsync(CancellationToken.None);
-
-        Assert.Equal(["book-a", "book-b"], books.Select(static book => book.Id));
-    }
-
-    [Fact]
     public async Task GetCatalogAsync_orders_chapters_by_sort_order_then_chapter_index()
     {
-        var (factory, service, detailsQuery) = await CreateCatalogAsync();
+        var (factory, _, detailsQuery) = await CreateCatalogAsync();
         await SourceBookFixture.SaveAsync(factory, "book-1", ["首章", "中章", "末章"], sortOrders: [10, 10, 20]);
 
         var details = await detailsQuery.GetCatalogAsync("book-1", CancellationToken.None);
 
         Assert.Equal([0, 1, 2], details.Select(static chapter => chapter.ChapterIndex));
-    }
-
-    [Fact]
-    public async Task Detail_queries_return_empty_catalog_and_no_position_for_a_book_without_chapters()
-    {
-        var (factory, _, detailsQuery) = await CreateCatalogAsync();
-        await SourceBookFixture.SaveAsync(factory, "empty-book", []);
-
-        var header = await detailsQuery.GetHeaderAsync("empty-book", CancellationToken.None);
-        var catalog = await detailsQuery.GetCatalogAsync("empty-book", CancellationToken.None);
-        var position = await detailsQuery.GetReadingPositionAsync("empty-book", CancellationToken.None);
-        var statistics = await detailsQuery.GetStatisticsAsync("empty-book", CancellationToken.None);
-
-        Assert.NotNull(header);
-        Assert.Empty(catalog);
-        Assert.Null(position);
-        Assert.Equal(0, statistics!.CachedAudioBytes);
-    }
-
-    [Fact]
-    public async Task GetBooksAsync_accepts_legacy_times_and_skips_rows_with_damaged_times()
-    {
-        var (factory, service, _) = await CreateCatalogAsync();
-        await SeedBookAsync(factory, "legacy-time", "第一章", "第二章");
-        await SeedBookAsync(factory, "damaged-time", "第一章", "第二章");
-        await SetImportedAtAsync(factory, "legacy-time", "2026-07-16 09:08:07");
-        await SetImportedAtAsync(factory, "damaged-time", "not-a-date");
-
-        var books = await service.GetBooksAsync(CancellationToken.None);
-
-        var legacy = Assert.Single(books);
-        Assert.Equal("legacy-time", legacy.Id);
-        Assert.Equal(
-            new DateTimeOffset(2026, 7, 16, 9, 8, 7, TimeSpan.Zero),
-            legacy.ImportedAt);
     }
 
     private static async Task<(

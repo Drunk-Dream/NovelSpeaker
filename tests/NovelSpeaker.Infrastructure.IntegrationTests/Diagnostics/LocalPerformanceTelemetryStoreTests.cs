@@ -109,7 +109,7 @@ public sealed class LocalPerformanceTelemetryStoreTests
         using var archive = ZipFile.OpenRead(exportPath);
         var telemetry = await ReadJsonAsync(archive, "telemetry.json");
         Assert.Equal(0, telemetry.GetProperty("coverage").GetProperty("processInstanceCount").GetInt32());
-        Assert.True(telemetry.GetProperty("windows")[0].GetProperty("processInstanceId").ValueKind == JsonValueKind.Null);
+        Assert.Equal(JsonValueKind.Null, telemetry.GetProperty("windows")[0].GetProperty("processInstanceId").ValueKind);
     }
 
     [Fact]
@@ -128,40 +128,6 @@ public sealed class LocalPerformanceTelemetryStoreTests
         using var archive = ZipFile.OpenRead(exportPath);
         Assert.Contains(archive.Entries, entry => entry.FullName == "telemetry.json");
         Assert.Empty(Directory.EnumerateFiles(exportDirectory, ".diagnostics.zip.*.tmp"));
-    }
-
-    [Fact]
-    public async Task Export_succeeds_while_production_logs_are_being_written_and_rotated()
-    {
-        var fixture = new Fixture(AppSettings.Default with { EnablePerformanceTelemetry = true });
-        await using var store = fixture.CreateStore();
-        var outputDirectory = Path.Combine(Path.GetTempPath(), "NovelSpeaker-Concurrent-Export-" + Path.GetRandomFileName());
-        Directory.CreateDirectory(outputDirectory);
-        var outputPath = Path.Combine(outputDirectory, "diagnostics.zip");
-        await using var provider = new RollingFileLoggerProvider(
-            fixture.Directories,
-            maxFileBytes: 1024,
-            maxTotalBytes: 32 * 1024,
-            timeProvider: fixture.Clock);
-        using var factory = LoggerFactory.Create(builder => builder.AddProvider(provider));
-        var logger = factory.CreateLogger("ConcurrentDiagnosticExportTests");
-        logger.LogWarning("prime the active production log file");
-        await provider.FlushAsync();
-
-        var loggingTask = Task.Run(() =>
-        {
-            for (var index = 0; index < 5_000; index++)
-            {
-                logger.LogWarning("rotating diagnostic log record {Record}", index);
-            }
-        });
-        await store.ExportAsync(outputPath, CancellationToken.None);
-        await loggingTask;
-        await provider.FlushAsync();
-
-        using var archive = ZipFile.OpenRead(outputPath);
-        Assert.Contains(archive.Entries, entry => entry.FullName == "logs.jsonl");
-        Assert.NotEmpty(Directory.EnumerateFiles(fixture.Directories.LogsDirectoryPath, "novelspeaker-*.jsonl"));
     }
 
     [Fact]

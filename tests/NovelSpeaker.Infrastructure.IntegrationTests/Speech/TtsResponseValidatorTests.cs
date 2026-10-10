@@ -251,22 +251,6 @@ public sealed class TtsResponseValidatorTests
     }
 
     [Fact]
-    public async Task CreateCandidate_removes_partial_file_when_copy_fails()
-    {
-        var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
-        var directories = new AppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var operations = new PartialCopyThenThrowOperations();
-        var store = new TemporaryAudioStore(directories, operations);
-        var temporaryPath = await store.WriteAsync(7, new MemoryStream("source"u8.ToArray()), CancellationToken.None);
-        var candidatePath = Path.ChangeExtension(temporaryPath, "wav");
-
-        Assert.Throws<IOException>(() => store.CreateCandidate(temporaryPath, "wav"));
-
-        Assert.False(File.Exists(candidatePath));
-    }
-
-    [Fact]
     public async Task Residual_cleanup_removes_abandoned_owner_files_and_preserves_live_owner_and_persistent_data()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

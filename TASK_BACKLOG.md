@@ -34,7 +34,7 @@
 
 ### Phase C — 集成测试去重复与整体门禁
 
-- [ ] **T005（P0）**：压缩 Infrastructure Integration 的重复排列与跨层重复验证，优先保留真实数据/安全/协议风险。依赖 T004，详见 `tasks/T005_INFRASTRUCTURE_TESTS.md`。阶段建议值：Infrastructure ≈240。
+- [x] **T005（P0）**：完成成果：Infrastructure Integration Tests 从 472 减至 327 例，删除/合并重复状态排列、内部实现细节和等价跨层路径，主要涉及 PlaybackCoordinator、Diagnostics、Provider/HTTP、设置存储及 Cache 测试。保留正式迁移与 rollback、SQLite 外键/导入候选、缓存文件与索引一致及清理、目录身份/路径边界、Provider/HTTP/Jint 安全与取消及 Retry-After 冷却、诊断隐私/恢复/不可用归因、真实音频解码及导出有效性等不可替代风险；327 高于建议值约 240，未为数量目标削减这些保护。总量由 T004 的 1094 降至 949（Domain 15、Application 244、Infrastructure 327、Presentation 312、WPF 51）。Infrastructure 327/327、Application 244/244、Presentation 312/312；Release build 0 warnings/errors、format verify、diff check 通过。独立复审 PASS，NS-01/02/03 不适用。
 - [ ] **T006（P0）**：统一清点已保留的风险覆盖、消除残余无用 fixture，复核约 600 例与完整质量门禁。依赖 T005，详见 `tasks/T006_CLOSURE.md`。目标总数 575–625；不可替代的高风险用例允许使实际数量略超预算，必须记录原因，不得为凑数删除。
 
 ## 4. 非目标与结果记录

@@ -198,95 +198,21 @@ public sealed class BookLibraryPersistenceTests
     }
 
     [Fact]
-    public async Task Queries_and_delete_return_null_when_book_is_missing()
-    {
-        var fixture = await CreateFixtureAsync();
-
-        Assert.Null(await fixture.DetailsQuery.GetHeaderAsync("missing", CancellationToken.None));
-        Assert.Null(await fixture.DetailsQuery.GetStatisticsAsync("missing", CancellationToken.None));
-        Assert.Null(await fixture.Deletion.DeleteAsync(new BookDeleteRequest("missing", true), CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task Independent_detail_queries_and_UpdateMetadataAsync_return_expected_projections()
+    public async Task UpdateMetadataAsync_persists_fields_for_subsequent_queries()
     {
         var fixture = await CreateFixtureAsync();
         await SeedBookAsync(fixture, "book-1", title: "原书名", author: null, description: "旧简介");
-        await fixture.ProgressStore.SaveAsync(new PlaybackProgressUpdate("book-1", 1, 0, 8, 240), CancellationToken.None);
-        await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                TestAudioCacheKey.Create("book-1", 1, 0, 1, 10, "第二章 第一段"),
-                "book-1",
-                1,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
 
-        var header = await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None);
-        var catalog = await fixture.DetailsQuery.GetCatalogAsync("book-1", CancellationToken.None);
-        var readingPosition = await fixture.DetailsQuery.GetReadingPositionAsync("book-1", CancellationToken.None);
-        var statistics = await fixture.DetailsQuery.GetStatisticsAsync("book-1", CancellationToken.None);
-        var changes = new List<BookCommittedChange>();
-        fixture.Changes.Changed += (_, _) => throw new InvalidOperationException("observer failed");
-        fixture.Changes.Changed += (_, change) => changes.Add(change);
         var updated = await fixture.Metadata.UpdateMetadataAsync(
-            new BookMetadataUpdateRequest("book-1", "  新书名  ", "  作者甲  "),
+            new BookMetadataUpdateRequest("book-1", "新书名", "作者甲"),
             CancellationToken.None);
+        var persisted = await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None);
 
-        Assert.NotNull(header);
-        Assert.Equal("原书名", header!.Title);
-        Assert.Null(header.Author);
-        Assert.Equal("旧简介", header.Description);
-        Assert.Equal(2, catalog.Count);
-        Assert.Equal(1, readingPosition!.ChapterIndex);
-        Assert.NotNull(statistics);
-        Assert.True(statistics!.CachedAudioBytes > 0);
         Assert.Equal("新书名", updated.Title);
         Assert.Equal("作者甲", updated.Author);
-        Assert.Equal("旧简介", updated.Description);
-        var persisted = await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None);
-        Assert.Equal(updated.Title, persisted!.Title);
-        Assert.Equal(updated.Author, persisted.Author);
-        Assert.Equal(new BookCommittedChange.MetadataCommitted("book-1"), Assert.Single(changes));
-    }
-
-    [Fact]
-    public async Task UpdateMetadataAsync_rejects_blank_title_and_normalizes_blank_author()
-    {
-        var fixture = await CreateFixtureAsync();
-        await SeedBookAsync(fixture, "book-1", title: "原书名", author: "作者");
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            fixture.Metadata.UpdateMetadataAsync(
-                new BookMetadataUpdateRequest("book-1", "   ", "作者"),
-                CancellationToken.None));
-
-        var updated = await fixture.Metadata.UpdateMetadataAsync(
-            new BookMetadataUpdateRequest("book-1", "新书名", "   "),
-            CancellationToken.None);
-
-        Assert.Equal("新书名", updated.Title);
-        Assert.Null(updated.Author);
-    }
-
-    [Fact]
-    public async Task UpdateMetadataAsync_does_not_partially_write_when_book_is_missing()
-    {
-        var fixture = await CreateFixtureAsync();
-        await SeedBookAsync(fixture, "book-1", title: "保留书名", author: "保留作者");
-        var changes = new List<BookCommittedChange>();
-        fixture.Changes.Changed += (_, change) => changes.Add(change);
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Metadata.UpdateMetadataAsync(
-            new BookMetadataUpdateRequest("missing", "新书名", "新作者"),
-            CancellationToken.None));
-
-        var unchanged = await fixture.DetailsQuery.GetHeaderAsync("book-1", CancellationToken.None);
-        Assert.NotNull(unchanged);
-        Assert.Equal("保留书名", unchanged.Title);
-        Assert.Equal("保留作者", unchanged.Author);
-        Assert.Empty(changes);
+        Assert.Equal("新书名", persisted!.Title);
+        Assert.Equal("作者甲", persisted.Author);
+        Assert.Equal("旧简介", persisted.Description);
     }
 
     [Fact]

@@ -20,60 +20,6 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed class SqliteAudioCacheTests
 {
     [Fact]
-    public async Task Cached_book_lists_use_library_metadata_and_keep_unlisted_cache_available_for_cleanup()
-    {
-        var fixture = await CreateFixtureAsync();
-        foreach (var bookId in new[] { "book-1", "book-2" })
-        {
-            await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(
-                CreateKey(bookId, 0, 0, 1, 10, "缓存正文"),
-                bookId, 0, 1, CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg"),
-                CancellationToken.None);
-        }
-
-        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
-        {
-            using var command = connection.CreateCommand();
-            command.CommandText = """
-                UPDATE Books SET Author = '作者一' WHERE Id = 'book-1';
-                UPDATE Books SET Author = '作者二', ImportedAt = 'not-a-date' WHERE Id = 'book-2';
-                """;
-            await command.ExecuteNonQueryAsync(CancellationToken.None);
-        }
-
-        var catalog = new CacheCatalog(
-            fixture.Cache,
-            new SqliteBookPlaybackMetadataQuery(fixture.ConnectionFactory),
-            new BookLibraryQuery(fixture.ConnectionFactory));
-        var books = await catalog.GetCachedBooksAsync(CancellationToken.None);
-        Assert.Equal(["book-1", "book-2"], books.Select(book => book.BookId));
-        Assert.Equal("书一", books[0].Title);
-        Assert.Equal("作者一", books[0].Author);
-        Assert.Equal("book-2", books[1].Title);
-        Assert.Null(books[1].Author);
-        Assert.All(books, book =>
-        {
-            Assert.Equal(1, book.EntryCount);
-            Assert.Equal(1, book.ChapterCount);
-            Assert.True(book.TotalSizeBytes > 0);
-        });
-
-        var targeted = Assert.Single(await catalog.GetCachedBooksAsync(
-            ["book-2", "missing-book"], CancellationToken.None));
-        Assert.Equal(books[1], targeted);
-        Assert.Empty(await catalog.GetCachedBooksAsync(["missing-book"], CancellationToken.None));
-
-        var details = await catalog.GetCachedBookAsync("book-2", CancellationToken.None);
-        Assert.NotNull(details);
-        Assert.Equal("书二", details.Title);
-        Assert.Equal("作者二", details.Author);
-        Assert.Equal(targeted.TotalSizeBytes, details.TotalSizeBytes);
-        Assert.Null(await catalog.GetCachedBookAsync("missing-book", CancellationToken.None));
-        Assert.Equal("第一章", Assert.Single(await catalog.GetCachedChapterCatalogAsync(
-            "book-2", CancellationToken.None)).Title);
-    }
-
-    [Fact]
     public async Task No_active_source_hides_chapter_coverage_but_preserves_cache_for_cleanup()
     {
         var fixture = await CreateFixtureAsync();
@@ -84,7 +30,7 @@ public sealed class SqliteAudioCacheTests
         {
             using var command = connection.CreateCommand();
             command.CommandText = "UPDATE Books SET ActiveSourceId = NULL WHERE Id = 'book-1';";
-            await command.ExecuteNonQueryAsync();
+            await command.ExecuteNonQueryAsync(CancellationToken.None);
         }
 
         Assert.Empty(await fixture.Cache.GetChaptersAsync("book-1", CancellationToken.None));
@@ -147,41 +93,18 @@ public sealed class SqliteAudioCacheTests
         var secondBodyKey = CreateKey("book-1", 0, 1, 7, 12, "正文二");
         var staleProfileKey = CreateKey("book-1", 0, 1, 7, 13, "正文二");
         var titleKey = CreateTitleKey("book-1", 0, 7, 12, "第一章");
+        await InsertIndexedCoverageEntryAsync(fixture, firstBodyKey, "cache-chapter-1-0", profile, healthState: 1);
+        await InsertIndexedCoverageEntryAsync(fixture, secondBodyKey, "cache-chapter-1-0", profile, healthState: 2);
         await InsertIndexedCoverageEntryAsync(
-            fixture,
-            firstBodyKey,
-            "cache-chapter-1-0",
-            profile,
-            healthState: 1);
-        await InsertIndexedCoverageEntryAsync(
-            fixture,
-            secondBodyKey,
-            "cache-chapter-1-0",
-            profile,
-            healthState: 2);
-        await InsertIndexedCoverageEntryAsync(
-            fixture,
-            staleProfileKey,
-            "cache-chapter-1-0",
-            staleProfileKey.Identity.SynthesisProfile,
-            healthState: 1);
-        await InsertIndexedCoverageEntryAsync(
-            fixture,
-            titleKey,
-            "cache-chapter-1-0",
-            profile,
-            healthState: 1);
+            fixture, staleProfileKey, "cache-chapter-1-0", staleProfileKey.Identity.SynthesisProfile, healthState: 1);
+        await InsertIndexedCoverageEntryAsync(fixture, titleKey, "cache-chapter-1-0", profile, healthState: 1);
 
         fixture.CacheConnectionFactory.Reset();
         var lastAccessedBefore = await ReadLastAccessedAtAsync(fixture, firstBodyKey);
         fixture.CacheConnectionFactory.Reset();
         var statuses = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
             [
-                new CurrentCacheChapterQuery(
-                    "cache-chapter-1-0",
-                    0,
-                    true,
-                    Fingerprint.Sha256("第一章")),
+                new CurrentCacheChapterQuery("cache-chapter-1-0", 0, true, Fingerprint.Sha256("第一章")),
                 new CurrentCacheChapterQuery("cache-chapter-1-1", 1, false, null),
                 new CurrentCacheChapterQuery("cache-chapter-1-2", 2, false, null),
                 new CurrentCacheChapterQuery("cache-chapter-1-3", 3, false, null),
@@ -217,14 +140,7 @@ public sealed class SqliteAudioCacheTests
             []);
 
         var statuses = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
-            [
-                new CurrentCacheChapterQuery(
-                    "cache-chapter-1-0",
-                    0,
-                    false,
-                    null,
-                    changedTextProfile)
-            ],
+            [new CurrentCacheChapterQuery("cache-chapter-1-0", 0, false, null, changedTextProfile)],
             profile,
             CancellationToken.None);
 
@@ -329,109 +245,6 @@ public sealed class SqliteAudioCacheTests
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             fixture.Cache.GetValidEntriesAsync([validKey], cancellation.Token));
-    }
-
-    [Fact]
-    public async Task Typed_invalidation_is_published_after_commit_with_the_narrowest_known_scope()
-    {
-        var timeProvider = new ManualTimeProvider();
-        await using var invalidationCoordinator = new CacheInvalidationCoordinator(timeProvider);
-        var batches = new List<CacheInvalidationBatch>();
-        invalidationCoordinator.BatchPublished += (_, batch) => batches.Add(batch);
-        var fixture = await CreateFixtureAsync(invalidationCoordinator: invalidationCoordinator);
-
-        await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                CreateKey("book-1", 0, 0, 1, 10, "第一段"),
-                "book-1",
-                0,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
-        Assert.Empty(batches);
-
-        await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                CreateKey("book-1", 1, 0, 1, 10, "第二段"),
-                "book-1",
-                1,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
-        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
-
-        var firstBatch = Assert.Single(batches);
-        var firstScope = Assert.IsType<CacheInvalidationScope.Chapters>(Assert.Single(firstBatch.Changes).Scope);
-        Assert.Equal([0, 1], firstScope.ChapterIndices);
-        Assert.Equal(
-            CacheInvalidationAspect.PhysicalSummary |
-            CacheInvalidationAspect.CatalogStructure |
-            CacheInvalidationAspect.Coverage,
-            Assert.Single(firstBatch.Changes).Aspects);
-
-        batches.Clear();
-        await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                CreateKey("book-1", 0, 1, 1, 10, "第一段续写"),
-                "book-1",
-                0,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
-        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
-
-        var existingChapterChange = Assert.Single(Assert.Single(batches).Changes);
-        Assert.Equal(CacheInvalidationAspect.PhysicalSummary | CacheInvalidationAspect.Coverage, existingChapterChange.Aspects);
-
-        batches.Clear();
-        await fixture.Cache.ClearChaptersAsync("book-1", [1, 0], CancellationToken.None);
-        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
-
-        var secondScope = Assert.IsType<CacheInvalidationScope.Chapters>(
-            Assert.Single(Assert.Single(batches).Changes).Scope);
-        Assert.Equal([0, 1], secondScope.ChapterIndices);
-
-        batches.Clear();
-        var key = CreateKey("book-1", 2, 0, 1, 10, "第三段");
-        _ = await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                key,
-                "book-1",
-                2,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
-        await fixture.Cache.InvalidateAsync(key, CancellationToken.None);
-        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
-
-        var invalidateScope = Assert.IsType<CacheInvalidationScope.Chapters>(
-            Assert.Single(Assert.Single(batches).Changes).Scope);
-        Assert.Equal([2], invalidateScope.ChapterIndices);
-
-        batches.Clear();
-        var staleKey = CreateKey("book-1", 3, 0, 1, 10, "第四段");
-        var staleEntry = await fixture.Cache.StoreAsync(
-            new AudioCacheWriteRequest(
-                staleKey,
-                "book-1",
-                3,
-                1,
-                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path),
-                "audio/mpeg"),
-            CancellationToken.None);
-        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
-        batches.Clear();
-        File.Delete(staleEntry.FilePath);
-        Assert.Null(await fixture.Cache.TryGetAsync(staleKey, CancellationToken.None));
-        await invalidationCoordinator.FlushPendingAsync(CancellationToken.None);
-
-        var staleScope = Assert.IsType<CacheInvalidationScope.Chapters>(
-            Assert.Single(Assert.Single(batches).Changes).Scope);
-        Assert.Equal([3], staleScope.ChapterIndices);
     }
 
     [Fact]

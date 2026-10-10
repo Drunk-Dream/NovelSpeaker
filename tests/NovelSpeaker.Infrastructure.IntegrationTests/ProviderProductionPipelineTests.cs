@@ -43,7 +43,6 @@ public sealed class ProviderProductionPipelineTests
         await WaitForSnapshotAsync(playback, snapshot =>
             snapshot.State == expectedState && snapshot.SegmentIndex == 1);
         Assert.Equal(1, playback.CurrentSnapshot.SegmentIndex);
-        Assert.Equal(2, fixture.Server.GetRequestCount("/" + path));
         if (expectedState == PlaybackState.Playing)
             Assert.True(playback.CurrentSnapshot.HasLoadedAudio);
         else
@@ -79,24 +78,6 @@ public sealed class ProviderProductionPipelineTests
         Assert.Equal(TtsErrorKind.Cancelled, (await prefetch).Failure!.Kind);
         await active.WaitForCurrentBatchAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
         Assert.Equal(ActiveCacheBatchStatus.Completed, active.CurrentSnapshot!.Status);
-    }
-
-    [Fact]
-    public async Task Paused_book_snapshot_distinguishes_opened_content_from_loaded_sentence_audio()
-    {
-        await using var fixture = await Fixture.CreateAsync(false, 0);
-        var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
-        await playback.OpenPausedAsync(new OpenBookPlaybackRequest("book", 0, 0, 0), CancellationToken.None);
-        Assert.Equal(PlaybackState.Paused, playback.CurrentSnapshot.State);
-        Assert.False(playback.CurrentSnapshot.HasLoadedAudio);
-        Assert.Equal(0, fixture.RequestCount);
-        await playback.ResumeAsync(CancellationToken.None);
-        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
-        await playback.PauseAsync(CancellationToken.None);
-        Assert.Equal(PlaybackState.Paused, playback.CurrentSnapshot.State);
-        Assert.True(playback.CurrentSnapshot.HasLoadedAudio);
-        await fixture.Services.GetRequiredService<SpeechProviderWorkspace>().DeleteAsync(fixture.Provider.Id, CancellationToken.None);
-        Assert.True(playback.CurrentSnapshot.HasLoadedAudio);
     }
 
     [Fact]
@@ -210,30 +191,6 @@ public sealed class ProviderProductionPipelineTests
             (await active.StartAsync(new StartActiveCacheRequest("book", [0], 50), CancellationToken.None)).Status);
     }
 
-    [Fact]
-    public async Task Pending_prefetch_uses_latest_saved_voice_and_speed_when_each_request_starts()
-    {
-        await using var fixture = await Fixture.CreateAsync(true, 0);
-        fixture.Edge.BlockNext = true;
-        var provider = await fixture.Services.GetRequiredService<ICurrentSpeechProvider>().GetSelectedProviderAsync(CancellationToken.None);
-        var prefetch = fixture.Services.GetRequiredService<IPlaybackPrefetchController>();
-        var sessionId = Guid.NewGuid();
-        var requests = Enumerable.Range(0, 2).Select(index => new AudioGenerationRequest("book", 0, index,
-            $"Prefetch {index}", provider!, 0, sessionId)
-        { ChapterId = "chapter", StableSegmentIdentity = StableSpeechSegmentIdentity.Body(index, 1) }).ToArray();
-        await prefetch.SubmitAsync(new PlaybackPrefetchWindow(sessionId, requests), CancellationToken.None);
-        await fixture.Edge.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await fixture.Services.GetRequiredService<SpeechProviderWorkspace>().SaveAsync(fixture.Provider with
-        { Configuration = new EdgeSpeechProviderConfiguration(new EdgeVoice("new-voice", "New", "en-US", "Female")) }, false, CancellationToken.None);
-        await fixture.Services.GetRequiredService<IAppSettingsService>().UpdateAsync(
-            new AppSettingsUpdate { DefaultSpeakSpeed = 50 }, CancellationToken.None);
-        fixture.Edge.Release.TrySetResult();
-        await fixture.Edge.SecondStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await prefetch.CancelAsync(sessionId, CancellationToken.None);
-        Assert.Equal(("voice", "Prefetch 0", -100), fixture.Edge.Calls[0]);
-        Assert.Equal(("new-voice", "Prefetch 1", 0), fixture.Edge.Calls[1]);
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -272,70 +229,6 @@ public sealed class ProviderProductionPipelineTests
         Assert.Equal(ActiveCacheStartStatus.SelectedProviderUnavailable, missing.Status);
         Assert.Equal(ExportChaptersStatus.SelectedProviderUnavailable, (await fixture.ExportAsync()).Status);
         Assert.Equal(count, fixture.RequestCount);
-    }
-
-    [Theory]
-    [InlineData("switch")]
-    [InlineData("edit")]
-    [InlineData("delete")]
-    [InlineData("unconfigured")]
-    [InlineData("hide")]
-    [InlineData("none")]
-    public async Task Saved_selection_changes_preserve_current_audio_and_next_sentence_reads_latest_state(string change)
-    {
-        await using var fixture = await Fixture.CreateAsync(change is "hide" or "unconfigured", prefetchCount: 0);
-        var playback = fixture.Services.GetRequiredService<IPlaybackSession>();
-        var settings = fixture.Services.GetRequiredService<IAppSettingsService>();
-        var store = fixture.Services.GetRequiredService<IProviderStore>();
-        var workspace = fixture.Services.GetRequiredService<SpeechProviderWorkspace>();
-        await playback.StartAsync(new PlaybackStartRequest("book", 0, 0, null, 0), CancellationToken.None);
-        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing);
-        var loaded = fixture.Player.LoadedFile;
-        var expectedId = fixture.Provider.Id;
-        if (change == "switch")
-        {
-            var other = fixture.Provider with { Id = ProviderId.New(), Name = "Second", Configuration = fixture.HttpConfiguration("audio-json") };
-            await store.SaveAsync(other, CancellationToken.None);
-            expectedId = other.Id;
-            await playback.ChangeProviderAsync(other.Id, CancellationToken.None);
-        }
-        else if (change == "edit")
-            await workspace.SaveAsync(fixture.Provider with { Configuration = fixture.HttpConfiguration("audio-json") }, false, CancellationToken.None);
-        else if (change == "delete")
-            await workspace.DeleteAsync(fixture.Provider.Id, CancellationToken.None);
-        else if (change == "unconfigured")
-            await store.SaveAsync(fixture.Provider with { Configuration = new EdgeSpeechProviderConfiguration(null) }, CancellationToken.None);
-        else if (change == "none")
-            await settings.UpdateAsync(new AppSettingsUpdate { ClearCurrentProvider = true }, CancellationToken.None);
-        else
-            await workspace.SetEdgeEnabledAsync(false, CancellationToken.None);
-        await WaitForSnapshotAsync(playback, snapshot => snapshot.State == PlaybackState.Playing && snapshot.HasLoadedAudio);
-        Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
-        Assert.Equal(loaded, fixture.Player.LoadedFile);
-
-        var nextState = change is "switch" or "edit" ? PlaybackState.Playing : PlaybackState.Stopped;
-        var completed = WaitForSnapshotAsync(playback, snapshot => snapshot.SegmentIndex == 1 && snapshot.State == nextState);
-        fixture.Player.Complete();
-        await completed;
-        if (change is "switch" or "edit")
-        {
-            Assert.Equal(PlaybackState.Playing, playback.CurrentSnapshot.State);
-            Assert.Equal(expectedId, playback.CurrentSnapshot.ProviderId);
-            Assert.Equal(1, fixture.Server.GetRequestCount("/audio"));
-            Assert.Equal(1, fixture.Server.GetRequestCount("/audio-json"));
-            Assert.NotEqual(loaded, fixture.Player.LoadedFile);
-        }
-        else
-        {
-            Assert.Equal(PlaybackState.Stopped, playback.CurrentSnapshot.State);
-            Assert.False(playback.CurrentSnapshot.HasAvailableProvider);
-            Assert.Equal(1, fixture.RequestCount);
-            // Completion publishes the new logical target before running its checkpoint effect.
-            // A serialized stop command drains that effect before reading durable progress.
-            await playback.StopAsync(CancellationToken.None);
-            var progress = await fixture.Services.GetRequiredService<IReadingProgressStore>().GetAsync("book", CancellationToken.None);
-            Assert.Equal(1, progress!.SegmentIndex);
-        }
     }
 
     private static async Task WaitForSnapshotAsync(IPlaybackSnapshotSource source, Func<PlaybackSnapshot, bool> predicate)

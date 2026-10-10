@@ -17,30 +17,6 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Books;
 
 public sealed class BookImportRepositoryTests
 {
-    [Fact]
-    public async Task Import_preparation_allows_another_book_to_commit()
-    {
-        var analyzer = new PausingAnalyzer();
-        using var fixture = await Fixture.CreateAsync(analyzer);
-        var paused = fixture.ImportAsync("Paused.txt", "paused body");
-        DirectBookImportResult other;
-        try
-        {
-            await analyzer.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            other = await fixture.ImportAsync("Other.txt", "other body").WaitAsync(TimeSpan.FromSeconds(10));
-            Assert.Equal(DirectBookImportStatus.Imported, other.Status);
-        }
-        finally
-        {
-            analyzer.Continue.TrySetResult();
-            await paused;
-        }
-        var first = await paused;
-        Assert.NotEqual(first.ImportedBook!.BookId, other.ImportedBook!.BookId);
-        Assert.Equal(2L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Books;"));
-        Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
-    }
-
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -215,19 +191,28 @@ public sealed class BookImportRepositoryTests
     }
 
     [Fact]
-    public async Task Multiple_candidates_require_selection_then_can_update_or_create_new()
+    public async Task Duplicate_exact_candidates_require_selection_without_overwriting_existing_content()
     {
         using var fixture = await Fixture.CreateAsync();
-        var a = await fixture.ImportAsync("Fixture.txt", "body a");
-        var b = await fixture.ImportAsync("Fixture.txt", "body b", createNew: true);
+        var first = await fixture.ImportAsync("Fixture.txt", "body a");
+        var second = await fixture.ImportAsync("Fixture.txt", "body b", createNew: true);
+
         var unresolved = await fixture.ImportAsync("Fixture.txt", "body c");
+
         Assert.Equal(DirectBookImportStatus.RequiresBookSelection, unresolved.Status);
         Assert.Equal(2, unresolved.BookCandidates!.Count);
         Assert.Equal(2L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Books;"));
-        var resolved = await fixture.ImportAsync("Fixture.txt", "body c", b.ImportedBook!.BookId);
-        Assert.Equal(b.ImportedBook.BookId, resolved.ImportedBook?.BookId);
-        Assert.Equal("body a", await fixture.ReadContentAsync((await fixture.Repository.GetTargetAsync(a.ImportedBook!.BookId, CancellationToken.None))!));
-        Assert.Equal("body c", await fixture.ReadContentAsync((await fixture.Repository.GetTargetAsync(b.ImportedBook.BookId, CancellationToken.None))!));
+        Assert.Equal("body a", await fixture.ReadContentAsync(
+            (await fixture.Repository.GetTargetAsync(first.ImportedBook!.BookId, CancellationToken.None))!));
+        Assert.Equal("body b", await fixture.ReadContentAsync(
+            (await fixture.Repository.GetTargetAsync(second.ImportedBook!.BookId, CancellationToken.None))!));
+
+        var resolved = await fixture.ImportAsync("Fixture.txt", "body c", second.ImportedBook.BookId);
+        Assert.Equal(second.ImportedBook.BookId, resolved.ImportedBook?.BookId);
+        Assert.Equal("body a", await fixture.ReadContentAsync(
+            (await fixture.Repository.GetTargetAsync(first.ImportedBook.BookId, CancellationToken.None))!));
+        Assert.Equal("body c", await fixture.ReadContentAsync(
+            (await fixture.Repository.GetTargetAsync(second.ImportedBook.BookId, CancellationToken.None))!));
     }
 
     [Fact]

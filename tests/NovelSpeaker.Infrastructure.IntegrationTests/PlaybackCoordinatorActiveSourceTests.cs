@@ -6,76 +6,6 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 
 public sealed partial class PlaybackCoordinatorTests
 {
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Stopped_projection_is_invalidated_by_source_facts_without_another_audio_stop(bool removal)
-    {
-        var audio = new FakeLocalAudioPlaybackCoordinator();
-        var changes = new SourceChanges();
-        await using var coordinator = CreateCoordinator(audio,
-            book: CreateBook() with { SourceContext = new("source-1", "catalog-1") }, sourceChanges: changes);
-        await coordinator.StartAsync(new("book-1", null, null, null, 10), CancellationToken.None);
-        await WaitForPlayingAsync(coordinator);
-        await coordinator.StopAsync(CancellationToken.None);
-        changes.Publish(removal
-            ? new BookCommittedChange.SourceRemoved("book-1", "source-1")
-            : new BookCommittedChange.ActiveCatalogCommitted("book-1", "source-1", "catalog-2"));
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookId is null);
-        Assert.Equal(1, audio.StopCallCount);
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Active_source_change_invalidates_only_the_current_context(bool clearSource)
-    {
-        var audio = new FakeLocalAudioPlaybackCoordinator();
-        var changes = new SourceChanges();
-        await using var coordinator = CreateCoordinator(audio,
-            book: CreateBook() with { SourceContext = new("source-1", "catalog-1") }, sourceChanges: changes);
-        await coordinator.StartAsync(new("book-1", null, null, null, 10), CancellationToken.None);
-        await WaitForPlayingAsync(coordinator);
-        var previous = coordinator.CurrentSnapshot;
-        changes.Publish(new BookCommittedChange.ActiveSourceChanged("other-book", "source-1", "source-2"));
-        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "other-source", "new-catalog"));
-        changes.Publish(new BookCommittedChange.SourceRemoved("book-1", "other-source"));
-        Assert.Equal(previous, coordinator.CurrentSnapshot);
-        changes.Publish(new BookCommittedChange.ActiveSourceChanged("book-1", "source-1", clearSource ? null : "source-2"));
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookId is null);
-        await coordinator.StopAsync(CancellationToken.None);
-        Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
-        Assert.Equal(1, audio.StopCallCount);
-    }
-
-    [Fact]
-    public async Task Source_invalidation_cancels_target_transition_checkpoints()
-    {
-        var content = new FakeBookPlaybackContentService(CreateBook() with
-        { SourceContext = new("source-1", "catalog-1") });
-        var changes = new SourceChanges();
-        var progress = new FakeReadingProgressStore
-        {
-            SaveGate = new(TaskCreationOptions.RunContinuationsAsynchronously),
-            SaveGateCall = 2
-        };
-        await using var coordinator = CreateCoordinator(new FakeLocalAudioPlaybackCoordinator(),
-            bookContentService: content, readingProgressStore: progress, sourceChanges: changes);
-        await coordinator.StartAsync(new("book-1", 0, 0, null, 10), CancellationToken.None);
-        await WaitForPlayingAsync(coordinator);
-        var savedBeforeNavigation = progress.SavedProgress.Count;
-
-        var navigation = coordinator.JumpToSegmentAsync(0, 1, CancellationToken.None);
-        await progress.SecondSaveStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        content.Book = content.Book with { SourceContext = new("source-1", "catalog-2") };
-        changes.Publish(new BookCommittedChange.ActiveCatalogCommitted("book-1", "source-1", "catalog-2"));
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => navigation.WaitAsync(TimeSpan.FromSeconds(5)));
-        await WaitForAsync(coordinator, () => coordinator.CurrentSnapshot.BookId is null);
-
-        Assert.Equal(savedBeforeNavigation, progress.SavedProgress.Count);
-        Assert.Null(coordinator.CurrentSnapshot.SourceContext);
-    }
-
     [Fact]
     public async Task Removal_quiesces_active_source_and_rejects_late_audio_without_stopping_other_source()
     {
@@ -103,39 +33,6 @@ public sealed partial class PlaybackCoordinatorTests
         await coordinator.StopForRemovalAsync("book-1", null, CancellationToken.None);
         Assert.Equal(PlaybackState.Idle, coordinator.CurrentSnapshot.State);
         Assert.Null(coordinator.CurrentSnapshot.BookId);
-    }
-
-    [Fact]
-    public async Task Restart_clamps_shrunken_catalog_and_chapter_before_checkpoint()
-    {
-        var audio = new FakeLocalAudioPlaybackCoordinator();
-        var progress = new FakeReadingProgressStore
-        {
-            StoredProgress = new ReadingProgressEntry("book-1", 12, 99, 999, 777, DateTimeOffset.UnixEpoch)
-        };
-        await using var coordinator = CreateCoordinator(audio, book: CreateTwoChapterBook(), readingProgressStore: progress);
-        await coordinator.OpenPausedAsync(new OpenBookPlaybackRequest("book-1", null, null, null), CancellationToken.None);
-        Assert.Equal(1, coordinator.CurrentSnapshot.ChapterIndex);
-        Assert.Equal(0, coordinator.CurrentSnapshot.SegmentIndex);
-        var checkpoint = Assert.Single(progress.SavedProgress);
-        Assert.Equal(1, checkpoint.ChapterIndex);
-        Assert.Equal(0, checkpoint.SegmentIndex);
-        Assert.Equal(6, checkpoint.CharacterOffset);
-        Assert.Equal(0, checkpoint.AudioPositionMilliseconds);
-        Assert.Equal(0, audio.StartCallCount);
-    }
-
-    [Fact]
-    public async Task Empty_active_catalog_does_not_start_or_checkpoint()
-    {
-        var audio = new FakeLocalAudioPlaybackCoordinator();
-        var progress = new FakeReadingProgressStore();
-        await using var coordinator = CreateCoordinator(audio, book: new PlaybackBookContent("book-1", "保留显示名称", []),
-            readingProgressStore: progress);
-        await coordinator.StartAsync(new PlaybackStartRequest("book-1", null, null, null, 10), CancellationToken.None);
-        Assert.Equal(PlaybackState.Faulted, coordinator.CurrentSnapshot.State);
-        Assert.Equal(0, audio.StartCallCount);
-        Assert.Empty(progress.SavedProgress);
     }
 
     [Fact]

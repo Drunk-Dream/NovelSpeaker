@@ -34,44 +34,6 @@ public sealed class PlaybackContentResolverTests
     }
 
     [Fact]
-    public async Task GetBookAsync_does_not_resume_on_the_callers_synchronization_context()
-    {
-        using var database = CreateDatabase(createContentFile: false);
-        var connectionFactory = new TestSqliteConnectionFactory(database.ConnectionString, gateOpen: true);
-
-        var service = new PlaybackContentResolver(
-            new SqliteBookPlaybackMetadataQuery(connectionFactory),
-            CreateContentReader(database),
-            new TextSegmenter(),
-            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
-            new PassthroughRegexReplacementPipeline());
-
-        var previousContext = SynchronizationContext.Current;
-        var trackingContext = new TrackingSynchronizationContext();
-        SynchronizationContext.SetSynchronizationContext(trackingContext);
-
-        Task<PlaybackBookContent?> loadTask;
-        try
-        {
-            loadTask = service.GetBookAsync("book-1", CancellationToken.None);
-            await connectionFactory.OpenStarted.WaitAsync(TimeSpan.FromSeconds(5));
-        }
-        finally
-        {
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-        }
-
-        connectionFactory.Release();
-        var book = await loadTask;
-
-        Assert.NotNull(book);
-        Assert.Single(book!.Chapters);
-        Assert.Empty(book.Chapters[0].Segments);
-        Assert.Equal(PlaybackChapterLoadState.Unloaded, book.Chapters[0].LoadState);
-        Assert.Equal(0, trackingContext.PostCount);
-    }
-
-    [Fact]
     public async Task GetChapterAsync_reads_from_content_file_and_segments_relative_to_chapter_text()
     {
         using var database = CreateDatabase(createContentFile: true);
@@ -150,37 +112,6 @@ public sealed class PlaybackContentResolverTests
 
         Assert.Equal([0, 1], chapters.Select(chapter => chapter.ChapterIndex));
         Assert.All(chapters, chapter => Assert.Equal(PlaybackChapterLoadState.Loaded, chapter.LoadState));
-    }
-
-    [Fact]
-    public async Task GetChaptersAsync_does_not_read_metadata_for_unrequested_chapters()
-    {
-        using var database = CreateDatabase(createContentFile: true);
-        await using (var connection = new SqliteConnection(database.ConnectionString))
-        {
-            await connection.OpenAsync(CancellationToken.None);
-            using var command = connection.CreateCommand();
-            command.CommandText =
-                """
-                INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title) VALUES
-                ('chapter-unrequested', 'local:' || 'book-1', 'not-an-index', 99, '未请求章节');
-                INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES
-                ('chapter-unrequested', 0, 1);
-                """;
-            await command.ExecuteNonQueryAsync(CancellationToken.None);
-        }
-
-        var service = new PlaybackContentResolver(
-            new SqliteBookPlaybackMetadataQuery(new TestSqliteConnectionFactory(database.ConnectionString)),
-            CreateContentReader(database),
-            new TextSegmenter(),
-            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
-            new PassthroughRegexReplacementPipeline());
-
-        var chapters = await service.GetChaptersAsync("book-1", [0], CancellationToken.None);
-
-        var chapter = Assert.Single(chapters);
-        Assert.Equal(0, chapter.ChapterIndex);
     }
 
     [Fact]
