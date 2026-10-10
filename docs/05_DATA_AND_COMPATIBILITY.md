@@ -5,342 +5,300 @@
 | 数据 | 权威来源 |
 |---|---|
 | 用户外部 TXT | 用户文件；只作为导入输入，应用永不写回 |
-| Book 当前展示元数据、ActiveSourceId | SQLite |
-| Source 元数据与 Catalog | SQLite |
-| Local Source 正文 | 应用数据根中的持久 Source 内容文件 |
+| Book identity / Description / ActiveSourceBindingId | SQLite |
+| BookSourceBinding 与 Local Binding typed data | SQLite |
+| 当前 Active Source 的 CurrentCatalog | SQLite |
+| Local Source 正文 | 应用数据根中的持久正文文件 |
 | 当前活动播放位置 | Playback session / PlaybackSnapshot |
 | 可恢复阅读进度 | SQLite ReadingProgress |
-| 章节/元数据/正则规则配置 | 对应正式持久化 store |
-| Speech Provider 元数据、排序与类型配置 | 正式持久化 store |
-| CurrentProvider 与其它用户设置 | Settings store |
-| Speech Plan | Cache 管理的可重建派生数据 |
-| 音频缓存 | Cache 管理的可重建文件 + index |
-| 未来 Online Source 正文缓存 | Source-scoped 文件缓存；不进入 `app.db` |
+| 章节/元数据/正则规则 | 对应正式持久化 store |
+| Speech Provider 与设置 | 对应正式持久化 store |
+| Speech Plan / Audio Cache | Cache 管理的可重建派生数据 |
+| Future Online正文缓存 | 文本文件 + 必要 SQLite metadata；不把正文 body 存入 app.db |
 | Active Cache / Export 运行态 | Process coordinator snapshot |
-| 普通性能遥测 | 本地可删除诊断数据 |
-| 诊断会话 | `.nsdiag` 会话文件 |
-| 生产日志 | 本地 JSONL |
+| 普通性能遥测 / 诊断 / 日志 | 对应本地辅助数据 |
 
 Local Source 是导入快照。导入成功后，原始 TXT 的移动、重命名或删除不得使已导入书籍失效。
 
 ## 2. 数据根与存储信任边界
 
-正式应用数据位于程序最终解析得到的数据根。开发与自动测试使用独立数据根，避免污染真实用户数据。
+正式应用数据位于程序最终解析的数据根。开发与测试使用独立数据根。
 
-显式开发/诊断覆盖必须是可识别的开发能力，不建立旧数据根的隐式探测、双读、回退或静默迁移。
+- 数据根本身是可信锚点，其祖先或数据根可以由安装器/Scoop 通过 Junction、Symlink 等映射。
+- 数据根内部不得继续穿越未经应用管理的 reparse point。
+- Books、Cache、数据库、日志、Telemetry、Diagnostics 等路径使用统一信任边界组件。
+- Scoop `current\Data -> persist\novelspeaker\Data` 是支持场景。
+- 用户显式选择的导出目标不属于应用数据根，但导出实现不得借此扩大内部文件访问范围。
 
-应用管理的持久化路径必须经过统一的数据根解析、归属验证和信任边界检查：
+## 3. Book / Binding / CurrentCatalog 持久化边界
 
-- 最终选定的数据根本身是可信锚点。数据根及其祖先可以由安装器、包管理器或用户环境通过 Junction、Symlink 或其他 reparse point 映射，不得仅因为数据根本身或其祖先是 reparse point 就拒绝启动或访问。
-- 数据根内部不得继续穿越未经应用管理的 reparse point。Books、Cache、数据库、日志、Telemetry、Diagnostics 等内部路径必须保持在同一逻辑数据根内，并拒绝内部链接逃逸。
-- reparse-point 规则必须由统一的存储信任边界组件负责，Diagnostics、Cache、Books 等模块不得维护不同的私有规则。
-- Scoop 的典型 `current\Data -> persist\novelspeaker\Data` 布局必须作为受支持场景纳入自动测试。
+长期模型以 `docs/specs/BOOK_DATA_MODEL.md` 为准。
 
-用户显式选择的导出目标不属于应用数据根。Windows 保存文件对话框只决定最终导出文件的位置和文件名；导出目标可以位于数据根之外，应用内部源数据位置不得要求用户手动选择。导出实现只操作用户选择的目标文件及其同目录临时文件，不借此扩大应用内部存储访问范围。
+### 3.1 Books
 
-## 3. Book / Source / Catalog 持久化边界
+Books 保存：
 
-长期数据模型以 `docs/specs/BOOK_DATA_MODEL.md` 为准。
+- `Id`：技术主键；
+- `Title` / `Author`；
+- `NormalizedTitle` / `NormalizedAuthor`；
+- `Description` 等 Book 级当前详情字段；
+- nullable `ActiveSourceBindingId`；
+- Book 级时间状态。
 
-### Book
+数据库必须对：
 
-Book 保存：
+```text
+(NormalizedTitle, NormalizedAuthor)
+```
 
-- `BookId`；
-- 当前展示 Title / Author / Description / Cover 等元数据快照；
-- nullable `ActiveSourceId`；
-- Book 级时间状态；
-- ReadingProgress 通过独立表按 BookId 关联。
+建立唯一约束。
 
-Book 不保存 Local TXT 专属路径、编码、内容 hash 等 Source 私有字段。
+Title / Author 入库后不通过普通产品流程修改。
 
-### Source
+### 3.2 BookSourceBindings
 
-Source 保存：
+Binding 保存通用关系：
 
-- `SourceId`；
-- 所属 `BookId`；
-- Source Type；
-- Source 自己的元数据快照；
-- 创建/更新时间等必要内部状态。
+```text
+BindingId
+BookId
+SourceType
+CreatedAt
+UpdatedAt
+```
 
-类型专属持久化使用 typed storage，而不是万能 JSON：
+类型专属数据使用 typed table。
 
-- Local Source 保存原始导入文件名（仅作为来源信息）、内部正文存储 key、导入时编码、内容 hash、导入时间等 Local 专属信息。
-- 每个 Book 最多一个 Local Source。
-- Online Source 的 identity/config/locator 等具体字段在真正实现 Online Source 时再定义；当前 schema 不提前固化 Legado 或站点规则细节。
+Local Binding 至少保存：
 
-### Catalog
+- OriginalFileName；
+- StoredContentPath；
+- SourceHash；
+- Encoding；
+- ImportedAt / LastImportedAt。
 
-Catalog 属于 Source。
+每个 Book 最多一个 Local Binding。
 
-- 章节记录通过 `SourceId` 归属 Source，而不是直接归属 Book。
-- 章节可以保留技术性 `ChapterId`，用于 Speech Plan、音频缓存和数据库外键。
-- 技术性 ChapterId 不构成产品级跨更新/跨 Source Chapter Identity。
-- Local Source 的正文范围等 Local 专属内容定位信息使用 Local typed persistence；不把这类字段强加为未来 Online Source 的通用 Catalog 合同。
+当前 schema 不提前固化 Online Source Definition 的规则、HTTP、登录、变量或 locator 细节。
 
-### ReadingProgress
+### 3.3 CurrentCatalog
 
-ReadingProgress 继续按 BookId 保存。
+SQLite **只保存当前 Active Source 对应的一份 Catalog**。
 
-- ReadingProgress 不通过 ChapterId 持久引用章节身份。
-- 核心语义是 ChapterIndex + 章内位置。
-- Source 切换与 Catalog 更新只做边界截断，不做内容匹配。
+Catalog entry 至少保存：
 
-## 4. SQLite migration
+```text
+ChapterId
+BookId
+SourceBindingId
+ChapterIndex
+SortOrder
+Title
+```
 
-- 已发布 migration append-only。
-- 不修改、合并、删除或重编号已发布 migration。
+其中 `SourceBindingId` 表示这份当前目录由哪个 Binding 产生，不能用于表示“该 Binding 永久拥有一份 Catalog”。
+
+Local-only `StartOffset / Length` 等定位信息放在 typed LocalChapterContent persistence 中。
+
+长期不保留 inactive Binding 的 Catalog rows。
+
+### 3.4 ReadingProgress
+
+ReadingProgress 继续按 BookId 保存，不持久引用 ChapterId 作为阅读身份。
+
+- 核心语义是 ChapterIndex + 章内位置；
+- Source switch / Catalog replacement 只做边界截断；
+- 不做标题、内容、URL、Hash 或模糊匹配。
+
+## 4. SQLite migration 总则
+
+- 已发布 migration append-only；不修改、删除、合并或重编号历史 migration。
 - schema 变化必须有升级测试。
-- 内部 namespace/API/目录重构不得产生无意义 migration。
-- 已发布用户数据兼容与内部代码兼容是两个不同问题；项目不为内部 compatibility 长期保留 wrapper。
-- migration 成功后，运行时代码只读取新 schema；不双读、不双写旧 Book/Chapter schema。
+- migration 成功后运行时代码只读取新 schema，不双读/双写旧结构。
+- 内部 namespace/API 重构不得产生无意义 migration。
+- 涉及表重建时必须执行 `PRAGMA foreign_key_check` 或等价完整性验证。
+- migration 失败必须保持旧数据库事务完整，不允许部分 schema/数据提交。
 
-### v0.8.0 → 通用 Book/Source 模型
+## 5. v12 → CurrentCatalog 模型迁移
 
-v0.8.0 的持久化形态把 Local TXT 专属字段直接放在 `Books`，并让 `Chapters.BookId` 直接归属 Book。本轮已批准把这些数据迁入通用 Book/Source 模型。
+当前 v12 已具有 `Books / BookSources / LocalBookSources / Chapters(SourceId) / LocalChapterContents`，但其语义仍是“Source 拥有自己的 Catalog、Book 展示元数据可随 Source 变化”。下一轮已批准迁移到新的 Book Identity + Binding + CurrentCatalog 结构。
 
-允许的持久化变更集合：
+### 5.1 已批准的持久化变更集合
 
-1. 新增 Source 基表，表达 `SourceId / BookId / SourceType / Source metadata snapshot`。
-2. 新增 Local Source typed persistence，承接 v0.8.0 `Books.OriginalFileName / StoredFilePath / SourceHash / Encoding / LastImportedAt` 等 Local 专属数据。
-3. `Books` 增加 nullable `ActiveSourceId`，并把当前展示元数据保留在 Book。
-4. 重建/调整 `Books`，移除已经迁入 Local Source 的 Source 专属字段。
-5. 重建/调整章节表，使章节 Catalog 归属 `SourceId`；保留现有技术性 ChapterId 和 ChapterIndex。
-6. Local Source 专属章节内容范围可以拆入 typed Local persistence；实现应优先选择能保持未来 Source 通用性的结构，而不是继续把 Local-only 字段当全局 Catalog 合同。
-7. 迁移每本 v0.8.0 本地书时创建一个 Local Source，并把它设为 ActiveSource。
-8. 保留 BookId、ChapterId、ReadingProgress、ChapterSpeechPlans、音频缓存及其它可安全保持的正式数据关系。
-9. 删除旧 SourceHash-on-Books 等已经失去语义的索引/约束，按新模型建立必要约束。
-10. 不为旧 schema 建立长期 compatibility reader/writer。
+Codex 可以直接实施以下集合，无需再次逐字段请求授权：
 
-当前 v0.8.0 已经把规范化正文保存为应用内 `Books/{BookId}/content.txt`。由于每个 Book 最多一个 Local Source，该文件可以直接成为迁移后 Local Source 的内部正文存储，不要求为了目录美观进行一次性文件搬迁。这样迁移应主要是 SQLite 数据所有权转换，避免新增跨 SQLite/文件系统的重型迁移框架。
+1. `Books` 增加并持久化 `NormalizedTitle / NormalizedAuthor`，并建立唯一约束。
+2. `Books.ActiveSourceId` 可重命名/重建为语义明确的 `ActiveSourceBindingId`。
+3. 现有 `BookSources` 收敛为通用 `BookSourceBindings` 语义；删除 Title / Author / Description 等不再属于 Binding 真值的旧字段。
+4. 现有 `LocalBookSources` 收敛为 Local Binding typed persistence；允许随通用表命名同步重建/重命名。
+5. 重建 `Chapters`，从 Source-owned Catalog 改为 Book 当前 Catalog：章节至少关联 `BookId + SourceBindingId`，并保证一个 Book 当前只存在一套 ordinal Catalog。
+6. 保留 `LocalChapterContents` 或等价 typed table 承载 `StartOffset + Length`。
+7. 建立必要的 FK / unique index / trigger，使 Active Binding 必须属于同一 Book、每 Book 最多一个 Local Binding、CurrentCatalog chapter ordinal 唯一。
+8. 保留现有 BookId、Local Binding/Source Id、可安全保留的 ChapterId、ReadingProgress、Speech Plan、Audio Cache 及其它仍语义有效的数据关系。
+9. 保留现有应用内 normalized content 文件；不为了目录美观做一次性文件搬迁。
+10. 删除已经失去语义的旧索引、列、Source-owned Catalog 查询路径和运行时兼容层。
+11. 不在本轮新增 Online Source Definition/规则表、Search/Refresh 临时表或 Online 正文缓存表。
 
-如果实现审计证明上述有界迁移无法安全完成，且必须依赖模糊章节匹配、重新寻找用户外部 TXT、长期双模型兼容或新增复杂一次性恢复系统，则停止自动迁移方案，改为新版本要求用户重新导入本地书籍；不要为一次性兼容引入长期复杂度。
+实现可以根据 SQLite 限制选择等价表名和迁移步骤，但不得改变上述领域语义。
 
-### 已有 Provider migrations
+### 5.2 Title / Author normalization migration
 
-- v8 的旧 HTTP TTS Rule → Speech Provider 迁移只转换能按新合同安全表达的配置；成功后不保留旧运行路径。
-- v9 增加 `EdgeSpeechProviderConfigs` 并保持 Edge 单实例约束。
-- 后续 Provider schema 仍遵守 append-only migration 和 typed storage。
+历史数据升级时必须通过与运行时相同的唯一 normalization component 计算身份，而不是在 SQL、导入和查询中复制三套规则。
 
-## 5. ReadingProgress
+规范化长期合同：
 
-- 当前活动 Book 的即时位置由 Playback session/snapshot 提供。
-- SQLite ReadingProgress 是重启和非活动 Book 的恢复基线。
-- 页面不得直接写 ReadingProgress。
-- 显式跳转成功后及时 checkpoint。
-- 不进行逐毫秒高频 SQLite 写入。
-- Source 切换、Local Source 更新或 Catalog 替换后，持久进度只做合法边界截断。
+- Unicode NFC；
+- trim；
+- 连续 Unicode whitespace → 单个普通空格；
+- null/empty Author → `""`；
+- 保留大小写、标点、括号、副标题等其它字符。
 
-## 6. Local TXT 导入
+### 5.3 历史身份冲突
+
+若两个或更多历史 Book 在新 normalization 后产生相同 `(NormalizedTitle, NormalizedAuthor)`：
+
+- 不自动合并 Book；
+- 不移动/覆盖任一 Local Source；
+- 不静默保留“第一条”；
+- migration 原子失败；
+- 向上层返回可识别的兼容失败，由产品进入明确的“该书库需要重新导入”处理路径；
+- 不为了该罕见历史冲突增加长期 dedup/alias/compatibility 模型。
+
+### 5.4 Current Catalog 迁移
+
+v12 当前只实现 Local Source，因此通常可以把现有 Active Local Source 的 `Chapters` 原位迁为该 Book 的 CurrentCatalog，同时保留 ChapterId。
+
+如果真实数据库出现与 v12 合同不一致、无法无歧义判断当前目录来源的数据：
+
+- 不猜测 inactive/active Catalog；
+- 不做模糊章节匹配；
+- 迁移失败并进入重新导入路径。
+
+## 6. Local TXT 导入持久化
 
 典型流程：
 
 ```text
 choose TXT
-→ validate path
-→ detect encoding
-→ normalize
-→ detect explicit chapter titles
-→ extract filename/header metadata
-→ apply chapter rules + optional blank-line chaptering
-→ resolve Book candidate by strict Title + Author
-→ build complete Local Source snapshot
-→ atomically create/update Book + Local Source + Catalog
+→ validate path / encoding
+→ normalize content
+→ extract metadata
+→ confirm Title/Author only when rule recognition is incomplete
+→ normalize Book identity
+→ resolve unique Book
+→ build Local Binding content snapshot
+→ build CurrentCatalog candidate when Local is/will be Active
+→ atomic commit
 ```
 
-Book/Source 元数据长期支持 Title、Author、Description。Description 属于持久元数据，不从章节正文派生显示时临时计算。
+- 导入设置变化不静默重写已有书籍。
+- 重新导入失败必须保留旧 Local content 与旧 CurrentCatalog。
+- Book Identity 由最终确认后的 Title + Author 决定。
+- 入库后不通过 metadata editor 修改 Title / Author。
 
-文件名元数据规则、正文头部元数据规则、章节规则与“空行分章”的精确执行语义见 `specs/BOOK_IMPORT.md`。
-
-规则/导入设置变化不静默重写已经导入的书籍；只有明确重新导入/更新 Local Source 时才使用最新配置。
-
-重新导入失败必须保留旧 Source snapshot。成功后新 snapshot 一次性成为真值。
+精确规则见 `specs/BOOK_IMPORT.md`。
 
 ## 7. Query 与 read model
 
-持久化层不向 UI 暴露“一切都有”的大型 DTO。Application 使用场景化 query：
+持久化层不向 UI 暴露大型万能 DTO。Application 使用场景化 query，例如：
 
 - Library summaries；
-- Book header；
+- Book details header；
 - bound Source summaries；
-- ActiveSource summary；
-- Active Source Catalog；
+- Active Source summary；
+- CurrentCatalog；
 - Book ReadingPosition；
 - chapter content；
-- Provider summaries / Provider editor model；
-- audio cache status/coverage for explicit range；
-- cached book/chapter summaries。
+- Provider summaries/editor model；
+- audio cache read models。
 
-避免 N+1；稳定 Catalog 与动态 enrichment 分离。
+避免 N+1；CurrentCatalog 与动态 decoration 分离。普通页面不直接依赖 `StoredContentPath`、SQLite row shape 或 Local typed storage。
 
-普通页面不直接依赖 `StoredFilePath`、SQLite row shape 或 Local Source typed storage。正文读取通过 Source/content port。
+## 8. Source Content 与 Cache
 
-## 8. Source Content 与 Cache 数据
+### 8.1 Local Source Content
 
-### Local Source Content
+- 是业务持久数据；
+- Audio Cache 清理、容量维护不得删除；
+- 只有 Local Binding 更新/删除或 Book 删除时替换/删除；
+- 外部原 TXT 不再是运行时真值。
 
-- Local Source 正文是业务持久数据。
-- 普通 Cache 清理、音频缓存清理、容量维护不得删除 Local Source 正文。
-- 只有更新/移除 Local Source 或删除 Book 时才替换/删除对应持久正文。
+### 8.2 Audio Cache
 
-### Audio Cache
+Audio Cache 是可重建派生数据。Provider synthesis fingerprint、SpeechText 与稳定段身份决定缓存可用性；ProviderId/名称/排序不作为合成身份。
 
-音频 Cache 是可重建派生数据：
+### 8.3 Future Online Text Cache
 
-- 物理文件/index 可以被健康维护与清理。
-- Speech Plan 只保存当前有意义的派生版本。
-- Provider synthesis fingerprint 使用版本化规范序列化。
-- ProviderId、名称和排序不作为音频生成身份。
-- Provider 配置变化后旧音频文件允许保留；fingerprint 不匹配时只视为当前配置不可用。
+未来允许：
 
-### Future Online Source Content Cache
+```text
+OnlineTextCacheMetadata
+- BindingId
+- ContentLocator
+- LocalPath
+- 其它必要获取/校验元数据
+```
 
-当前不实现 Online Source，但预留以下边界：
+正文 body 存文本文件，不存 app.db。
 
-- 在线章节正文不存入 `app.db`。
-- 正文缓存使用 Source-scoped 文件存储；不另建一套必须与文件双向同步的正文缓存真值数据库。
-- 生命周期与 Source 绑定一致；解除 Source 绑定时清理该 Source 正文缓存。
-- Source 切换不自动清理非当前 Source 缓存。
-- 暂不设容量上限、LRU 或按章节高级管理。
-- 第一阶段只需要支持“清理某 Book 的全部在线正文缓存”这一粗粒度能力。
-- locator 消失或改变时旧正文立即失效；只有 locator 明确一致时才允许复用。
-- Local Source 正文永远不进入这一缓存体系。
+生命周期：
 
-## 9. Provider 与规则导入/导出
+- 普通 Source switch 不清理；
+- refresh catalog 不清理；
+- refresh bindings 不因暂时未发现某 Binding 就即时物理清理；
+- 不使用 LRU/自动淘汰；
+- 删除 Book 或用户主动清理时清理；
+- locator 不一致时禁止错误复用。
 
-HTTP Provider 使用 NovelSpeaker 自有版本化交换格式；章节规则、正则替换规则、文件名元数据规则和正文头部元数据规则分别使用各自的版本化交换格式。
+本轮不创建这些表或运行时实现。
 
-共同原则：
+## 9. 删除与恢复
 
-- 一个文件/剪贴板文档可以包含一个或多个同类型项。
-- 批量导出把当前选择集写入一个文档，而不是为每项弹出独立保存对话框。
-- 批量导入逐项解析与校验；单项失败不回滚其它有效项。
-- 完全重复项跳过；同名不同内容按对应工作台的唯一命名/追加规则处理，不覆盖既有项。
-- 新导入项保持文档中的稳定顺序并追加到对应排序末尾。
-- 导入不自动改变 CurrentProvider，也不自动切换正在编辑的规则/Provider。
+SQLite 外键级联只能处理记录，不能替代真实文件协调。
 
-Provider 特有规则：
+删除 Book 需要协调：
 
-- 配置相同但名称不同的 HTTP Provider 仍新增；同名但配置不同则自动生成唯一名称后新增。
-- Microsoft Edge 等不可分享的内置 Provider 不参与导入/导出。
-- Provider 分享导出包含完整 HTTP 配置，可能包含 API Key、Token、Cookie 等敏感值。
-- 不建立自动 Secret 分离或自动脱敏导出；导出前必须明确提醒用户检查敏感凭据。
-
-私人配置备份与用于分享的 Provider/规则导出是两个不同语义。
-
-## 10. 配置备份与恢复
-
-第一版配置备份是本地、私人、版本化的完整配置快照。
-
-### 包含
-
-- App Settings，包括主题、播放/文本相关全局设置、实验功能状态、CurrentProvider 等正式设置；
-- 全部 Speech Provider 持久配置及排序；
-- HTTP Provider 中的 API Key、Token、Cookie 等敏感凭据；
-- 章节规则；
-- 正则替换规则；
-- 文件名元数据规则；
-- 正文头部元数据规则。
-
-### 不包含
-
-- 用户 TXT、内部 Book/Source/Catalog/Content；
-- ReadingProgress；
-- Speech Plan、音频缓存和 Active Cache 运行态；
-- 生产日志、普通性能遥测、诊断会话或问题诊断导出；
-- 临时文件和其它可重建派生数据。
-
-### 恢复语义
-
-- 恢复前先完整解析并校验备份文档；明显损坏或不支持的 schema 不进行部分写入。
-- 恢复采用“替换当前配置快照”语义，而不是与现有配置静默合并。
-- 在开始替换前明确提示当前配置会被覆盖；书籍、阅读进度和缓存不受影响。
-- 跨多个持久化 store 的恢复必须有明确协调/补偿边界。
-- 恢复结束后由各配置 owner 通过现有 typed change/invalidation 语义刷新运行时。
-- 第一版备份文件不要求加密，但创建时必须明确提示其中可能包含敏感凭据。
-- 第一版不包含 WebDAV、账号同步或远程上传。
-
-## 11. 删除与恢复
-
-SQLite 外键级联只能处理记录，不能代替真实文件协调。
-
-删除 Book 时必须明确协调：
-
-- Book / Sources / Catalog SQLite records；
-- Local Source 持久正文；
+- Book / Bindings / CurrentCatalog records；
+- Local persistent content；
 - ReadingProgress；
 - Speech Plan；
-- 音频 cache index/file；
-- 必要的恢复/补偿状态。
+- Audio Cache index/files；
+- Future Online text cache；
+- 必要恢复/补偿状态。
 
-Source 生命周期：
+删除 Active Binding 时 ActiveSourceBindingId → null，不自动选择其它 Source；删除最后一个 Binding 时删除 Book。
 
-- 删除非最后一个 Source 只删除该 Source 自己的 metadata / Catalog / content/cache。
-- 删除 ActiveSource 时 `ActiveSourceId` 变为 None，不自动选择其它 Source。
-- 删除最后一个 Source 时同时删除 Book。
-- Source 删除失败不得留下“数据库已解绑但持久正文仍被业务视为有效”或相反的半提交状态。
+任何恢复路径不得越过数据根信任边界。
 
-删除当前 Speech Provider 时必须同时把 CurrentProvider 清空为 None，不自动切到其它 Provider。
+## 10. 配置、Provider 与规则兼容
 
-任何恢复路径都不能越过数据根安全边界。
+HTTP Provider、章节规则、正则规则、文件名元数据规则、正文头部元数据规则继续使用各自版本化正式格式。私人配置备份与用于分享的 Provider/规则导出保持不同语义。
 
-## 12. 诊断数据生命周期
+Book/Source 本轮重构不得顺手改动这些独立格式，除非新的 Book 导入身份流程确实需要最小必要变化。
 
-生产日志、性能遥测和诊断会话属于辅助诊断数据，不是业务真值。
+## 11. 诊断隐私
 
-- 性能遥测默认关闭，历史可由用户清除。
-- 普通遥测内部保留时间/容量属于实现策略，不形成用户可配置合同。
-- 已结束 `.nsdiag` 不自动删除；用户通过系统文件管理器管理。
-- 每个诊断会话具有用户可设的硬容量上限。
-- 诊断导出包是派生交换格式，不成为第二份运行时真值。
-- 诊断基础设施损坏、满盘或写入失败不得损坏业务数据。
+结构化日志、普通遥测和诊断会话默认禁止记录小说正文、书名、章节标题、完整本地路径、完整 URL/Query、HTTP Header/Body、Token/API Key、TTS 文本、Regex 正文、SQL 用户参数或缓存音频。
 
-## 13. 隐私边界
+用户主动“截取当前窗口”是允许包含当前界面内容的明确例外，禁止自动截图或录屏。
 
-结构化日志、普通遥测和 `.nsdiag` 默认禁止记录：
-
-- 小说正文；
-- 书名和章节标题；
-- 完整本地路径；
-- 完整 URL / Query String；
-- HTTP Header / Body；
-- Token / API Key；
-- Provider 试听/合成文本；
-- Regex 规则正文；
-- SQL 参数中的用户数据；
-- 缓存音频内容。
-
-“脱敏诊断摘要”同样不得直接输出完整应用数据目录、日志目录、导出目标路径等绝对路径。
-
-诊断会话允许使用只在当前 Session 内有效、不可反向映射的匿名对象关联，例如 `Book #1`、`Chapter #3`。
-
-用户主动触发“截取当前窗口”时，截图可以包含 NovelSpeaker 当前界面上的用户内容；该行为必须明确由用户主动触发，禁止自动截图或录屏。
-
-配置备份/Provider 导出是用户主动创建的业务文件，不属于诊断脱敏输出。它们可以包含敏感 Provider 凭据，但必须在创建前清楚提示风险。
-
-## 14. 兼容边界
+## 12. 兼容边界
 
 必须长期兼容：
 
-- 已发布 SQLite migration 与正式用户数据；
+- 已发布 SQLite migration 与可以安全迁移的正式用户数据；
 - 用户外部 TXT；
-- 正式发布后的 Speech Provider 配置/设置与规则；
-- 明确发布的 Provider/规则交换格式；
-- 正式发布的配置备份格式；
-- 已发布的稳定交互语义。
+- 正式 Speech Provider / Settings / Rules 数据；
+- 正式交换/备份格式；
+- 已发布稳定交互语义。
 
-本轮 Book/Source 重构要求迁移后只维护新模型，不为 v0.8.0 `Books.StoredFilePath/SourceHash/Encoding` 和 `Chapters.BookId` 旧运行结构保留 compatibility wrapper。自动迁移若保持有界则保留正式用户数据；若无法在不引入复杂一次性系统的前提下安全迁移，则使用“要求用户重新导入本地书籍”的已批准 fallback。
+本轮迁移完成后只维护新的 Book / Binding / CurrentCatalog 模型，不为 v12 Source-owned Catalog、可编辑 Book Identity 或 Source metadata snapshot 保留长期 compatibility wrapper。
 
-当前开发阶段不继续承诺：
+当前阶段不承诺：
 
-- 旧 NovelSpeaker TTS Rule 导入格式；
-- Legado HTTP TTS Rule 导入兼容；
-- 旧 `BookFileNameTemplate` 及其模板格式；
-- `source`、`java.*` 等仅为 Legado 兼容存在的模板 API；
+- 未发布 Online Source schema；
+- Legado book source rule compatibility；
+- Online Search/Refresh runtime；
 - 内部 namespace/class/interface；
-- 未发布 Online Source 具体 schema；
-- 未发布诊断内部实现；
 - 临时 task/spec；
-- internal JSON payload 的未发布实现细节；
-- 为架构迁移存在的临时 adapter/wrapper。
+- 为架构迁移存在的 Old/New/V2 adapter。
