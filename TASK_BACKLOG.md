@@ -68,8 +68,10 @@
 
 ### Phase E — 收口
 
-- [ ] **T005（P0）— 删除旧模型残留、核心回归复核与完整门禁**
-  规格：`tasks/T005_BOOK_FOUNDATION_CLOSURE.md`
+- [x] **T005（P0）— 删除旧模型残留、核心回归复核与完整门禁**
+  完成成果：复核新 Book Identity / BookSourceBinding / Active Binding / CurrentCatalog / Book-level ReadingState 模型已贯通 Local TXT 主链路。v12 → v13 使用同一 `BookIdentity` normalization，数据库约束保护身份唯一、Active Binding 所属 Book、Local 单例和当前目录；升级保留 BookId、BindingId、ChapterId、正文、正式进度及 Speech/Audio 关系，冲突/歧义原子失败，外键完整性检查通过。导入仅在规则未完整识别 Title/Author 时请求入库前确认，空 Author 合法；活动 Local 原子替换目录并截断进度，非活动 Local 仅更新正文。
+  清理与核心回归：累计删除 Source-owned Catalog 运行时、Binding metadata 真值、入库后身份编辑、多候选选择和旧 API；残留扫描确认无双读双写、Compat/V2 或无调用方的旧模型 fixture，历史迁移及对应升级 fixture 保留。删除 3 个重复导入 smoke/内部 journal 调用测试及专用 fake 记录字段；身份与 Hash 区分、正常提交/恢复继续由真实 SQLite/文件集成回归和提交后通知测试保护，不新增永久测试。其余 normalization、迁移回滚、身份确认、原子提交、目录所有权、进度 clamp、正文/播放、删除与信任边界、logical target/迟到结果核心测试全部保留。
+  自动验收：标准完整门禁四项全部通过：locked restore（win-x64）、全解决方案 format verify、Release build（零警告/错误）、全部 974 个永久测试（Domain 34、Application 242、Infrastructure 336、Presentation 312、隔离 Desktop WPF 50；零失败/跳过），包含架构与全量 XAML 主题检查。已发布 v4–v12 migration 定义未变，累计改动 LF 与 `git diff --check` 通过；无临时验证产物、无环境限制、未发现长期文档冲突。Online Source 规则、Legado、search/refresh、在线目录/正文和正文缓存 runtime/UI 继续留待后续阶段；本阶段完成。
 
 ## 5. 阶段完成标准
 

@@ -209,19 +209,6 @@ public sealed class BookImportServiceTests
     }
 
     [Fact]
-    public async Task ImportAsync_creates_a_book_without_using_hash_as_identity()
-    {
-        var service = CreateService(
-            analyzer: new FakeTextFileAnalyzer(CreateAnalysis("utf-8")),
-            hasher: new FakeContentHasher("same-hash"),
-            splitter: new FakeChapterSplitter([new BookImportChapter(0, 0, "第一章 开始", 6, 2)]));
-
-        var result = await service.ImportAsync(ConfirmedRequest(), progress: null, CancellationToken.None);
-
-        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
-    }
-
-    [Fact]
     public async Task ImportAsync_returns_encoding_selection_when_analysis_is_low_confidence()
     {
         var service = CreateService(
@@ -377,42 +364,6 @@ public sealed class BookImportServiceTests
     }
 
     [Fact]
-    public async Task ImportAsync_completes_the_journal_after_snapshot_commit()
-    {
-        var journal = new FakeBookOperationJournal();
-        var service = CreateService(journal: journal);
-
-        var result = await service.ImportAsync(
-            ConfirmedRequest(),
-            progress: null,
-            CancellationToken.None);
-
-        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
-        Assert.NotNull(journal.CreatedOperation);
-        Assert.Equal(BookOperationPhase.Staged, journal.CreatedOperation!.Phase);
-        Assert.Contains(BookOperationPhase.Completed, journal.Phases);
-    }
-
-    [Fact]
-    public async Task ImportAsync_reports_success_and_leaves_recovery_intent_when_completion_recording_fails()
-    {
-        var fileStore = new FakeBookFileStore();
-        var journal = new FakeBookOperationJournal { FailOnPhase = BookOperationPhase.Completed };
-        var repository = new CapturingBookImportRepository();
-        var service = CreateService(fileStore: fileStore, repository: repository, journal: journal);
-
-        var result = await service.ImportAsync(
-            ConfirmedRequest(),
-            progress: null,
-            CancellationToken.None);
-
-        Assert.Equal(DirectBookImportStatus.Imported, result.Status);
-        Assert.NotNull(repository.SavedBook);
-        Assert.True(fileStore.FinalizeCalled);
-        Assert.False(fileStore.CleanupCalled);
-    }
-
-    [Fact]
     public async Task ImportAsync_propagates_cancellation_from_semantic_port()
     {
         var cancellation = new CancellationTokenSource();
@@ -453,7 +404,6 @@ public sealed class BookImportServiceTests
     private static DirectBookImportService CreateService(
         ITextFileAnalyzer? analyzer = null,
         FakeTextNormalizer? normalizer = null,
-        FakeContentHasher? hasher = null,
         FakeChapterRuleRepository? rules = null,
         IChapterSplitter? splitter = null,
         FakeBookFileStore? fileStore = null,
@@ -469,7 +419,7 @@ public sealed class BookImportServiceTests
         return new DirectBookImportService(
             analyzer ?? new FakeTextFileAnalyzer(CreateAnalysis("utf-8")),
             normalizer ?? new FakeTextNormalizer("第一章 开始\n正文"),
-            hasher ?? new FakeContentHasher("hash"),
+            new FakeContentHasher(),
             rules ?? new FakeChapterRuleRepository([]),
             splitter ?? new FakeChapterSplitter([new BookImportChapter(0, 0, "全文", 0, 2)]),
             fileStore ?? new FakeBookFileStore(),
@@ -567,19 +517,12 @@ public sealed class BookImportServiceTests
 
     private sealed class FakeContentHasher : IContentHasher
     {
-        private readonly string _hash;
-
-        public FakeContentHasher(string hash)
-        {
-            _hash = hash;
-        }
-
         public Task<string> ComputeFileHashAsync(
             string filePath,
             IProgress<BookImportProgress>? progress,
             CancellationToken cancellationToken)
         {
-            return Task.FromResult(_hash);
+            return Task.FromResult("hash");
         }
     }
 
@@ -676,21 +619,15 @@ public sealed class BookImportServiceTests
 
     private sealed class FakeBookOperationJournal : IBookOperationJournal
     {
-        public BookOperationRecord? CreatedOperation { get; private set; }
-
-        public List<BookOperationPhase> Phases { get; } = [];
-
         public BookOperationPhase? FailOnPhase { get; init; }
 
         public Task CreateAsync(BookOperationRecord operation, CancellationToken cancellationToken)
         {
-            CreatedOperation = operation;
             return Task.CompletedTask;
         }
 
         public Task SetPhaseAsync(string operationId, BookOperationPhase phase, CancellationToken cancellationToken)
         {
-            Phases.Add(phase);
             if (phase == FailOnPhase)
             {
                 throw new InvalidOperationException("phase failed");
