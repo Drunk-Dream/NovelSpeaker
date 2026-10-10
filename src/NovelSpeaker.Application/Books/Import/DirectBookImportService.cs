@@ -128,7 +128,6 @@ public sealed class DirectBookImportService : IDirectBookImportService
         CancellationToken cancellationToken)
     {
         var normalizedText = _textNormalizer.Normalize(analyzedText.RawText);
-        var sourceHash = await _contentHasher.ComputeFileHashAsync(request.FilePath, progress, cancellationToken);
 
         progress?.Report(new BookImportProgress(
             BookImportPhase.SplittingChapters,
@@ -147,28 +146,43 @@ public sealed class DirectBookImportService : IDirectBookImportService
             firstTitleOffset,
             fileNameRules,
             headerRules);
-        var chapters = _chapterSplitter.Split(normalizedText, rules, _settings.Current.SplitChaptersOnBlankLines);
-        if (string.IsNullOrWhiteSpace(normalizedText) || chapters.Count == 0)
+        if (string.IsNullOrWhiteSpace(normalizedText))
         {
             return new DirectBookImportResult(
                 DirectBookImportStatus.Failed,
                 FailureReason: BookImportFailureReason.NoValidChapters);
         }
 
-        if (request.CreateNewBook && request.TargetBookId is not null)
+        cancellationToken.ThrowIfCancellationRequested();
+        if (request.ConfirmedIdentity is null && (!metadata.TitleRecognized || !metadata.AuthorRecognized))
         {
-            throw new ArgumentException("A target book and a new book cannot both be selected.", nameof(request));
+            return new DirectBookImportResult(DirectBookImportStatus.RequiresMetadataConfirmation,
+                MetadataConfirmation: new BookImportIdentity(metadata.Title, metadata.Author ?? ""));
         }
 
+        if (request.ConfirmedIdentity is { } confirmed)
+        {
+            metadata = metadata with { Title = confirmed.Title, Author = confirmed.Author };
+        }
+
+        var identity = BookIdentity.Create(metadata.Title, metadata.Author);
+        var chapters = _chapterSplitter.Split(normalizedText, rules, _settings.Current.SplitChaptersOnBlankLines);
+        if (chapters.Count == 0)
+        {
+            return new DirectBookImportResult(DirectBookImportStatus.Failed,
+                FailureReason: BookImportFailureReason.NoValidChapters);
+        }
+
+        var sourceHash = await _contentHasher.ComputeFileHashAsync(request.FilePath, progress, cancellationToken);
         // Preparation reads only external text and rule snapshots. Resolve the current target under the
         // mutation gate; staging stays here too because deletion can move the whole Book directory.
         return await _mutations.RunAsync(
-            () => CommitPreparedTextAsync(request, analyzedText, normalizedText, sourceHash, metadata, chapters,
+            () => CommitPreparedTextAsync(identity, analyzedText, normalizedText, sourceHash, metadata, chapters,
                 progress, cancellationToken), cancellationToken);
     }
 
     private async Task<DirectBookImportResult> CommitPreparedTextAsync(
-        DirectBookImportRequest request,
+        BookIdentity identity,
         TextFileAnalysis analyzedText,
         string normalizedText,
         string sourceHash,
@@ -177,41 +191,29 @@ public sealed class DirectBookImportService : IDirectBookImportService
         IProgress<BookImportProgress>? progress,
         CancellationToken cancellationToken)
     {
-        var targetBookId = request.TargetBookId;
-        if (!request.CreateNewBook && targetBookId is null)
-        {
-            var candidates = await _bookImportRepository.FindCandidatesAsync(metadata.Title, metadata.Author, cancellationToken);
-            if (candidates.Count > 1)
-            {
-                return new DirectBookImportResult(DirectBookImportStatus.RequiresBookSelection, BookCandidates: candidates);
-            }
-
-            targetBookId = candidates.SingleOrDefault()?.BookId;
-        }
-
-        var target = targetBookId is null
-            ? null
-            : await _bookImportRepository.GetTargetAsync(targetBookId, cancellationToken)
-                ?? throw new InvalidOperationException("The selected book no longer exists.");
+        var target = await _bookImportRepository.FindByIdentityAsync(identity, cancellationToken);
         var bookId = target?.Book.Id ?? _idGenerator.CreateBookId();
-        var sourceId = target?.Source?.Id ?? _idGenerator.CreateSourceId();
+        var sourceId = target?.Binding?.BindingId ?? _idGenerator.CreateSourceId();
+        var isActive = target is null || target.Book.ActiveSourceBindingId == sourceId;
         var now = _timeProvider.GetUtcNow();
         var chapterEntities = chapters.Select(chapter => new Chapter(
-            _idGenerator.CreateChapterId(), sourceId, chapter.ChapterIndex, chapter.SortOrder, chapter.Title)).ToArray();
+            _idGenerator.CreateChapterId(), bookId, sourceId, chapter.ChapterIndex, chapter.SortOrder, chapter.Title)).ToArray();
         var contents = chapters.Select((chapter, index) => new LocalChapterContent(
             chapterEntities[index].Id, chapter.StartOffset, chapter.Length)).ToArray();
         if (chapters.Where((chapter, index) => chapter.ChapterIndex != index || chapter.StartOffset < 0 ||
-                chapter.Length <= 0 || chapter.StartOffset > normalizedText.Length - chapter.Length).Any())
+                chapter.Length <= 0 || chapter.StartOffset > normalizedText.Length - chapter.Length ||
+                (index > 0 && chapter.StartOffset < chapters[index - 1].StartOffset + chapters[index - 1].Length)).Any())
         {
             throw new InvalidDataException("The prepared catalog does not match the normalized content.");
         }
 
+        var catalog = new CurrentCatalog(bookId, sourceId, chapterEntities);
         var copyHandle = await _bookFileStore.StageNormalizedTextAsync(normalizedText, bookId, progress, cancellationToken);
         var paths = new List<BookOperationPath>
         {
             new(copyHandle.FinalPath, copyHandle.TemporaryPath, IsDirectory: false)
         };
-        if (target?.LocalSource is { } previous)
+        if (target?.LocalBinding is { } previous)
         {
             paths.Add(new BookOperationPath(previous.StoredContentPath, previous.StoredContentPath, IsDirectory: false));
         }
@@ -235,12 +237,17 @@ public sealed class DirectBookImportService : IDirectBookImportService
         }
 
         var book = target?.Book ?? new Book(bookId, metadata.Title, metadata.Author, sourceId, now, null, now, metadata.Description);
-        var source = new BookSource(sourceId, bookId, SourceType.Local, metadata.Title, metadata.Author,
-            metadata.Description, target?.Source?.CreatedAt ?? now, now);
-        var localSource = new LocalBookSource(sourceId, analyzedText.SourceFileName, copyHandle.FinalPath, sourceHash,
-            analyzedText.DetectedEncoding, target?.LocalSource?.ImportedAt ?? now, now);
-        var snapshot = new LocalSourceImportSnapshot(book, source, localSource, chapterEntities, contents,
-            target is null, target?.LocalSource?.StoredContentPath);
+        if (isActive)
+        {
+            book = book with { Description = metadata.Description, UpdatedAt = now };
+        }
+
+        var source = new BookSourceBinding(sourceId, bookId, SourceType.Local, target?.Binding?.CreatedAt ?? now, now);
+        var localSource = new LocalBookSourceBinding(sourceId, analyzedText.SourceFileName, copyHandle.FinalPath, sourceHash,
+            analyzedText.DetectedEncoding, target?.LocalBinding?.ImportedAt ?? now, now);
+        var snapshot = new LocalSourceImportSnapshot(book, source, localSource,
+            isActive ? catalog : null, isActive ? contents : [],
+            target is null, target?.LocalBinding?.StoredContentPath);
 
         try
         {
@@ -264,7 +271,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
         }
 
         // The mutation gate keeps this target authoritative through the durable commit.
-        if (snapshot.IsNewBook || target?.Book.ActiveSourceId == sourceId)
+        if (isActive)
         {
             _sourceChanges.Publish(new BookCommittedChange.MetadataCommitted(bookId));
             if (snapshot.IsNewBook)
@@ -276,7 +283,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
 
         try
         {
-            if (target?.LocalSource is { } oldSource)
+            if (target?.LocalBinding is { } oldSource)
             {
                 await _bookFileStore.CleanupAsync(new BookFileCopyHandle(oldSource.StoredContentPath,
                     oldSource.StoredContentPath), includeFinalFile: true, CancellationToken.None);
@@ -293,7 +300,7 @@ public sealed class DirectBookImportService : IDirectBookImportService
 
         return new DirectBookImportResult(
             DirectBookImportStatus.Imported,
-            ImportedBook: new BookImportResult(bookId, source.Title, chapterEntities.Length));
+            ImportedBook: new BookImportResult(bookId, book.Title, chapterEntities.Length));
     }
 
     private static EncodingSelectionPrompt BuildPrompt(string filePath, TextFileAnalysis analysis)

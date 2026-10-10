@@ -16,9 +16,8 @@ public sealed class FeedbackServicesTests
 {
     [Theory]
     [InlineData(ContentDialogResult.Primary)]
-    [InlineData(ContentDialogResult.Secondary)]
     [InlineData(ContentDialogResult.None)]
-    public void Book_selection_requires_explicit_choice_and_supports_new_book_and_cancel(ContentDialogResult response)
+    public void Metadata_confirmation_accepts_blank_author_and_requires_nonblank_title(ContentDialogResult response)
     {
         WpfTestHost.RunInSta(() =>
         {
@@ -27,38 +26,20 @@ public sealed class FeedbackServicesTests
                 NextResult = response,
                 OnShow = dialog =>
                 {
-                    static IEnumerable<DependencyObject> Descendants(DependencyObject node)
-                    {
-                        yield return node;
-                        foreach (var child in LogicalTreeHelper.GetChildren(node).OfType<DependencyObject>())
-                        {
-                            foreach (var descendant in Descendants(child))
-                            {
-                                yield return descendant;
-                            }
-                        }
-                    }
-
-                    var choices = Assert.Single(Descendants(dialog).OfType<ComboBox>());
-                    Assert.Null(choices.SelectedItem);
+                    var fields = Assert.IsType<StackPanel>(Assert.IsType<Border>(dialog.Content).Child)
+                        .Children.OfType<global::System.Windows.Controls.TextBox>().ToArray();
+                    Assert.Equal("Fixture", fields[0].Text);
+                    Assert.Equal("", fields[1].Text);
+                    Assert.True(dialog.IsPrimaryButtonEnabled);
+                    fields[0].Text = "  ";
                     Assert.False(dialog.IsPrimaryButtonEnabled);
-                    if (response == ContentDialogResult.Primary)
-                    {
-                        choices.SelectedIndex = 1;
-                        Assert.True(dialog.IsPrimaryButtonEnabled);
-                    }
+                    fields[0].Text = "Corrected";
+                    Assert.True(dialog.IsPrimaryButtonEnabled);
                 }
             };
-            var service = new BookImportSelectionDialogService(dialogs);
-            var result = service.ShowAsync(
-                [new("a", "Fixture", null, DateTimeOffset.UnixEpoch, null), new("b", "Fixture", null, DateTimeOffset.UnixEpoch, null)],
-                CancellationToken.None).GetAwaiter().GetResult();
-            Assert.Equal(response switch
-            {
-                ContentDialogResult.Primary => new BookImportSelection("b", false),
-                ContentDialogResult.Secondary => new BookImportSelection(null, true),
-                _ => null
-            }, result);
+            var service = new BookImportMetadataDialogService(dialogs);
+            var result = service.ShowAsync(new("Fixture", ""), CancellationToken.None).GetAwaiter().GetResult();
+            Assert.Equal(response == ContentDialogResult.Primary ? new BookImportIdentity("Corrected", "") : null, result);
         });
     }
 

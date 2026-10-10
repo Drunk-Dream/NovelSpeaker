@@ -8,4 +8,4 @@ public sealed record DirectBookImportResult(
     BookImportResult? ImportedBook = null,
     EncodingSelectionPrompt? EncodingSelectionPrompt = null,
     BookImportFailureReason? FailureReason = null,
-    IReadOnlyList<BookImportCandidate>? BookCandidates = null);
+    BookImportIdentity? MetadataConfirmation = null);

@@ -20,18 +20,18 @@ public sealed class BookImportRepositoryTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Reimport_revalidates_a_target_removed_during_preparation(bool removeSource)
+    public async Task Import_resolves_identity_again_after_a_book_is_removed_during_preparation(bool removeSource)
     {
         var analyzer = new PausingAnalyzer();
         using var fixture = await Fixture.CreateAsync(analyzer);
         var original = await fixture.ImportAsync("Fixture.txt", "old body");
         var target = (await fixture.Repository.GetTargetAsync(original.ImportedBook!.BookId, CancellationToken.None))!;
-        var paused = fixture.ImportAsync("Paused.txt", "new body", target.Book.Id);
+        var paused = fixture.ImportAsync("Paused.txt", "new body", "Fixture");
         try
         {
             await analyzer.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
             if (removeSource)
-                await fixture.Deletion.RemoveAsync(new BookSourceRemoveRequest(target.Book.Id, target.Source!.Id),
+                await fixture.Deletion.RemoveAsync(new BookSourceRemoveRequest(target.Book.Id, target.Binding!.BindingId),
                     CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(10));
             else
                 await fixture.Deletion.DeleteAsync(new BookDeleteRequest(target.Book.Id, true),
@@ -40,12 +40,15 @@ public sealed class BookImportRepositoryTests
         finally
         {
             analyzer.Continue.TrySetResult();
-            try { await paused; }
-            catch (InvalidOperationException) { }
+            await paused;
         }
-        await Assert.ThrowsAsync<InvalidOperationException>(() => paused);
+        var imported = await paused;
+        Assert.Equal(DirectBookImportStatus.Imported, imported.Status);
+        Assert.NotEqual(target.Book.Id, imported.ImportedBook!.BookId);
         Assert.Null(await fixture.Repository.GetTargetAsync(target.Book.Id, CancellationToken.None));
-        Assert.Empty(Directory.GetFiles(fixture.Directories.BooksDirectoryPath, "*", SearchOption.AllDirectories));
+        Assert.Equal("new body", await fixture.ReadContentAsync(
+            (await fixture.Repository.GetTargetAsync(imported.ImportedBook.BookId, CancellationToken.None))!));
+        Assert.Single(Directory.GetFiles(fixture.Directories.BooksDirectoryPath, "*", SearchOption.AllDirectories));
         Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
     }
 
@@ -59,7 +62,7 @@ public sealed class BookImportRepositoryTests
         var target = (await fixture.Repository.GetTargetAsync(original.ImportedBook!.BookId, CancellationToken.None))!;
         var path = Path.Combine(fixture.Root, "Paused.txt");
         await File.WriteAllTextAsync(path, "new body");
-        var paused = fixture.ImportRequestAsync(new DirectBookImportRequest(path, "utf-8", "Paused.txt", target.Book.Id), cancellation.Token);
+        var paused = fixture.ImportRequestAsync(new DirectBookImportRequest(path, "utf-8", "Paused.txt", new("Fixture", "")), cancellation.Token);
         try
         {
             await analyzer.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -75,28 +78,33 @@ public sealed class BookImportRepositoryTests
         Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
     }
 
-    [Fact]
-    public async Task Concurrent_reimports_resolve_the_latest_snapshot_before_replacement()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Concurrent_imports_resolve_the_latest_snapshot_and_do_not_duplicate_identity(bool existing)
     {
         var analyzer = new PausingAnalyzer();
         using var fixture = await Fixture.CreateAsync(analyzer);
-        var original = await fixture.ImportAsync("Fixture.txt", "old body");
-        var id = original.ImportedBook!.BookId;
-        var paused = fixture.ImportAsync("Paused.txt", "final body", id);
+        var id = existing ? (await fixture.ImportAsync("Fixture.txt", "old body")).ImportedBook!.BookId : null;
+        var paused = fixture.ImportAsync("Paused.txt", "final body", "Fixture");
         try
         {
             await analyzer.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-            await fixture.ImportAsync("Other.txt", "intermediate body", id).WaitAsync(TimeSpan.FromSeconds(10));
+            var other = await fixture.ImportAsync("Other.txt", "intermediate body", " Fixture ").WaitAsync(TimeSpan.FromSeconds(10));
+            id ??= other.ImportedBook!.BookId;
+            Assert.Equal(id, other.ImportedBook!.BookId);
         }
         finally
         {
             analyzer.Continue.TrySetResult();
             await paused;
         }
-        var target = (await fixture.Repository.GetTargetAsync(id, CancellationToken.None))!;
+        Assert.Equal(id, (await paused).ImportedBook!.BookId);
+        var target = (await fixture.Repository.GetTargetAsync(id!, CancellationToken.None))!;
         Assert.Equal("final body", await fixture.ReadContentAsync(target));
-        Assert.Single(Directory.GetFiles(Path.Combine(fixture.Directories.BooksDirectoryPath, id)));
-        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM BookSources;"));
+        Assert.Single(Directory.GetFiles(Path.Combine(fixture.Directories.BooksDirectoryPath, id!)));
+        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Books;"));
+        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM BookSourceBindings;"));
         Assert.Empty(await fixture.Journal.GetIncompleteAsync(CancellationToken.None));
     }
 
@@ -110,18 +118,19 @@ public sealed class BookImportRepositoryTests
         var result = await fixture.ImportAsync("Fixture.txt", "first body");
         var target = await fixture.Repository.GetTargetAsync(result.ImportedBook!.BookId, CancellationToken.None);
         Assert.Equal(DirectBookImportStatus.Imported, result.Status);
-        Assert.Equal(target!.Source!.Id, target.Book.ActiveSourceId);
+        Assert.Equal(target!.Binding!.BindingId, target.Book.ActiveSourceBindingId);
         Assert.Equal<BookCommittedChange>([
             new BookCommittedChange.MetadataCommitted(target.Book.Id),
-            new BookCommittedChange.ActiveSourceChanged(target.Book.Id, null, target.Source.Id),
-            new BookCommittedChange.ActiveCatalogCommitted(target.Book.Id, target.Source.Id, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"))], changes);
+            new BookCommittedChange.ActiveSourceChanged(target.Book.Id, null, target.Binding.BindingId),
+            new BookCommittedChange.ActiveCatalogCommitted(target.Book.Id, target.Binding.BindingId, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"))], changes);
         Assert.Equal("Fixture", target.Book.Title);
-        Assert.Equal("utf-8", target.LocalSource!.Encoding);
-        Assert.Equal(target.LocalSource.ImportedAt, target.LocalSource.LastImportedAt);
+        Assert.Equal("utf-8", target.LocalBinding!.Encoding);
+        Assert.Equal(target.LocalBinding.ImportedAt, target.LocalBinding.LastImportedAt);
         Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM LocalChapterContents;"));
+        Assert.Equal("first body", await File.ReadAllTextAsync(Path.Combine(fixture.Root, "Fixture.txt")));
         File.Delete(Path.Combine(fixture.Root, "Fixture.txt"));
         Assert.Equal("first body", await fixture.ReadContentAsync(target));
-        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Chapters WHERE SourceId = '" + target.Source.Id + "';"));
+        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Chapters WHERE SourceBindingId = '" + target.Binding.BindingId + "';"));
     }
 
     [Theory]
@@ -134,7 +143,7 @@ public sealed class BookImportRepositoryTests
         var id = first.ImportedBook!.BookId;
         var old = (await fixture.Repository.GetTargetAsync(id, CancellationToken.None))!;
         var chapterId = await fixture.StringScalarAsync("SELECT Id FROM Chapters;");
-        await fixture.ExecuteAsync("UPDATE Books SET Description = 'old description'; UPDATE BookSources SET Description = 'old description';");
+        await fixture.ExecuteAsync("UPDATE Books SET Description = 'old description';");
         await fixture.ExecuteAsync($"""
             INSERT INTO ReadingProgress(BookId, ChapterIndex, SegmentIndex, CharacterOffset, AudioPositionMilliseconds, UpdatedAt)
             VALUES('{id}', 7, 2, 9, 123, 'now');
@@ -143,76 +152,53 @@ public sealed class BookImportRepositoryTests
             """);
         if (!active)
         {
-            await fixture.ExecuteAsync("UPDATE Books SET ActiveSourceId = NULL;");
+            await fixture.ExecuteAsync("DELETE FROM Chapters; UPDATE Books SET ActiveSourceBindingId = NULL;");
         }
 
         var changes = new List<BookCommittedChange>();
         fixture.Changes.Changed += (_, change) => changes.Add(change);
-        var second = await fixture.ImportAsync("Renamed.txt", "new body", id);
+        var second = await fixture.ImportAsync("Renamed.txt", "new body", "Fixture");
         var updated = (await fixture.Repository.GetTargetAsync(id, CancellationToken.None))!;
         Assert.Equal(id, second.ImportedBook?.BookId);
-        Assert.Equal(old.Source!.Id, updated.Source!.Id);
-        Assert.Equal("Renamed", updated.Source.Title);
-        Assert.True(string.IsNullOrEmpty(updated.Source.Description));
-        Assert.Equal(active ? "Renamed" : "Fixture", updated.Book.Title);
+        Assert.Equal(old.Binding!.BindingId, updated.Binding!.BindingId);
+        Assert.Equal("Fixture", updated.Book.Title);
+        Assert.Equal("Renamed.txt", updated.LocalBinding!.OriginalFileName);
         Assert.Equal(active ? string.Empty : "old description", updated.Book.Description ?? string.Empty);
-        Assert.Equal(active ? updated.Source.Id : null, updated.Book.ActiveSourceId);
+        Assert.Equal(active ? updated.Binding.BindingId : null, updated.Book.ActiveSourceBindingId);
         Assert.Equal(old.Book.ImportedAt, updated.Book.ImportedAt);
-        Assert.Equal(old.LocalSource!.ImportedAt, updated.LocalSource!.ImportedAt);
-        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM BookSources;"));
+        Assert.Equal(old.LocalBinding!.ImportedAt, updated.LocalBinding!.ImportedAt);
+        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM BookSourceBindings;"));
         Assert.Equal(7L, await fixture.ScalarAsync("SELECT ChapterIndex FROM ReadingProgress;"));
         Assert.Equal(123L, await fixture.ScalarAsync("SELECT AudioPositionMilliseconds FROM ReadingProgress;"));
-        Assert.NotEqual(chapterId, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"));
+        if (active)
+            Assert.NotEqual(chapterId, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"));
+        else
+            Assert.Equal(0L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Chapters;"));
         Assert.Equal(0L, await fixture.ScalarAsync("SELECT COUNT(*) FROM ChapterSpeechPlans;"));
         Assert.Equal("new body", await fixture.ReadContentAsync(updated));
-        Assert.False(File.Exists(fixture.Resolver.ResolvePath(old.LocalSource.StoredContentPath)));
+        Assert.False(File.Exists(fixture.Resolver.ResolvePath(old.LocalBinding.StoredContentPath)));
         if (active)
             Assert.Equal<BookCommittedChange>([
                 new BookCommittedChange.MetadataCommitted(id),
-                new BookCommittedChange.ActiveCatalogCommitted(id, updated.Source.Id, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"))], changes);
+                new BookCommittedChange.ActiveCatalogCommitted(id, updated.Binding.BindingId, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"))], changes);
         else Assert.Empty(changes);
     }
 
     [Fact]
-    public async Task Strict_candidates_match_blank_author_without_case_or_whitespace_folding_and_ignore_hash()
+    public async Task Identity_lookup_normalizes_whitespace_and_unicode_but_preserves_case_and_author_and_ignores_hash()
     {
         using var fixture = await Fixture.CreateAsync();
-        var first = await fixture.ImportAsync("Fixture.txt", "same body");
-        var second = await fixture.ImportAsync("Other.txt", "same body");
-        Assert.NotEqual(first.ImportedBook!.BookId, second.ImportedBook!.BookId);
-        Assert.Empty(await fixture.Repository.FindCandidatesAsync("fixture", null, CancellationToken.None));
-        Assert.Empty(await fixture.Repository.FindCandidatesAsync("Fixture ", null, CancellationToken.None));
-        Assert.Empty(await fixture.Repository.FindCandidatesAsync("Fixture", "someone", CancellationToken.None));
-        Assert.Single(await fixture.Repository.FindCandidatesAsync("Fixture", string.Empty, CancellationToken.None));
-        await fixture.ExecuteAsync("UPDATE Books SET Author = NULL WHERE Title = 'Fixture';");
-        Assert.Single(await fixture.Repository.FindCandidatesAsync("Fixture", string.Empty, CancellationToken.None));
-        var updated = await fixture.ImportAsync("Fixture.txt", "changed body");
-        Assert.Equal(first.ImportedBook.BookId, updated.ImportedBook?.BookId);
-    }
-
-    [Fact]
-    public async Task Duplicate_exact_candidates_require_selection_without_overwriting_existing_content()
-    {
-        using var fixture = await Fixture.CreateAsync();
-        var first = await fixture.ImportAsync("Fixture.txt", "body a");
-        var second = await fixture.ImportAsync("Fixture.txt", "body b", createNew: true);
-
-        var unresolved = await fixture.ImportAsync("Fixture.txt", "body c");
-
-        Assert.Equal(DirectBookImportStatus.RequiresBookSelection, unresolved.Status);
-        Assert.Equal(2, unresolved.BookCandidates!.Count);
-        Assert.Equal(2L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Books;"));
-        Assert.Equal("body a", await fixture.ReadContentAsync(
-            (await fixture.Repository.GetTargetAsync(first.ImportedBook!.BookId, CancellationToken.None))!));
-        Assert.Equal("body b", await fixture.ReadContentAsync(
-            (await fixture.Repository.GetTargetAsync(second.ImportedBook!.BookId, CancellationToken.None))!));
-
-        var resolved = await fixture.ImportAsync("Fixture.txt", "body c", second.ImportedBook.BookId);
-        Assert.Equal(second.ImportedBook.BookId, resolved.ImportedBook?.BookId);
-        Assert.Equal("body a", await fixture.ReadContentAsync(
-            (await fixture.Repository.GetTargetAsync(first.ImportedBook.BookId, CancellationToken.None))!));
-        Assert.Equal("body c", await fixture.ReadContentAsync(
-            (await fixture.Repository.GetTargetAsync(second.ImportedBook.BookId, CancellationToken.None))!));
+        var first = await fixture.ImportAsync("Fixture.txt", "same body", "Café Book");
+        var repeated = await fixture.ImportAsync("Other.txt", "changed body", " Cafe\u0301\u2003Book ");
+        Assert.Equal(first.ImportedBook!.BookId, repeated.ImportedBook!.BookId);
+        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Books;"));
+        Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM BookSourceBindings;"));
+        Assert.Equal("Café Book", repeated.ImportedBook.Title);
+        Assert.Null(await fixture.Repository.FindByIdentityAsync(BookIdentity.Create("café Book", ""), CancellationToken.None));
+        Assert.Null(await fixture.Repository.FindByIdentityAsync(BookIdentity.Create("Café Book", "someone"), CancellationToken.None));
+        Assert.NotNull(await fixture.Repository.FindByIdentityAsync(BookIdentity.Create("Café  Book", null), CancellationToken.None));
+        var other = await fixture.ImportAsync("Other.txt", "changed body", "Other");
+        Assert.NotEqual(first.ImportedBook.BookId, other.ImportedBook?.BookId);
     }
 
     [Fact]
@@ -225,7 +211,7 @@ public sealed class BookImportRepositoryTests
         await fixture.ExecuteAsync("CREATE TRIGGER RejectCatalog BEFORE INSERT ON LocalChapterContents BEGIN SELECT RAISE(ABORT, 'fixture failure'); END;");
         var changes = new List<BookCommittedChange>();
         fixture.Changes.Changed += (_, change) => changes.Add(change);
-        await Assert.ThrowsAsync<SqliteException>(() => fixture.ImportAsync("Renamed.txt", "replacement body", old.Book.Id));
+        await Assert.ThrowsAsync<SqliteException>(() => fixture.ImportAsync("Renamed.txt", "replacement body", "Fixture"));
         var after = (await fixture.Repository.GetTargetAsync(old.Book.Id, CancellationToken.None))!;
         Assert.Equal(old, after);
         Assert.Equal(chapter, await fixture.StringScalarAsync("SELECT Id FROM Chapters;"));
@@ -239,15 +225,17 @@ public sealed class BookImportRepositoryTests
     {
         using var fixture = await Fixture.CreateAsync();
         var now = DateTimeOffset.UnixEpoch.ToString("O");
-        await fixture.ExecuteAsync($"INSERT INTO Books(Id, Title, ImportedAt, UpdatedAt) VALUES('existing', 'Displayed', '{now}', '{now}');");
+        await fixture.ExecuteAsync($"INSERT INTO Books(Id, Title, Author, NormalizedTitle, NormalizedAuthor, ImportedAt, UpdatedAt) VALUES('existing', 'Displayed', '', 'Displayed', '', '{now}', '{now}');");
         var changes = new List<BookCommittedChange>();
         fixture.Changes.Changed += (_, change) => changes.Add(change);
-        var result = await fixture.ImportAsync("Fixture.txt", "body", "existing");
+        var result = await fixture.ImportAsync("Fixture.txt", "body", "Displayed");
         var target = (await fixture.Repository.GetTargetAsync("existing", CancellationToken.None))!;
         Assert.Equal("existing", result.ImportedBook?.BookId);
-        Assert.Null(target.Book.ActiveSourceId);
+        Assert.Null(target.Book.ActiveSourceBindingId);
         Assert.Equal("Displayed", target.Book.Title);
-        Assert.Equal("Fixture", target.Source?.Title);
+        Assert.NotNull(target.LocalBinding);
+        Assert.Equal(0L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Chapters;"));
+        Assert.Equal(0L, await fixture.ScalarAsync("SELECT COUNT(*) FROM LocalChapterContents;"));
         Assert.Empty(changes);
     }
 
@@ -259,9 +247,10 @@ public sealed class BookImportRepositoryTests
         var old = (await fixture.Repository.GetTargetAsync(first.ImportedBook!.BookId, CancellationToken.None))!;
         await fixture.ImportAsync("Fixture.txt", "new body");
         var current = (await fixture.Repository.GetTargetAsync(old.Book.Id, CancellationToken.None))!;
-        var snapshot = new LocalSourceImportSnapshot(old.Book, old.Source!, old.LocalSource!,
-            [new("prepared-chapter", old.Source!.Id, 0, 0, "Fixture")], [new("prepared-chapter", 0, 1)],
-            false, old.LocalSource!.StoredContentPath);
+        var snapshot = new LocalSourceImportSnapshot(old.Book, old.Binding!, old.LocalBinding!,
+            new CurrentCatalog(old.Book.Id, old.Binding!.BindingId,
+                [new("prepared-chapter", old.Book.Id, old.Binding.BindingId, 0, 0, "Fixture")]), [new("prepared-chapter", 0, 1)],
+            false, old.LocalBinding!.StoredContentPath);
         await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.Repository.SaveAsync(snapshot, "stale-operation", CancellationToken.None));
         Assert.Equal(current, await fixture.Repository.GetTargetAsync(old.Book.Id, CancellationToken.None));
         Assert.Equal("new body", await fixture.ReadContentAsync(current));
@@ -284,19 +273,19 @@ public sealed class BookImportRepositoryTests
         string JournalPath(string key) => absoluteJournalPaths ? fixture.Resolver.ResolvePath(key) : key;
         await journal.CreateAsync(new BookOperationRecord(operationId, BookOperationKind.Import, BookOperationPhase.Staged, old.Book.Id,
             [new(JournalPath(staged.FinalPath), JournalPath(staged.TemporaryPath), false),
-                new(JournalPath(old.LocalSource!.StoredContentPath), JournalPath(old.LocalSource.StoredContentPath), false)],
+                new(JournalPath(old.LocalBinding!.StoredContentPath), JournalPath(old.LocalBinding.StoredContentPath), false)],
             DateTimeOffset.UtcNow), CancellationToken.None);
         await store.FinalizeAsync(staged, CancellationToken.None);
         if (committed)
         {
-            await fixture.ExecuteAsync($"UPDATE LocalBookSources SET StoredContentPath = '{staged.FinalPath}';");
+            await fixture.ExecuteAsync($"UPDATE LocalBookSourceBindings SET StoredContentPath = '{staged.FinalPath}';");
         }
 
         var recovery = new BookOperationRecoveryService(fixture.Factory, journal, fixture.Resolver, fixture.Directories);
         await recovery.RecoverAsync(CancellationToken.None);
         await recovery.RecoverAsync(CancellationToken.None);
         Assert.Equal(committed, File.Exists(fixture.Resolver.ResolvePath(staged.FinalPath)));
-        Assert.Equal(!committed, File.Exists(fixture.Resolver.ResolvePath(old.LocalSource.StoredContentPath)));
+        Assert.Equal(!committed, File.Exists(fixture.Resolver.ResolvePath(old.LocalBinding.StoredContentPath)));
         Assert.Empty(await journal.GetIncompleteAsync(CancellationToken.None));
         Assert.Equal(1L, await fixture.ScalarAsync("SELECT COUNT(*) FROM Books;"));
     }
@@ -308,7 +297,7 @@ public sealed class BookImportRepositoryTests
         var imported = await fixture.ImportAsync("Fixture.txt", "owned body");
         var target = (await fixture.Repository.GetTargetAsync(imported.ImportedBook!.BookId, CancellationToken.None))!;
         var journal = new SqliteBookOperationJournal(fixture.Factory, TimeProvider.System);
-        var path = target.LocalSource!.StoredContentPath;
+        var path = target.LocalBinding!.StoredContentPath;
         await journal.CreateAsync(new BookOperationRecord("invalid-operation", BookOperationKind.Import, BookOperationPhase.Staged,
             target.Book.Id, [new(path, path, false)], DateTimeOffset.UtcNow), CancellationToken.None);
         var recovery = new BookOperationRecoveryService(fixture.Factory, journal, fixture.Resolver, fixture.Directories);
@@ -353,14 +342,14 @@ public sealed class BookImportRepositoryTests
             return fixture;
         }
 
-        public async Task<DirectBookImportResult> ImportAsync(string name, string text, string? target = null, bool createNew = false)
+        public async Task<DirectBookImportResult> ImportAsync(string name, string text, string? title = null)
         {
             var path = Path.Combine(Root, name);
             await File.WriteAllTextAsync(path, text);
-            return await Service.ImportAsync(new DirectBookImportRequest(path, "utf-8", name, target, createNew), null, CancellationToken.None);
+            return await Service.ImportAsync(new DirectBookImportRequest(path, "utf-8", name, new(title ?? Path.GetFileNameWithoutExtension(name), "")), null, CancellationToken.None);
         }
 
-        public Task<string> ReadContentAsync(LocalSourceImportTarget target) => File.ReadAllTextAsync(Resolver.ResolvePath(target.LocalSource!.StoredContentPath));
+        public Task<string> ReadContentAsync(LocalSourceImportTarget target) => File.ReadAllTextAsync(Resolver.ResolvePath(target.LocalBinding!.StoredContentPath));
         public Task<DirectBookImportResult> ImportRequestAsync(DirectBookImportRequest request, CancellationToken cancellationToken) =>
             Service.ImportAsync(request, null, cancellationToken);
         public async Task ExecuteAsync(string sql)

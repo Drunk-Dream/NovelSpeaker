@@ -8,25 +8,26 @@ namespace NovelSpeaker.App.PresentationTests.Library;
 public sealed class LibraryImportCoordinatorTests
 {
     [Theory]
-    [InlineData("b", false)]
-    [InlineData(null, true)]
-    [InlineData(null, false)]
-    public async Task ImportAsync_closes_progress_before_book_selection_and_preserves_the_choice(string? bookId, bool createNew)
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ImportAsync_closes_progress_before_metadata_confirmation_and_resumes_or_cancels(bool cancel)
     {
         var service = new FakeDirectBookImportService();
-        service.Results.Enqueue(new DirectBookImportResult(DirectBookImportStatus.RequiresBookSelection,
-            BookCandidates: [new("a", "Fixture", null, DateTimeOffset.UnixEpoch, null), new("b", "Fixture", null, DateTimeOffset.UnixEpoch, null)]));
+        var defaults = new BookImportIdentity("Fixture", "");
+        service.Results.Enqueue(new DirectBookImportResult(DirectBookImportStatus.RequiresMetadataConfirmation,
+            MetadataConfirmation: defaults));
         service.Results.Enqueue(new DirectBookImportResult(DirectBookImportStatus.Imported));
         var progress = new FakeImportProgressDialogService();
-        var selection = new FakeBookSelectionDialog
+        var selection = new FakeMetadataDialog
         {
-            Selection = bookId is null && !createNew ? null : new BookImportSelection(bookId, createNew),
+            Selection = cancel ? null : new BookImportIdentity("Corrected", "Author"),
             OnShow = () => Assert.False(progress.IsOpen)
         };
         var coordinator = new LibraryImportCoordinator(service, new FakeEncodingSelectionDialogService(), progress,
             FakeUserDocumentFileOperations.ForFile("demo.txt", 6 * 1024 * 1024), selection);
         var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
-        if (selection.Selection is null)
+        Assert.Equal(defaults, selection.Defaults);
+        if (cancel)
         {
             Assert.Equal(LibraryImportCoordinatorStatus.Cancelled, result.Status);
             Assert.Single(service.Requests);
@@ -34,8 +35,7 @@ public sealed class LibraryImportCoordinatorTests
         else
         {
             Assert.Equal(LibraryImportCoordinatorStatus.Imported, result.Status);
-            Assert.Equal(bookId, service.Requests[1].TargetBookId);
-            Assert.Equal(createNew, service.Requests[1].CreateNewBook);
+            Assert.Equal(selection.Selection, service.Requests[1].ConfirmedIdentity);
         }
     }
 
@@ -52,6 +52,9 @@ public sealed class LibraryImportCoordinatorTests
                 "gb18030",
                 ["utf-8", "utf-16le", "utf-16be", "gb18030"])));
         directImportService.Results.Enqueue(new DirectBookImportResult(
+            DirectBookImportStatus.RequiresMetadataConfirmation,
+            MetadataConfirmation: new("Demo", "")));
+        directImportService.Results.Enqueue(new DirectBookImportResult(
             DirectBookImportStatus.Imported,
             ImportedBook: new BookImportResult("book-1", "Demo", 3)));
 
@@ -59,16 +62,23 @@ public sealed class LibraryImportCoordinatorTests
         {
             NextEncoding = "utf-8"
         };
+        var metadataDialog = new FakeMetadataDialog
+        {
+            Selection = new("Corrected", "Author"),
+            OnShow = () => Assert.Equal("utf-8", directImportService.Requests[^1].EncodingOverride)
+        };
         var coordinator = new LibraryImportCoordinator(
             directImportService,
             encodingDialog,
             new FakeImportProgressDialogService(),
-            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), new FakeBookSelectionDialog());
+            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), metadataDialog);
 
         var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
         Assert.Equal(LibraryImportCoordinatorStatus.Imported, result.Status);
-        Assert.Equal([null, "utf-8"], directImportService.Requests.Select(static request => request.EncodingOverride));
+        Assert.Equal([null, "utf-8", "utf-8"], directImportService.Requests.Select(static request => request.EncodingOverride));
+        Assert.Null(directImportService.Requests[1].ConfirmedIdentity);
+        Assert.Equal(metadataDialog.Selection, directImportService.Requests[2].ConfirmedIdentity);
     }
 
     [Fact]
@@ -88,7 +98,7 @@ public sealed class LibraryImportCoordinatorTests
             directImportService,
             new FakeEncodingSelectionDialogService(),
             new FakeImportProgressDialogService(),
-            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), new FakeBookSelectionDialog());
+            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), new FakeMetadataDialog());
 
         var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
@@ -111,7 +121,7 @@ public sealed class LibraryImportCoordinatorTests
             directImportService,
             new FakeEncodingSelectionDialogService(),
             progressDialog,
-            FakeUserDocumentFileOperations.ForFile("demo.txt", fileSize), new FakeBookSelectionDialog());
+            FakeUserDocumentFileOperations.ForFile("demo.txt", fileSize), new FakeMetadataDialog());
 
         var result = await coordinator.ImportAsync("demo.txt", CancellationToken.None);
 
@@ -137,7 +147,7 @@ public sealed class LibraryImportCoordinatorTests
                 directImportService,
                 new FakeEncodingSelectionDialogService(),
                 new FakeImportProgressDialogService(),
-                fileOperations, new FakeBookSelectionDialog());
+                fileOperations, new FakeMetadataDialog());
 
             var result = await coordinator.ImportAsync(filePath, CancellationToken.None);
 
@@ -155,7 +165,7 @@ public sealed class LibraryImportCoordinatorTests
             new FakeDirectBookImportService(),
             new FakeEncodingSelectionDialogService(),
             new FakeImportProgressDialogService(),
-            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), new FakeBookSelectionDialog());
+            FakeUserDocumentFileOperations.ForFile("demo.txt", 256), new FakeMetadataDialog());
 
         await Assert.ThrowsAsync<OperationCanceledException>(
             () => coordinator.ImportAsync("demo.txt", cancellation.Token));
@@ -177,12 +187,14 @@ public sealed class LibraryImportCoordinatorTests
         }
     }
 
-    private sealed class FakeBookSelectionDialog : IBookImportSelectionDialogService
+    private sealed class FakeMetadataDialog : IBookImportMetadataDialogService
     {
-        public BookImportSelection? Selection { get; init; }
+        public BookImportIdentity? Selection { get; init; }
         public Action? OnShow { get; init; }
-        public Task<BookImportSelection?> ShowAsync(IReadOnlyList<BookImportCandidate> candidates, CancellationToken cancellationToken)
+        public BookImportIdentity? Defaults { get; private set; }
+        public Task<BookImportIdentity?> ShowAsync(BookImportIdentity defaults, CancellationToken cancellationToken)
         {
+            Defaults = defaults;
             OnShow?.Invoke();
             return Task.FromResult(Selection);
         }

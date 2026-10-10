@@ -45,7 +45,8 @@ public sealed class ImportMetadataExtractor
             }
         }
 
-        return new ImportMetadata(result.Name ?? sourceNameWithoutExtension, result.Author, result.Description);
+        return new ImportMetadata(result.Name ?? sourceNameWithoutExtension, result.Author, result.Description,
+            result.Name is not null, result.Author is not null);
     }
 
     public static void ValidatePattern(string pattern)

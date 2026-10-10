@@ -54,8 +54,10 @@
 
 ### Phase C — Local Import 恢复
 
-- [ ] **T003（P0）— 重接 Local TXT 导入、身份确认与原子 CurrentCatalog 提交**
-  规格：`tasks/T003_LOCAL_IMPORT_IDENTITY.md`
+- [x] **T003（P0）— 重接 Local TXT 导入、身份确认与原子 CurrentCatalog 提交**
+  完成成果：Local TXT 导入接回统一 `BookIdentity` 与唯一身份查询；规则显式识别完整 Title/Author 时直接继续，否则通过 Application result/request continuation 和轻量确认对话框完成入库前修正（文件名 Title fallback、空 Author 合法、空 Title 禁止）。编码选择先于身份确认，确认面板与大文件进度面板串行展示，结果沿用现有 Snackbar。新 Book 激活唯一 Local Binding；已有 Book 保持身份和 BindingId，活动 Local 原子替换完整 CurrentCatalog/正文范围，非活动 Local 仅更新持久正文。复用 journal/recovery 保留失败/取消时旧正文和旧目录，提交后才发布 typed changes。删除多候选 DTO、选择对话框及 RequiresBookSelection/TargetBookId/CreateNewBook 路径，未新增 schema migration、兼容层或 Online runtime。
+  自动验收：重写旧候选/可变身份测试为规范身份与唯一 Local Binding 核心回归，新增缺失身份确认、最终修正、空身份校验和并发唯一性覆盖；保留编码、规则、原子失败/取消、恢复幂等及外部 TXT 独立性核心测试。使用临时 focused projects 直接编译真实 Domain/Application/Infrastructure 与导入 UI 生产源码：81 个导入/持久化测试、9 个导入协调器用例、2 个全量 XAML 主题检查及 1 个隔离 Desktop 临时验证通过；34 个 Domain 测试通过。隔离 Desktop 验证覆盖 Light/Dark 先应用主题再创建确认面板、已有面板切换主题、切换后新建面板、字段校验和取消；临时项目/测试/产物已删除。改动文件格式、LF、git diff --check 及导入范围旧 API 残留检查通过。
+  迁移缺口：常规 App build 仍在 BookDetailsViewModel 引用已删除 IBookMetadataUpdateService 处失败；常规 Application/Infrastructure tests 仍有 Export/Cache/Playback/BookManagement 的旧 content/metadata contract 调用编译失败，按合同由 T004 接回。ReadingProgress 的统一 clamp 与主链路集成仍归 T004；T004 关闭 breaking window，T005 执行完整门禁。本任务按 staged window 局部门禁验收，未执行标准完整门禁；无环境限制，未发现长期合同冲突。
 
 ### Phase D — 本地书主链路集成
 
