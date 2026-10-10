@@ -28,11 +28,13 @@ public sealed record PlaybackChapterSummaryMetadata(
     string? ChapterId = null);
 
 /// <summary>
-/// Source catalog entry. Storage paths and typed content ranges remain in Infrastructure.
+/// Book CurrentCatalog entry. The binding identifies the producer of this snapshot;
+/// storage paths and typed content ranges remain in Infrastructure.
 /// </summary>
 public sealed record PlaybackChapterMetadata(
+    string BookId,
     int ChapterIndex,
     string Title,
-    string SourceId,
+    string SourceBindingId,
     string ChapterId,
     ActiveSourceContext? SourceContext = null);

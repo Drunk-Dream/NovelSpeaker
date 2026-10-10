@@ -40,8 +40,10 @@
 
 ### Phase A — 领域边界切换
 
-- [ ] **T001（P0）— 收敛 Book / Binding / CurrentCatalog 领域与 Application 边界**
-  规格：`tasks/T001_BOOK_DOMAIN_FOUNDATION.md`
+- [x] **T001（P0）— 收敛 Book / Binding / CurrentCatalog 领域与 Application 边界**
+  完成成果：建立共享 `BookIdentity`（NFC、Unicode 空白折叠、空 Author、保留大小写和标点），Book 身份字段只读；将旧 Source entity 重命名为 `BookSourceBinding / LocalBookSourceBinding`，删除 Binding metadata 真值；Chapter 显式关联 `BookId + SourceBindingId`，增加完整不可变 `CurrentCatalog` 与 Book-level `ReadingState.Clamp`（空目录未定位）。Application 导入 port 改为唯一身份查询和可空 CurrentCatalog 提交，正文 port 改为 Book 当前目录 entry/context；删除 Title/Author 编辑 contract、use case、SQLite store、注册和旧编辑服务测试，未增加兼容层或 Online runtime。
+  自动验收：Domain Release 编译与全部 34 个 Domain 测试通过，新增身份规范化、阅读边界截断及目录快照完整性核心覆盖；Domain/tests 格式验证、改动 Application 文件空白格式检查与 Domain 无外层/WPF 依赖静态检查通过。既有其它核心测试保留。无环境限制；本任务按 staged window 局部门禁验收，未执行全解决方案完整门禁。
+  迁移缺口：Application Release 编译当前有 11 个错误，全部位于允许暂时失效的 `DirectBookImportService`（旧候选查询、Source/LocalSource 属性、旧 entity/Chapter 构造及 ActiveSourceId），由 T003 接回。静态确认 T002–T004 仍需接回 Books persistence、SourceContentReader/正文导出、BookDetails/Library/playback metadata query、详情身份编辑 UI 与对应旧模型测试；不得以兼容 API 恢复旧模型。T004 关闭 breaking window，T005 执行完整门禁。未发现长期合同冲突。
 
 ### Phase B — 持久化模型切换
 
