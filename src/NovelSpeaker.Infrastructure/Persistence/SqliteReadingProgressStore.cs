@@ -30,9 +30,9 @@ public sealed class SqliteReadingProgressStore : IReadingProgressStore
             using var contextCommand = connection.CreateCommand();
             contextCommand.Transaction = transaction;
             contextCommand.CommandText = """
-                SELECT 1 FROM Books b JOIN Chapters c ON c.SourceId = b.ActiveSourceId
-                WHERE b.Id = $book AND b.ActiveSourceId = $source AND c.ChapterIndex = $chapter
-                  AND (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1) = $version
+                SELECT 1 FROM Books b JOIN Chapters c ON c.BookId = b.Id AND c.SourceBindingId = b.ActiveSourceBindingId
+                WHERE b.Id = $book AND b.ActiveSourceBindingId = $source AND c.ChapterIndex = $chapter
+                  AND (SELECT Id FROM Chapters WHERE BookId = b.Id ORDER BY ChapterIndex LIMIT 1) = $version
                 LIMIT 1;
                 """;
             contextCommand.Parameters.AddWithValue("$book", progress.BookId);

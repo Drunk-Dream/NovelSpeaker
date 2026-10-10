@@ -47,8 +47,10 @@
 
 ### Phase B — 持久化模型切换
 
-- [ ] **T002（P0）— SQLite v13（或下一实际版本）迁移到 Book Identity + Binding + CurrentCatalog**
-  规格：`tasks/T002_DATABASE_CURRENT_CATALOG.md`
+- [x] **T002（P0）— SQLite v13 迁移到 Book Identity + Binding + CurrentCatalog**
+  完成成果：追加 v13 migration，复用领域 `BookIdentity` 计算唯一规范身份；重建 Book / Binding / CurrentCatalog 关系，保留 BookId、BindingId、ChapterId、正文路径和正式进度、Speech Plan、Audio Cache 数据。身份冲突、缺失 typed data 或歧义目录返回可识别 `IncompatibleBookLibraryException` 并原子回滚；提交前检查外键。数据库约束保护 Active Binding 所属 Book、Local 单例与当前目录 ordinal，删除最后一个 Binding 级联删除 Book。导入 repository 支持唯一身份查询、活动目录原子替换和非活动 Local 仅更新正文；书库/详情/播放查询、正文读取与导出、进度、缓存、删除恢复和路径迁移全部切到新 schema。删除 Binding metadata 真值与旧候选查询、Source-owned Catalog 运行时路径，未留双读双写或新增 Online runtime。
+  自动验收：新增 11 个 v13 核心集成用例，覆盖正常升级与重启幂等、正式数据/文件保留、身份冲突/歧义状态回滚、SQL/回调/取消失败后的恢复、约束及原子快照提交；保留 v12 历史迁移测试，把旧读取 smoke 合并到 v13 升级测试，更新通用迁移测试至当前 schema。35 个 persistence focused tests 和全部 34 个 Domain 测试通过。临时验证项目仅排除待 T003 接回的 `DirectBookImportService` 及 Application 两个依赖它的注册入口，使用真实 Domain/Application/Infrastructure 分层项目完成 Release 编译；验证项目及排除配置已删除。格式验证、LF、`git diff --check`、已发布 v4–v12 migration 未变及 Infrastructure 无旧 schema 运行时引用检查通过。
+  迁移缺口：常规 Infrastructure build 仍被既有 `DirectBookImportService` 11 个编译错误阻断，由 T003 接回；App 和其余旧模型测试由 T003/T004 集成。T004 仍须关闭 breaking window，并将兼容失败接到用户可理解的重新导入路径；T005 执行全解决方案完整门禁。本任务依 staged window 局部门禁验收，未运行标准完整门禁；无环境限制，未发现长期合同冲突。
 
 ### Phase C — Local Import 恢复
 

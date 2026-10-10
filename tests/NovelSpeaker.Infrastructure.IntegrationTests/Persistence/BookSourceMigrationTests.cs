@@ -11,24 +11,6 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Persistence;
 
 public sealed class BookSourceMigrationTests
 {
-    [Fact]
-    public async Task Migrated_local_book_reads_active_catalog_and_internal_content_after_restart()
-    {
-        using var directory = new TemporaryDirectory();
-        var factory = await CreateVersion11FixtureAsync(directory.Path);
-        var path = Path.Combine(directory.Path, "Books", "book-a", "content.txt");
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await File.WriteAllTextAsync(path, new string('前', 12) + new string('文', 34));
-        await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
-        var restartedFactory = await CreateFactoryAsync(directory.Path);
-        var metadata = await new SqliteBookPlaybackMetadataQuery(restartedFactory).GetBookAsync("book-a", CancellationToken.None);
-        Assert.Equal("local:book-a", metadata!.SourceContext!.SourceId);
-        Assert.Equal("chapter-a", Assert.Single(metadata.Chapters).ChapterId);
-        var reader = new SourceContentReader(new AppStoragePathResolver(new AppDataDirectoryProvider(directory.Path)), restartedFactory);
-        Assert.Equal(new string('文', 34), await reader.ReadChapterTextAsync(metadata.SourceContext.SourceId, "chapter-a", CancellationToken.None));
-        Assert.Equal(2, (await new SqliteReadingProgressStore(restartedFactory).GetAsync("book-a", CancellationToken.None))!.SegmentIndex);
-    }
-
     private static readonly string[] PreservedTables =
     [
         "ReadingProgress", "ChapterSpeechPlans", "ChapterSpeechPlanSegments",
@@ -40,7 +22,7 @@ public sealed class BookSourceMigrationTests
     {
         using var directory = new TemporaryDirectory();
         var factory = await CreateFactoryAsync(directory.Path);
-        await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
+        await CreateVersion12Runner(factory).InitializeAsync(CancellationToken.None);
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
 
         Assert.Equal(12L, await ScalarAsync(connection, "SELECT MAX(Version) FROM SchemaVersion;"));
@@ -60,7 +42,7 @@ public sealed class BookSourceMigrationTests
     {
         using var directory = new TemporaryDirectory();
         var factory = await CreateFactoryAsync(directory.Path);
-        await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
+        await CreateVersion12Runner(factory).InitializeAsync(CancellationToken.None);
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
         await using (var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(CancellationToken.None))
         {
@@ -111,7 +93,7 @@ public sealed class BookSourceMigrationTests
                 "SELECT Id, BookId, ChapterIndex, SortOrder, Title, StartOffset, Length FROM Chapters ORDER BY Id;");
         }
 
-        var runner = new SqliteMigrationRunner(factory);
+        var runner = CreateVersion12Runner(factory);
         await runner.InitializeAsync(CancellationToken.None);
         await runner.InitializeAsync(CancellationToken.None);
         await using var after = await factory.OpenConnectionAsync(CancellationToken.None);
@@ -138,7 +120,7 @@ public sealed class BookSourceMigrationTests
     {
         using var directory = new TemporaryDirectory();
         var factory = await CreateVersion11FixtureAsync(directory.Path);
-        await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
+        await CreateVersion12Runner(factory).InitializeAsync(CancellationToken.None);
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
 
         await Assert.ThrowsAsync<SqliteException>(() => ExecuteAsync(connection,
@@ -216,7 +198,7 @@ public sealed class BookSourceMigrationTests
         }
 
         // A failed attempt must not prevent a subsequent ordinary startup from completing the migration.
-        await new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None);
+        await CreateVersion12Runner(factory).InitializeAsync(CancellationToken.None);
         await using var retried = await factory.OpenConnectionAsync(CancellationToken.None);
         Assert.Equal(12L, await ScalarAsync(retried, "SELECT MAX(Version) FROM SchemaVersion;"));
         await AssertIntegrityAsync(retried);
@@ -231,21 +213,25 @@ public sealed class BookSourceMigrationTests
             await ExecuteAsync(connection,
                 "PRAGMA foreign_keys=OFF; INSERT INTO Chapters (Id, BookId, ChapterIndex, Title, StartOffset, Length) VALUES ('orphan', 'missing', 0, 'fixture', 0, 1); PRAGMA foreign_keys=ON;");
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => new SqliteMigrationRunner(factory).InitializeAsync(CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() => CreateVersion12Runner(factory).InitializeAsync(CancellationToken.None));
         await using var after = await factory.OpenConnectionAsync(CancellationToken.None);
         Assert.Equal(11L, await ScalarAsync(after, "SELECT MAX(Version) FROM SchemaVersion;"));
         Assert.Equal(0L, await ScalarAsync(after, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'BookSources';"));
         Assert.Equal(1L, await ScalarAsync(after, "SELECT COUNT(*) FROM Chapters WHERE Id = 'orphan' AND BookId = 'missing';"));
     }
 
-    private static async Task<SqliteConnectionFactory> CreateFactoryAsync(string root)
+    // v12 remains an append-only, independently verified historical migration.
+    private static SqliteMigrationRunner CreateVersion12Runner(ISqliteConnectionFactory factory) =>
+        new(factory, SqliteMigrationRunner.AllMigrations.Where(m => m.Version <= 12).ToArray());
+
+    internal static async Task<SqliteConnectionFactory> CreateFactoryAsync(string root)
     {
         var directories = new AppDataDirectoryProvider(root);
         await directories.EnsureCreatedAsync(CancellationToken.None);
         return new SqliteConnectionFactory(directories, observability: null, pooling: false);
     }
 
-    private static async Task<SqliteConnectionFactory> CreateVersion11FixtureAsync(string root)
+    internal static async Task<SqliteConnectionFactory> CreateVersion11FixtureAsync(string root)
     {
         var factory = await CreateFactoryAsync(root);
         await new SqliteMigrationRunner(factory, SqliteMigrationRunner.AllMigrations.Where(m => m.Version <= 11).ToArray())
@@ -275,21 +261,21 @@ public sealed class BookSourceMigrationTests
         return factory;
     }
 
-    private static async Task ExecuteAsync(SqliteConnection connection, string sql)
+    internal static async Task ExecuteAsync(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         await command.ExecuteNonQueryAsync(CancellationToken.None);
     }
 
-    private static async Task<object?> ScalarAsync(SqliteConnection connection, string sql)
+    internal static async Task<object?> ScalarAsync(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         return await command.ExecuteScalarAsync(CancellationToken.None);
     }
 
-    private static async Task<string[]> SnapshotAsync(SqliteConnection connection, string sql)
+    internal static async Task<string[]> SnapshotAsync(SqliteConnection connection, string sql)
     {
         using var command = connection.CreateCommand();
         command.CommandText = sql;
@@ -309,7 +295,7 @@ public sealed class BookSourceMigrationTests
         return rows.ToArray();
     }
 
-    private static async Task AssertIntegrityAsync(SqliteConnection connection)
+    internal static async Task AssertIntegrityAsync(SqliteConnection connection)
     {
         Assert.Equal(1L, await ScalarAsync(connection, "PRAGMA foreign_keys;"));
         using var command = connection.CreateCommand();

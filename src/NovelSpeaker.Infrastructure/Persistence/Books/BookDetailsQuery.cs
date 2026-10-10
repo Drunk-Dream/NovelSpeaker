@@ -12,35 +12,35 @@ namespace NovelSpeaker.Infrastructure.Persistence.Books;
 public sealed class BookDetailsQuery : IBookDetailsQuery
 {
     internal const string HeaderSql = """
-        SELECT b.Id, b.Title, b.Author, b.Description, b.ActiveSourceId,
-            (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1),
-            s.SourceType, s.Title, s.Author, s.Description
-        FROM Books b LEFT JOIN BookSources s ON s.Id = b.ActiveSourceId AND s.BookId = b.Id
+        SELECT b.Id, b.Title, b.Author, b.Description, b.ActiveSourceBindingId,
+            (SELECT Id FROM Chapters WHERE BookId = b.Id ORDER BY ChapterIndex LIMIT 1),
+            s.SourceType
+        FROM Books b LEFT JOIN BookSourceBindings s ON s.Id = b.ActiveSourceBindingId AND s.BookId = b.Id
         WHERE b.Id = $bookId LIMIT 1;
         """;
 
     internal const string CatalogSql =
         """
-        SELECT c.ChapterIndex, c.Title, c.Id, c.SourceId,
-            (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1)
-        FROM Books b JOIN Chapters c ON c.SourceId = b.ActiveSourceId
+        SELECT c.ChapterIndex, c.Title, c.Id, c.SourceBindingId,
+            (SELECT Id FROM Chapters WHERE BookId = b.Id ORDER BY ChapterIndex LIMIT 1)
+        FROM Books b JOIN Chapters c ON c.BookId = b.Id AND c.SourceBindingId = b.ActiveSourceBindingId
         WHERE b.Id = $bookId
         ORDER BY c.SortOrder, c.ChapterIndex;
         """;
 
     internal const string ReadingPositionSql =
         """
-        SELECT rp.BookId, MAX(0, MIN(rp.ChapterIndex, (SELECT MAX(ChapterIndex) FROM Chapters WHERE SourceId = b.ActiveSourceId))),
+        SELECT rp.BookId, MAX(0, MIN(rp.ChapterIndex, (SELECT MAX(ChapterIndex) FROM Chapters WHERE BookId = b.Id))),
                rp.SegmentIndex, rp.CharacterOffset, rp.AudioPositionMilliseconds, rp.UpdatedAt
         FROM ReadingProgress rp JOIN Books b ON b.Id = rp.BookId
-        WHERE rp.BookId = $bookId AND EXISTS (SELECT 1 FROM Chapters WHERE SourceId = b.ActiveSourceId)
+        WHERE rp.BookId = $bookId AND EXISTS (SELECT 1 FROM Chapters WHERE BookId = b.Id)
         LIMIT 1;
         """;
 
     internal const string StatisticsSql =
         """
         SELECT
-            (SELECT COUNT(*) FROM Chapters WHERE SourceId = Books.ActiveSourceId),
+            (SELECT COUNT(*) FROM Chapters WHERE BookId = Books.Id),
             COALESCE((SELECT SUM(FileSize) FROM AudioCacheEntries WHERE BookId = $bookId), 0)
         FROM Books
         WHERE Id = $bookId
@@ -74,8 +74,7 @@ public sealed class BookDetailsQuery : IBookDetailsQuery
                 reader.IsDBNull(3) ? null : reader.GetString(3),
                 reader.IsDBNull(4) ? null : new ActiveSourceSummary(
                     new ActiveSourceContext(reader.GetString(4), reader.IsDBNull(5) ? null : reader.GetString(5)),
-                    (SourceType)reader.GetInt32(6), reader.GetString(7),
-                    reader.IsDBNull(8) ? null : reader.GetString(8), reader.IsDBNull(9) ? null : reader.GetString(9)))
+                    (SourceType)reader.GetInt32(6)))
             : null;
     }
 

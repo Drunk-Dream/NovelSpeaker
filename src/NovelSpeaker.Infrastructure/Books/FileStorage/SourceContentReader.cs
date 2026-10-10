@@ -24,24 +24,31 @@ public sealed class SourceContentReader : ISourceContentReader
     }
 
     public async Task<string> ReadChapterTextAsync(
-        string sourceId,
-        string chapterId,
+        PlaybackChapterMetadata chapter,
         CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(chapterId);
+        ArgumentNullException.ThrowIfNull(chapter);
+        if (chapter.SourceContext is not { } context || context.SourceId != chapter.SourceBindingId)
+            throw new InvalidDataException("当前目录上下文无效。");
         cancellationToken.ThrowIfCancellationRequested();
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = connection.CreateCommand();
         command.CommandText = """
             SELECT l.StoredContentPath, content.StartOffset, content.Length
-            FROM BookSources s JOIN LocalBookSources l ON l.SourceId = s.Id
-            JOIN Chapters c ON c.SourceId = s.Id
+            FROM Books b JOIN BookSourceBindings s ON s.BookId = b.Id AND s.Id = b.ActiveSourceBindingId
+            JOIN LocalBookSourceBindings l ON l.BindingId = s.Id
+            JOIN Chapters c ON c.BookId = b.Id AND c.SourceBindingId = s.Id
             JOIN LocalChapterContents content ON content.ChapterId = c.Id
-            WHERE s.Id = $source AND s.SourceType = 1 AND c.Id = $chapter LIMIT 1;
+            WHERE b.Id = $book AND s.Id = $source AND s.SourceType = 1 AND c.Id = $chapter
+                AND c.ChapterIndex = $index
+                AND (SELECT Id FROM Chapters WHERE BookId = b.Id ORDER BY ChapterIndex LIMIT 1) IS $version
+            LIMIT 1;
             """;
-        command.Parameters.AddWithValue("$source", sourceId);
-        command.Parameters.AddWithValue("$chapter", chapterId);
+        command.Parameters.AddWithValue("$book", chapter.BookId);
+        command.Parameters.AddWithValue("$source", chapter.SourceBindingId);
+        command.Parameters.AddWithValue("$chapter", chapter.ChapterId);
+        command.Parameters.AddWithValue("$index", chapter.ChapterIndex);
+        command.Parameters.AddWithValue("$version", (object?)context.CatalogVersion ?? DBNull.Value);
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             throw new InvalidDataException("来源章节已失效或正文不可用。");
@@ -65,16 +72,23 @@ public sealed class SourceContentReader : ISourceContentReader
         return text.Substring(startOffset, length);
     }
 
-    public async Task<string> ReadSourceTextAsync(string sourceId, CancellationToken cancellationToken)
+    public async Task<string> ReadBookTextAsync(string bookId, ActiveSourceContext expectedContext, CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(sourceId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
+        ArgumentNullException.ThrowIfNull(expectedContext);
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT l.StoredContentPath FROM BookSources s JOIN LocalBookSources l ON l.SourceId = s.Id
-            WHERE s.Id = $source AND s.SourceType = 1 LIMIT 1;
+            SELECT l.StoredContentPath FROM Books b
+            JOIN BookSourceBindings s ON s.Id = b.ActiveSourceBindingId AND s.BookId = b.Id
+            JOIN LocalBookSourceBindings l ON l.BindingId = s.Id
+            WHERE b.Id = $book AND s.Id = $source AND s.SourceType = 1
+                AND (SELECT Id FROM Chapters WHERE BookId = b.Id ORDER BY ChapterIndex LIMIT 1) IS $version
+            LIMIT 1;
             """;
-        command.Parameters.AddWithValue("$source", sourceId);
+        command.Parameters.AddWithValue("$book", bookId);
+        command.Parameters.AddWithValue("$source", expectedContext.SourceId);
+        command.Parameters.AddWithValue("$version", (object?)expectedContext.CatalogVersion ?? DBNull.Value);
         var path = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string
             ?? throw new InvalidDataException("来源正文不可用。");
         return await GetBookTextAsync(_pathResolver.ResolvePath(path), cancellationToken).ConfigureAwait(false);

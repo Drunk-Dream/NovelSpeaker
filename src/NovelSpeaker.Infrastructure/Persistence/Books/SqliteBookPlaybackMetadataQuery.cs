@@ -7,8 +7,8 @@ namespace NovelSpeaker.Infrastructure.Persistence.Books;
 public sealed class SqliteBookPlaybackMetadataQuery(ISqliteConnectionFactory connectionFactory) : IBookPlaybackMetadataQuery
 {
     private const string HeaderColumns = """
-        b.Id, b.Title, b.Author, b.ActiveSourceId,
-        (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1)
+        b.Id, b.Title, b.Author, b.ActiveSourceBindingId,
+        (SELECT Id FROM Chapters WHERE BookId = b.Id ORDER BY ChapterIndex LIMIT 1)
         """;
 
     public async Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -19,7 +19,7 @@ public sealed class SqliteBookPlaybackMetadataQuery(ISqliteConnectionFactory con
         using var command = connection.CreateCommand();
         command.CommandText = $"""
             SELECT {HeaderColumns}, c.ChapterIndex, c.Title, c.Id
-            FROM Books b LEFT JOIN Chapters c ON c.SourceId = b.ActiveSourceId
+            FROM Books b LEFT JOIN Chapters c ON c.BookId = b.Id AND c.SourceBindingId = b.ActiveSourceBindingId
             WHERE b.Id = $id ORDER BY c.SortOrder, c.ChapterIndex;
             """;
         command.Parameters.AddWithValue("$id", bookId);
@@ -72,15 +72,15 @@ public sealed class SqliteBookPlaybackMetadataQuery(ISqliteConnectionFactory con
                 return name;
             }).ToArray();
             command.CommandText = $"""
-                SELECT c.ChapterIndex, c.Title, c.SourceId, c.Id, c.SortOrder,
-                    (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1)
-                FROM Books b JOIN Chapters c ON c.SourceId = b.ActiveSourceId
+                SELECT c.ChapterIndex, c.Title, c.SourceBindingId, c.Id, c.SortOrder,
+                    (SELECT Id FROM Chapters WHERE BookId = b.Id ORDER BY ChapterIndex LIMIT 1)
+                FROM Books b JOIN Chapters c ON c.BookId = b.Id AND c.SourceBindingId = b.ActiveSourceBindingId
                 WHERE b.Id = $book AND c.ChapterIndex IN ({string.Join(", ", parameters)})
                 ORDER BY c.SortOrder, c.ChapterIndex;
                 """;
             await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-                chapters.Add((new(reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetString(3),
+                chapters.Add((new(bookId, reader.GetInt32(0), reader.GetString(1), reader.GetString(2), reader.GetString(3),
                     new ActiveSourceContext(reader.GetString(2), reader.GetString(5))), reader.GetInt32(4)));
         }
         transaction.Commit();

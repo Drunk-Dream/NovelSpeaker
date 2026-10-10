@@ -18,7 +18,7 @@ public sealed class BookTextExportService(
         string text;
         try
         {
-            text = await contentReader.ReadSourceTextAsync(book.SourceContext.SourceId, cancellationToken).ConfigureAwait(false);
+            text = await contentReader.ReadBookTextAsync(bookId, book.SourceContext, cancellationToken).ConfigureAwait(false);
         }
         catch (FileNotFoundException) { return false; }
         catch (InvalidDataException) { return false; }

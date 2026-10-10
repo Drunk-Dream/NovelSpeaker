@@ -65,30 +65,30 @@ public sealed class BookLibraryQuery : IBookLibraryQuery
                        (SELECT c.Title
                         FROM ReadingProgress progress
                         INNER JOIN Chapters c
-                            ON c.SourceId = b.ActiveSourceId
+                            ON c.BookId = b.Id AND c.SourceBindingId = b.ActiveSourceBindingId
                            AND c.ChapterIndex = MAX(0, MIN(progress.ChapterIndex, chapterCounts.TotalChapterCount - 1))
                         WHERE progress.BookId = b.Id
                         ORDER BY progress.UpdatedAt DESC
                         LIMIT 1),
                        (SELECT c.Title
                         FROM Chapters c
-                        WHERE c.SourceId = b.ActiveSourceId
+                        WHERE c.BookId = b.Id
                         ORDER BY c.SortOrder, c.ChapterIndex
                         LIMIT 1),
-                       CASE WHEN b.ActiveSourceId IS NULL THEN '无活动来源' ELSE '未开始' END) AS CurrentChapterTitle,
+                       CASE WHEN b.ActiveSourceBindingId IS NULL THEN '无活动来源' ELSE '未开始' END) AS CurrentChapterTitle,
                    b.ImportedAt,
                    b.LastPlayedAt,
                    COALESCE(chapterCounts.TotalChapterCount, 0) AS TotalChapterCount,
                    rp.ChapterIndex,
                    CASE WHEN rp.BookId IS NULL THEN 0 ELSE 1 END AS HasReadingProgress,
-                   b.ActiveSourceId,
-                   (SELECT Id FROM Chapters WHERE SourceId = b.ActiveSourceId ORDER BY ChapterIndex LIMIT 1)
+                   b.ActiveSourceBindingId,
+                   (SELECT Id FROM Chapters WHERE BookId = b.Id ORDER BY ChapterIndex LIMIT 1)
             FROM Books b
             LEFT JOIN (
-                SELECT SourceId, COUNT(*) AS TotalChapterCount
+                SELECT BookId, COUNT(*) AS TotalChapterCount
                 FROM Chapters
-                GROUP BY SourceId
-            ) chapterCounts ON chapterCounts.SourceId = b.ActiveSourceId
+                GROUP BY BookId
+            ) chapterCounts ON chapterCounts.BookId = b.Id
             LEFT JOIN ReadingProgress rp ON rp.BookId = b.Id
             {bookFilter}
             ORDER BY b.ImportedAt DESC, b.Id;
