@@ -82,7 +82,7 @@ public sealed class SqliteMigrationRunnerTests
     }
 
     [Fact]
-    public async Task InitializeAsync_creates_current_schema_as_version_12()
+    public async Task InitializeAsync_creates_current_schema_as_version_13()
     {
         var factory = await CreateInitializedFactoryAsync();
 
@@ -93,7 +93,7 @@ public sealed class SqliteMigrationRunnerTests
             SELECT COUNT(*)
             FROM sqlite_master
             WHERE type = 'table'
-              AND name IN ('SchemaVersion', 'AppMetadata', 'Books', 'Chapters', 'ChapterRules', 'ReadingProgress', 'AudioCacheEntries', 'RegexReplacementRules', 'BookOperations', 'ChapterSpeechPlans', 'ChapterSpeechPlanSegments', 'SynthesisProfiles', 'SpeechProviders', 'HttpSpeechProviderConfigs', 'EdgeSpeechProviderConfigs', 'FileNameMetadataRules', 'TextHeaderMetadataRules', 'BookSources', 'LocalBookSources', 'LocalChapterContents');
+              AND name IN ('SchemaVersion', 'AppMetadata', 'Books', 'Chapters', 'ChapterRules', 'ReadingProgress', 'AudioCacheEntries', 'RegexReplacementRules', 'BookOperations', 'ChapterSpeechPlans', 'ChapterSpeechPlanSegments', 'SynthesisProfiles', 'SpeechProviders', 'HttpSpeechProviderConfigs', 'EdgeSpeechProviderConfigs', 'FileNameMetadataRules', 'TextHeaderMetadataRules', 'BookSourceBindings', 'LocalBookSourceBindings', 'LocalChapterContents');
             """;
 
         var tableCount = Convert.ToInt32(await tableCommand.ExecuteScalarAsync(CancellationToken.None));
@@ -103,7 +103,7 @@ public sealed class SqliteMigrationRunnerTests
         var version = Convert.ToInt32(await versionCommand.ExecuteScalarAsync(CancellationToken.None));
 
         Assert.Equal(20, tableCount);
-        Assert.Equal(12, version);
+        Assert.Equal(13, version);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public sealed class SqliteMigrationRunnerTests
         }
 
         Assert.DoesNotContain("LastImportedAt", columns);
-        Assert.Contains("ActiveSourceId", columns);
+        Assert.Contains("ActiveSourceBindingId", columns);
         Assert.Contains("LastPlayedAt", columns);
         Assert.Contains("Description", columns);
 
@@ -383,7 +383,7 @@ public sealed class SqliteMigrationRunnerTests
         command.CommandText = "SELECT COALESCE(MAX(Version), 0) FROM SchemaVersion;";
 
         var version = Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None));
-        Assert.Equal(12, version);
+        Assert.Equal(13, version);
     }
 
     [Fact]
@@ -402,15 +402,15 @@ public sealed class SqliteMigrationRunnerTests
             command.CommandText =
                 """
                 INSERT INTO Books
-                    (Id, Title, ImportedAt, UpdatedAt)
+                    (Id, Title, NormalizedTitle, NormalizedAuthor, ImportedAt, UpdatedAt)
                 VALUES
-                    ('book-1', 'valid', $now, $now),
-                    ('book-2', 'unsafe', $now, $now);
-                INSERT INTO BookSources (Id, BookId, SourceType, Title, CreatedAt, UpdatedAt)
-                VALUES ('source-1', 'book-1', 1, 'valid', $now, $now),
-                       ('source-2', 'book-2', 1, 'unsafe', $now, $now);
-                INSERT INTO LocalBookSources
-                    (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt)
+                    ('book-1', 'valid', 'valid', '', $now, $now),
+                    ('book-2', 'unsafe', 'unsafe', '', $now, $now);
+                INSERT INTO BookSourceBindings (Id, BookId, SourceType, CreatedAt, UpdatedAt)
+                VALUES ('source-1', 'book-1', 1, $now, $now),
+                       ('source-2', 'book-2', 1, $now, $now);
+                INSERT INTO LocalBookSourceBindings
+                    (BindingId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt)
                 VALUES ('source-1', 'valid.txt', $validPath, 'hash-1', 'utf-8', $now, $now),
                        ('source-2', 'unsafe.txt', $unsafePath, 'hash-2', 'utf-8', $now, $now);
                 """;
@@ -425,7 +425,7 @@ public sealed class SqliteMigrationRunnerTests
 
         await using var verification = await factory.OpenConnectionAsync(CancellationToken.None);
         using var select = verification.CreateCommand();
-        select.CommandText = "SELECT SourceId, StoredContentPath FROM LocalBookSources ORDER BY SourceId;";
+        select.CommandText = "SELECT BindingId, StoredContentPath FROM LocalBookSourceBindings ORDER BY BindingId;";
         await using var reader = await select.ExecuteReaderAsync(CancellationToken.None);
         Assert.True(await reader.ReadAsync(CancellationToken.None));
         Assert.Equal("Books/book-1/content.txt", reader.GetString(1));
@@ -463,32 +463,32 @@ public sealed class SqliteMigrationRunnerTests
             () => runner.InitializeAsync(CancellationToken.None));
         Assert.Equal(3, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(12, exception.CurrentVersion);
-        Assert.Equal(12, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 12", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(13, exception.CurrentVersion);
+        Assert.Equal(13, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 13", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task InitializeAsync_rejects_newer_version_13_database_without_changing_it()
+    public async Task InitializeAsync_rejects_newer_version_14_database_without_changing_it()
     {
-        var (factory, _) = await CreateDatabaseAtVersionAsync(13);
+        var (factory, _) = await CreateDatabaseAtVersionAsync(14);
         var runner = new SqliteMigrationRunner(factory);
 
         var exception = await Assert.ThrowsAsync<IncompatibleDatabaseSchemaException>(
             () => runner.InitializeAsync(CancellationToken.None));
 
-        Assert.Equal(13, exception.DetectedVersion);
+        Assert.Equal(14, exception.DetectedVersion);
         Assert.Equal(4, exception.MinimumSupportedVersion);
-        Assert.Equal(12, exception.CurrentVersion);
-        Assert.Equal(12, exception.RequiredVersion);
-        Assert.Contains("支持版本 4 到 12", exception.Message, StringComparison.Ordinal);
+        Assert.Equal(13, exception.CurrentVersion);
+        Assert.Equal(13, exception.RequiredVersion);
+        Assert.Contains("支持版本 4 到 13", exception.Message, StringComparison.Ordinal);
         Assert.Contains("数据库未被修改", exception.Message, StringComparison.Ordinal);
 
         await using var connection = await factory.OpenConnectionAsync(CancellationToken.None);
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT MAX(Version) FROM SchemaVersion;";
-        Assert.Equal(13, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
+        Assert.Equal(14, Convert.ToInt32(await command.ExecuteScalarAsync(CancellationToken.None)));
     }
 
     [Fact]
@@ -543,8 +543,8 @@ public sealed class SqliteMigrationRunnerTests
         using var orphan = connection.CreateCommand();
         orphan.CommandText =
             """
-            INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title)
-            VALUES ('orphan', 'missing', 0, 0, 'orphan');
+            INSERT INTO Chapters (Id, BookId, SourceBindingId, ChapterIndex, SortOrder, Title)
+            VALUES ('orphan', 'missing-book', 'missing', 0, 0, 'orphan');
             """;
         await Assert.ThrowsAsync<SqliteException>(() => orphan.ExecuteNonQueryAsync(CancellationToken.None));
 
@@ -552,16 +552,16 @@ public sealed class SqliteMigrationRunnerTests
         seed.CommandText =
             """
             INSERT INTO Books
-                (Id, Title, ImportedAt, UpdatedAt)
+                (Id, Title, NormalizedTitle, NormalizedAuthor, ImportedAt, UpdatedAt)
             VALUES
-                ('book', 'book', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-            INSERT INTO BookSources (Id, BookId, SourceType, Title, CreatedAt, UpdatedAt)
-            VALUES ('source', 'book', 1, 'book', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-            UPDATE Books SET ActiveSourceId = 'source' WHERE Id = 'book';
-            INSERT INTO LocalBookSources (SourceId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt)
+                ('book', 'book', 'book', '', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+            INSERT INTO BookSourceBindings (Id, BookId, SourceType, CreatedAt, UpdatedAt)
+            VALUES ('source', 'book', 1, '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
+            UPDATE Books SET ActiveSourceBindingId = 'source' WHERE Id = 'book';
+            INSERT INTO LocalBookSourceBindings (BindingId, OriginalFileName, StoredContentPath, SourceHash, Encoding, ImportedAt, LastImportedAt)
             VALUES ('source', 'book.txt', 'Books/book/content.txt', 'hash', 'utf-8', '2026-01-01T00:00:00.0000000+00:00', '2026-01-01T00:00:00.0000000+00:00');
-            INSERT INTO Chapters (Id, SourceId, ChapterIndex, SortOrder, Title)
-            VALUES ('chapter', 'source', 0, 0, 'chapter');
+            INSERT INTO Chapters (Id, BookId, SourceBindingId, ChapterIndex, SortOrder, Title)
+            VALUES ('chapter', 'book', 'source', 0, 0, 'chapter');
             INSERT INTO LocalChapterContents (ChapterId, StartOffset, Length) VALUES ('chapter', 0, 1);
             INSERT INTO ReadingProgress
                 (BookId, ChapterIndex, SegmentIndex, CharacterOffset, AudioPositionMilliseconds, UpdatedAt)
@@ -594,9 +594,9 @@ public sealed class SqliteMigrationRunnerTests
         count.CommandText =
             """
             SELECT
-                (SELECT COUNT(*) FROM BookSources WHERE BookId = 'book') +
-                (SELECT COUNT(*) FROM LocalBookSources WHERE SourceId = 'source') +
-                (SELECT COUNT(*) FROM Chapters WHERE SourceId = 'source') +
+                (SELECT COUNT(*) FROM BookSourceBindings WHERE BookId = 'book') +
+                (SELECT COUNT(*) FROM LocalBookSourceBindings WHERE BindingId = 'source') +
+                (SELECT COUNT(*) FROM Chapters WHERE SourceBindingId = 'source') +
                 (SELECT COUNT(*) FROM LocalChapterContents WHERE ChapterId = 'chapter') +
                 (SELECT COUNT(*) FROM ReadingProgress WHERE BookId = 'book') +
                 (SELECT COUNT(*) FROM ChapterSpeechPlans WHERE ChapterId = 'chapter') +

@@ -1,11 +1,14 @@
+using NovelSpeaker.Domain.Books;
+
 namespace NovelSpeaker.Application.Books;
 
 /// <summary>
-/// Resolves book candidates and atomically commits a complete local source snapshot.
+/// Resolves the unique normalized book identity and atomically commits a local binding
+/// plus its complete CurrentCatalog when active. No fuzzy candidates or identity edits.
 /// </summary>
 public interface IBookImportRepository
 {
-    Task<IReadOnlyList<BookImportCandidate>> FindCandidatesAsync(string title, string? author, CancellationToken cancellationToken);
+    Task<LocalSourceImportTarget?> FindByIdentityAsync(BookIdentity identity, CancellationToken cancellationToken);
     Task<LocalSourceImportTarget?> GetTargetAsync(string bookId, CancellationToken cancellationToken);
     Task SaveAsync(LocalSourceImportSnapshot snapshot, string operationId, CancellationToken cancellationToken);
 }

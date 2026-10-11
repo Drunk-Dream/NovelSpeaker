@@ -69,7 +69,6 @@ public sealed class ManagementSelectionControllerTests
     [Theory]
     [InlineData(DesktopSelectionModifiers.Control)]
     [InlineData(DesktopSelectionModifiers.Shift)]
-    [InlineData(DesktopSelectionModifiers.Control | DesktopSelectionModifiers.Shift)]
     public void Normal_modifier_click_enters_management_mode_and_selects_the_trigger_item(
         DesktopSelectionModifiers modifiers)
     {

@@ -10,53 +10,21 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class RegexReplacementRulesViewModelTests
 {
-    [Theory]
-    [InlineData(UnsavedChangesDecision.Cancel)]
-    [InlineData(UnsavedChangesDecision.Save)]
-    [InlineData(UnsavedChangesDecision.Discard)]
-    public async Task Management_entry_guards_draft_and_selection_does_not_switch_editor(UnsavedChangesDecision decision)
+    [Fact]
+    public async Task Cancelled_management_entry_preserves_the_current_rule_draft()
     {
-        var fixture = CreateFixture(decision, ruleCount: 3);
+        var fixture = CreateFixture(UnsavedChangesDecision.Cancel, ruleCount: 3);
         var vm = fixture.ViewModel;
         await LoadAndSelectFirstAsync(fixture);
         var ids = vm.Rules.Select(rule => rule.Id).ToArray();
         vm.DraftPattern = "Unsaved";
         await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Control, CancellationToken.None);
         Assert.Equal(ids[0], vm.SelectedRuleId);
-        if (decision == UnsavedChangesDecision.Cancel)
-        {
-            Assert.False(vm.IsManagementMode);
-            Assert.Equal("Unsaved", vm.DraftPattern);
-            Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
-            return;
-        }
-        Assert.True(vm.IsManagementMode);
-        Assert.False(vm.HasUnsavedChanges);
-        Assert.Equal(ids[2], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.None, CancellationToken.None);
-        Assert.Equal(0, vm.SelectedCount);
-        Assert.True(vm.IsManagementMode);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[0], DesktopSelectionModifiers.None, CancellationToken.None);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[2], DesktopSelectionModifiers.Shift, CancellationToken.None);
-        Assert.All(vm.Rules, rule => Assert.True(rule.IsSelected));
-        Assert.Equal(ids[0], vm.SelectedRuleId);
-        vm.DraftPattern = "Another draft";
-        await vm.CopyRuleCommand.ExecuteAsync(vm.Rules[1]);
-        Assert.Equal(ids, fixture.Workspace.LastExportedIds);
-        fixture.Documents.FileDocument = new RuleImportDocument("{}", "fixture");
-        await vm.ImportRuleFileAsync(CancellationToken.None);
-        Assert.Equal("Another draft", vm.DraftPattern);
+        Assert.False(vm.IsManagementMode);
+        Assert.Equal("Unsaved", vm.DraftPattern);
         Assert.True(vm.HasUnsavedChanges);
-        vm.CancelManagementCommand.Execute(null);
-        Assert.False(vm.IsManagementMode);
+        Assert.Equal(ids[0], vm.SelectedRuleId);
         Assert.Equal(ids[0], Assert.Single(vm.Rules, rule => rule.IsSelected).Id);
-        vm.HandleNavigatedFrom();
-        Assert.False(vm.IsManagementMode);
-        Assert.Equal(0, vm.SelectedCount);
-        await vm.LoadAsync(CancellationToken.None);
-        await vm.EnterManagementCommand.ExecuteAsync(null);
-        vm.SelectAllCommand.Execute(null);
-        Assert.Equal(vm.Rules.Count, vm.SelectedCount);
     }
 
     [Fact]

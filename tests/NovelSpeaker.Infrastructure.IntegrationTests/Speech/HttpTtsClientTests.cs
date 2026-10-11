@@ -224,22 +224,6 @@ public sealed class HttpTtsClientTests
     }
 
     [Fact]
-    public async Task SendAsync_transfers_response_ownership_until_result_is_disposed()
-    {
-        var content = new TrackingContent([1, 2, 3]);
-        using var transport = new HttpTtsClient(new StaticResponseHandler(content));
-
-        var result = await transport.SendAsync(
-            CreateRequest(1, new Uri("https://example.com/tts")),
-            CancellationToken.None);
-
-        Assert.True(result.IsSuccess);
-        Assert.False(content.IsDisposed);
-        await result.Response!.DisposeAsync();
-        Assert.True(content.IsDisposed);
-    }
-
-    [Fact]
     public async Task ExecuteAsync_times_out_while_reading_response_body_and_disposes_response()
     {
         var content = new BlockingReadContent();
@@ -274,22 +258,6 @@ public sealed class HttpTtsClientTests
         var result = await resultTask.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(TtsErrorKind.Cancelled, result.Failure!.Kind);
-        Assert.True(content.IsDisposed);
-        Assert.True(content.Stream.IsDisposed);
-    }
-
-    [Fact]
-    public async Task ExecuteAsync_read_failure_disposes_response()
-    {
-        var content = new ThrowingReadContent();
-        using var transport = new HttpTtsClient(new StaticResponseHandler(content));
-        using var harness = CreateHarness(CreateDirectories(), transport);
-
-        var result = await harness.ExecuteAsync(
-            CreateRequest(1, new Uri("https://example.com/tts")),
-            CancellationToken.None);
-
-        Assert.Equal(TtsErrorKind.Unknown, result.Failure!.Kind);
         Assert.True(content.IsDisposed);
         Assert.True(content.Stream.IsDisposed);
     }

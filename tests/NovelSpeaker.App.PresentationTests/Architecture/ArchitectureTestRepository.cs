@@ -39,20 +39,6 @@ internal sealed class ArchitectureTestRepository
             $"Could not locate the NovelSpeaker repository from '{AppContext.BaseDirectory}'.");
     }
 
-    public IReadOnlyList<string> ReadSolutionProjectPaths()
-    {
-        var solutionPath = Path.Combine(RootPath, "NovelSpeaker.slnx");
-        var document = XDocument.Load(solutionPath, LoadOptions.SetLineInfo);
-
-        return document
-            .Descendants("Project")
-            .Select(element => element.Attribute("Path")?.Value)
-            .Where(path => !string.IsNullOrWhiteSpace(path))
-            .Select(path => NormalizeRelativePath(path!))
-            .Order(StringComparer.Ordinal)
-            .ToArray();
-    }
-
     public ProjectDescriptor ReadProject(string relativePath)
     {
         var normalizedRelativePath = NormalizeRelativePath(relativePath);
@@ -102,9 +88,6 @@ internal sealed class ArchitectureTestRepository
             frameworkReferences,
             properties);
     }
-
-    public IReadOnlyList<ProjectDescriptor> ReadProductProjects() =>
-        ProductProjectRelativePaths.Select(ReadProject).ToArray();
 
     public IReadOnlyList<SourceFileDescriptor> ReadProductSourceFiles()
     {

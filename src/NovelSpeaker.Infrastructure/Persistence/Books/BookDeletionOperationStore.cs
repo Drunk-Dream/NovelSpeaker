@@ -42,7 +42,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.SourceId);
-        return await BeginCoreAsync(new BookDeleteRequest(request.BookId, true), request.SourceId, cancellationToken).ConfigureAwait(false);
+        return await BeginCoreAsync(new BookDeleteRequest(request.BookId), request.SourceId, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<BookDeletionPreparation?> BeginCoreAsync(BookDeleteRequest request, string? sourceId, CancellationToken cancellationToken)
@@ -75,8 +75,8 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
             book.DeletesBook ? null : sourceId);
         var preparation = new BookDeletionPreparation(
             operationId,
-            new BookDeleteResult(request.BookId, request.DeleteAudioCache, book.ChapterCount, book.DeletesBook && book.HasReadingProgress),
-            book.DeletesBook, book.ActiveSourceId == sourceId || book.DeletesBook ? book.ActiveSourceId : null);
+            new BookDeleteResult(request.BookId, book.ChapterCount, book.DeletesBook && book.HasReadingProgress),
+            book.DeletesBook, book.ActiveSourceBindingId == sourceId || book.DeletesBook ? book.ActiveSourceBindingId : null);
 
         try
         {
@@ -99,7 +99,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         var operation = await FindOperationAsync(preparation.OperationId, cancellationToken).ConfigureAwait(false);
         await DeleteRowsAsync(
             connection,
-            new BookDeleteRequest(preparation.Result.BookId, preparation.Result.DeletedAudioCache),
+            new BookDeleteRequest(preparation.Result.BookId),
             operation.SourceId,
             preparation.OperationId,
             _timeProvider.GetUtcNow(),
@@ -142,13 +142,13 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         using var command = connection.CreateCommand();
         command.CommandText =
             """
-            SELECT (SELECT COUNT(*) FROM Chapters c JOIN BookSources s ON s.Id = c.SourceId
+            SELECT (SELECT COUNT(*) FROM Chapters c JOIN BookSourceBindings s ON s.Id = c.SourceBindingId
                     WHERE s.BookId = b.Id AND ($sourceId IS NULL OR s.Id = $sourceId)),
                    CASE WHEN EXISTS (SELECT 1 FROM ReadingProgress rp WHERE rp.BookId = b.Id) THEN 1 ELSE 0 END,
-                   b.ActiveSourceId,
-                   CASE WHEN $sourceId IS NULL OR (SELECT COUNT(*) FROM BookSources s WHERE s.BookId = b.Id) = 1 THEN 1 ELSE 0 END
+                   b.ActiveSourceBindingId,
+                   CASE WHEN $sourceId IS NULL OR (SELECT COUNT(*) FROM BookSourceBindings s WHERE s.BookId = b.Id) = 1 THEN 1 ELSE 0 END
             FROM Books b
-            WHERE b.Id = $bookId AND ($sourceId IS NULL OR EXISTS (SELECT 1 FROM BookSources s WHERE s.BookId = b.Id AND s.Id = $sourceId))
+            WHERE b.Id = $bookId AND ($sourceId IS NULL OR EXISTS (SELECT 1 FROM BookSourceBindings s WHERE s.BookId = b.Id AND s.Id = $sourceId))
             LIMIT 1;
             """;
         command.Parameters.AddWithValue("$bookId", bookId);
@@ -175,7 +175,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
             using var target = connection.CreateCommand();
             target.Transaction = transaction;
             target.CommandText = sourceId is null ? "DELETE FROM Books WHERE Id = $bookId;"
-                : "DELETE FROM BookSources WHERE Id = $sourceId AND BookId = $bookId;";
+                : "DELETE FROM BookSourceBindings WHERE Id = $sourceId AND BookId = $bookId;";
             target.Parameters.AddWithValue("$bookId", request.BookId);
             target.Parameters.AddWithValue("$sourceId", (object?)sourceId ?? DBNull.Value);
             if (await target.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false) != 1)
@@ -215,7 +215,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
 
         using (var content = connection.CreateCommand())
         {
-            content.CommandText = "SELECT l.StoredContentPath FROM LocalBookSources l JOIN BookSources s ON s.Id = l.SourceId WHERE s.BookId = $bookId AND ($sourceId IS NULL OR s.Id = $sourceId);";
+            content.CommandText = "SELECT l.StoredContentPath FROM LocalBookSourceBindings l JOIN BookSourceBindings s ON s.Id = l.BindingId WHERE s.BookId = $bookId AND ($sourceId IS NULL OR s.Id = $sourceId);";
             content.Parameters.AddWithValue("$bookId", request.BookId);
             content.Parameters.AddWithValue("$sourceId", (object?)(book.DeletesBook ? null : sourceId) ?? DBNull.Value);
             await using var contentReader = await content.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
@@ -233,13 +233,8 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
             paths.Add(new BookOperationPath(_pathResolver.GetStorageKey(bookDirectory),
                 _pathResolver.GetStorageKey(Path.Combine(stageRoot, "book")), true));
 
-        if (!request.DeleteAudioCache)
-        {
-            return paths;
-        }
-
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT FilePath FROM AudioCacheEntries WHERE BookId = $bookId AND ($sourceId IS NULL OR ChapterId IN (SELECT Id FROM Chapters WHERE SourceId = $sourceId)) ORDER BY CacheKey;";
+        command.CommandText = "SELECT FilePath FROM AudioCacheEntries WHERE BookId = $bookId AND ($sourceId IS NULL OR ChapterId IN (SELECT Id FROM Chapters WHERE SourceBindingId = $sourceId)) ORDER BY CacheKey;";
         command.Parameters.AddWithValue("$bookId", request.BookId);
         command.Parameters.AddWithValue("$sourceId", (object?)(book.DeletesBook ? null : sourceId) ?? DBNull.Value);
 
@@ -339,7 +334,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = connection.CreateCommand();
         command.CommandText = operation.SourceId is null ? "SELECT EXISTS(SELECT 1 FROM Books WHERE Id = $bookId);"
-            : "SELECT EXISTS(SELECT 1 FROM BookSources WHERE Id = $sourceId AND BookId = $bookId);";
+            : "SELECT EXISTS(SELECT 1 FROM BookSourceBindings WHERE Id = $sourceId AND BookId = $bookId);";
         command.Parameters.AddWithValue("$bookId", operation.BookId);
         command.Parameters.AddWithValue("$sourceId", (object?)operation.SourceId ?? DBNull.Value);
         return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false)) == 1;
@@ -364,7 +359,7 @@ public sealed class BookDeletionOperationStore : IBookDeletionOperationStore
         }
     }
 
-    private sealed record DeletionTarget(int ChapterCount, bool HasReadingProgress, string? ActiveSourceId, bool DeletesBook);
+    private sealed record DeletionTarget(int ChapterCount, bool HasReadingProgress, string? ActiveSourceBindingId, bool DeletesBook);
 
     private static StringComparison PathComparison => OperatingSystem.IsWindows()
         ? StringComparison.OrdinalIgnoreCase

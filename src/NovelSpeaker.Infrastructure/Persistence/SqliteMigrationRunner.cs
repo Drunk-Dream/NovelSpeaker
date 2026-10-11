@@ -10,7 +10,7 @@ namespace NovelSpeaker.Infrastructure.Persistence;
 public sealed class SqliteMigrationRunner : IDatabaseInitializer
 {
     private const int MinimumSupportedVersion = 4;
-    private const int CurrentSchemaVersion = 12;
+    private const int CurrentSchemaVersion = 13;
     private static readonly SqliteMigration[] Migrations =
     [
         new(
@@ -402,7 +402,8 @@ public sealed class SqliteMigrationRunner : IDatabaseInitializer
                 UPDATE Books SET ActiveSourceId = NULL WHERE Id = OLD.BookId AND ActiveSourceId = OLD.Id;
             END;
             """,
-            RebuildsReferencedTables: true)
+            RebuildsReferencedTables: true),
+        new(13, CurrentCatalogMigration.SchemaSql, CurrentCatalogMigration.ApplyAsync, RebuildsReferencedTables: true)
     ];
 
     internal static IReadOnlyList<SqliteMigration> AllMigrations => Migrations;

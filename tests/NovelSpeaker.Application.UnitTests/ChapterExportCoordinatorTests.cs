@@ -121,23 +121,26 @@ public sealed class ChapterExportCoordinatorTests
         Assert.Contains("缓存已发生变化", snapshot.ErrorSummary, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(ExportChaptersStatus.ChapterHasNoPlayableSegments, "没有可播放段落")]
-    [InlineData(ExportChaptersStatus.ChapterSpeechPlanUnavailable, "章节朗读清单尚未就绪")]
-    public async Task Chapter_export_failure_uses_chapter_title_instead_of_generated_number(
-        ExportChaptersStatus status,
-        string reason)
+    [Fact]
+    public async Task Chapter_export_failure_uses_chapter_title_instead_of_generated_number()
     {
-        var exporter = new ControlledExportService();
-        await using var coordinator = new ChapterExportCoordinator(exporter);
-        await coordinator.StartAsync(CreateRequest(), CancellationToken.None);
-        await exporter.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        foreach (var (status, reason) in new[]
+                 {
+                     (ExportChaptersStatus.ChapterHasNoPlayableSegments, "没有可播放段落"),
+                     (ExportChaptersStatus.ChapterSpeechPlanUnavailable, "章节朗读清单尚未就绪")
+                 })
+        {
+            var exporter = new ControlledExportService();
+            await using var coordinator = new ChapterExportCoordinator(exporter);
+            await coordinator.StartAsync(CreateRequest(), CancellationToken.None);
+            await exporter.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
-        exporter.Complete(ExportChaptersResult.Failed(status, 1));
-        await coordinator.WaitForCurrentBatchAsync(CancellationToken.None);
+            exporter.Complete(ExportChaptersResult.Failed(status, 1));
+            await coordinator.WaitForCurrentBatchAsync(CancellationToken.None);
 
-        var snapshot = Assert.IsType<ChapterExportSnapshot>(coordinator.CurrentSnapshot);
-        Assert.Equal($"章节“第二章”{reason}。", snapshot.ErrorSummary);
+            var snapshot = Assert.IsType<ChapterExportSnapshot>(coordinator.CurrentSnapshot);
+            Assert.Equal($"章节“第二章”{reason}。", snapshot.ErrorSummary);
+        }
     }
 
     private static StartChapterExportRequest CreateRequest() =>

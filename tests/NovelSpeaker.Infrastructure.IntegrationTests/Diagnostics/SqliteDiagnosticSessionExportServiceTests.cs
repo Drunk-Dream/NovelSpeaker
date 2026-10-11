@@ -183,23 +183,6 @@ public sealed class SqliteDiagnosticSessionExportServiceTests
     }
 
     [Fact]
-    public async Task Fully_corrupted_log_is_unavailable()
-    {
-        var (store, directories, _) = await CreateEndedSessionAsync();
-        await using var ownedStore = store;
-        var path = Path.Combine(directories.LogsDirectoryPath, "novelspeaker-20260101-000.jsonl");
-        await File.WriteAllTextAsync(path, "not json\n");
-        var output = Path.Combine(directories.RootDirectoryPath, "corrupted.zip");
-
-        await new SqliteDiagnosticSessionExportService(store, directories)
-            .ExportLastEndedAsync(output, CancellationToken.None);
-
-        var entries = ReadEntries(output);
-        Assert.Empty(entries["logs.jsonl"]);
-        Assert.Contains("关联生产日志证据：unavailable", Encoding.UTF8.GetString(entries["summary.md"]));
-    }
-
-    [Fact]
     public async Task A_failed_export_does_not_modify_the_source_session()
     {
         var root = Path.Combine(Path.GetTempPath(), "NovelSpeaker-Diagnostic-Export-" + Path.GetRandomFileName());

@@ -2,249 +2,350 @@
 
 ## 1. 定位
 
-本规范定义 NovelSpeaker 的通用书籍数据模型。目标是让当前 Local TXT 和未来可能出现的 Online Source 共用同一套 Book / Source / Catalog / Content / ReadingState 边界，同时避免为了尚未实现的在线书源提前固化 Legado、站点规则、登录、变量或正文请求细节。
+本规范定义 NovelSpeaker 的统一书籍领域模型，以及 Local Source 与未来 Online Source 共用的稳定边界。
 
-当前实现范围：
+当前实施阶段只要求：
 
-- 完成 Local TXT 向该模型的迁移；
-- Current version 只实现 Local Source；
-- 预留多 Source、Source switching、Online content cache 的稳定边界；
-- 不实现 Online Source 的具体能力。
+- 重构 Book / Source Binding / Current Catalog / ReadingState 的基础模型；
+- 调整 SQLite，使数据库结构与该模型一致；
+- 让现有 Local TXT 导入、书库、详情、播放、进度、删除等功能稳定运行在新模型上；
+- 只为未来 Online Source 预留清晰边界，不实现在线书源规则、搜索、刷新、目录抓取或正文抓取。
 
-## 2. 总体模型
+未来 Online Source 的规则系统计划参考 Legado 的成熟经验，但 NovelSpeaker 不追求直接兼容 Legado 规则格式。规则应优先保持结构化、显式、低歧义，使 AI 可以较容易地把 Legado 规则转换为 NovelSpeaker 规则。
+
+## 2. 全局模型
 
 ```text
-Book
-├─ BookId
-├─ DisplayMetadataSnapshot
-├─ ActiveSourceId?
-├─ ReadingState
-└─ Sources[]
-   └─ Source
-      ├─ SourceId
-      ├─ SourceType
-      ├─ MetadataSnapshot
-      ├─ Catalog
-      │  └─ ChapterEntry[]
-      └─ Content
+Online Source Definition（未来）
+        │
+        │ search / resolve
+        ▼
+Book ───────── BookSourceBinding
+ │                    │
+ │                    ├─ LocalBinding [0..1]
+ │                    └─ OnlineBinding [0..N]（未来）
+ │
+ ├─ ActiveSourceBindingId
+ ├─ CurrentCatalog
+ ├─ ReadingState
+ └─ Content
+      ├─ Local persistent content
+      └─ Online text cache（未来）
 ```
 
-核心所有权：
+核心原则：
 
-- Book 是跨 Source 稳定实体。
-- Source 属于 Book。
-- Catalog 属于 Source。
-- Content 属于 Source / Catalog entry。
-- ReadingState 属于 Book。
-
-Book 不拥有第二套独立主目录，ReadingState 不拥有 Chapter Identity。
+- Book 是用户书架中的最高层实体。
+- 产品语义上，`Title + Author` 确定一本唯一书籍；`BookId` 只是数据库技术主键。
+- Source Definition 与某一本具体书解耦；Book 与来源之间通过 `BookSourceBinding` 连接。
+- 一个 Book 最多一个 Local Binding，可以有多个 Online Binding，但任一时刻最多只有一个 Active Source Binding。
+- 数据库只长期保存当前 Active Source 对应的一份 Current Catalog，不保存所有 Binding 的 Catalog。
+- ReadingState 属于 Book，不属于 Source。
+- 正文获取统一由 Content 边界负责，上层不判断正文来自本地文件还是在线缓存/网络。
 
 ## 3. Book Identity
 
-### 3.1 永久身份
+### 3.1 产品身份与技术主键
 
-`BookId` 是 Book 创建后的永久身份。
+Book 至少具有：
 
-以下变化不得改变 BookId：
-
-- Source Title / Author / Description 改变；
-- ActiveSource 切换；
-- Local Source 重新导入；
-- Catalog 完整替换；
-- 章节正文变化。
-
-### 3.2 自动发现规则
-
-“书名 + 作者”只用于自动发现候选 Book。
-
-规则：
-
-- Title 与 Author 都参与严格匹配。
-- 空 Author 也作为一个明确值参与匹配。
-- 不通过标题相似度、文件名相似度、正文 hash、章节列表或阅读进度进行模糊匹配。
-- 0 个候选：创建新 Book。
-- 1 个候选：可以自动绑定/更新该 Book 的 Local Source。
-- 多个候选：不得猜测；用户明确选择目标 Book 或新建 Book。
-
-### 3.3 显式绑定
-
-用户显式选择“把这个 Source 绑定到某 Book”时：
-
-- Source Title / Author 可以与 Book 当前显示值不同。
-- 显式选择高于自动匹配。
-- 不需要为了允许绑定而建立模糊匹配算法。
-
-## 4. Book Display Metadata
-
-Book 保存一份当前展示元数据快照，至少包括：
-
-- Title；
-- Author；
-- Description；
-- Cover（当产品引入正式 Cover 数据时）。
+```text
+BookId
+Title
+Author
+NormalizedTitle
+NormalizedAuthor
+ActiveSourceBindingId?
+Description?
+ImportedAt
+LastPlayedAt?
+UpdatedAt
+```
 
 语义：
 
-- 有 ActiveSource 时，Book 当前展示元数据跟随 ActiveSource 的 metadata snapshot。
-- 更新非 ActiveSource 不改变 Book 当前展示元数据。
-- ActiveSource=None 时保留最后一次已经投影到 Book 的显示元数据，不自动从其它 Source 选择替代来源。
-- Book Display Metadata 是 UI/read model 的稳定入口，不代表 Book Identity。
+- `BookId` 是内部技术主键，用于数据库关联和运行时引用。
+- `NormalizedTitle + NormalizedAuthor` 是产品唯一身份，数据库必须建立唯一约束。
+- Title / Author 在 Book 入库时确定，之后不提供普通用户修改入口。
+- 不再建立“BookId 才是真正书籍身份，书名作者只是候选匹配”的长期产品模型。
+- 不建立模糊“同一本书”判定体系。
 
-## 5. Source
+### 3.2 规范化
 
-### 5.1 通用语义
+规范化必须保守，目标只是消除明显的表示差异，而不是猜测作品等价性。
 
-Source 表示一本 Book 的一个内容来源。
+建议长期语义：
 
-Source 至少具有：
+- Unicode Normalization Form C；
+- 去除首尾空白；
+- 连续 Unicode 空白折叠为单个普通空格；
+- Author 缺失时使用空字符串参与身份计算；
+- 保留大小写、标点、括号、副标题等其它字符，不进行模糊清洗。
 
-- SourceId；
-- BookId；
-- SourceType；
-- Source metadata snapshot；
-- created/updated 等必要内部时间状态。
+实现可以把规范化集中在唯一一个领域/应用组件中；查询、导入和迁移不得各自复制不同规则。
 
-一个 Book 可以有多个 Source，但：
+### 3.3 唯一性冲突
 
-- 同一个 Source 不允许重复绑定；
-- 任一时刻最多一个 ActiveSource；
-- Book 可以暂时没有 ActiveSource；
-- 不建立自动 Source fallback。
+若历史数据库中存在多个 Book 在新规范化规则下得到相同身份：
 
-SourceType 使用 typed model。不要用一个万能 JSON 字典承载所有类型配置。
+- 不自动合并；
+- 不猜测应保留哪个 Local Source；
+- 不静默删除任何一本书；
+- 数据库迁移必须原子失败，并进入明确的“需要重新导入书籍”兼容处理路径。
 
-### 5.2 Local Source
+这类冲突不值得为了旧模型建立长期兼容层。
 
-当前实现只需要 Local Source。
+## 4. Book Metadata
+
+Title / Author 是 Book Identity 的组成部分，入库后不可编辑。
+
+Description、未来 Cover 等不参与 Book 唯一性，可以作为当前书籍详情快照存在于 Book 或对应 read model 中；它们允许随着当前 Active Source 的详情刷新而变化。
+
+长期约束：
+
+- UI 不再提供“修改书名”“修改作者”功能；
+- 如果 Local TXT 的自动识别结果不正确，应在入库前确认流程中修正，或者删除后按正确规则重新导入；
+- 不建立永久 metadata override 层。
+
+## 5. Source Definition 与 BookSourceBinding
+
+### 5.1 Source Definition
+
+Source Definition 描述“如何访问一个来源”，它不是某一本具体书。
+
+未来 Online Source Definition 预计至少具有：
+
+```text
+SourceDefinitionId
+Name
+Enabled
+Rules / configuration（未来设计）
+```
+
+`Enabled` 主要影响全局搜索、刷新绑定源等主动发现流程。禁用 Definition 不等于删除已经存在的 BookSourceBinding。
+
+当前阶段不实现 Online Source Definition 的规则 schema、持久化结构、编辑器或运行时。
+
+### 5.2 BookSourceBinding
+
+Binding 表示：
+
+> 某一本 Book 与某一个具体内容来源之间的绑定关系。
+
+通用字段至少包括：
+
+```text
+BindingId
+BookId
+SourceType
+CreatedAt
+UpdatedAt
+```
+
+Source-specific 数据使用 typed storage，不使用一个万能 JSON 字典承载所有来源类型。
+
+### 5.3 Local Binding
+
+每个 Book 最多一个 Local Binding。
+
+Local Binding 至少保存：
+
+```text
+BindingId
+OriginalFileName
+StoredContentPath
+SourceHash
+Encoding
+ImportedAt
+LastImportedAt
+```
+
+语义：
+
+- Local Source 是导入到 NovelSpeaker 数据目录后的持久快照；
+- 用户外部 TXT 只作为导入输入，导入后可以移动、改名或删除；
+- NovelSpeaker 永不写回用户外部 TXT；
+- Local Source 正文属于业务数据，不属于可清理 Cache。
+
+### 5.4 Online Binding（未来）
+
+未来 Online Binding 预计连接：
+
+```text
+Book
++
+OnlineSourceDefinition
++
+该书在该在线来源中的 locator
+```
+
+例如未来可能需要：
+
+- source definition id；
+- book URL / remote id / opaque locator；
+- 必要的来源级书籍定位信息。
+
+这些字段在真正设计 Online Source 规则系统时再确定。当前阶段不得为了“先留全”而引入万能配置容器。
+
+## 6. Active Source
+
+Book 保存 nullable `ActiveSourceBindingId`。
 
 规则：
 
-- 每个 Book 最多一个 Local Source。
-- Local Source 是导入快照，不是对外部 TXT 的永久引用。
-- 原始 TXT 在导入后可以移动、改名或删除，不影响 NovelSpeaker。
-- Local Source 保存自己的 metadata snapshot、Catalog 和正文持久数据。
-- Local Source 正文不是 Cache。
-- 重新导入同一本书时更新已有 Local Source，而不是产生 `Local Source 2/3/...`。
+- 一个 Book 任意时刻最多只有一个 Active Binding；
+- Binding 的新增或更新不自动等于激活；
+- 新建 Book 时，第一个成功建立的 Local Binding 可以成为 Active Binding；
+- 删除 Active Binding 时不自动选择其它 Binding；
+- 删除最后一个 Binding 时删除 Book；
+- Source 切换是显式用户动作；
+- Source 切换后停止当前播放，不自动续播；
+- 不建立自动 Source fallback。
 
-### 5.3 Future Online Source
+当前版本只实现 Local Source，因此正常可读 Book 实际上会使用其 Local Binding；这些规则主要用于保证下一阶段 Online Source 接入时不需要再次推翻模型。
 
-当前不定义 Online Source 的具体 schema。
+## 7. Current Catalog
 
-未来实现时可以增加 typed storage 表达：
+### 7.1 所有权
 
-- Source identity；
-- 规则/站点配置；
-- book locator；
-- catalog locator；
-- authentication/session；
-- chapter locator；
-- request context。
-
-这些字段必须在真正实现 Online Source 时根据实际模型定义，不提前为了“看起来通用”把 Local Source 或 Book 主表变成万能配置容器。
-
-## 6. ActiveSource
-
-- `ActiveSourceId` 属于 Book，允许为空。
-- 切换 Source 必须由用户明确触发；绑定/更新一个 Source 不等于激活。
-- ActiveSource 暂时不可用时不自动 fallback。
-- 删除 ActiveSource 时把 ActiveSource 变为空，不偷偷选择其它 Source。
-- 删除最后一个 Source 时同时删除 Book。
-- 切换 ActiveSource 后停止当前播放，不自动续播。
-- 切换时停止/失效旧 Source 仍在进行的正文获取、预取等上下文工作；已有合法缓存可以保留。
-
-## 7. Catalog
-
-### 7.1 Source ownership
-
-Catalog 始终属于 Source。
+NovelSpeaker 只持久化当前 Active Source 对应的一份 Current Catalog。
 
 ```text
-Source
-└─ Catalog
-   ├─ ChapterEntry 0
-   ├─ ChapterEntry 1
-   └─ ...
+Book
+├─ ActiveSourceBindingId
+└─ CurrentCatalog
+   ├─ SourceBindingId
+   └─ Entries[]
 ```
 
-Book 不复制 Catalog。
+Catalog 不再长期属于每一个 Binding。
 
-### 7.2 ChapterEntry
+因此以下模型不再成立：
 
-ChapterEntry 至少表达：
+```text
+Book
+└─ Sources[]
+   └─ each Source owns persistent Catalog
+```
 
-- technical entry/chapter id；
-- SourceId；
-- ChapterIndex / stable order；
-- Title；
-- Source type 所需的最小内容定位数据。
+### 7.2 Catalog Entry
 
-Chapter technical ID 可以存在，用于：
+通用 Catalog Entry 至少表达：
+
+```text
+ChapterId          // technical id
+BookId
+ChapterIndex       // 0-based ordinal
+SortOrder
+Title
+```
+
+Source-specific 内容定位使用 typed persistence：
+
+- Local Catalog Entry：`StartOffset + Length`；
+- Online Catalog Entry：未来使用 URL / locator 等专属数据。
+
+ChapterId 可以继续服务：
 
 - SQLite 外键；
 - Speech Plan；
-- 音频缓存；
-- 稳定内部引用。
+- Audio Cache；
+- 当前 Catalog 内部技术引用。
 
-但它不是产品级“Chapter Identity”。NovelSpeaker 不尝试推断：
-
-- 两次 Catalog 更新前后哪一章“语义相同”；
-- Source A 的某章与 Source B 的哪章“对应”；
-- 标题相同是否表示同一章；
-- 正文相同是否表示同一章。
+但它不是跨 Source、跨 Catalog replacement 的产品级 Chapter Identity。
 
 ### 7.3 Catalog replacement
 
-Source 更新使用完整快照替换：
+任何目录更新或 Source 切换都必须：
 
 ```text
-prepare complete new snapshot
+prepare complete new catalog snapshot
 → validate
-→ commit as one Source update
+→ atomically replace CurrentCatalog
 ```
 
 失败时旧 Catalog 保持完整可用。
 
-不以“在旧 Catalog 上逐条猜测增删改”作为基本模型。
+不得边获取/边解析边把半成品逐条写进正式 CurrentCatalog。
 
-## 8. Content
+### 7.4 Local Source 切换
 
-### 8.1 Local Source Content
+未来从 Online Source 切换回 Local Binding 时：
 
-Local Source 保存完整可用正文。
+- 不读取一份长期隐藏的 Local Catalog；
+- 使用当前章节解析规则重新从 Local Source 的持久正文副本解析完整目录；
+- 完整成功后替换 CurrentCatalog。
 
-实现可以采用：
+这意味着 Local Binding 长期持久化的是 Source Content，而不是一份永远存在的 Local Catalog。
+
+## 8. Content System
+
+上层统一使用内容获取边界：
 
 ```text
-one normalized internal content file
-+ chapter ranges
+GetContent(Book, CatalogEntry)
 ```
 
-也可以采用其它等价的持久 Source 表示。关键合同是：
+或者等价的窄接口。
 
-- 正文是 Local Source 业务数据；
-- 不是用户外部 TXT 的活引用；
-- 不是可清理 cache；
-- ChapterEntry 可以一对一读取对应正文。
+### 8.1 Local Content
 
-v0.8.0 已存在 `Books/{BookId}/content.txt` 规范化内部文件。因为每个 Book 最多一个 Local Source，该文件可以在迁移后继续由 Local Source 持有，无需仅为目录结构重排而搬迁。
+Local Source：
 
-### 8.2 Future Online Source Content
+```text
+CurrentCatalog entry
+→ local range metadata
+→ stored local content file
+→ chapter text
+```
 
-Online Source 正文通常按需加载。
+要求：
 
-预留合同：
+- Content reader 不依赖用户外部 TXT；
+- Local Content 不是 Cache；
+- Catalog 与正文范围必须属于同一次完整快照；
+- 重新导入失败不能破坏旧正文和旧 Catalog。
 
-- Catalog 可以存在而正文不存在。
-- 正文缓存不存进 `app.db`。
-- 缓存采用 Source-scoped 文件存储。
-- Source switching 不清理其它 Source 合法正文缓存。
-- 解除 Source 绑定时清理该 Source 正文缓存。
-- locator 消失或变化时对应旧正文失效。
-- 只有 locator 明确一致时才允许复用，不通过标题/位置/正文猜测。
-- 当前不实现容量上限、LRU、自动淘汰或高级逐章缓存管理。
-- 当前仅预留整本书在线正文缓存整体清理能力。
+### 8.2 Future Online Content
 
-## 9. ReadingState
+未来 Online Source：
+
+```text
+CurrentCatalog entry
+→ content locator
+→ local text cache lookup
+   ├─ hit  → read text file
+   └─ miss → fetch online → persist file + cache metadata → return
+```
+
+正文缓存身份必须能从“当前 Binding + Catalog Entry locator”稳定定位对应正文。
+
+推荐长期唯一性：
+
+```text
+BindingId + ContentLocator
+```
+
+ChapterIndex 只表示目录顺序，不作为在线正文缓存唯一身份。
+
+## 9. Future Online Text Cache
+
+当前阶段只固定边界，不实现。
+
+长期规则：
+
+- 正文实体保存为独立文本文件；
+- SQLite 只保存必要缓存元数据，例如 BindingId、ContentLocator、LocalPath、CreatedAt；
+- 不使用 LRU；
+- 正常 Source switching 不清理；
+- Catalog refresh 不因为章节序号变化而错误复用；
+- 删除 Book 或用户主动清理该 Book 正文缓存时清理；
+- Binding 暂时从刷新结果中消失不要求立刻删除旧正文缓存；
+- Local Source 正文永远不进入这一缓存体系。
+
+Online Text Cache 与 Speech/Audio Cache 是两类独立数据，不强行复用一个 store/index。
+
+## 10. ReadingState
 
 ReadingState 属于 Book。
 
@@ -255,7 +356,7 @@ ChapterIndex
 + PositionInChapter
 ```
 
-当前实现可以继续把 PositionInChapter 分解为：
+当前实现可以继续细分 PositionInChapter，例如：
 
 - SegmentIndex；
 - CharacterOffset；
@@ -263,112 +364,153 @@ ChapterIndex
 
 规则：
 
-- ReadingState 不引用 Chapter technical ID。
-- Source A / Source B 共享同一 ReadingState。
-- Source switch 不做章节匹配或进度比例换算。
-- 目标 Catalog 章节数不足时，把 ChapterIndex 截到最后一个合法章节。
-- 目标章节章内位置不足时，把章内位置截到最后一个合法位置。
-- Catalog 更新采用相同边界处理。
-- Catalog 为空时保持未定位状态，不伪造进度。
+- ReadingState 不引用 SourceId / BindingId；
+- ReadingState 不把 ChapterId 作为产品级位置身份；
+- Source A / Source B 共用同一 Book ReadingState；
+- Source switching 不做章节标题、URL、正文、Hash 或比例匹配；
+- 新 Catalog 中仍存在原 ChapterIndex 时直接沿用；
+- 原 ChapterIndex 超过新 Catalog 最大范围时截到最后一章；
+- 章内位置超过新正文范围时截到最后一个合法位置；
+- Catalog 为空时保持未定位状态，不伪造章节。
 
-## 10. Metadata update semantics
+## 11. Search / Discovery（未来）
 
-Source metadata snapshot 是来源事实。
+搜索属于临时会话，不直接创建持久 Book。
 
-- Local Source 重新导入后，Source metadata 使用最新导入结果完整更新。
-- 空 Description 也可以覆盖/清空旧 Description；不保留隐藏的“旧值 fallback”。
-- ActiveSource metadata 更新后同步 Book Display Metadata。
-- Non-active Source metadata 更新只更新 Source。
-- 用户未来若直接编辑当前元数据，编辑的是当前模型中的值，不建立永久 override 层；后续 Source 更新仍可以按产品规则覆盖。
+```text
+SearchSession
+→ per-source results
+→ aggregation pool
+→ TemporaryBook
+```
 
-## 11. Source removal / Book deletion
+聚合规则：
 
-### Remove Source
+```text
+NormalizedTitle + NormalizedAuthor
+```
 
-移除 Source 必须同时清理：
+每一个聚合结果在产品语义上就是一本临时 Book，但不写入数据库。
 
-- Source row/config；
-- Source Catalog；
-- Source-owned persistent content；
-- Source-owned future online content cache；
-- 只依赖该 Source Catalog 的派生数据。
+TemporaryBook 可以拥有：
 
-若 Source 是 ActiveSource：
+- Title / Author；
+- 已搜索到的多个临时 Online Binding；
+- TemporaryActiveSource；
+- 临时详情 / Catalog。
 
-- ActiveSourceId → null；
-- 不自动切换其它 Source。
+用户点击“加入书架”时：
 
-若这是最后一个 Source：
+- 把当前已经聚合得到的全部 Source Binding 转为正式 Binding；
+- TemporaryActiveSource 成为正式 ActiveSource；
+- 若正式 Book 已存在，则全局搜索行为本身不自动修改该 Book 的绑定集合。
 
-- 同时删除 Book。
+当前阶段不实现 SearchSession。
+
+## 12. Refresh Binding List（未来）
+
+刷新某本书的绑定源列表复用底层搜索能力，但拥有独立生命周期。
+
+核心模型：
+
+```text
+PersistedBindings
+        │
+        │ unchanged while refreshing
+        ▼
+RefreshSession
+        ↓
+RefreshWorkingSet   ← incremental results
+        ↓
+UI live projection
+```
+
+停止时机包括：
+
+- 所有 Source 搜索完成；
+- 用户主动停止；
+- 用户离开承载换源能力的页面；
+- 刷新过程中用户直接选择换源。
+
+正常停止：
+
+- 立即停止接收新结果；
+- 取消未完成 Source 搜索；
+- 不等待未完成搜索返回；
+- 冻结当前 Working Set；
+- 提交目前已经获得的结果。
+
+应用退出：
+
+- 取消未完成搜索；
+- 放弃尚未提交的 Working Set；
+- 不为了保存刷新结果延长退出时间。
+
+Active Online Binding 在刷新提交时受到保护，即使本轮没有重新搜索到，也保留在正式绑定集合中；不为此增加“本轮未发现”等额外持久状态或 UI 状态。
+
+当前阶段不实现 RefreshSession。
+
+## 13. UI 表达原则
+
+书籍与 Source 相关 UI 遵守：
+
+> 状态优先通过已有操作的文案、可见性和可用性表达，不重复增加同义状态文本。
+
+例如详情页提供“加入书架”或“移出书架”按钮时，不再额外显示“已加入书架 / 未加入书架”。
+
+当前阶段只需要删除与新身份模型冲突的 Title / Author 编辑能力；Online Source 详情、换源 UI、搜索 UI 留到后续阶段。
+
+## 14. 删除语义
+
+### Remove Binding
+
+删除 Binding 时清理该 Binding 自己的 typed 数据。
+
+如果删除的是 Active Binding：
+
+- `ActiveSourceBindingId → null`；
+- CurrentCatalog 必须失效/清理；
+- 不自动选择其它 Binding。
+
+如果删除最后一个 Binding：
+
+- 删除整个 Book。
+
+Future Online Text Cache 的物理清理按照正文缓存生命周期处理，不把刷新列表变化等同于用户主动 Remove Binding。
 
 ### Delete Book
 
-删除 Book 清理：
+删除 Book 需要协调清理：
 
-- all Sources；
-- all Catalogs；
-- Local Source content；
-- future Online Source content cache；
+- Book row；
+- all BookSourceBindings；
+- CurrentCatalog；
+- Local Source persistent content；
 - ReadingProgress；
 - Speech Plans；
-- audio cache index/files；
+- Audio Cache index/files；
+- Future Online Text Cache；
 - 其它 Book-owned 派生状态。
 
-真实文件删除必须与 SQLite 状态协调，不能仅依赖外键级联。
+SQLite cascade 不能替代物理文件协调。
 
-## 12. v0.8.0 migration principles
+## 15. 当前阶段的非目标
 
-v0.8.0 当前模型：
+本轮明确不实现：
 
-```text
-Books
-├─ Book metadata
-├─ Local TXT fields
-└─ StoredFilePath
-
-Chapters
-└─ BookId
-```
-
-目标：
-
-```text
-Books
-├─ Display metadata
-└─ ActiveSourceId
-
-BookSources
-└─ LocalBookSourceData
-
-Chapters / Catalog entries
-└─ SourceId
-```
-
-迁移必须优先保持：
-
-- existing BookId；
-- existing Chapter technical IDs；
-- ReadingProgress；
-- ChapterSpeechPlans；
-- audio cache identity/data when still valid；
-- existing normalized local content file。
-
-迁移后不保留旧运行模型双读/双写。
-
-如果自动迁移需要引入复杂长期兼容层、章节模糊匹配、重新定位外部 TXT 或重型一次性 recovery framework，则使用已批准 fallback：不实现复杂迁移，要求用户重新导入本地书籍。
-
-## 13. 非目标
-
-本规范不定义：
-
-- Legado book source rule syntax；
-- Online Source 网络协议；
-- WebView/login；
-- cookie/session lifecycle；
+- Legado 规则兼容层；
+- Online Source Definition 规则 schema；
+- 在线书源编辑器；
+- 全局搜索；
+- SearchSession；
+- RefreshSession；
+- Online Catalog 获取；
+- Online Content 获取；
+- Online Text Cache 实际读写；
+- 登录 / Cookie / WebView；
 - JS/source variable environment；
-- 在线目录增量抓取算法；
 - 自动 Source fallback；
 - 跨 Source Chapter Identity；
-- 模糊章节匹配；
-- 高级正文缓存管理。
+- 模糊章节匹配。
+
+本轮只需要保证未来实现这些能力时，不必再次推翻 Book / Binding / CurrentCatalog / ReadingState / Content 的核心边界。

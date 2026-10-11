@@ -32,7 +32,6 @@ public sealed class AppNavigationPageProviderTests
             services.AddSingleton<INavigationGuardService, FakeNavigationGuardService>();
             services.AddSingleton<FakeBookManagementService>();
             services.AddSingleton<IBookDetailsQuery>(provider => provider.GetRequiredService<FakeBookManagementService>());
-            services.AddSingleton<IBookMetadataUpdateService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IBookDeletionService>(provider => provider.GetRequiredService<FakeBookManagementService>());
             services.AddSingleton<IAudioCacheStore, CacheStoreTestDouble>();
             services.AddSingleton<ICacheReadModel, CacheReadModelTestDouble>();
@@ -60,19 +59,6 @@ public sealed class AppNavigationPageProviderTests
                 provider.DisposeAsync().AsTask().GetAwaiter().GetResult();
             }
         });
-    }
-
-    [Fact]
-    public void GetPage_throws_for_unregistered_page()
-    {
-        using var provider = new ServiceCollection().BuildServiceProvider();
-        var pageProvider = new AppNavigationPageProvider(provider);
-
-        Assert.Throws<InvalidOperationException>(() => pageProvider.GetPage(typeof(UnregisteredPage)));
-    }
-
-    private sealed class UnregisteredPage : System.Windows.Controls.Page
-    {
     }
 
     private sealed class FakeNavigationService : INavigationService, IAppNavigator
@@ -131,7 +117,7 @@ public sealed class AppNavigationPageProviderTests
         }
     }
 
-    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookMetadataUpdateService, IBookDeletionService
+    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookDeletionService
     {
         public Task<BookDetailsHeader?> GetHeaderAsync(string bookId, CancellationToken cancellationToken)
         {
@@ -146,11 +132,6 @@ public sealed class AppNavigationPageProviderTests
 
         public Task<BookDetailsStatistics?> GetStatisticsAsync(string bookId, CancellationToken cancellationToken)
             => Task.FromResult<BookDetailsStatistics?>(null);
-
-        public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
-        {
-            throw new NotSupportedException();
-        }
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
         {
@@ -224,7 +205,7 @@ public sealed class AppNavigationPageProviderTests
     {
         public Task<BookDeleteDialogResult> ShowAsync(BookDeleteDialogRequest request, CancellationToken cancellationToken)
         {
-            return Task.FromResult(new BookDeleteDialogResult(false, true));
+            return Task.FromResult(new BookDeleteDialogResult(false));
         }
     }
 

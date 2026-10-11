@@ -165,26 +165,27 @@ public sealed class ChapterRuleWorkspaceServiceTests
         Assert.Equal(["有效", "第二条"], repository.Rules.OrderBy(rule => rule.SortOrder).Select(rule => rule.Name));
     }
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task Versioned_export_round_trips_single_and_multiple_rules_in_visible_order(int count)
+    [Fact]
+    public async Task Versioned_export_round_trips_single_and_multiple_rules_in_visible_order()
     {
-        var repository = new FakeChapterRuleRepository([]);
-        var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService(), TimeProvider.System);
-        for (var index = 0; index < count; index++)
+        foreach (var count in new[] { 1, 2 })
         {
-            await service.ImportJsonAsync(
-                $$"""{"name":"Rule {{index}}","pattern":"pattern{{index}}"}""",
-                CancellationToken.None);
-        }
-        var json = await service.ExportRulesJsonAsync(repository.Rules.Select(rule => rule.Id).Reverse().ToArray(), CancellationToken.None);
-        var target = new FakeChapterRuleRepository([]);
-        var imported = await new ChapterRuleWorkspaceService(target, new FakeChapterRuleManagementService(), TimeProvider.System).ImportJsonAsync(json!, CancellationToken.None);
+            var repository = new FakeChapterRuleRepository([]);
+            var service = new ChapterRuleWorkspaceService(repository, new FakeChapterRuleManagementService(), TimeProvider.System);
+            for (var index = 0; index < count; index++)
+            {
+                await service.ImportJsonAsync(
+                    $$"""{"name":"Rule {{index}}","pattern":"pattern{{index}}"}""",
+                    CancellationToken.None);
+            }
+            var json = await service.ExportRulesJsonAsync(repository.Rules.Select(rule => rule.Id).Reverse().ToArray(), CancellationToken.None);
+            var target = new FakeChapterRuleRepository([]);
+            var imported = await new ChapterRuleWorkspaceService(target, new FakeChapterRuleManagementService(), TimeProvider.System).ImportJsonAsync(json!, CancellationToken.None);
 
-        Assert.Equal(count, imported.ImportedCount);
-        Assert.Equal(repository.Rules.Select(rule => rule.Pattern), target.Rules.Select(rule => rule.Pattern));
-        Assert.Equal(count, (await service.ImportJsonAsync(json!, CancellationToken.None)).SkippedCount);
+            Assert.Equal(count, imported.ImportedCount);
+            Assert.Equal(repository.Rules.Select(rule => rule.Pattern), target.Rules.Select(rule => rule.Pattern));
+            Assert.Equal(count, (await service.ImportJsonAsync(json!, CancellationToken.None)).SkippedCount);
+        }
     }
 
     private sealed class FakeChapterRuleRepository : IChapterRuleRepository

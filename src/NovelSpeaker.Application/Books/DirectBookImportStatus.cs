@@ -4,6 +4,6 @@ public enum DirectBookImportStatus
 {
     Imported,
     RequiresEncodingSelection,
-    RequiresBookSelection,
+    RequiresMetadataConfirmation,
     Failed
 }

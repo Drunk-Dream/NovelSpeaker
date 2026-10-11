@@ -37,9 +37,9 @@ public sealed class BookTextExportTests
 
     private sealed class ExportContent(string path) : ISourceContentReader
     {
-        public Task<string> ReadSourceTextAsync(string sourceId, CancellationToken cancellationToken) =>
+        public Task<string> ReadBookTextAsync(string bookId, ActiveSourceContext expectedContext, CancellationToken cancellationToken) =>
             File.ReadAllTextAsync(path, cancellationToken);
-        public Task<string> ReadChapterTextAsync(string sourceId, string chapterId, CancellationToken cancellationToken) =>
+        public Task<string> ReadChapterTextAsync(PlaybackChapterMetadata chapter, CancellationToken cancellationToken) =>
             File.ReadAllTextAsync(path, cancellationToken);
     }
 
@@ -48,6 +48,6 @@ public sealed class BookTextExportTests
         public Task<PlaybackBookMetadata?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
             Task.FromResult<PlaybackBookMetadata?>(new(bookId, "CON", null, [new(0, "Chapter")], new ActiveSourceContext("source", "chapter")));
         public Task<PlaybackChapterMetadata?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) =>
-            Task.FromResult<PlaybackChapterMetadata?>(new(0, "Chapter", "source", "chapter", new ActiveSourceContext("source", "chapter")));
+            Task.FromResult<PlaybackChapterMetadata?>(new(bookId, 0, "Chapter", "source", "chapter", new ActiveSourceContext("source", "chapter")));
     }
 }

@@ -85,7 +85,7 @@ internal sealed class StartupCoordinator : IAsyncDisposable
         }
         catch (StartupStageException exception)
         {
-            var failure = StartupFailureProjector.Project(exception.Stage);
+            var failure = StartupFailureProjector.Project(exception.Stage, exception.InnerException);
             RecordProcessFailure(ProcessFailure.Startup, exception.Stage.ToString(), failure.Message, exception.InnerException);
             _runtime.ShowStartupFailure(failure);
             _runtime.CloseStartupStatus();

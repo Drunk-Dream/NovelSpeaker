@@ -7,6 +7,26 @@ namespace NovelSpeaker.App.PresentationTests.Bootstrap;
 
 public sealed class StartupCoordinatorTests
 {
+    [Fact]
+    public async Task Unsafe_book_migration_requires_reimport_and_never_opens_shell()
+    {
+        var runtime = new RecordingStartupRuntime
+        {
+            FailureStage = StartupStage.Database,
+            Failure = new BookLibraryReimportRequiredException(new IOException("private data"))
+        };
+        await using var coordinator = new StartupCoordinator(runtime);
+
+        var result = await coordinator.StartAsync();
+
+        Assert.False(result.IsSuccessful);
+        Assert.Equal(StartupStage.Database, result.Failure?.Stage);
+        Assert.Contains("重新导入本地书", result.Failure!.Message);
+        Assert.DoesNotContain("private data", Assert.Single(runtime.VisibleFailures));
+        Assert.Equal(0, runtime.ShellCalls);
+        Assert.True(runtime.StatusClosed);
+    }
+
     private async Task StartAsync_runs_required_stages_in_order_and_uses_one_settings_snapshot()
     {
         var runtime = new RecordingStartupRuntime();

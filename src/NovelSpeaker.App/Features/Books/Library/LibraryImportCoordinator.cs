@@ -11,20 +11,20 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
     private readonly IEncodingSelectionDialogService _encodingSelectionDialogService;
     private readonly IImportProgressDialogService _importProgressDialogService;
     private readonly IUserDocumentFileOperations _fileOperations;
-    private readonly IBookImportSelectionDialogService _bookSelectionDialogService;
+    private readonly IBookImportMetadataDialogService _metadataDialogService;
 
     public LibraryImportCoordinator(
         IDirectBookImportService directBookImportService,
         IEncodingSelectionDialogService encodingSelectionDialogService,
         IImportProgressDialogService importProgressDialogService,
         IUserDocumentFileOperations fileOperations,
-        IBookImportSelectionDialogService bookSelectionDialogService)
+        IBookImportMetadataDialogService metadataDialogService)
     {
         _directBookImportService = directBookImportService;
         _encodingSelectionDialogService = encodingSelectionDialogService;
         _importProgressDialogService = importProgressDialogService;
         _fileOperations = fileOperations;
-        _bookSelectionDialogService = bookSelectionDialogService;
+        _metadataDialogService = metadataDialogService;
     }
 
     public async Task<LibraryImportCoordinatorResult> ImportAsync(
@@ -46,7 +46,7 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
         CancellationToken cancellationToken)
     {
         string? selectedEncoding = null;
-        BookImportSelection? selection = null;
+        BookImportIdentity? confirmedIdentity = null;
         var filePath = metadata.FilePath;
         var fileName = metadata.FileName;
 
@@ -57,7 +57,7 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
             async Task<LibraryImportCoordinatorResult> AttemptAsync(IProgress<BookImportProgress>? progress, CancellationToken token)
             {
                 var attempt = await _directBookImportService.ImportAsync(
-                    new DirectBookImportRequest(filePath, selectedEncoding, fileName, selection?.TargetBookId, selection?.CreateNewBook ?? false),
+                    new DirectBookImportRequest(filePath, selectedEncoding, fileName, confirmedIdentity),
                     progress, token);
                 return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.RequiresInput, PendingImport: attempt);
             }
@@ -79,10 +79,10 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
                 return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Imported);
             }
 
-            if (result.Status == DirectBookImportStatus.RequiresBookSelection)
+            if (result.Status == DirectBookImportStatus.RequiresMetadataConfirmation)
             {
-                selection = await _bookSelectionDialogService.ShowAsync(result.BookCandidates!, cancellationToken);
-                if (selection is null)
+                confirmedIdentity = await _metadataDialogService.ShowAsync(result.MetadataConfirmation!, cancellationToken);
+                if (confirmedIdentity is null)
                 {
                     return new LibraryImportCoordinatorResult(LibraryImportCoordinatorStatus.Cancelled);
                 }
@@ -94,6 +94,7 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
             {
                 if (result.FailureReason == BookImportFailureReason.UnsupportedEncoding && !string.IsNullOrWhiteSpace(selectedEncoding))
                 {
+                    confirmedIdentity = null;
                     selectedEncoding = await _encodingSelectionDialogService.ShowAsync(
                         new EncodingSelectionPrompt(
                             filePath,
@@ -115,6 +116,7 @@ public sealed class LibraryImportCoordinator : ILibraryImportCoordinator
                     result.FailureReason);
             }
 
+            confirmedIdentity = null;
             selectedEncoding = await _encodingSelectionDialogService.ShowAsync(
                 result.EncodingSelectionPrompt!,
                 cancellationToken);

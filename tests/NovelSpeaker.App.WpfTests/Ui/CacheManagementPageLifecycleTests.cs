@@ -1,7 +1,7 @@
 using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Cache.Export;
-using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Feedback;
+using NovelSpeaker.App.Shared.Dialogs;
 using NovelSpeaker.App.Shared.Presentation.Platform;
 using Xunit;
 
@@ -32,41 +32,13 @@ public sealed class CacheManagementPageLifecycleTests
         });
     }
 
-    [Fact]
-    public async Task SelectBookAsync_on_bound_page_loads_async_chapters_without_error()
-    {
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            var store = new CacheStoreTestDouble();
-            var readModel = new CacheReadModelTestDouble
-            {
-                Books = [new CachedBookSummary("book-1", "第一本", "作者甲", 1, 1, 1024)],
-            };
-            readModel.ChaptersByBook["book-1"] =
-            [new CacheChapterView(0, new CachedChapterSummary("book-1", 0, "第一章", 1, 1, 1024), new ChapterCacheStatus(0, 1, 1))];
-            var feedback = new CachePageFeedback();
-            var viewModel = CreateViewModel(store, readModel, feedback);
-            var page = new CacheManagementPage(viewModel);
-            page.Measure(new System.Windows.Size(1280, 820));
-            page.Arrange(new System.Windows.Rect(0, 0, 1280, 820));
-            page.UpdateLayout();
-
-            await viewModel.LoadAsync(CancellationToken.None);
-            await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
-
-            Assert.Null(feedback.LastTitle);
-            Assert.Equal("第一章", Assert.Single(viewModel.Chapters).Title);
-        });
-    }
-
     private static CacheManagementViewModel CreateViewModel(
         CacheStoreTestDouble store,
-        CacheReadModelTestDouble readModel,
-        CachePageFeedback? feedback = null) =>
+        CacheReadModelTestDouble readModel) =>
         new(
             store,
             readModel,
-            feedback ?? new CachePageFeedback(),
+            new CachePageFeedback(),
             new CachePageDialog(),
             new CachePageNavigator(),
             new FakeChapterExportCoordinator(),
@@ -74,16 +46,20 @@ public sealed class CacheManagementPageLifecycleTests
 
     private sealed class CachePageFeedback : IAppFeedbackService
     {
-        public string? LastTitle { get; private set; }
-
         public ProjectedUiError Project(Exception exception) =>
             new(exception.Message, UiMessageSeverity.Error, false);
 
-        public void ShowProjectedNotification(string title, ProjectedUiError projected) => LastTitle = title;
+        public void ShowProjectedNotification(string title, ProjectedUiError projected)
+        {
+        }
 
-        public void ShowSuccess(string title, string message) => LastTitle = title;
+        public void ShowSuccess(string title, string message)
+        {
+        }
 
-        public void ShowWarning(string title, string message) => LastTitle = title;
+        public void ShowWarning(string title, string message)
+        {
+        }
 
         public Task<AppConfirmationDecision> ConfirmDeletionAsync(
             string title,

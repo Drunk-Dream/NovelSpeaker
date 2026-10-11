@@ -41,17 +41,6 @@
                                 Command="{Binding ClearCacheCommand}"
                                 Content="清理"
                                 AutomationProperties.Name="清理书籍缓存" />
-                        <Button x:Name="CancelEditButton"
-                                Margin="0,0,8,0"
-                                Style="{StaticResource App.Button.Secondary}"
-                                Command="{Binding CancelEditCommand}"
-                                Content="取消"
-                                AutomationProperties.Name="取消编辑" />
-                        <ui:Button x:Name="SaveBookButton"
-                                Style="{StaticResource App.Button.Primary}"
-                                Command="{Binding SaveCommand}"
-                                Content="保存"
-                                AutomationProperties.Name="保存书籍信息" />
                     </WrapPanel>
                 </commonControls:AppPageHeader.Actions>
             </commonControls:AppPageHeader>
@@ -90,40 +79,23 @@
                                                  HorizontalAlignment="Left"
                                                  Cover="{Binding Cover}" />
 
-                            <Border x:Name="BookInlineStatusMessage"
-                                    Margin="0,16,0,0">
-                                <Border.Style>
-                                    <Style TargetType="Border"
-                                           BasedOn="{StaticResource App.Feedback.InlineMessage}">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding StatusMessage}" Value="">
-                                                <Setter Property="Visibility" Value="Collapsed" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock Style="{StaticResource App.Typography.Secondary}"
-                                           Text="{Binding StatusMessage}" />
-                            </Border>
-
                             <TextBlock Margin="0,16,0,0"
                                        Style="{StaticResource App.Typography.FormLabel}"
                                        Text="书名" />
-                            <TextBox x:Name="TitleTextBox"
-                                     Margin="0,6,0,0"
-                                     Style="{StaticResource App.Input.TextBox.Standard}"
-                                     Text="{Binding EditTitle, UpdateSourceTrigger=PropertyChanged}"
-                                     AutomationProperties.Name="书名" />
+                            <TextBlock x:Name="TitleTextBlock"
+                                       Margin="0,6,0,0"
+                                       Style="{StaticResource App.Typography.Body}"
+                                       Text="{Binding Title}"
+                                       TextWrapping="Wrap" />
 
                             <TextBlock Margin="0,16,0,0"
                                        Style="{StaticResource App.Typography.FormLabel}"
                                        Text="作者" />
-                            <TextBox x:Name="AuthorTextBox"
-                                     Margin="0,6,0,0"
-                                     Style="{StaticResource App.Input.TextBox.Standard}"
-                                     Text="{Binding EditAuthor, UpdateSourceTrigger=PropertyChanged}"
-                                     AutomationProperties.Name="作者" />
+                            <TextBlock x:Name="AuthorTextBlock"
+                                       Margin="0,6,0,0"
+                                       Style="{StaticResource App.Typography.Body}"
+                                       Text="{Binding DisplayAuthor}"
+                                       TextWrapping="Wrap" />
 
                             <StackPanel Margin="0,16,0,0">
                                 <StackPanel.Style>

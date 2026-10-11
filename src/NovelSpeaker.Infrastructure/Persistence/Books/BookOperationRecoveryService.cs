@@ -113,8 +113,8 @@ public sealed class BookOperationRecoveryService
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = connection.CreateCommand();
         command.CommandText = """
-            SELECT l.StoredContentPath FROM LocalBookSources l
-            JOIN BookSources s ON s.Id = l.SourceId WHERE s.BookId = $bookId;
+            SELECT l.StoredContentPath FROM LocalBookSourceBindings l
+            JOIN BookSourceBindings s ON s.Id = l.BindingId WHERE s.BookId = $bookId;
             """;
         command.Parameters.AddWithValue("$bookId", bookId);
         var current = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) as string;
@@ -161,7 +161,7 @@ public sealed class BookOperationRecoveryService
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         using var command = connection.CreateCommand();
         command.CommandText = operation.Kind == BookOperationKind.RemoveSource
-            ? "SELECT EXISTS(SELECT 1 FROM BookSources WHERE Id = $sourceId AND BookId = $bookId);"
+            ? "SELECT EXISTS(SELECT 1 FROM BookSourceBindings WHERE Id = $sourceId AND BookId = $bookId);"
             : "SELECT EXISTS(SELECT 1 FROM Books WHERE Id = $bookId);";
         command.Parameters.AddWithValue("$bookId", operation.BookId);
         command.Parameters.AddWithValue("$sourceId", (object?)operation.SourceId ?? DBNull.Value);

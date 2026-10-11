@@ -154,17 +154,17 @@ public sealed class AppSettingsServiceTests
         Assert.Equal(1, settings.PrefetchCount);
     }
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(50)]
-    [InlineData(100)]
-    public async Task Public_speed_survives_settings_updates(int speed)
+    [Fact]
+    public async Task Public_speed_survives_settings_updates()
     {
-        var store = new FakeAppSettingsStore(AppSettings.Default);
-        using var service = new AppSettingsService(store, AppSettings.Default);
-        await service.UpdateAsync(new AppSettingsUpdate { DefaultSpeakSpeed = speed }, CancellationToken.None);
-        Assert.Equal(speed, service.Current.DefaultSpeakSpeed);
-        Assert.Equal(speed, store.CurrentSettings.DefaultSpeakSpeed);
+        foreach (var speed in new[] { 0, 50, 100 })
+        {
+            var store = new FakeAppSettingsStore(AppSettings.Default);
+            using var service = new AppSettingsService(store, AppSettings.Default);
+            await service.UpdateAsync(new AppSettingsUpdate { DefaultSpeakSpeed = speed }, CancellationToken.None);
+            Assert.Equal(speed, service.Current.DefaultSpeakSpeed);
+            Assert.Equal(speed, store.CurrentSettings.DefaultSpeakSpeed);
+        }
     }
 
     [Fact]

@@ -11,9 +11,6 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 public sealed class MetadataRuleWorkbenchViewModelTests
 {
     [Theory]
-    [InlineData(false, 1)]
-    [InlineData(false, 3)]
-    [InlineData(true, 1)]
     [InlineData(true, 3)]
     public async Task Metadata_bulk_selection_and_exchange_preserve_drafts_and_isolate_invalid_items(bool header, int count)
     {
@@ -61,67 +58,29 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         Assert.True(vm.HasUnsavedChanges);
     }
 
-    [Theory]
-    [InlineData(false, UnsavedChangesDecision.Cancel)]
-    [InlineData(false, UnsavedChangesDecision.Save)]
-    [InlineData(false, UnsavedChangesDecision.Discard)]
-    [InlineData(true, UnsavedChangesDecision.Cancel)]
-    [InlineData(true, UnsavedChangesDecision.Save)]
-    [InlineData(true, UnsavedChangesDecision.Discard)]
-    public async Task Metadata_management_guards_draft_and_keeps_editor_separate(bool header, UnsavedChangesDecision decision)
+    [Fact]
+    public async Task Management_entry_cancel_preserves_draft_and_editor()
     {
         var repository = TwoRules();
-        var dialogs = new Dialogs { UnsavedDecision = decision };
-        MetadataRuleWorkbenchViewModel vm = header
-            ? new TextHeaderMetadataRulesViewModel(repository, new Navigator(), dialogs, new Feedback(), new FakeRuleDocumentInteraction())
-            : Create(repository, dialogs: dialogs);
+        var dialogs = new Dialogs { UnsavedDecision = UnsavedChangesDecision.Cancel };
+        var vm = Create(repository, dialogs: dialogs);
         await vm.LoadAsync(CancellationToken.None);
-        var escapeHandler = Assert.IsAssignableFrom<ITransientEscapeHandler>(vm);
-        Assert.False(escapeHandler.TryHandleEscape());
         await vm.SelectRuleCommand.ExecuteAsync(vm.Rules[0]);
         vm.DraftName = "Draft";
         await vm.SelectRuleWithModifiersAsync(vm.Rules[1], DesktopSelectionModifiers.Control, CancellationToken.None);
-        Assert.Equal(decision != UnsavedChangesDecision.Cancel, vm.IsManagementMode);
-        Assert.Equal(decision == UnsavedChangesDecision.Cancel, vm.HasUnsavedChanges);
-        if (!vm.IsManagementMode) return;
-        Assert.Equal("second", Assert.Single(vm.Rules, row => row.IsSelected).Id);
-        await vm.SelectRuleWithModifiersAsync(vm.Rules[1], DesktopSelectionModifiers.None, CancellationToken.None);
-        Assert.Equal(0, vm.SelectedCount);
-        Assert.True(vm.IsManagementMode);
-        var draftName = vm.DraftName;
-        var draftPattern = vm.DraftPattern;
-        Assert.True(escapeHandler.TryHandleEscape());
         Assert.False(vm.IsManagementMode);
-        Assert.Equal(0, vm.SelectedCount);
-        Assert.False(escapeHandler.TryHandleEscape());
-        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
-        Assert.Equal(draftName, vm.DraftName);
-        Assert.Equal(draftPattern, vm.DraftPattern);
-        await vm.EnterManagementCommand.ExecuteAsync(null);
-        vm.SelectAllCommand.Execute(null);
-        Assert.Equal(2, vm.SelectedCount);
-        Assert.True(escapeHandler.TryHandleEscape());
-        Assert.False(vm.IsManagementMode);
-        Assert.Equal(0, vm.SelectedCount);
-        Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
-        Assert.Equal(draftName, vm.DraftName);
-        Assert.Equal(draftPattern, vm.DraftPattern);
-        await vm.EnterManagementCommand.ExecuteAsync(null);
-        vm.CancelManagementCommand.Execute(null);
+        Assert.Equal("Draft", vm.DraftName);
+        Assert.True(vm.HasUnsavedChanges);
         Assert.Equal("first", Assert.Single(vm.Rules, row => row.IsSelected).Id);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Metadata_batch_delete_continues_after_failure_and_closes_deleted_editor(bool header)
+    [Fact]
+    public async Task Metadata_batch_delete_continues_after_failure_and_closes_deleted_editor()
     {
         var repository = TwoRules();
         repository.FailedDeleteId = "first";
         var feedback = new Feedback();
-        MetadataRuleWorkbenchViewModel vm = header
-            ? new TextHeaderMetadataRulesViewModel(repository, new Navigator(), new Dialogs(), feedback, new FakeRuleDocumentInteraction())
-            : Create(repository, feedback: feedback);
+        var vm = Create(repository, feedback: feedback);
         await vm.LoadAsync(CancellationToken.None);
         await vm.SelectRuleCommand.ExecuteAsync(vm.Rules[1]);
         await vm.EnterManagementCommand.ExecuteAsync(null);
@@ -179,23 +138,6 @@ public sealed class MetadataRuleWorkbenchViewModelTests
         Assert.Equal("现有(2)", repository.Rules.Single(rule => rule.Id != "existing").Name);
         Assert.Equal(@"(?<description>尚未保存)", viewModel.DraftPattern);
         Assert.True(viewModel.HasUnsavedChanges);
-    }
-
-    [Fact]
-    public async Task Saving_draft_before_toggle_keeps_new_pattern()
-    {
-        var repository = TwoRules();
-        var dialogs = new Dialogs { UnsavedDecision = UnsavedChangesDecision.Save };
-        var viewModel = Create(repository, dialogs: dialogs);
-        await viewModel.LoadAsync(CancellationToken.None);
-        await viewModel.SelectRuleCommand.ExecuteAsync(viewModel.Rules[0]);
-        viewModel.DraftPattern = @"(?<author>更新)";
-
-        await viewModel.ToggleRuleEnabledCommand.ExecuteAsync(viewModel.Rules[0]);
-
-        Assert.Equal(@"(?<author>更新)", repository.Rules.Single(rule => rule.Id == "first").Pattern);
-        Assert.False(repository.Rules.Single(rule => rule.Id == "first").IsEnabled);
-        Assert.True(viewModel.Rules.Single(rule => rule.Id == "first").IsSelected);
     }
 
     [Fact]

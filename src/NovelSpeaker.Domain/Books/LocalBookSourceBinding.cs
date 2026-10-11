@@ -3,8 +3,8 @@ namespace NovelSpeaker.Domain.Books;
 /// <summary>
 /// Local typed data for an imported snapshot; the stored content is persistent source data.
 /// </summary>
-public sealed record LocalBookSource(
-    string SourceId,
+public sealed record LocalBookSourceBinding(
+    string BindingId,
     string OriginalFileName,
     string StoredContentPath,
     string SourceHash,

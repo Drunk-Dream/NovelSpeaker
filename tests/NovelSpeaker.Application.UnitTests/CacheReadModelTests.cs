@@ -158,7 +158,7 @@ public sealed class CacheReadModelTests
             Task.FromResult<PlaybackBookMetadata?>(null);
 
         public Task<PlaybackChapterMetadata?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) =>
-            Task.FromResult<PlaybackChapterMetadata?>(new(chapterIndex, "Chapter", "source", $"chapter-{chapterIndex}"));
+            Task.FromResult<PlaybackChapterMetadata?>(new(bookId, chapterIndex, "Chapter", "source", $"chapter-{chapterIndex}"));
     }
 
     private sealed class PendingRepair : ISpeechPlanRepairCoordinator

@@ -26,8 +26,8 @@ public sealed class AppStoragePathMigrationService
         await MigrateTableAsync(
             connection,
             transaction,
-            "LocalBookSources",
-            "SourceId",
+            "LocalBookSourceBindings",
+            "BindingId",
             "StoredContentPath",
             cancellationToken).ConfigureAwait(false);
         await MigrateTableAsync(

@@ -14,7 +14,6 @@ namespace NovelSpeaker.App.Features.Books.Details;
 public partial class BookDetailsPage : System.Windows.Controls.Page, INavigationAware, INavigableView<BookDetailsViewModel>
 {
     private readonly PageActivationController _activation = new();
-    private readonly INavigationGuardService _navigationGuardService;
     private readonly PageEventOperationRunner _eventOperations;
     private readonly CurrentItemLocatorInteraction _chapterLocator;
     private ScrollViewer? _chapterScrollViewer;
@@ -27,11 +26,9 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
 
     public BookDetailsPage(
         BookDetailsViewModel viewModel,
-        INavigationGuardService navigationGuardService,
         PageEventOperationRunner? eventOperations = null)
     {
         ViewModel = viewModel;
-        _navigationGuardService = navigationGuardService;
         _eventOperations = eventOperations ?? PageEventOperationRunner.DesignTime;
         InitializeComponent();
         RootViewport.DataContext = ViewModel;
@@ -59,7 +56,6 @@ public partial class BookDetailsPage : System.Windows.Controls.Page, INavigation
         _initialLocatorEvaluationQueued = false;
         _initialLocatorRequestIssued = false;
         ViewModel.HandleNavigatedTo(activation);
-        activation.Register(_navigationGuardService.Register(ViewModel.ConfirmLeaveAsync));
 
         var request = DataContext as BookDetailsRoute;
         if (request is null)

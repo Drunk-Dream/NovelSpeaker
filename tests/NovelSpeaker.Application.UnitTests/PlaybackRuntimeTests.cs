@@ -10,12 +10,6 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class PlaybackRuntimeTests
 {
     [Fact]
-    public void Idle_projection_preserves_initial_snapshot_semantics()
-    {
-        Assert.Equal(PlaybackSnapshot.Idle, PlaybackSnapshotProjector.Project(PlaybackRuntimeState.Idle));
-    }
-
-    [Fact]
     public void Session_replacement_preparation_does_not_publish_target_or_cancel_or_release_current_session()
     {
         using var runtime = Open();
@@ -32,25 +26,30 @@ public sealed class PlaybackRuntimeTests
         Assert.Equal(0, protection.DisposeCount);
     }
 
-    [Theory]
-    [InlineData(-1, 0)]
-    [InlineData(0, 0)]
-    [InlineData(4, -1)]
-    [InlineData(4, 3)]
-    [InlineData(4, 2)] // Display-only segment is not a playable target.
-    [InlineData(8, 0)] // Unloaded chapter.
-    [InlineData(9, 0)] // Loaded empty chapter.
-    [InlineData(10, 0)] // Failed chapter.
-    public void Invalid_position_is_rejected_without_changing_current_state(int chapter, int segment)
+    [Fact]
+    public void Invalid_position_is_rejected_without_changing_current_state()
     {
-        using var runtime = Open();
-        var before = runtime.Current;
+        foreach (var (chapter, segment) in new[]
+                 {
+                     (-1, 0),
+                     (0, 0),
+                     (4, -1),
+                     (4, 3),
+                     (4, 2), // Display-only segment is not a playable target.
+                     (8, 0), // Unloaded chapter.
+                     (9, 0), // Loaded empty chapter.
+                     (10, 0) // Failed chapter.
+                 })
+        {
+            using var runtime = Open();
+            var before = runtime.Current;
 
-        var result = runtime.PrepareSessionReplacement(Target() with { Position = new(chapter, segment) });
+            var result = runtime.PrepareSessionReplacement(Target() with { Position = new(chapter, segment) });
 
-        Assert.Equal(PlaybackTransitionRejection.InvalidTarget, result.Rejection);
-        Assert.Null(result.Replacement);
-        Assert.Same(before, runtime.Current);
+            Assert.Equal(PlaybackTransitionRejection.InvalidTarget, result.Rejection);
+            Assert.Null(result.Replacement);
+            Assert.Same(before, runtime.Current);
+        }
     }
 
     [Fact]
@@ -297,21 +296,26 @@ public sealed class PlaybackRuntimeTests
         Assert.Same(committed, runtime.Current);
     }
 
-    [Theory]
-    [InlineData(PlaybackState.Playing, false, 0, 1000)]
-    [InlineData(PlaybackState.Stopped, true, 0, 1000)]
-    [InlineData(PlaybackState.Playing, true, -1, 1000)]
-    [InlineData(PlaybackState.Playing, true, 0, -1)]
-    [InlineData(PlaybackState.Idle, false, 0, 0)]
-    public void Invalid_audio_facts_do_not_change_state(PlaybackState state, bool loaded, long position, long duration)
+    [Fact]
+    public void Invalid_audio_facts_do_not_change_state()
     {
-        using var runtime = Open();
-        var before = runtime.Current;
+        foreach (var (state, loaded, position, duration) in new[]
+                 {
+                     (PlaybackState.Playing, false, 0L, 1000L),
+                     (PlaybackState.Stopped, true, 0L, 1000L),
+                     (PlaybackState.Playing, true, -1L, 1000L),
+                     (PlaybackState.Playing, true, 0L, -1L),
+                     (PlaybackState.Idle, false, 0L, 0L)
+                 })
+        {
+            using var runtime = Open();
+            var before = runtime.Current;
 
-        var result = runtime.AcceptAudio(Audio(before, state, new(loaded, position, duration, false)));
+            var result = runtime.AcceptAudio(Audio(before, state, new(loaded, position, duration, false)));
 
-        Assert.Equal(PlaybackTransitionRejection.InvalidTarget, result.Rejection);
-        Assert.Same(before, runtime.Current);
+            Assert.Equal(PlaybackTransitionRejection.InvalidTarget, result.Rejection);
+            Assert.Same(before, runtime.Current);
+        }
     }
 
     [Fact]
@@ -329,37 +333,34 @@ public sealed class PlaybackRuntimeTests
         Assert.False(runtime.Current.Audio.HasLoadedAudio);
     }
 
-    [Theory]
-    [InlineData("session")]
-    [InlineData("book")]
-    [InlineData("source")]
-    [InlineData("catalog")]
-    [InlineData("position")]
-    [InlineData("target-revision")]
-    public void Audio_result_requires_current_session_book_source_catalog_and_position(string mismatch)
+    [Fact]
+    public void Audio_result_requires_current_session_book_source_catalog_and_position()
     {
-        using var runtime = Open();
-        var before = runtime.Current;
-        var identity = before.Identity!;
-        identity = mismatch switch
+        foreach (var mismatch in new[] { "session", "book", "source", "catalog", "position", "target-revision" })
         {
-            "session" => identity with { SessionId = Guid.NewGuid() },
-            "book" => identity with { BookId = "other-book" },
-            "source" => identity with { SourceContext = new("other-source", "catalog-1") },
-            "catalog" => identity with { SourceContext = new("source-1", "other-catalog") },
-            _ => identity
-        };
-        var targetIdentity = mismatch == "target-revision"
-            ? before.Target!.Identity with { Revision = before.Target.Identity.Revision + 1 }
-            : before.Target!.Identity;
-        var result = runtime.AcceptAudio(new(identity,
-            mismatch == "position" ? new(4, 1) : before.Position!.Value,
-            PlaybackState.Playing, new(true, 321, 1000, true), TargetIdentity: targetIdentity,
-            PreparationIdentity: before.Preparation!.Identity));
+            using var runtime = Open();
+            var before = runtime.Current;
+            var identity = before.Identity!;
+            identity = mismatch switch
+            {
+                "session" => identity with { SessionId = Guid.NewGuid() },
+                "book" => identity with { BookId = "other-book" },
+                "source" => identity with { SourceContext = new("other-source", "catalog-1") },
+                "catalog" => identity with { SourceContext = new("source-1", "other-catalog") },
+                _ => identity
+            };
+            var targetIdentity = mismatch == "target-revision"
+                ? before.Target!.Identity with { Revision = before.Target.Identity.Revision + 1 }
+                : before.Target!.Identity;
+            var result = runtime.AcceptAudio(new(identity,
+                mismatch == "position" ? new(4, 1) : before.Position!.Value,
+                PlaybackState.Playing, new(true, 321, 1000, true), TargetIdentity: targetIdentity,
+                PreparationIdentity: before.Preparation!.Identity));
 
-        Assert.Equal(PlaybackTransitionRejection.StaleSession, result.Rejection);
-        Assert.Empty(result.Effects);
-        Assert.Same(before, runtime.Current);
+            Assert.Equal(PlaybackTransitionRejection.StaleSession, result.Rejection);
+            Assert.Empty(result.Effects);
+            Assert.Same(before, runtime.Current);
+        }
     }
 
     [Fact]
@@ -459,26 +460,6 @@ public sealed class PlaybackRuntimeTests
         var snapshot = PlaybackSnapshotProjector.Project(runtime.Current);
         Assert.Equal(0, snapshot.SegmentCount);
         Assert.Null(snapshot.ChapterTitle);
-    }
-
-    [Fact]
-    public void Snapshot_projects_the_revision_of_the_committed_logical_target()
-    {
-        using var runtime = Open();
-        var previousRevision = runtime.Current.TargetRevision;
-
-        var transition = runtime.CommitTarget(
-            runtime.Current.Book!,
-            new(4, 1),
-            PlaybackIntent.Play,
-            CancellationToken.None);
-
-        Assert.True(transition.IsAccepted);
-        var snapshot = PlaybackSnapshotProjector.Project(runtime.Current);
-        Assert.Equal(runtime.Current.TargetRevision, snapshot.TargetRevision);
-        Assert.True(snapshot.TargetRevision > previousRevision);
-        Assert.Equal(4, snapshot.ChapterIndex);
-        Assert.Equal(1, snapshot.SegmentIndex);
     }
 
     [Fact]

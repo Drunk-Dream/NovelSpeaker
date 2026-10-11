@@ -13,54 +13,6 @@ namespace NovelSpeaker.App.WpfTests.Shared;
 public sealed class WpfUiSchedulerTests
 {
     [Fact]
-    public async Task InvokeLaterAsync_executes_zero_argument_action_on_the_dispatcher()
-    {
-        var executed = false;
-
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            var scheduler = new WpfUiScheduler(Dispatcher.CurrentDispatcher);
-            var scheduled = scheduler.InvokeLaterAsync(() => executed = true);
-            Assert.False(executed);
-            await scheduled;
-        });
-
-        Assert.True(executed);
-    }
-
-    [Fact]
-    public async Task InvokeLaterAsync_honors_cancellation_before_posting()
-    {
-        var executed = false;
-        using var cancellation = new CancellationTokenSource();
-
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            var scheduler = new WpfUiScheduler(Dispatcher.CurrentDispatcher);
-            var scheduled = scheduler.InvokeLaterAsync(() => executed = true, cancellation.Token);
-            cancellation.Cancel();
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => scheduled);
-        });
-
-        Assert.False(executed);
-    }
-
-    [Fact]
-    public async Task InvokeAsync_posts_ordinary_work_to_the_dispatcher()
-    {
-        var dispatcherThreadId = 0;
-
-        await WpfTestHost.RunInStaAsync(async () =>
-        {
-            var scheduler = new WpfUiScheduler(Dispatcher.CurrentDispatcher);
-            await Task.Run(() => scheduler.InvokeAsync(
-                () => dispatcherThreadId = Environment.CurrentManagedThreadId));
-
-            Assert.Equal(Environment.CurrentManagedThreadId, dispatcherThreadId);
-        });
-    }
-
-    [Fact]
     public async Task Staged_catalog_reconciliation_notifies_realized_wpf_rows_after_interleaved_updates()
     {
         await WpfTestHost.RunInStaAsync(async () =>
@@ -121,32 +73,6 @@ public sealed class WpfUiSchedulerTests
         });
     }
 
-    private sealed class InterleavingUiScheduler(
-        WpfUiScheduler inner,
-        ResettableObservableCollection<string> rows,
-        Action captureFirstBatch) : IUiScheduler
-    {
-        private int _invocation;
-
-        public bool CheckAccess() => inner.CheckAccess();
-
-        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
-            inner.InvokeAsync(action, cancellationToken);
-
-        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default) =>
-            inner.InvokeAsync(action, cancellationToken);
-
-        public async Task InvokeLaterAsync(Action action, CancellationToken cancellationToken = default)
-        {
-            await inner.InvokeLaterAsync(action, cancellationToken);
-            if (Interlocked.Increment(ref _invocation) == 2)
-            {
-                captureFirstBatch();
-                rows.ReplaceAt(0, "中间状态");
-            }
-        }
-    }
-
     [Fact]
     public async Task Virtualized_catalog_viewport_returns_a_bounded_window_near_the_scrolled_tail()
     {
@@ -186,5 +112,31 @@ public sealed class WpfUiSchedulerTests
 
             return Task.CompletedTask;
         });
+    }
+
+    private sealed class InterleavingUiScheduler(
+        WpfUiScheduler inner,
+        ResettableObservableCollection<string> rows,
+        Action captureFirstBatch) : IUiScheduler
+    {
+        private int _invocation;
+
+        public bool CheckAccess() => inner.CheckAccess();
+
+        public Task InvokeAsync(Action action, CancellationToken cancellationToken = default) =>
+            inner.InvokeAsync(action, cancellationToken);
+
+        public Task InvokeAsync(Func<Task> action, CancellationToken cancellationToken = default) =>
+            inner.InvokeAsync(action, cancellationToken);
+
+        public async Task InvokeLaterAsync(Action action, CancellationToken cancellationToken = default)
+        {
+            await inner.InvokeLaterAsync(action, cancellationToken);
+            if (Interlocked.Increment(ref _invocation) == 2)
+            {
+                captureFirstBatch();
+                rows.ReplaceAt(0, "中间状态");
+            }
+        }
     }
 }

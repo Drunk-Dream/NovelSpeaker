@@ -8,7 +8,7 @@ public static class LibraryServiceCollectionExtensions
     public static IServiceCollection AddLibraryFeature(this IServiceCollection services)
     {
         services.TryAddSingleton<IEncodingSelectionDialogService, EncodingSelectionDialogService>();
-        services.TryAddSingleton<IBookImportSelectionDialogService, BookImportSelectionDialogService>();
+        services.TryAddSingleton<IBookImportMetadataDialogService, BookImportMetadataDialogService>();
         services.TryAddSingleton<IImportProgressDialogService, ImportProgressDialogService>();
         services.TryAddSingleton<ILibraryImportCoordinator, LibraryImportCoordinator>();
         services.TryAddSingleton<LibraryScrollState>();

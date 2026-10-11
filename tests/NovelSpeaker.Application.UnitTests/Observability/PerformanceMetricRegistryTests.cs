@@ -16,24 +16,21 @@ public sealed class PerformanceMetricRegistryTests
         Assert.All(registry.Definitions, metric => Assert.All(metric.AllowedTags.Values, values => Assert.NotEmpty(values)));
     }
 
-    [Theory]
-    [InlineData("bookId")]
-    [InlineData("chapter")]
-    [InlineData("path")]
-    [InlineData("url")]
-    [InlineData("content")]
-    [InlineData("requestQuery")]
-    public void Forbidden_or_high_cardinality_tags_are_rejected(string tagName)
+    [Fact]
+    public void Forbidden_or_high_cardinality_tags_are_rejected()
     {
-        Assert.Throws<ArgumentException>(() => new PerformanceMetricDefinition(
-            "test.metric",
-            PerformanceMetricType.Counter,
-            "count",
-            "test",
-            allowedTags: new Dictionary<string, IReadOnlyList<string>>
-            {
-                [tagName] = ["stable"]
-            }));
+        foreach (var tagName in new[] { "bookId", "chapter", "path", "url", "content", "requestQuery" })
+        {
+            Assert.Throws<ArgumentException>(() => new PerformanceMetricDefinition(
+                "test.metric",
+                PerformanceMetricType.Counter,
+                "count",
+                "test",
+                allowedTags: new Dictionary<string, IReadOnlyList<string>>
+                {
+                    [tagName] = ["stable"]
+                }));
+        }
     }
 
     [Fact]

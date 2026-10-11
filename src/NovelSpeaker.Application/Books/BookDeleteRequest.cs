@@ -1,8 +1,6 @@
 namespace NovelSpeaker.Application.Books;
 
 /// <summary>
-/// Describes how one imported book should be deleted.
+/// Identifies one imported book to delete.
 /// </summary>
-public sealed record BookDeleteRequest(
-    string BookId,
-    bool DeleteAudioCache);
+public sealed record BookDeleteRequest(string BookId);

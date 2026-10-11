@@ -42,7 +42,7 @@ public sealed partial class BookDetailsPageTests
                 Details = CreateDetails(chapterCount, currentChapterIndex)
             };
             var viewModel = CreateViewModel(managementService);
-            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService())
+            var page = new BookDetailsPage(viewModel)
             {
                 DataContext = new BookDetailsRoute("book-1")
             };
@@ -99,68 +99,10 @@ public sealed partial class BookDetailsPageTests
         BookDetailsPage_scrolls_to_current_chapter_when_async_catalog_load_finishes();
     }
 
-    [Fact]
-    public void Book_details_player_return_route_reloads_the_requested_book()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var navigation = new RecordingNavigationService();
-            var navigator = new ShellNavigationAdapter(new FakeNavigationGuardService(), navigation);
-            var detailsRoute = new BookDetailsRoute("book-A");
-
-            Assert.True(navigator.NavigateAsync(detailsRoute, CancellationToken.None, bypassGuard: true)
-                .GetAwaiter()
-                .GetResult());
-            Assert.True(navigator.NavigateAsync(
-                    new PlayerRoute("book-A", detailsRoute),
-                    CancellationToken.None,
-                    bypassGuard: true)
-                .GetAwaiter()
-                .GetResult());
-            Assert.True(navigator.NavigateBackAsync(CancellationToken.None, bypassGuard: true)
-                .GetAwaiter()
-                .GetResult());
-
-            var returnedRoute = Assert.IsType<BookDetailsRoute>(navigation.LastDataContext);
-            Assert.Equal("book-A", returnedRoute.BookId);
-
-            var managementService = new FakeBookManagementService
-            {
-                Header = new BookDetailsHeader("book-A", "书籍 A", "作者 A"),
-                Details = CreateDetails("book-A", 1, 0) with
-                {
-                    Header = new BookDetailsHeader("book-A", "书籍 A", "作者 A")
-                }
-            };
-            var viewModel = CreateViewModel(managementService);
-            var page = new BookDetailsPage(viewModel, new FakeNavigationGuardService())
-            {
-                DataContext = returnedRoute
-            };
-
-            try
-            {
-                page.OnNavigatedToAsync().GetAwaiter().GetResult();
-                page.RaiseEvent(new RoutedEventArgs(FrameworkElement.LoadedEvent));
-                page.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
-                WaitUntil(() => !viewModel.IsBusy, TimeSpan.FromSeconds(2));
-
-                Assert.Equal("book-A", managementService.LastRequestedBookId);
-                Assert.Equal("书籍 A", viewModel.Title);
-                Assert.Single(viewModel.Chapters);
-            }
-            finally
-            {
-                page.OnNavigatedFromAsync().GetAwaiter().GetResult();
-            }
-        });
-    }
-
     private static BookDetailsViewModel CreateViewModel(FakeBookManagementService? managementService = null)
     {
         managementService ??= new FakeBookManagementService();
         return new BookDetailsViewModel(
-            managementService,
             managementService,
             managementService,
             new CacheStoreTestDouble(),
@@ -272,7 +214,7 @@ public sealed partial class BookDetailsPageTests
             => Task.FromResult(true);
     }
 
-    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookMetadataUpdateService, IBookDeletionService
+    private sealed class FakeBookManagementService : IBookDetailsQuery, IBookDeletionService
     {
         public BookDetailsHeader? Header { get; init; }
 
@@ -297,9 +239,6 @@ public sealed partial class BookDetailsPageTests
 
         public Task<BookDetailsStatistics?> GetStatisticsAsync(string bookId, CancellationToken cancellationToken)
             => Task.FromResult<BookDetailsStatistics?>(Details is null ? null : Details.Statistics);
-
-        public Task<BookDetailsHeader> UpdateMetadataAsync(BookMetadataUpdateRequest request, CancellationToken cancellationToken)
-            => throw new NotSupportedException();
 
         public Task<BookDeleteResult?> DeleteAsync(BookDeleteRequest request, CancellationToken cancellationToken)
             => Task.FromResult<BookDeleteResult?>(null);
@@ -362,7 +301,7 @@ public sealed partial class BookDetailsPageTests
     private sealed class FakeBookDeleteDialogService : IBookDeleteDialogService
     {
         public Task<BookDeleteDialogResult> ShowAsync(BookDeleteDialogRequest request, CancellationToken cancellationToken)
-            => Task.FromResult(new BookDeleteDialogResult(false, true));
+            => Task.FromResult(new BookDeleteDialogResult(false));
     }
 
     private sealed class FakePlaybackCoordinator : IPlaybackSnapshotSource

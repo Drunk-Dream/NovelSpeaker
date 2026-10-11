@@ -287,7 +287,7 @@ public sealed class ConfigurationBackupTests
 
         public async Task<string> ReadOtherRowsAsync()
         {
-            string[] tables = ["Books", "BookSources", "LocalBookSources", "Chapters", "LocalChapterContents", "ReadingProgress", "ChapterSpeechPlans", "ChapterSpeechPlanSegments", "SynthesisProfiles", "AudioCacheEntries", "AppMetadata", "SchemaVersion"];
+            string[] tables = ["Books", "BookSourceBindings", "LocalBookSourceBindings", "Chapters", "LocalChapterContents", "ReadingProgress", "ChapterSpeechPlans", "ChapterSpeechPlanSegments", "SynthesisProfiles", "AudioCacheEntries", "AppMetadata", "SchemaVersion"];
             var results = new Dictionary<string, List<object[]>>();
             await using var connection = await Connections.OpenConnectionAsync(CancellationToken.None);
             foreach (var table in tables)

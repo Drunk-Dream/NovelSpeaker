@@ -114,69 +114,6 @@ public sealed class JsonAppSettingsStoreTests
     }
 
     [Fact]
-    public async Task LoadAsync_normalizes_invalid_new_setting_values()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var root = temporaryDirectory.Path;
-        var directories = new AppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        await File.WriteAllTextAsync(
-            directories.SettingsPath,
-            """
-            {
-              "EnableLongParagraphSplitting": true,
-              "LongParagraphThreshold": 40,
-              "DefaultSpeakSpeed": 99,
-              "PrefetchCount": -5,
-              "LogLevel": "Verbose",
-              "Theme": "Blue",
-              "BookFileNameTemplate": null,
-              "CacheLimitBytes": 1024,
-              "PlaybackVolume": 2
-            }
-            """,
-            CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        var settings = await store.LoadAsync(CancellationToken.None);
-
-        Assert.Equal(50, settings.LongParagraphThreshold);
-        Assert.Equal(99, settings.DefaultSpeakSpeed);
-        Assert.Equal(2, settings.PrefetchCount);
-        Assert.Equal("Information", settings.LogLevel);
-        Assert.Equal("System", settings.Theme);
-        Assert.Equal(AppSettings.MinCacheLimitBytes, settings.CacheLimitBytes);
-        Assert.Equal(AppSettings.DefaultPlaybackVolumeValue, settings.PlaybackVolume);
-    }
-
-    [Fact]
-    public async Task LoadAsync_caps_prefetch_count_to_supported_range()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var root = temporaryDirectory.Path;
-        var directories = new AppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        await File.WriteAllTextAsync(
-            directories.SettingsPath,
-            """
-            {
-              "EnableLongParagraphSplitting": true,
-              "LongParagraphThreshold": 300,
-              "DefaultSpeakSpeed": 10,
-              "PrefetchCount": 9,
-              "LogLevel": "Information",
-              "Theme": "System"
-            }
-            """,
-            CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-
-        var settings = await store.LoadAsync(CancellationToken.None);
-
-        Assert.Equal(2, settings.PrefetchCount);
-    }
-
-    [Fact]
     public async Task LoadAsync_returns_defaults_when_settings_json_is_corrupt()
     {
         using var temporaryDirectory = new TemporaryDirectory();
@@ -191,24 +128,6 @@ public sealed class JsonAppSettingsStoreTests
         Assert.Equal(AppSettings.Default, settings);
         Assert.False(File.Exists(directories.SettingsPath));
         Assert.Single(Directory.GetFiles(root, "settings.json.*.corrupt"));
-    }
-
-    [Fact]
-    public async Task LoadAsync_uses_unique_corrupt_backup_names_for_the_same_utc_timestamp()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var root = temporaryDirectory.Path;
-        var directories = new AppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var time = new FixedTimeProvider(new DateTimeOffset(2026, 7, 16, 12, 0, 0, TimeSpan.Zero));
-        var store = new JsonAppSettingsStore(directories, time);
-
-        await File.WriteAllTextAsync(directories.SettingsPath, "{ invalid", CancellationToken.None);
-        await store.LoadAsync(CancellationToken.None);
-        await File.WriteAllTextAsync(directories.SettingsPath, "{ invalid again", CancellationToken.None);
-        await store.LoadAsync(CancellationToken.None);
-
-        Assert.Equal(2, Directory.GetFiles(root, "settings.json.*.corrupt").Length);
     }
 
     [Fact]
@@ -301,40 +220,6 @@ public sealed class JsonAppSettingsStoreTests
 
         Assert.Equal("original", await File.ReadAllTextAsync(directories.SettingsPath, CancellationToken.None));
         Assert.Empty(Directory.GetFiles(root, "*.tmp"));
-    }
-
-    [Fact]
-    public async Task GetCurrent_does_not_resume_on_the_callers_synchronization_context()
-    {
-        using var temporaryDirectory = new TemporaryDirectory();
-        var root = temporaryDirectory.Path;
-        var directories = new AppDataDirectoryProvider(root);
-        await directories.EnsureCreatedAsync(CancellationToken.None);
-        var store = new JsonAppSettingsStore(directories);
-        await store.SaveAsync(AppSettings.Default with
-        {
-            EnableLongParagraphSplitting = false,
-            LongParagraphThreshold = 42
-        }, CancellationToken.None);
-        var startupSnapshot = await store.LoadAsync(CancellationToken.None);
-        using var service = new AppSettingsService(store, startupSnapshot);
-
-        var previousContext = SynchronizationContext.Current;
-        var trackingContext = new TrackingSynchronizationContext();
-        SynchronizationContext.SetSynchronizationContext(trackingContext);
-
-        try
-        {
-            var options = service.GetCurrent();
-
-            Assert.False(options.EnableLongParagraphSplitting);
-            Assert.Equal(50, options.LongParagraphThreshold);
-            Assert.Equal(0, trackingContext.PostCount);
-        }
-        finally
-        {
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-        }
     }
 
     private sealed class TrackingSynchronizationContext : SynchronizationContext

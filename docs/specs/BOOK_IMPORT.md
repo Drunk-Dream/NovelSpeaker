@@ -2,59 +2,147 @@
 
 ## 1. 定位
 
-本规范定义 NovelSpeaker 从本地 TXT 建立或更新 `Book + Local Source + Catalog` 时的稳定导入合同，包括：
+本规范定义 NovelSpeaker 通过本地 TXT 建立或更新 `Book + LocalBookSourceBinding + CurrentCatalog + Local Content` 的长期导入合同。
 
-- 直接导入流程；
-- 文件名与正文头部元数据识别；
-- 章节规则与“空行分章”的组合；
-- 自动章节标题；
-- Book 自动匹配与 Local Source 更新；
-- 导入规则工作台与交换格式的用户语义。
+Book / Source / Catalog / Content / ReadingState 的权威模型见 `BOOK_DATA_MODEL.md`。
 
-Book / Source / Catalog / Content / ReadingState 的长期模型见 `BOOK_DATA_MODEL.md`。
+用户外部 TXT 只作为导入输入：
 
-这些能力只读取用户 TXT，不写回、删除或改写源文件。TXT 成功导入后成为 Local Source 快照的输入，不是后续运行时必须持续存在的外部引用。
+- NovelSpeaker 永不写回或删除用户外部 TXT；
+- 成功导入后，运行时只依赖应用数据目录中的持久正文副本；
+- 用户随后移动、改名或删除原 TXT，不影响已导入书籍。
 
-## 2. 导入流程
-
-默认流程保持轻量：
+## 2. 默认导入流程
 
 ```text
 选择 TXT
-→ 路径/编码检查
+→ 路径 / 编码检查
 → 文本规范化
 → 识别显式章节标题
-→ 识别元数据
-→ 章节规则 + 可选空行分章生成 Catalog
-→ 最终元数据回退
-→ 严格 Title + Author 解析 Book 候选
-→ 创建/更新完整 Local Source snapshot
+→ 执行文件名与正文头部元数据规则
+→ 判断 Title / Author 是否都被规则识别
+   ├─ 是 → 跳过人工确认
+   └─ 否 → 弹出元数据确认面板
+            ├─ 已识别字段预填
+            ├─ Title 缺失时使用文件名作为可确认回退值
+            └─ Author 缺失时允许为空
+→ 得到最终 Title + Author
+→ 规范化身份并查询唯一 Book
+→ 章节规则 + 可选空行分章生成完整 Catalog snapshot
+→ 构建 Local Source snapshot
+→ 原子提交
 ```
 
-- 编码可以可靠识别时，选择文件后直接完成导入，不增加导入向导或每本书的额外确认页。
-- 只有编码无法可靠确定、Book 候选存在歧义等真正需要用户输入的情况才进入明确处理流程。
-- 导入规则是长期全局配置；不为单次导入增加规则选择步骤。
-- 规则配置变化不静默重写已有书籍；明确重新导入 Local Source 时使用当时最新配置。
-- Local Source 更新必须先准备完整 snapshot，再一次性替换旧 snapshot；失败保留旧数据。
+导入保持轻量：只有真正缺少 Title 或 Author 自动识别结果时才打断用户。
 
-## 3. Book 自动匹配
+## 3. 元数据确认
 
-自动匹配使用导入后最终得到的 Title + Author。
+### 3.1 何时弹出
+
+如果已配置元数据规则没有同时识别出 Title 和 Author，则进入确认面板。
+
+注意：
+
+- “规则识别成功”指字段由文件名元数据规则或正文头部元数据规则明确捕获；
+- Title 的文件名回退值不算“规则已识别 Title”；
+- 因此只有 Title 与 Author 都被规则明确识别时，导入才完全无确认继续。
+
+### 3.2 确认面板
+
+确认面板只解决入库前的 Book Identity，不变成完整导入向导。
+
+要求：
+
+- Title 必须最终非空；
+- Author 可以为空；
+- 自动识别出的字段预填；
+- 未识别 Title 使用源文件名（不含扩展名）作为默认值；
+- 未识别 Author 默认空；
+- 用户可以修改预填字段，也可以直接确认默认值继续；
+- Description 等非身份字段不要求阻塞导入确认。
+
+确认完成后，Title / Author 就成为该 Book 的正式身份字段。入库后不再提供普通修改入口。
+
+如果用户以后发现自动规则识别错误，应调整规则并重新导入，而不是建立长期 Title / Author override 系统。
+
+## 4. Book 唯一匹配
+
+导入完成最终 Title / Author 后：
+
+```text
+Normalize(Title, Author)
+→ query unique Book identity
+```
 
 规则：
 
-- Title 严格匹配。
-- Author 严格匹配。
-- 空 Author 也作为明确值参与匹配。
-- 不用 SourceHash、文件名、正文、章节标题或相似度作为“同一本书”自动判断。
-- 0 个候选：创建新 Book + Local Source，并激活该 Local Source。
-- 1 个候选：更新/建立该 Book 的唯一 Local Source。
-- 多个候选：返回需要用户选择的结果；用户可以明确指定某个 Book 或选择创建新 Book。
-- 不按最近导入、最近阅读、BookId、列表第一项自动解决歧义。
+- 0 个 Book：创建新 Book + Local Binding；
+- 1 个 Book：建立或更新该 Book 的唯一 Local Binding；
+- 正常数据库状态下不应出现多个候选，因为身份有唯一约束；
+- 不提供“作为同名新书强行再建一本”的普通路径；
+- 不使用 SourceHash、文件名、正文 Hash、章节标题、最近阅读时间等替代 Book Identity。
 
-SourceHash 可以作为 no-op/内容变化检测的实现细节，但不能替代 Book Identity。
+Author 为空是合法身份值，例如：
 
-## 4. Book 与 Source 元数据
+```text
+NormalizedTitle = "示例"
+NormalizedAuthor = ""
+```
+
+仍然可以唯一确定一本 Book。
+
+## 5. Book Identity 与重新导入
+
+Title / Author 在正式 Book 创建后不可编辑。
+
+重新导入的语义不是“更新 Book Identity”，而是：
+
+```text
+本次解析得到 Title + Author
+→ 定位对应 Book
+→ create/update that Book's Local Binding
+```
+
+如果重新导入得到不同 Title / Author，则按新的身份处理为另一 Book，而不是偷偷修改原 Book 的身份。
+
+## 6. Local Binding
+
+每个 Book 最多一个 Local Binding。
+
+Local Binding 保存：
+
+- 导入后的内部持久正文路径；
+- 原始文件名，仅作为来源信息；
+- SourceHash；
+- Encoding；
+- ImportedAt / LastImportedAt；
+- 其它确实只属于 Local Source 的 typed 数据。
+
+不要把这些 Local-only 字段放回 Book 主表。
+
+## 7. Active Source 与导入提交
+
+### 新建 Book
+
+新 Book 第一次通过 TXT 导入时：
+
+- 创建 Book；
+- 创建 Local Binding；
+- Local Binding 成为 ActiveSourceBinding；
+- 本次解析的完整 Catalog 成为 CurrentCatalog。
+
+### 已有 Book
+
+未来当某个已有 Book 可能拥有其它 Source 时：
+
+- 新建或更新 Local Binding 不意味着自动激活；
+- 如果 Local Binding 当前就是 Active Binding，则成功重新导入后替换 CurrentCatalog；
+- 如果 Local Binding 不是 Active Binding，则只更新 Local Source persistent content，不覆盖当前其它 Active Source 的 CurrentCatalog；
+- 以后切回 Local Binding 时再根据当前章节规则重新解析 Local Content 并替换 CurrentCatalog。
+
+当前阶段只有 Local Source，但实现不得把“Local 一定永远是 Active”重新固化为无法扩展的数据模型。
+
+## 8. 元数据规则
 
 当前支持三类导入元数据：
 
@@ -62,33 +150,7 @@ SourceHash 可以作为 no-op/内容变化检测的实现细节，但不能替�
 - `author` → Author；
 - `description` → Description。
 
-元数据识别结果首先形成 Local Source metadata snapshot。
-
-如果 Local Source 是 ActiveSource：
-
-- Book 当前展示 Title / Author / Description 同步为该 Source 的新 snapshot。
-
-如果未来 Local Source 不是 ActiveSource：
-
-- 只更新 Source；
-- 不自动激活；
-- 不改变 Book 当前展示元数据。
-
-Description 使用完整覆盖语义。重新导入得到空 Description 时允许清空旧 Description，不保留隐藏的旧值 fallback。
-
-最终优先级：
-
-```text
-文件名元数据规则
-> 正文头部元数据规则
-> name 最终回退为源文件名（不含扩展名）
-```
-
-高优先级来源已经得到的字段不会被低优先级来源覆盖；低优先级来源只补缺失字段。
-
-## 5. 元数据规则表达式
-
-元数据规则直接使用 .NET Regex named capture group，不使用模板占位符。
+规则继续使用 .NET Regex named capture group。
 
 示例：
 
@@ -96,79 +158,48 @@ Description 使用完整覆盖语义。重新导入得到空 Description 时允�
 ^(?<name>.+?)\s+作者[:：]\s*(?<author>.+)$
 ```
 
-或：
-
-```regex
-^简介[:：]\s*(?<description>.+)$
-```
-
-规则要求：
+要求：
 
 - Pattern 必须是合法 .NET Regex；
-- 一条元数据规则至少包含一个当前支持的命名组：`name`、`author`、`description`；
-- 其它命名组可以用于正则内部组织，但不写入 Source metadata；
-- 只有成功匹配且至少一个受支持字段得到非空值时，才算“有效命中”。
+- 一条元数据规则至少包含一个当前支持字段；
+- 只有成功匹配且得到非空字段时才算该字段被识别；
+- Title / Author 是否需要确认，以规则是否明确识别为准，而不是最终是否存在文件名 fallback。
 
-旧 `BookFileNameTemplate` 及模板解析逻辑直接移除，不把旧模板自动转换成新规则，也不保留兼容解释器。
-
-## 6. 文件名元数据规则
+## 9. 文件名元数据规则
 
 文件名规则是独立有序规则列表。
 
-执行语义：
+执行：
 
-1. 只对不含扩展名的源文件名执行；
-2. 只执行 Enabled 规则，按 SortOrder 顺序匹配；
-3. 第一条“有效命中”的规则成为唯一胜出规则；
-4. 立即停止后续文件名规则；
-5. 不在多个文件名规则之间合并字段。
+1. 对不含扩展名的源文件名执行；
+2. 只执行 Enabled 规则；
+3. 按 SortOrder 顺序匹配；
+4. 第一条有效命中成为该阶段唯一胜出规则；
+5. 后续文件名规则不再执行；
+6. 缺失字段继续由正文头部规则补充。
 
-例如第一条命中只得到 `name`，后续文件名规则即使可以得到 `author` 也不会再执行；缺失的 `author` 可以继续由正文头部规则补充。
+文件名 fallback 只在最终 Title 仍缺失时提供确认面板默认值，不等价于规则命中。
 
-## 7. 正文头部元数据规则
+## 10. 正文头部元数据规则
 
-正文头部规则与文件名规则是两个独立列表，不通过 SourceType 合并为一个万能规则模型。
+头部区域继续通过章节规则确定：
 
-### 头部区域
+- 找到第一个显式章节标题时，头部区域是文件开头到该标题之前；
+- 没有显式章节标题时，只扫描有界前缀；
+- “空行分章”不参与确定头部结束位置。
 
-头部区域先使用**章节规则本身**寻找第一个显式章节标题；“空行分章”不得参与确定头部结束位置。
+正文头部规则按 SortOrder 执行全部 Enabled 规则：
 
-- 找到第一个显式章节标题：头部区域是文本开头到该标题之前的全部内容，允许其中存在空行。
-- 未找到任何显式章节标题：只扫描从文本开头开始的有界前缀，不把整部长篇小说交给元数据 Regex。具体行数/字符数上限属于实现参数，不形成用户设置。
+- 文件名规则已经识别的字段不覆盖；
+- 先识别出的字段不被后续规则覆盖；
+- 后续规则只补缺失字段；
+- 多条规则可以分别识别 Title / Author / Description。
 
-示例：
+元数据识别只读取正文，不删除已经识别为元数据的原文行。
 
-```text
-书名：示例
-作者：作者
-简介：……
+## 11. 章节规则与空行分章
 
-第一章 开始
-正文……
-```
-
-元数据与第一章之间的空行不得错误生成“元数据章节”。
-
-### 执行语义
-
-正文头部规则按 SortOrder 顺序执行全部 Enabled 规则：
-
-- 先得到的字段优先；
-- 后续规则只补仍然缺失的字段；
-- 文件名规则已经得到的字段视为更高优先级，正文规则不得覆盖；
-- 多条正文规则可以分别补全 `name`、`author`、`description`。
-
-元数据识别是只读投影。即使某些头部行成功识别为元数据，也不因此从正文中删除。
-
-## 8. 章节规则与空行分章
-
-“空行分章”是长期全局开关，属于导入/章节识别配置；它不是朗读自然段分段配置。
-
-现有运行时 TextSegmenter 继续保持：
-
-> 每一个非空行是一个自然段。
-
-章节识别同时使用：
+章节识别继续组合：
 
 ```text
 显式章节规则
@@ -176,100 +207,115 @@ Description 使用完整覆盖语义。重新导入得到空 Description 时允�
 可选空行分章
 ```
 
-### 显式标题优先
+显式章节标题优先。
 
-章节规则识别出的章节标题拥有更高优先级：
+要求：
 
-- 文件开头到第一个显式章节标题之前的空行属于头部区域，不创建章节；
-- 显式章节标题后、第一行实际正文之前的空行不创建额外章节；
-- 如果一个候选空行边界之后的下一个非空行本身能被章节规则识别为章节标题，则该空行边界被吸收，由显式标题负责建立下一章；
-- 多个连续空行等价为一个候选边界；
-- 文件首尾空行不产生空章节。
+- 文件开头到第一个显式章节标题前的空行不生成额外章节；
+- 标题后、正文前的空行不生成额外章节；
+- 如果空行之后的下一个非空行本身是显式章节标题，由显式标题建立下一章；
+- 连续空行视为一个候选边界；
+- 文件首尾空行不生成空章节；
+- 没有任何显式章节标题时，开关关闭使用全文单章节，开启时由空行划分章节块。
 
-因此：
+运行时 `TextSegmenter` 的自然段语义仍然独立，不因导入期“空行分章”改变。
 
-```text
-第一章标题
-正文
+## 12. 自动章节标题
 
-第二章标题
-正文
-```
+显式章节规则产生的章节使用原始章节标题。
 
-只生成两个章节，不额外插入“第 N 节”。
-
-### 空行补充边界
-
-当一个章节已经出现实际正文后，后续空行可以作为补充章节边界。如果空行之后不是显式章节标题，则从下一个非空正文块开始建立一个无标题章节。
-
-如果全文没有任何显式章节标题：
-
-- 开关关闭时使用“全文”单章节语义；
-- 开关开启时由空行把全文划分为多个章节块；
-- 元数据识别仍然只读，因此成功识别出的头部文本不会被自动删除，必要时也可能成为第一个空行章节的一部分。
-
-## 9. Catalog 与正文快照
-
-导入期生成的是 Local Source 的完整新 Catalog snapshot。
-
-- 目录位置按最终解析结果重新生成。
-- 正文变化不会触发跨版本 Chapter Identity 匹配。
-- 实现可以继续使用应用内规范化正文文件 + StartOffset/Length 作为 Local Source 的正文容器。
-- 章节技术 ID 可以在安全、明确的迁移/更新策略中保留或重新生成，但 ReadingState 不依赖这些 ID。
-- 更新提交前必须确保 Catalog 与正文容器互相一致。
-- 更新失败时旧 Catalog 与正文保持可用。
-
-ReadingState 的更新后处理只做章节/章内位置边界截断，见 `BOOK_DATA_MODEL.md`。
-
-## 10. 自动章节标题
-
-由显式章节规则产生的章节直接保留匹配到的原始章节标题，不自动添加额外编号。
-
-由空行产生且没有源标题的章节使用：
+空行生成且没有源标题的章节使用：
 
 ```text
 第 N 节
 ```
 
-其中 N 是该章节在最终 Catalog 中的 1-based 位置。系统生成标题本身就是 `Chapter.Title`，不是 UI 临时显示编号。
+N 为最终 CurrentCatalog 中的 1-based 位置。
 
-ChapterIndex 继续作为内部 0-based 位置事实参与排序、播放、进度和缓存，不用于用户可见标题格式化。
+ChapterIndex 继续使用内部 0-based ordinal。
 
-## 11. 规则工作台
+## 13. Current Catalog 与 Local Content
 
-两个独立元数据规则工作台：
+导入期始终先准备一个完整候选 snapshot：
 
-- 文件名元数据规则；
-- 正文头部元数据规则。
+```text
+Normalized local content file
++
+Catalog entries
++
+Local chapter ranges
+```
 
-两者复用章节规则/正则规则已有的编辑能力：
+如果 Local Binding 将成为/仍是 Active Binding：
 
-- 多条规则；
+```text
+prepare full snapshot
+→ validate offsets / lengths / order
+→ finalize new content file
+→ atomically persist binding + CurrentCatalog
+→ cleanup obsolete content file
+```
+
+失败时：
+
+- 旧 Local Binding 数据仍可用；
+- 旧 CurrentCatalog 仍可用；
+- 不留下半成品正文文件被数据库引用。
+
+如果 Local Binding 非 Active：
+
+- 可以使用完整解析结果做校验；
+- 只提交 Local persistent content 与 Binding 信息；
+- 不把它的 Catalog 长期写入数据库覆盖 CurrentCatalog。
+
+## 14. ReadingState 后处理
+
+Local Source 更新或 CurrentCatalog 替换后：
+
+- 不匹配旧新 ChapterId；
+- 不按标题/正文/Hash 猜测对应章节；
+- 保留原 ChapterIndex；
+- 超出新 Catalog 最大范围则截到最后一章；
+- 章内位置超出新正文范围时截到合法边界。
+
+精确规则见 `BOOK_DATA_MODEL.md`。
+
+## 15. 编码处理
+
+编码检测沿用当前轻量流程：
+
+- 自动检测可信时继续；
+- 检测低置信度或失败时请求用户选择编码；
+- 重新选择编码后重新执行完整导入准备；
+- 不把编码选择与 Book Identity 确认合并为一个大型向导。
+
+如果同时需要编码选择和元数据确认，应按自然依赖顺序完成：先得到可靠文本，再解析/确认 Title 与 Author。
+
+## 16. 规则工作台与交换格式
+
+章节规则、文件名元数据规则、正文头部元数据规则继续是独立规则类型。
+
+它们可以继续支持：
+
 - Enabled；
-- 稳定 SortOrder；
+- SortOrder；
 - 新建、编辑、删除；
-- 插入槽位拖拽排序；
-- 文件/剪贴板导入；
-- 文件/剪贴板导出；
-- 批量管理模式中的批量导出/删除；
-- 版本化批量导入文档逐项处理。
+- 拖拽排序；
+- 文件/剪贴板导入导出；
+- 批量管理。
 
-批量选择语义统一遵守 `BATCH_MANAGEMENT.md`，不在本规范重复定义。
+不因为未来 Online Source 规则系统而把当前 Local TXT 规则强行塞进一个万能“书源规则 DSL”。
 
-编辑器只需要名称与 Regex Pattern，不提供“测试规则”输入区。
+## 17. 非目标
 
-可以提供保守、通用的内置默认元数据规则帮助常见 TXT 自动识别，但不得建立 Legado 专属模式、设置、命名或兼容路径。
+本轮不实现：
 
-## 12. 规则批量交换
-
-章节规则、文件名元数据规则、正文头部元数据规则各自使用自己的版本化交换文档；不同规则类型不混装成一个万能规则格式。
-
-同类型文档可以包含一条或多条规则：
-
-- 批量导出按当前选择集的稳定可见顺序写入一个文件/剪贴板文档；
-- 批量导入逐条校验，合法项继续处理，单项失败不把其它合法项回滚；
-- 完全重复项跳过；同名不同内容按现有规则工作台语义生成新项或唯一名称，不覆盖既有规则；
-- 新导入项按文档顺序追加到排序末尾；
-- 导入后不自动改变正在编辑的规则。
-
-具体 envelope 字段和 schemaVersion 可以由实现确定，但发布后按 `../05_DATA_AND_COMPATIBILITY.md` 的兼容规则版本化演进。
+- Online Source 规则；
+- Online Source 搜索；
+- 在线目录或正文抓取；
+- SearchSession / RefreshSession；
+- Legado 规则兼容；
+- 本地导入完整多步骤向导；
+- 入库后的 Title / Author 编辑；
+- 模糊 Book 匹配；
+- 模糊章节匹配。

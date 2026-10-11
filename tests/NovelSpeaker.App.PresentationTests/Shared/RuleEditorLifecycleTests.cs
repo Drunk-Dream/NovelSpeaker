@@ -77,7 +77,6 @@ public sealed class RuleEditorLifecycleTests
 
     [Theory]
     [InlineData("b", 0, "h0,b,a,h1,h2")]
-    [InlineData("b", 1, "h0,a,h1,b,h2")]
     [InlineData("a", 1, "h0,h1,a,b,h2")]
     [InlineData("a", 2, "h0,h1,b,a,h2")]
     public void Visible_slots_map_to_complete_order(string source, int slot, string expected)

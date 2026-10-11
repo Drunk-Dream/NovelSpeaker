@@ -21,6 +21,7 @@ using NovelSpeaker.Infrastructure.DependencyInjection;
 using NovelSpeaker.Infrastructure.Diagnostics;
 using NovelSpeaker.Infrastructure.FileSystem;
 using NovelSpeaker.Infrastructure.Settings;
+using NovelSpeaker.Infrastructure.Persistence;
 
 namespace NovelSpeaker.App.Bootstrap;
 
@@ -181,10 +182,17 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
 
     public async Task InitializeDatabaseAsync(CancellationToken cancellationToken)
     {
-        await RequireServices()
-            .GetRequiredService<IDatabaseInitializer>()
-            .InitializeAsync(cancellationToken)
-            .ConfigureAwait(false);
+        try
+        {
+            await RequireServices()
+                .GetRequiredService<IDatabaseInitializer>()
+                .InitializeAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (IncompatibleBookLibraryException exception)
+        {
+            throw new BookLibraryReimportRequiredException(exception);
+        }
 
         try
         {

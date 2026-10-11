@@ -200,8 +200,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
         var options = frozenOptions ?? _optionsProvider.GetCurrent();
         var readTitle = frozenReadTitle ?? _settingsService?.Current.ReadChapterTitle == true;
         var chapterText = await _sourceContentReader.ReadChapterTextAsync(
-            metadata.SourceId,
-            metadata.ChapterId,
+            metadata,
             cancellationToken).ConfigureAwait(false);
         IReadOnlyList<SpeechSegment> replacedSegments;
         if (_speechPlanService is not null && metadata.ChapterId is not null)

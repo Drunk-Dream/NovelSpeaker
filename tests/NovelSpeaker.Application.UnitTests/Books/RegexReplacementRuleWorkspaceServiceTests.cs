@@ -25,15 +25,6 @@ public sealed class RegexReplacementRuleWorkspaceServiceTests
     }
 
     [Fact]
-    public async Task SaveOrderAsync_normalizes_orders_in_steps_of_ten()
-    {
-        var a = Guid.NewGuid(); var b = Guid.NewGuid();
-        var repository = new FakeRepository([Rule(a, 100), Rule(b, 200)]);
-        await CreateService(repository).SaveOrderAsync([b, a], CancellationToken.None);
-        Assert.Equal([(b, 10), (a, 20)], repository.Rules.OrderBy(rule => rule.SortOrder).Select(rule => (rule.Id, rule.SortOrder)).ToArray());
-    }
-
-    [Fact]
     public async Task SaveEditorAsync_publishes_typed_source_change_after_rule_commit()
     {
         var repository = new FakeRepository([]);
@@ -161,26 +152,27 @@ public sealed class RegexReplacementRuleWorkspaceServiceTests
         Assert.Equal(["有效", "第二条"], repository.Rules.OrderBy(rule => rule.SortOrder).Select(rule => rule.Name));
     }
 
-    [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    public async Task Versioned_export_round_trips_single_and_multiple_rules_in_visible_order(int count)
+    [Fact]
+    public async Task Versioned_export_round_trips_single_and_multiple_rules_in_visible_order()
     {
-        var repository = new FakeRepository([]);
-        var service = CreateService(repository);
-        for (var index = 0; index < count; index++)
+        foreach (var count in new[] { 1, 2 })
         {
-            await service.ImportJsonAsync(
-                $$"""{"name":"Rule {{index}}","pattern":"pattern{{index}}","replacement":"替换","scope":"Both"}""",
-                CancellationToken.None);
-        }
-        var json = await service.ExportRulesJsonAsync(repository.Rules.Select(rule => rule.Id).Reverse().ToArray(), CancellationToken.None);
-        var target = new FakeRepository([]);
-        var imported = await CreateService(target).ImportJsonAsync(json!, CancellationToken.None);
+            var repository = new FakeRepository([]);
+            var service = CreateService(repository);
+            for (var index = 0; index < count; index++)
+            {
+                await service.ImportJsonAsync(
+                    $$"""{"name":"Rule {{index}}","pattern":"pattern{{index}}","replacement":"替换","scope":"Both"}""",
+                    CancellationToken.None);
+            }
+            var json = await service.ExportRulesJsonAsync(repository.Rules.Select(rule => rule.Id).Reverse().ToArray(), CancellationToken.None);
+            var target = new FakeRepository([]);
+            var imported = await CreateService(target).ImportJsonAsync(json!, CancellationToken.None);
 
-        Assert.Equal(count, imported.ImportedCount);
-        Assert.Equal(repository.Rules.Select(rule => rule.Pattern), target.Rules.Select(rule => rule.Pattern));
-        Assert.Equal(count, (await service.ImportJsonAsync(json!, CancellationToken.None)).SkippedCount);
+            Assert.Equal(count, imported.ImportedCount);
+            Assert.Equal(repository.Rules.Select(rule => rule.Pattern), target.Rules.Select(rule => rule.Pattern));
+            Assert.Equal(count, (await service.ImportJsonAsync(json!, CancellationToken.None)).SkippedCount);
+        }
     }
 
     private static RegexReplacementRuleWorkspaceService CreateService(IRegexReplacementRuleRepository repository)

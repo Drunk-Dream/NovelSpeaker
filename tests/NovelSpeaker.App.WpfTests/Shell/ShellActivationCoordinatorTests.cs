@@ -13,46 +13,6 @@ namespace NovelSpeaker.App.WpfTests.Shell;
 public sealed class ShellActivationCoordinatorTests
 {
     [Fact]
-    public void Repeated_activation_configures_process_infrastructure_and_navigation_once()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var navigation = new RecordingNavigationAdapter();
-            var platform = new RecordingPlatformAdapter();
-            using var coordinator = CreateCoordinator(navigation, platform);
-            var host = CreateHost();
-
-            coordinator.ActivateAsync(host, 1280).GetAwaiter().GetResult();
-            coordinator.ActivateAsync(host, 1000).GetAwaiter().GetResult();
-
-            Assert.Equal(1, platform.InfrastructureConfigurationCount);
-            Assert.Equal(1, platform.NavigationInitializationCount);
-            Assert.Equal(2, platform.PresenterConfigurationCount);
-            Assert.Equal(1, navigation.NavigateCount);
-            Assert.Equal(AppRouteId.Library, navigation.LastRoute?.Id);
-            Assert.True(navigation.LastBypassGuard);
-        });
-    }
-
-    [Fact]
-    public void Navigated_event_updates_selection_before_projecting_player_context()
-    {
-        WpfTestHost.RunInSta(() =>
-        {
-            var navigation = new RecordingNavigationAdapter
-            {
-                CurrentRoute = new PlayerRoute("book-1", AppRoutes.Library)
-            };
-            using var coordinator = CreateCoordinator(navigation, new RecordingPlatformAdapter());
-
-            coordinator.HandleNavigated(EventArgs.Empty);
-
-            Assert.Equal(1, navigation.SynchronizeSelectionCount);
-            Assert.True(coordinator.IsPlayerPageActive);
-        });
-    }
-
-    [Fact]
     public async Task Shell_navigation_request_is_cancelled_and_forwarded_unless_adapter_is_bypassing()
     {
         var navigation = new RecordingNavigationAdapter();

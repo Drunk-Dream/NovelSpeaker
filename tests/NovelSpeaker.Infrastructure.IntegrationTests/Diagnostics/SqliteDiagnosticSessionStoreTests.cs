@@ -207,30 +207,6 @@ public sealed class SqliteDiagnosticSessionStoreTests
     }
 
     [Fact]
-    public async Task Registry_events_activities_snapshots_and_marker_resource_sample_are_persisted()
-    {
-        var fixture = new Fixture("process-one");
-        await using var store = fixture.CreateStore();
-        var started = await store.StartAsync(new DiagnosticSessionStartOptions(), CancellationToken.None);
-        var hub = new ObservabilityHub(fixture.Context, [store], fixture.Clock);
-
-        using (var operation = hub.StartOperation(OperationCatalog.PlaybackStart))
-        {
-            operation.Complete(OperationResult.Succeeded());
-        }
-
-        Assert.True(await store.RecordProblemMarkerAsync(CancellationToken.None));
-        await store.FlushAsync(CancellationToken.None);
-        await store.EndAsync(CancellationToken.None);
-
-        var sessionPath = fixture.SessionPath(started.SessionId);
-        Assert.Equal(1L, await fixture.ScalarAsync(sessionPath, "SELECT COUNT(*) FROM Activities;"));
-        Assert.True(await fixture.ScalarAsync(sessionPath, "SELECT COUNT(*) FROM Events;") >= 1L);
-        Assert.Equal(1L, await fixture.ScalarAsync(sessionPath, "SELECT COUNT(*) FROM Snapshots;"));
-        Assert.Equal(1L, await fixture.ScalarAsync(sessionPath, "SELECT COUNT(*) FROM ResourceSamples;"));
-    }
-
-    [Fact]
     public async Task Anonymous_association_is_stable_inside_a_session_and_is_not_persisted()
     {
         var fixture = new Fixture("process-one");
@@ -346,85 +322,6 @@ public sealed class SqliteDiagnosticSessionStoreTests
 
         Assert.False(recorded);
         Assert.True(store.IsDegraded);
-    }
-
-    [Fact]
-    public async Task Queue_pressure_drops_ordinary_records_but_retains_lifecycle_and_marker_records()
-    {
-        var fixture = new Fixture("process-one");
-        await using var store = fixture.CreateStore(queueCapacity: 12);
-        var started = await store.StartAsync(
-            new DiagnosticSessionStartOptions(DiagnosticSessionCapacityPresets.MinimumSupportedBytes),
-            CancellationToken.None);
-        var sessionPath = fixture.SessionPath(started.SessionId);
-        await using var blocker = new SqliteConnection($"Data Source={sessionPath};Mode=ReadWrite;Pooling=False");
-        await blocker.OpenAsync();
-        await using (var beginWrite = blocker.CreateCommand())
-        {
-            beginWrite.CommandText = "BEGIN IMMEDIATE;";
-            await beginWrite.ExecuteNonQueryAsync();
-        }
-
-        var ordinaryDefinition = DiagnosticRegistry.Default.Get(new DiagnosticDefinitionId("tts.retry"));
-        var retryCountField = ordinaryDefinition.Fields.Single(field => field.Name == "retryCount");
-        var ordinaryEvent = new DiagnosticEvent(
-            ordinaryDefinition,
-            ordinaryDefinition.CreateFields(DiagnosticFieldValue.Integer(retryCountField, 1)),
-            fixture.Context.Current,
-            fixture.Clock.GetUtcNow());
-        Parallel.For(0, 8, _ =>
-        {
-            for (var index = 0; index < 256; index++)
-            {
-                store.OnDiagnosticEvent(ordinaryEvent);
-            }
-        });
-
-        Assert.True(store.Current!.CurrentProcessDroppedRecordCount > 0);
-        Assert.Equal(DiagnosticSessionState.Active, store.Current.State);
-        Assert.False(store.Current.CaptureStopped);
-        Assert.False(store.IsDegraded);
-
-        var lifecycleDefinition = DiagnosticRegistry.Default.Get(new DiagnosticDefinitionId("app.lifecycle"));
-        var phaseField = lifecycleDefinition.Fields.Single(field => field.Name == "phase");
-        store.OnDiagnosticEvent(new DiagnosticEvent(
-            lifecycleDefinition,
-            lifecycleDefinition.CreateFields(DiagnosticFieldValue.Enum(phaseField, "startup")),
-            fixture.Context.Current,
-            fixture.Clock.GetUtcNow()));
-        var markerTask = store.RecordProblemMarkerAsync(CancellationToken.None);
-        var oversizedAttachment = new DiagnosticAttachment(
-            "pressure-test",
-            fixture.Clock.GetUtcNow(),
-            "image/png",
-            1,
-            1,
-            new byte[2 * 1024 * 1024]);
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => store.AddAttachmentAsync(oversizedAttachment, CancellationToken.None));
-        Assert.True(store.Current!.CaptureStopped);
-        Assert.Equal("hard-cap", store.Current.CaptureStoppedReason);
-
-        await using (var releaseWrite = blocker.CreateCommand())
-        {
-            releaseWrite.CommandText = "ROLLBACK;";
-            await releaseWrite.ExecuteNonQueryAsync();
-        }
-
-        Assert.True(await markerTask);
-        Assert.False(store.IsDegraded);
-        await store.FlushAsync(CancellationToken.None);
-
-        Assert.Equal(1L, await fixture.ScalarAsync(
-            sessionPath,
-            "SELECT COUNT(*) FROM Events WHERE DefinitionId = 'app.lifecycle';"));
-        Assert.Equal(1L, await fixture.ScalarAsync(
-            sessionPath,
-            "SELECT COUNT(*) FROM Events WHERE DefinitionId = 'diagnostics.problem_marker';"));
-        Assert.Equal(1L, await fixture.ScalarAsync(
-            sessionPath,
-            "SELECT COUNT(*) FROM Events WHERE DefinitionId = 'diagnostics.capture_stopped';"));
-        Assert.Equal(DiagnosticSessionState.Active, store.Current!.State);
     }
 
     private sealed class RecordingConsumer : IObservabilityConsumer

@@ -293,7 +293,7 @@ public sealed partial class LibraryViewModelTests
         var timeProvider = new ManualTimeProvider();
         var deleteDialogService = new FakeBookDeleteDialogService
         {
-            NextResult = new BookDeleteDialogResult(true, true)
+            NextResult = new BookDeleteDialogResult(true)
         };
         var managementService = new FakeBookManagementService();
         var catalogService = new FakeBookCatalogService(
@@ -318,7 +318,6 @@ public sealed partial class LibraryViewModelTests
         Assert.Equal("Alpha", viewModel.SearchText);
         Assert.Empty(viewModel.Books);
         Assert.Single(managementService.Requests);
-        Assert.True(managementService.Requests[0].DeleteAudioCache);
         Assert.Equal("Alpha", deleteDialogService.Requests[0].BookTitle);
     }
 
@@ -362,7 +361,7 @@ public sealed partial class LibraryViewModelTests
             });
         var deleteDialogService = new FakeBookDeleteDialogService
         {
-            NextResult = new BookDeleteDialogResult(true, false)
+            NextResult = new BookDeleteDialogResult(true)
         };
         var managementService = new FakeBookManagementService();
         var viewModel = CreateViewModel(
@@ -379,7 +378,7 @@ public sealed partial class LibraryViewModelTests
         await viewModel.DeleteBookCommand.ExecuteAsync(viewModel.Books[0]);
 
         Assert.True(deleteDialogService.Requests[0].IsCurrentPlaybackBook);
-        Assert.False(managementService.Requests[0].DeleteAudioCache);
+        Assert.Equal("book-1", managementService.Requests[0].BookId);
     }
 
     private async Task OpenBookCommand_navigates_to_player_page_in_open_paused_mode()
@@ -1049,7 +1048,7 @@ public sealed partial class LibraryViewModelTests
     {
         public List<BookDeleteDialogRequest> Requests { get; } = [];
 
-        public BookDeleteDialogResult NextResult { get; set; } = new(false, true);
+        public BookDeleteDialogResult NextResult { get; set; } = new(false);
 
         public Task<BookDeleteDialogResult> ShowAsync(BookDeleteDialogRequest request, CancellationToken cancellationToken)
         {
@@ -1073,7 +1072,7 @@ public sealed partial class LibraryViewModelTests
             if (request.BookId == FailingBookId) throw new IOException("test failure");
             if (request.BookId == MissingBookId) return Task.FromResult<BookDeleteResult?>(null);
             OnCommitted?.Invoke(request);
-            return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, request.DeleteAudioCache, 12, true));
+            return Task.FromResult<BookDeleteResult?>(new BookDeleteResult(request.BookId, 12, true));
         }
     }
 

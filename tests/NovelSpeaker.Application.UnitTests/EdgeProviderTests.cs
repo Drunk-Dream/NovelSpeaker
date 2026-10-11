@@ -55,53 +55,54 @@ public sealed class EdgeProviderTests
             (await workspace.ExportAsync(edge.Id, true, CancellationToken.None)).Status);
     }
 
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task Failed_or_cancelled_disable_preserves_feature_and_current_selection(bool cancel)
+    [Fact]
+    public async Task Failed_or_cancelled_disable_preserves_feature_and_current_selection()
     {
-        var store = new ProviderStore();
-        var persisted = new SettingsStore();
-        using var settings = new AppSettingsService(persisted, AppSettings.Default);
-        var workspace = new SpeechProviderWorkspace(store, TimeProvider.System, settings);
-        await workspace.SetEdgeEnabledAsync(true, CancellationToken.None);
-        var edge = Assert.Single(store.Items);
-        await settings.UpdateAsync(new AppSettingsUpdate { CurrentProviderId = edge.Id }, CancellationToken.None);
-        using var cancellation = new CancellationTokenSource();
-        persisted.CancelSave = cancel ? cancellation : null;
-        persisted.FailSave = !cancel;
-        if (cancel)
-            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => workspace.SetEdgeEnabledAsync(false, cancellation.Token));
-        else
-            await Assert.ThrowsAsync<IOException>(() => workspace.SetEdgeEnabledAsync(false, cancellation.Token));
-        Assert.Equal(edge.Id, settings.Current.CurrentProviderId);
-        Assert.True(new ExperimentalFeaturesService(settings).IsEnabled(ExperimentalFeaturesService.MicrosoftEdgeTts));
-        Assert.Equal(edge.Id, persisted.Current!.CurrentProviderId);
-        Assert.Contains(ExperimentalFeaturesService.MicrosoftEdgeTts, persisted.Current.EnabledExperimentalFeatureIds!);
+        foreach (var cancel in new[] { false, true })
+        {
+            var store = new ProviderStore();
+            var persisted = new SettingsStore();
+            using var settings = new AppSettingsService(persisted, AppSettings.Default);
+            var workspace = new SpeechProviderWorkspace(store, TimeProvider.System, settings);
+            await workspace.SetEdgeEnabledAsync(true, CancellationToken.None);
+            var edge = Assert.Single(store.Items);
+            await settings.UpdateAsync(new AppSettingsUpdate { CurrentProviderId = edge.Id }, CancellationToken.None);
+            using var cancellation = new CancellationTokenSource();
+            persisted.CancelSave = cancel ? cancellation : null;
+            persisted.FailSave = !cancel;
+            if (cancel)
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => workspace.SetEdgeEnabledAsync(false, cancellation.Token));
+            else
+                await Assert.ThrowsAsync<IOException>(() => workspace.SetEdgeEnabledAsync(false, cancellation.Token));
+            Assert.Equal(edge.Id, settings.Current.CurrentProviderId);
+            Assert.True(new ExperimentalFeaturesService(settings).IsEnabled(ExperimentalFeaturesService.MicrosoftEdgeTts));
+            Assert.Equal(edge.Id, persisted.Current!.CurrentProviderId);
+            Assert.Contains(ExperimentalFeaturesService.MicrosoftEdgeTts, persisted.Current.EnabledExperimentalFeatureIds!);
+        }
     }
 
-    [Theory]
-    [InlineData(0, -100)]
-    [InlineData(50, 0)]
-    [InlineData(100, 100)]
-    public async Task Runtime_maps_public_speed_and_preserves_audio_and_failures(int speed, int rate)
+    [Fact]
+    public async Task Runtime_maps_public_speed_and_preserves_audio_and_failures()
     {
-        var transport = new Transport();
-        var runtime = new EdgeProviderRuntime(transport);
-        var provider = new SpeechProviderInstance(ProviderId.New(), "Microsoft Edge", 0,
-            new EdgeSpeechProviderConfiguration(Voice), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
-        var result = await runtime.SynthesizeAsync(provider, new ProviderSynthesisRequest("test", speed), CancellationToken.None);
-        Assert.Equal(rate, transport.Rate);
-        Assert.Equal(Voice, transport.LastVoice);
-        Assert.True(result.IsSuccess);
-        await result.Audio!.DisposeAsync();
-        transport.Failure = new ProviderSynthesisFailure(ProviderSynthesisFailureKind.Network, "network");
-        result = await runtime.SynthesizeAsync(provider, new ProviderSynthesisRequest("test", speed), CancellationToken.None);
-        Assert.Equal(transport.Failure, result.Failure);
-        using var cancellation = new CancellationTokenSource();
-        cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runtime.SynthesizeAsync(provider,
-            new ProviderSynthesisRequest("test", speed), cancellation.Token));
+        foreach (var (speed, rate) in new[] { (0, -100), (50, 0), (100, 100) })
+        {
+            var transport = new Transport();
+            var runtime = new EdgeProviderRuntime(transport);
+            var provider = new SpeechProviderInstance(ProviderId.New(), "Microsoft Edge", 0,
+                new EdgeSpeechProviderConfiguration(Voice), DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+            var result = await runtime.SynthesizeAsync(provider, new ProviderSynthesisRequest("test", speed), CancellationToken.None);
+            Assert.Equal(rate, transport.Rate);
+            Assert.Equal(Voice, transport.LastVoice);
+            Assert.True(result.IsSuccess);
+            await result.Audio!.DisposeAsync();
+            transport.Failure = new ProviderSynthesisFailure(ProviderSynthesisFailureKind.Network, "network");
+            result = await runtime.SynthesizeAsync(provider, new ProviderSynthesisRequest("test", speed), CancellationToken.None);
+            Assert.Equal(transport.Failure, result.Failure);
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runtime.SynthesizeAsync(provider,
+                new ProviderSynthesisRequest("test", speed), cancellation.Token));
+        }
     }
 
     [Fact]
