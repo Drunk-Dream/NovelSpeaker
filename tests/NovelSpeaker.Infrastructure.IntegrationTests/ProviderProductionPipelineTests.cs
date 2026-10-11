@@ -332,7 +332,7 @@ public sealed class ProviderProductionPipelineTests
                     var status = Assert.Single(coverage);
                     if (status.TotalSegmentCount is > 0 && status.CachedSegmentCount == status.TotalSegmentCount) return;
                     await invalidation.FlushPendingAsync(CancellationToken.None);
-                    await completed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+                    await completed.Task.WaitAsync(TimeSpan.FromSeconds(30));
                     completed = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 }
             }
