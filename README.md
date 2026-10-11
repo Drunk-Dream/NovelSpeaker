@@ -26,13 +26,25 @@ NovelSpeaker 是一款面向 Windows 的本地小说听书应用。导入 TXT �
 
 ## 界面预览
 
+### Light Mode
+
 | 书库 | 播放 |
 | --- | --- |
-| ![书库截图](docs/assets/screenshots/bookshelf.png) | ![播放截图](docs/assets/screenshots/player.png) |
+| ![Light Mode 书库](docs/assets/screenshots/bookshelf-light.png) | ![Light Mode 播放](docs/assets/screenshots/player-light.png) |
 
 | 语音服务 | 设置 |
 | --- | --- |
-| ![语音服务截图](docs/assets/screenshots/ttsRules.png) | ![设置截图](docs/assets/screenshots/settings.png) |
+| ![Light Mode 语音服务](docs/assets/screenshots/ttsRules-light.png) | ![Light Mode 设置](docs/assets/screenshots/settings-light.png) |
+
+### Dark Mode
+
+| 书库 | 播放 |
+| --- | --- |
+| ![Dark Mode 书库](docs/assets/screenshots/bookshelf-dark.png) | ![Dark Mode 播放](docs/assets/screenshots/player-dark.png) |
+
+| 语音服务 | 设置 |
+| --- | --- |
+| ![Dark Mode 语音服务](docs/assets/screenshots/ttsRules-dark.png) | ![Dark Mode 设置](docs/assets/screenshots/settings-dark.png) |
 
 ## 开始使用
 
@@ -46,7 +58,7 @@ NovelSpeaker 是一款面向 Windows 的本地小说听书应用。导入 TXT �
 - **整理书库**：识别 TXT 编码和章节，支持长章节目录；可按需要调整章节识别规则。
 - **连续收听**：自动衔接后续段落，显示并定位当前正文；可选择朗读章节标题。
 - **自定义朗读**：支持自定义 HTTP Provider 模板和实验性 Microsoft Edge Provider，并可分别替换显示文本和朗读文本。
-- **缓存与导出**：批量缓存选中的章节，离开播放页后仍可继续；完整缓存的章节可分别导出为 MP3，已有同名文件不会被覆盖。
+- **缓存与导出**：批量缓存选中的章节，离开播放页后仍可继续；完整缓存的章节可分别导出为 MP3，已有同名文件不会被覆盖。删除书籍时会同时清理关联的音频缓存。
 - **桌面控制**：支持 Windows 媒体键、系统媒体面板、迷你播放器、系统托盘和定时停止。
 - **外观与操作**：提供深色、浅色和跟随系统主题，以及常用键盘快捷键。
 
