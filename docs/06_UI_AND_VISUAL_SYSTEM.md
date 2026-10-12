@@ -251,6 +251,8 @@ BookDetails、Player、CacheManagement 等连续 catalog 至少按 10,000 条设
 - 首屏不使用 `Clear + N × Add`；
 - WPF virtualization 负责 container/layout，应用负责轻量数据 projection 与有界更新。
 
+CacheManagement 的**已缓存书目选择器**也应使用真正受 viewport 限制的 WPF 容器虚拟化，而非 `ScrollViewer + ItemsControl` 全量创建卡片。保留已有书卡展示、选中、焦点、键盘、滚动及 Light/Dark 语义；在大量书目下滚动定位仍应正常工作。此项是容器与性能合同，不预先重设计视觉风格。
+
 不自行实现 ItemContainerGenerator、recycling protocol、scroll extent/viewport/offset 状态机。
 
 ## 11. Staged Loading 与性能

@@ -86,7 +86,8 @@ Active Source context 或 target revision 改变后，旧上下文未完成 Pref
 - 全应用最多一个 Active Cache batch。
 - batch 创建时冻结章节集合、Provider、typed config、语速和其它影响合成的配置快照。
 - 页面切换、播放切章和主窗口隐藏不取消已提交 batch。
-- 取消停止未开始工作，已经生成的有效缓存保留。
+- 真实应用退出要主动请求批次取消并有界排空，不能仅依赖 DI Dispose；外部生成服务不响应取消时仍保证退出流程有界。
+- 取消停止未开始工作，已经生成的有效缓存保留；未完成结果不能标为 Ready。
 - 页面只消费 immutable progress snapshot，不拥有 batch lifecycle。
 
 ## 9. MP3 Export
@@ -141,6 +142,7 @@ Active Cache、Export、Speech Plan repair 各自拥有明确生命周期，不�
 - 可观察异常；
 - 有 bounded shutdown；
 - 不依赖页面实例存在；
+- snapshot 订阅者异常与 worker 完成责任相互隔离；无论是否成功通知 UI，已接受 job 都必须走到终态并释放 active slot；
 - 不把 progress snapshot 当持久业务真值。
 
 未来 SearchSession / RefreshSession 不属于 Audio Cache background owner；其生命周期由对应搜索/换源功能拥有。

@@ -1,94 +1,64 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 当前阶段：Book / Source / CurrentCatalog / DB 基础重构
+## 1. 当前阶段：Stabilization & Refinement — E1-B 实施与 E1-C 收口
 
-- **规划基线：** `dev` @ `4ed4c4750bbdd72d1f7978caad7a1c22d6084219`（`test: close permanent coverage reduction phase`）。执行时以本地实际 HEAD 为准复核，不回退用户后续合法修改。
-- **T005A 补充审查基线：** `dev` @ `29e746504f71dfb0a4d518945e012466a07db1a5`（`test(books): close foundation migration and core regression review`）。T001–T005 历史完成记录保持不变；执行 T005A 时仍以实际 HEAD 为准。
-- **阶段目标：** 把当前已经部分 Source 化但仍使用“Source-owned Catalog / 可编辑 Book metadata”语义的实现，收敛到新的 Book Identity + BookSourceBinding + Active Source + CurrentCatalog + Book-level ReadingState 模型，并让现有 Local TXT 书籍功能稳定运行。
-- **本轮实现：** 领域模型、Application 边界、SQLite schema/migration、Local TXT 导入与元数据确认、书库/详情/播放/进度/删除等本地书主链路。
-- **本轮不实现：** Online Source Definition 规则 schema、Legado 兼容、在线书源编辑器、全局搜索、SearchSession、RefreshSession、在线目录获取、在线正文获取、Online Text Cache 运行时或换源 UI。
-- **长期合同：** `docs/specs/BOOK_DATA_MODEL.md`、`docs/specs/BOOK_IMPORT.md` 为本阶段首要领域事实；数据迁移遵守 `docs/05_DATA_AND_COMPATIBILITY.md`。
-- 当前 v12 SQLite 已包含 `BookSources / LocalBookSources / Chapters(SourceId)`，但这是旧语义的中间形态。本阶段允许追加一次新的 schema migration，把它迁到 CurrentCatalog 模型；不得修改已发布 v1–v12 migration。
+- **决策基线：** 2026-10-11，`dev` @ `2c46304b4eece3f346403d435155f78c48aa9f05`。远端 Git 仍为此提交；E1-A T001/T002 完成信息来自用户交付的仓库外临时报告。Codex 执行时以**本地实际 HEAD、工作区改动**为准，不能将本地未提交的 E1-A 收口覆盖掉。
+- **已完成研究：** E1-A T001 全项目广覆盖静态审计；T002 对高风险和复杂度候选进行隔离动态验证。两轮临时报告由用户手动管理，**不提交 Git/不迁入项目 docs**。20 个领域的初审尚有部分覆盖缺口，E1-A 收口不等于项目通过逐行审计。
+- **本轮定位：** 只实施已由用户与 ChatGPT 筛出的四项具体问题；不是新的全项目重构，也不开始在线书源功能。工程专项结束后转 U1 全局视觉与交互体系设计。
+- **已批准的产品决策：HTTP Provider 完全禁止自动重定向（方案 A）。** 任意重定向 Location 均不能自动发出后续请求，包括同源；已有依赖 redirect 的规则需用户自行改为最终 URL。不增加允许重定向的开关、跨源例外、手动跟随链或凭据过滤框架。该合同在 T003 同步写入 `docs/specs/HTTP_TTS.md`。
+- **其它三项授权：** 修正 Active Cache / Export 启动通知异常导致的 stuck slot；把 Active Cache 纳入现有进程退出取消/有界排空路径；将 CacheManagement 的书目选择器替换为真正支持虚拟化的 WPF 列表，不重做视觉体系。
+- **长期边界：** 保护正式用户数据、本地 TXT、Book/Source/CurrentCatalog、Playback target-first、背景缓存跨页面运行和已有正常用户行为。只做当前问题所需的最小设计变化，避免新通用抽象/Compat/V2 层。详细合同见对应 `tasks/` 文件，`AGENTS.md` 及有关正式 `docs/`。
 
 ## 2. 执行规则
 
-- `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 仅用于发现超出已授权边界且必须由用户决策的问题。
-- 原定 **T001 → T005** 已串行完成；本次仅追加 **T005A** 作为收口后发现问题的定向修复，不重开 staged breaking migration window。
-- **T001–T003 属于一个 staged breaking migration window。** 这些切片允许在 task spec 明确列出的 Book/Source/Catalog/Import 调用方上暂时处于中间破坏态，不得为保持旧调用方编译而新增长期 Compat/V2/forwarder。
-- **T004 必须关闭 staged breaking migration window**：恢复本地书核心用户路径、Release build 与对应 focused tests。
-- **T005 已完成原定收口**：清理旧模型残留、复核核心回归、执行标准完整门禁。**T005A 完成后再确认本阶段最终收口**，只处理删除与音频缓存语义不一致问题及相邻生命周期风险。
-- staged window 不等于跳过验证：每个任务仍必须完成 task spec 声明的静态检查、结构验证或 focused tests。
-- 不为本轮设新的“测试数量目标”。只按 `docs/08_QUALITY_AND_TESTING.md` 保留/新增高价值核心测试；若临时验证测试不值得永久保留，任务结束前删除。
-- 人工验收始终可选，不阻塞 Agent 连续执行。
-- 所有文本文件保持 LF。
+- `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 仅表示遇到超出授权边界、必须由用户与 ChatGPT 决定的阻断问题。
+- **默认串行 T003 → T004 → T005 → T006 → T007。** T004 与 T005 涉及同一后台 job 生命周期，先处理启动完成责任再接退出 drain。每个任务结束应保持可构建、可测试；本轮不启用 staged breaking migration window。
+- Codex 只负责实施已经确定的行为和局部技术判断，不自行修改 Provider 兼容策略、模块所有权、用户数据格式、视觉风格或功能范围。非关键低层实现细节由 Codex 选择。发现超出合同的设计冲突，记录 `Needs Decision` 及证据，继续可独立执行的工作。
+- 永久测试只保护安全边界、关键生命周期和真实规模功能。临时 harness、截图、模拟服务、性能数据在验收后清除；不为本轮设置新增测试数量目标或复活脆弱的实现细节测试。人工体验验收可选、不阻塞自动任务。
+- 按 `AGENTS.md` 执行相应 focused tests 和任务收口门禁；T007 执行完整标准门禁。文本统一 LF。不得未经授权 push、PR、Release 或 tag。
+- 每任务完成时在本文件保留 `[x]` 与**简短完成成果、测试结果和限制**，删除该任务在 `tasks/` 的临时规格。用户保留的审计原报告不加入 Git；Codex 可在任务执行期间使用仓库外临时工作记录，最终清除无用副产物。
 
-## 3. 本轮固定架构决策
+## 3. 任务安排
 
-以下是已批准边界，执行任务时不要重新讨论或另建第二套解释：
+### Phase A — E1-A 已完成研究
 
-- 产品语义上，规范化 `Title + Author` 唯一确定 Book；BookId 是技术主键。
-- Title / Author 只在入库前确认，入库后不提供普通编辑能力。
-- 一个 Book 最多一个 Local Binding；未来允许多个 Online Binding；最多一个 Active Binding。
-- Source Definition 与 BookSourceBinding 是两个概念；当前不实现 Online Source Definition 规则系统。
-- SQLite 只保存 Active Source 对应的一份 CurrentCatalog，不保存所有 Binding 的 Catalog。
-- Local Source 切回时重新解析目录，而不是读取一份长期持久的 Local Catalog。
-- ReadingProgress 属于 Book；Source/Catalog 变化只按 ordinal/position 做边界截断，不做章节匹配。
-- Local 正文是持久业务数据，不属于 Cache。
-- Future Online 正文缓存与 Audio Cache 分离，本轮只留边界，不实现。
-- 不建立 Source 自动 fallback、跨 Source Chapter Identity、模糊 Book/章节匹配或长期旧模型 compatibility layer。
+- [x] **T001（Research）— 全项目广覆盖审计**
+  成果：形成 Domain/Application/Infrastructure/WPF、工具/测试的系统地图；查找状态所有权、生命周期、复杂度、历史残留与做减法机会，保留扫描覆盖缺口。静态调查未认定已验证 P0/P1。
+- [x] **T002（Research）— 高风险问题动态补证及复杂度深挖**
+  成果：真实 coordinator/假 Provider 证明 Active Cache 退出等待风险，合成 observer 复现 Cache/Export stuck slot；loopback 证实跨源 redirect 转发 X-Api-Key/Cookie/自定义 Header；受控 Playback 内容解析证明命令 gate 等待；WPF 合成 10k 书目全部 realized，Cache VM staged 机制具有实际必要性。限制：多数实验为隔离样本，非真实用户故障发生率或生产性能统计。详见由用户保存的 `E1_AUDIT_FOLLOWUP_REPORT.md`。
 
-## 4. 任务安排
+### Phase B — E1-B 定向实施
 
-### Phase A — 领域边界切换
+- [ ] **T003（P1 / Security）— HTTP Provider 完全禁止自动重定向**
+  规格：[`tasks/T003_HTTP_REDIRECT_SAFETY.md`](tasks/T003_HTTP_REDIRECT_SAFETY.md)。优先完成安全修复、明确 3xx 错误反馈、用 loopback 假凭据回归验证，并将已批准合同写入正式 HTTP TTS 规范。
+- [ ] **T004（P2 / Reliability）— Active Cache / Export 启动与事件通知异常隔离**
+  规格：[`tasks/T004_BACKGROUND_START_ATOMICITY.md`](tasks/T004_BACKGROUND_START_ATOMICITY.md)。使 UI 观察者异常无法导致 worker 未启动但 active slot 永远不完成；保持 job owner / 取消 / 快照语义。
+- [ ] **T005（P2 / Lifecycle）— Active Cache 进程退出取消与有界排空**
+  规格：[`tasks/T005_ACTIVE_CACHE_SHUTDOWN.md`](tasks/T005_ACTIVE_CACHE_SHUTDOWN.md)。与现有 Export/repair drain 协调，处理不响应取消的 Provider，保护已成功缓存的派生数据和有界退出。
+- [ ] **T006（P2 / Performance）— CacheManagement 书目选择器 WPF 虚拟化**
+  规格：[`tasks/T006_CACHE_BOOK_LIST_VIRTUALIZATION.md`](tasks/T006_CACHE_BOOK_LIST_VIRTUALIZATION.md)。只修改技术容器与必要绑定/滚动逻辑，不引入 U1 视觉设计变更；用隔离真实 WPF host 进行合成规模验证。
 
-- [x] **T001（P0）— 收敛 Book / Binding / CurrentCatalog 领域与 Application 边界**
-  完成成果：建立共享 `BookIdentity`（NFC、Unicode 空白折叠、空 Author、保留大小写和标点），Book 身份字段只读；将旧 Source entity 重命名为 `BookSourceBinding / LocalBookSourceBinding`，删除 Binding metadata 真值；Chapter 显式关联 `BookId + SourceBindingId`，增加完整不可变 `CurrentCatalog` 与 Book-level `ReadingState.Clamp`（空目录未定位）。Application 导入 port 改为唯一身份查询和可空 CurrentCatalog 提交，正文 port 改为 Book 当前目录 entry/context；删除 Title/Author 编辑 contract、use case、SQLite store、注册和旧编辑服务测试，未增加兼容层或 Online runtime。
-  自动验收：Domain Release 编译与全部 34 个 Domain 测试通过，新增身份规范化、阅读边界截断及目录快照完整性核心覆盖；Domain/tests 格式验证、改动 Application 文件空白格式检查与 Domain 无外层/WPF 依赖静态检查通过。既有其它核心测试保留。无环境限制；本任务按 staged window 局部门禁验收，未执行全解决方案完整门禁。
-  迁移缺口：Application Release 编译当前有 11 个错误，全部位于允许暂时失效的 `DirectBookImportService`（旧候选查询、Source/LocalSource 属性、旧 entity/Chapter 构造及 ActiveSourceId），由 T003 接回。静态确认 T002–T004 仍需接回 Books persistence、SourceContentReader/正文导出、BookDetails/Library/playback metadata query、详情身份编辑 UI 与对应旧模型测试；不得以兼容 API 恢复旧模型。T004 关闭 breaking window，T005 执行完整门禁。未发现长期合同冲突。
+### Phase C — E1-C 工程收口
 
-### Phase B — 持久化模型切换
+- [ ] **T007（P1 / Closure）— E1-B 回归、做减法检查与完整门禁**
+  规格：[`tasks/T007_E1_CLOSURE.md`](tasks/T007_E1_CLOSURE.md)。合并验证四项修复与现有 Book、Playback、Speech、Cache、数据边界；清除一次性产物；完整质量门禁；仅根据确证情况修正本轮残留。
 
-- [x] **T002（P0）— SQLite v13 迁移到 Book Identity + Binding + CurrentCatalog**
-  完成成果：追加 v13 migration，复用领域 `BookIdentity` 计算唯一规范身份；重建 Book / Binding / CurrentCatalog 关系，保留 BookId、BindingId、ChapterId、正文路径和正式进度、Speech Plan、Audio Cache 数据。身份冲突、缺失 typed data 或歧义目录返回可识别 `IncompatibleBookLibraryException` 并原子回滚；提交前检查外键。数据库约束保护 Active Binding 所属 Book、Local 单例与当前目录 ordinal，删除最后一个 Binding 级联删除 Book。导入 repository 支持唯一身份查询、活动目录原子替换和非活动 Local 仅更新正文；书库/详情/播放查询、正文读取与导出、进度、缓存、删除恢复和路径迁移全部切到新 schema。删除 Binding metadata 真值与旧候选查询、Source-owned Catalog 运行时路径，未留双读双写或新增 Online runtime。
-  自动验收：新增 11 个 v13 核心集成用例，覆盖正常升级与重启幂等、正式数据/文件保留、身份冲突/歧义状态回滚、SQL/回调/取消失败后的恢复、约束及原子快照提交；保留 v12 历史迁移测试，把旧读取 smoke 合并到 v13 升级测试，更新通用迁移测试至当前 schema。35 个 persistence focused tests 和全部 34 个 Domain 测试通过。临时验证项目仅排除待 T003 接回的 `DirectBookImportService` 及 Application 两个依赖它的注册入口，使用真实 Domain/Application/Infrastructure 分层项目完成 Release 编译；验证项目及排除配置已删除。格式验证、LF、`git diff --check`、已发布 v4–v12 migration 未变及 Infrastructure 无旧 schema 运行时引用检查通过。
-  迁移缺口：常规 Infrastructure build 仍被既有 `DirectBookImportService` 11 个编译错误阻断，由 T003 接回；App 和其余旧模型测试由 T003/T004 集成。T004 仍须关闭 breaking window，并将兼容失败接到用户可理解的重新导入路径；T005 执行全解决方案完整门禁。本任务依 staged window 局部门禁验收，未运行标准完整门禁；无环境限制，未发现长期合同冲突。
+## 4. 本轮明确不实施
 
-### Phase C — Local Import 恢复
-
-- [x] **T003（P0）— 重接 Local TXT 导入、身份确认与原子 CurrentCatalog 提交**
-  完成成果：Local TXT 导入接回统一 `BookIdentity` 与唯一身份查询；规则显式识别完整 Title/Author 时直接继续，否则通过 Application result/request continuation 和轻量确认对话框完成入库前修正（文件名 Title fallback、空 Author 合法、空 Title 禁止）。编码选择先于身份确认，确认面板与大文件进度面板串行展示，结果沿用现有 Snackbar。新 Book 激活唯一 Local Binding；已有 Book 保持身份和 BindingId，活动 Local 原子替换完整 CurrentCatalog/正文范围，非活动 Local 仅更新持久正文。复用 journal/recovery 保留失败/取消时旧正文和旧目录，提交后才发布 typed changes。删除多候选 DTO、选择对话框及 RequiresBookSelection/TargetBookId/CreateNewBook 路径，未新增 schema migration、兼容层或 Online runtime。
-  自动验收：重写旧候选/可变身份测试为规范身份与唯一 Local Binding 核心回归，新增缺失身份确认、最终修正、空身份校验和并发唯一性覆盖；保留编码、规则、原子失败/取消、恢复幂等及外部 TXT 独立性核心测试。使用临时 focused projects 直接编译真实 Domain/Application/Infrastructure 与导入 UI 生产源码：81 个导入/持久化测试、9 个导入协调器用例、2 个全量 XAML 主题检查及 1 个隔离 Desktop 临时验证通过；34 个 Domain 测试通过。隔离 Desktop 验证覆盖 Light/Dark 先应用主题再创建确认面板、已有面板切换主题、切换后新建面板、字段校验和取消；临时项目/测试/产物已删除。改动文件格式、LF、git diff --check 及导入范围旧 API 残留检查通过。
-  迁移缺口：常规 App build 仍在 BookDetailsViewModel 引用已删除 IBookMetadataUpdateService 处失败；常规 Application/Infrastructure tests 仍有 Export/Cache/Playback/BookManagement 的旧 content/metadata contract 调用编译失败，按合同由 T004 接回。ReadingProgress 的统一 clamp 与主链路集成仍归 T004；T004 关闭 breaking window，T005 执行完整门禁。本任务按 staged window 局部门禁验收，未执行标准完整门禁；无环境限制，未发现长期合同冲突。
-
-### Phase D — 本地书主链路集成
-
-- [x] **T004（P0）— 恢复书库 / 详情 / 播放 / 进度 / 删除并关闭 breaking window**
-  完成成果：恢复书库、详情、播放、缓存/朗读计划及导出调用方在 Book + Binding + CurrentCatalog 模型上的编译和核心运行路径；详情页仅展示 Book 身份，删除书名/作者编辑、保存/取消命令和草稿离页拦截，瞬时失败统一使用已有 Snackbar。活动 Local 重新导入在目录/正文提交事务中复用 `ReadingState.Clamp` 截断章序与正文位置，并使旧段落/音频坐标失效；非活动 Local 更新不改 Book 进度。启动组合根将无法安全迁移的书库分类交给已有启动失败窗口，明确要求保留数据并重新导入，不自动合并、删除或重建。保留 typed committed changes、Playback logical-target/迟到音频拒绝、SQLite checkpoint 优先级和删除文件协调/reparse-point 边界；未新增 schema migration、兼容层或 Online runtime。
-  自动验收：Release build（零警告/错误）、全解决方案 format verify、全部 977 个永久测试通过（Domain 34、Application 245、Infrastructure 336、Presentation 312、隔离 Desktop WPF 50），包含架构、全量 XAML 主题、播放 target-before-audio、持久化/删除恢复和路径边界回归。新增真实导入→书库/详情/正文读取→重新导入→删除的核心集成回归与迁移失败启动提示回归；更新旧模型 fixture、进度 clamp 与详情刷新测试，删除已失效的身份修改测试及依赖非活动持久目录的缓存测试，相关风险由目录替换/删除核心回归继续保护。临时隔离 Desktop 验证覆盖 Light/Dark 先应用主题再创建详情页、已有页切换主题、切换后新建页、身份绑定与编辑入口删除，验证源码已删除；LF、`git diff --check`、身份 mutation API 和运行时旧 schema 残留检查通过。
-  阶段状态：staged breaking migration window 已关闭，标准可构建/可测试状态恢复。无环境限制、未发现长期合同冲突；本任务未重新执行 restore，T005 仍负责最终残留复核与标准完整门禁，不在本任务继续执行。
-
-### Phase E — 收口
-
-- [x] **T005（P0）— 删除旧模型残留、核心回归复核与完整门禁**
-  完成成果：复核新 Book Identity / BookSourceBinding / Active Binding / CurrentCatalog / Book-level ReadingState 模型已贯通 Local TXT 主链路。v12 → v13 使用同一 `BookIdentity` normalization，数据库约束保护身份唯一、Active Binding 所属 Book、Local 单例和当前目录；升级保留 BookId、BindingId、ChapterId、正文、正式进度及 Speech/Audio 关系，冲突/歧义原子失败，外键完整性检查通过。导入仅在规则未完整识别 Title/Author 时请求入库前确认，空 Author 合法；活动 Local 原子替换目录并截断进度，非活动 Local 仅更新正文。
-  清理与核心回归：累计删除 Source-owned Catalog 运行时、Binding metadata 真值、入库后身份编辑、多候选选择和旧 API；残留扫描确认无双读双写、Compat/V2 或无调用方的旧模型 fixture，历史迁移及对应升级 fixture 保留。删除 3 个重复导入 smoke/内部 journal 调用测试及专用 fake 记录字段；身份与 Hash 区分、正常提交/恢复继续由真实 SQLite/文件集成回归和提交后通知测试保护，不新增永久测试。其余 normalization、迁移回滚、身份确认、原子提交、目录所有权、进度 clamp、正文/播放、删除与信任边界、logical target/迟到结果核心测试全部保留。
-  自动验收：标准完整门禁四项全部通过：locked restore（win-x64）、全解决方案 format verify、Release build（零警告/错误）、全部 974 个永久测试（Domain 34、Application 242、Infrastructure 336、Presentation 312、隔离 Desktop WPF 50；零失败/跳过），包含架构与全量 XAML 主题检查。已发布 v4–v12 migration 定义未变，累计改动 LF 与 `git diff --check` 通过；无临时验证产物、无环境限制、未发现长期文档冲突。Online Source 规则、Legado、search/refresh、在线目录/正文和正文缓存 runtime/UI 继续留待后续阶段；本阶段完成。
-
-- [x] **T005A（P0）— 统一书籍删除与音频缓存清理语义，完成最后一轮收口**
-  完成成果：删除确认框及无 Dialog Host fallback 均明确提示会清理关联音频缓存，并说明不会删除外部 TXT；单本、批量和详情页统一执行始终删除语义。移除 UI/Application/Infrastructure 间 `DeleteAudioCache`、`DeletedAudioCache` 可选状态及死分支。Book 删除和 Binding 移除继续复用既有 operation journal：先暂存目标 Local 正文/Book 目录与作用域内的音频文件，再事务删除记录和缓存索引；提交失败回滚实体文件，提交后中断由启动恢复完成。路径仍受应用数据根、缓存根、reparse point 与缓存保护注册表约束；未修改 schema/migration。
-  相邻生命周期与回归：真实 SQLite/文件集成测试确认删除 Book 后关联 AudioCacheEntries 和实体文件同时消失、其它 Book 的缓存索引与实体文件保留、数据库删除失败恢复已暂存缓存；既有受保护缓存拒绝、部分暂存恢复、路径篡改拒绝、Binding 移除/无 fallback、提交/恢复幂等和删除期间迟到缓存写入测试继续通过。未新增 schema migration 或临时产物。v1–v13 migration 定义未变。
-  自动验收：标准完整门禁四项全部通过：locked restore（win-x64）、全解决方案 format verify、Release build（零警告/错误）、全部 975 个永久测试（Domain 34、Application 242、Infrastructure 337、Presentation 312、隔离 Desktop WPF 50；零失败/跳过）；`git diff --check` 与 LF 检查通过。无环境限制；未发现长期文档冲突或本任务范围内遗留风险。本阶段最终收口。
+- 不重构 Playback 命令 gate（慢内容解析虽可复现，但尚未证明常见本地使用下有用户可感知收益）；不调整 target-first/迟到音频身份规则。
+- 不删除 CacheManagementViewModel 的 `>512` staged 更新、deferred refresh 或大目录保护；T002 已验证其必要工作路径。
+- 不重写约 3,000 行架构检查器为 Roslyn，不扩大永久测试体系；该项进入后续 E5 候选。
+- 不修改 Book committed event 语义、Library 局部重复查询、Provider/Settings 跨 SQLite/JSON 所有权、v8 既定 migration 策略、SourceHash、orphan temp 等。本阶段均未批准整改。
+- 不开发 Online Source、搜索/刷新或在线缓存；不做 U1 色彩、字体、圆角、视觉风格的重设计；不新增数据库 migration/正式数据格式更改。
 
 ## 5. 阶段完成标准
 
-T005A 执行结束后确认：
+- T003–T006 的核心行为均有可重复的自动验证及必要的反证/限制记录，安全凭据不因 HTTP redirect 发往 Location。
+- Active Cache/Export 的 listener 异常不破坏任务完成责任；Active Cache 退出有明确取消与有界清理机制，不依赖无限等待；正常前台/后台操作不退化。
+- CacheManagement 的大书目容器实际虚拟化，原有选择、进度、主题、页面激活及 10k 章节列表行为保留。
+- 新增/保留的测试符合核心行为准入，未遗留一次性测试、兼容层、临时诊断脚本/文件；必要长期文档与实现一致。
+- T007 完整质量门禁通过；无法运行的项按环境限制如实记录，不假报绿色。E1 结束后由用户与 ChatGPT 审核并进入 U1。
 
-- Local TXT 从导入到播放的主链路完全运行在新模型上；
-- 数据库不存在运行时 Source-owned Catalog 双模型；
-- Book 身份唯一性由数据库与统一 normalization 共同保护；
-- Title / Author 旧编辑入口和对应仅为旧模型服务的 use case 已删除；
-- v12 正常本地书库可以有界升级并保留关键正式数据；冲突数据不会被静默合并/覆盖；
-- 未实现任何本轮明确排除的 Online Source 业务功能；
-- 没有为了迁移留下 Old/New/V2/Compat 双读双写；
-- 删除书籍时不存在“保留音频缓存”虚假选项；关联音频缓存索引与实体文件的删除、失败回滚及启动恢复语义一致；
-- 标准完整门禁通过，或对确属环境限制的未执行项如实记录。
+## 6. 上轮里程碑
+
+Book / Source / CurrentCatalog / SQLite v13 基础重构与删除/音频缓存收口（历史 T001–T005A）已完成，详细过程留在 Git 历史，本 Backlog 不重复复制长篇旧实施日志；各编号以阶段为作用域。
