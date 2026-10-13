@@ -213,7 +213,7 @@ Current Playback
 - 进程级复用 `HttpClient`/handler。
 - 每次调用有明确超时与 `CancellationToken`。
 - **HTTP Provider 的所有请求禁止自动跟随重定向**，不论同源或跨源、GET 或 POST；301/302/303/307/308 等响应均不得向 `Location` 发起后续请求。Playback、Prefetch、Active Cache、试听和导出共用此安全边界。
-- 3xx 作为非成功响应按现有错误路径处理；提示用户将 Provider URL 配置为最终地址，不显示可能含凭据的 `Location`、完整 URL/Query 或请求 Header/Body。
+- 3xx 作为非成功响应按现有错误路径处理，不读取响应正文作为错误摘要或音频；提示用户将 Provider URL 配置为最终地址，不显示可能含凭据的 `Location`、完整 URL/Query 或请求 Header/Body。
 - 已保存的 HTTP Provider 若依赖重定向，由用户自行改为最终 URL。不提供跟随开关、同源例外、跨源转发/剥离框架或自动配置迁移。
 - 网络瞬断、超时和有限 5xx 可以按稳定策略重试；不通过重试间接跟随 3xx。
 - 服务端显式限流按响应信息和 Provider limiter 处理，不无界重试。

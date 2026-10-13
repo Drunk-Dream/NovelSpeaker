@@ -12,6 +12,53 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class HttpTtsClientTests
 {
+    [Theory]
+    [InlineData(301, false, "GET")]
+    [InlineData(302, false, "GET")]
+    [InlineData(302, true, "GET")]
+    [InlineData(303, true, "POST")]
+    [InlineData(307, false, "POST")]
+    [InlineData(308, true, "POST")]
+    public async Task ExecuteAsync_rejects_redirects_without_requesting_location(
+        int statusCode, bool sameOrigin, string method)
+    {
+        await using var source = new LocalHttpTtsTestServer();
+        await using var otherOrigin = new LocalHttpTtsTestServer();
+        var target = sameOrigin ? source : otherOrigin;
+        source.RedirectLocation = new Uri(target.BaseUri, "audio?token=fixture-location-secret");
+        source.RedirectStatusCode = statusCode;
+        using var client = CreateClient();
+        var request = CreateRequest(1, new Uri(source.BaseUri, "redirect"), method) with
+        {
+            Headers = new Dictionary<string, string>
+            {
+                ["Authorization"] = "Bearer fixture-auth-secret",
+                ["X-Api-Key"] = "fixture-api-secret",
+                ["Cookie"] = "session=fixture-cookie-secret",
+                ["X-Custom"] = "fixture-custom-secret"
+            },
+            Body = method == "POST"
+                ? new ParsedTtsRequestBody(ParsedTtsRequestBodyKind.Json, "\"fixture-body-secret\"", null)
+                : ParsedTtsRequestBody.None
+        };
+
+        var result = await client.ExecuteAsync(request, CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.False(result.IsSuccess);
+        Assert.Null(result.Audio);
+        Assert.Equal(TtsErrorKind.InvalidResponse, result.Failure!.Kind);
+        Assert.Equal(statusCode, result.Failure.StatusCode);
+        Assert.Contains("重定向", result.Failure.Message);
+        Assert.Contains("最终地址", result.Failure.Message);
+        Assert.Null(result.Failure.ResponseSummary);
+        AssertSensitiveValuesAbsent(result.Failure.Message, source.RedirectLocation.ToString(),
+            "fixture-location-secret", "fixture-auth-secret", "fixture-api-secret",
+            "fixture-cookie-secret", "fixture-custom-secret", "fixture-body-secret");
+        Assert.Equal(1, source.GetRequestCount("/redirect"));
+        Assert.Equal(0, target.GetRequestCount("/audio"));
+    }
+
     [Fact]
     public async Task ExecuteAsync_downloads_and_validates_audio()
     {

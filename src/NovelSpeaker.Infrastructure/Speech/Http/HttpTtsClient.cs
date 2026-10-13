@@ -116,6 +116,7 @@ public sealed class HttpTtsClient : ITtsHttpTransport, IDisposable
 
     private static HttpMessageHandler CreateHandler() => new SocketsHttpHandler
     {
+        AllowAutoRedirect = false,
         UseCookies = false,
         AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
     };

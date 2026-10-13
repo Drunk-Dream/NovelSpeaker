@@ -31,8 +31,8 @@
 
 - [x] **T008（P1 / Reliability，插入修复）— Edge 新端点与 Sec-MS-GEC v2**
   成果：按 ms-ra-forwarder `fix/drudream` @ `4936d3e1` 更新 Infrastructure 固定 profile 为 `edge-readaloud-155-v2`，采用新合成端点、Subscription Key 参数及 v2 认证，删除 v1 算法/握手；Voice 配置、合成身份、缓存与数据格式保持原合同。新增上游独立计算的 6 个认证向量及新握手离线回归，保留现有协议/Provider 核心测试。锁定还原、format、Release build（0 警告/错误）、Infrastructure Speech/Provider 66 项、Application Edge/TTS 11 项、架构 19 项及 diff 检查通过。2026-10-13 Windows/.NET 生产 Voice List → Runtime → transport → MP3/解码全部成功（晓晓，35,424 bytes，约 2.95 秒）；初次环境代理导致失败，仅在临时验证进程绕过代理后通过，未修改产品/系统代理设置。临时 harness、音频、参考副本及任务规格已清理；未执行全量 test（阶段完整门禁仍由 T007 执行），无其它环境未执行项或文档冲突。
-- [ ] **T003（P1 / Security）— HTTP Provider 完全禁止自动重定向**
-  规格：[`tasks/T003_HTTP_REDIRECT_SAFETY.md`](tasks/T003_HTTP_REDIRECT_SAFETY.md)。优先完成安全修复、明确 3xx 错误反馈、用 loopback 假凭据回归验证，并将已批准合同写入正式 HTTP TTS 规范。
+- [x] **T003（P1 / Security）— HTTP Provider 完全禁止自动重定向**
+  成果：生产共享 SocketsHttpHandler 禁止自动重定向；所有 3xx 走既有失败路径，提示配置最终 URL，不读取重定向正文或暴露 Location。HTTP TTS 正式合同补充正文处理边界，无配置/数据迁移。保留现有 Speech 核心测试，新增一组真实 loopback 安全回归（6 场景：301/302/303/307/308、同源/跨源、GET/POST 与合成凭据），确认 Location 端点零请求且不重试。锁定还原、format、Release build（0 警告/错误）、Infrastructure Speech 70 项、Application Provider/TTS/Speech 49 项及 diff 检查通过。未遗留临时产物；全量 test 留待 T007，无环境未执行项或文档冲突。
 - [ ] **T004（P2 / Reliability）— Active Cache / Export 启动与事件通知异常隔离**
   规格：[`tasks/T004_BACKGROUND_START_ATOMICITY.md`](tasks/T004_BACKGROUND_START_ATOMICITY.md)。使 UI 观察者异常无法导致 worker 未启动但 active slot 永远不完成；保持 job owner / 取消 / 快照语义。
 - [ ] **T005（P2 / Lifecycle）— Active Cache 进程退出取消与有界排空**
