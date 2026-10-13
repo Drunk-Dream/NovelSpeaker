@@ -74,12 +74,10 @@ public sealed class EdgeSpeechTransport : IEdgeSpeechTransport, IDisposable
         {
             var now = _time.GetUtcNow();
             var requestId = Guid.NewGuid().ToString("N");
-            var url = _profile.WebSocketEndpoint + "?TrustedClientToken=" + _profile.TrustedClientToken +
-                "&Sec-MS-GEC=" + EdgeReadAloudProtocol.GenerateGec(now, _profile.TrustedClientToken) +
-                "&Sec-MS-GEC-Version=1-" + _profile.ChromiumVersion + "&ConnectionId=" + Guid.NewGuid().ToString("N");
+            var uri = EdgeReadAloudProtocol.CreateSynthesisUri(_profile, now, Guid.NewGuid().ToString("N"));
             socket.Options.SetRequestHeader("Origin", _profile.Origin);
             socket.Options.SetRequestHeader("User-Agent", _profile.UserAgent);
-            await socket.ConnectAsync(new Uri(url), timeout.Token).ConfigureAwait(false);
+            await socket.ConnectAsync(uri, timeout.Token).ConfigureAwait(false);
             await SendAsync(socket, EdgeReadAloudProtocol.CreateConfig(now), timeout.Token).ConfigureAwait(false);
             await SendAsync(socket, EdgeReadAloudProtocol.CreateSsmlMessage(requestId, voice, text, ratePercent, now), timeout.Token).ConfigureAwait(false);
             audio = new MemoryStream();

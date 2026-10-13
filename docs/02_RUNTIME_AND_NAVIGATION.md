@@ -143,6 +143,7 @@ ReadingProgress 的逻辑位置可以在 target commit 后 checkpoint；音频�
 
 - 页面离开不取消已经提交的 background job；
 - coordinator 拥有 CTS、Task、进度和终态；
+- snapshot 订阅者只是观察者；其通知异常不得阻止已接受任务的启动、终态完成或 active slot 释放，也不得妨碍其它订阅者收到通知；
 - shutdown 统一取消并进行有界等待；
 - 不建立通用 BackgroundTaskManager。
 
@@ -184,3 +185,5 @@ block new UI operations
 ```
 
 基础设施 flush 超时不得导致应用无限无法退出。
+
+主动缓存等已接受的 process background job 必须在正式退出阶段接收取消，并进入有界 drain；不能等到容器 Dispose 才开始取消。对不合作的外部 Provider，退出及资源释放不得因无界 await 卡住；已完成并持久化的数据保留，未完成工作不得误报成功。等待应受整体退出预算约束，避免多个参与者各自叠加完整等待窗口。隐藏主窗口或页面离开不视为退出。

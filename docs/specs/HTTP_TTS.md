@@ -212,7 +212,10 @@ Current Playback
 
 - 进程级复用 `HttpClient`/handler。
 - 每次调用有明确超时与 `CancellationToken`。
-- 网络瞬断、超时和有限 5xx 可以按稳定策略重试。
+- **HTTP Provider 的所有请求禁止自动跟随重定向**，不论同源或跨源、GET 或 POST；301/302/303/307/308 等响应均不得向 `Location` 发起后续请求。Playback、Prefetch、Active Cache、试听和导出共用此安全边界。
+- 3xx 作为非成功响应按现有错误路径处理；提示用户将 Provider URL 配置为最终地址，不显示可能含凭据的 `Location`、完整 URL/Query 或请求 Header/Body。
+- 已保存的 HTTP Provider 若依赖重定向，由用户自行改为最终 URL。不提供跟随开关、同源例外、跨源转发/剥离框架或自动配置迁移。
+- 网络瞬断、超时和有限 5xx 可以按稳定策略重试；不通过重试间接跟随 3xx。
 - 服务端显式限流按响应信息和 Provider limiter 处理，不无界重试。
 - 非成功状态只生成有限长度、脱敏错误摘要。
 - 取消稳定映射为 Cancelled，不记录为 Error。
@@ -361,7 +364,7 @@ Edge 协议行为必须以当前 `https://github.com/Drunk-Dream/ms-ra-forwarder
 - 全局 `SpeakSpeed 0–100` 映射到 Edge `-100%–+100%`；
 - Playback Volume 始终由本地播放器处理，不发送给 Edge。
 
-当前固定 profile 为 `edge-readaloud-144-v1`，参考 [ms-ra-forwarder 的协议实现](https://github.com/Drunk-Dream/ms-ra-forwarder/tree/5ab6ce809c2418402c4743b98d74215a74509b00)；Edge synthesis contract version 为 `1`。连接层 profile 与合成合同分别版本化。
+当前固定 profile 为 `edge-readaloud-155-v2`，参考 [ms-ra-forwarder `fix/drudream` 的协议实现](https://github.com/Drunk-Dream/ms-ra-forwarder/tree/4936d3e1edc87274ffaf88e63e4fcdaac4e6e409)；合成端点为 `wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1`，使用 `Ocp-Apim-Subscription-Key` 与 Sec-MS-GEC v2（`2-155.0.4283.45`）。Voice List 地址保持原样。Edge synthesis contract version 为 `1`，连接层 profile 与合成合同分别版本化，连接认证更新不使既有音频缓存失效。
 
 每次合成必须有明确超时和 CancellationToken。第一版 Edge transport 不自行自动重试；取消应主动终止当前操作并映射为 Cancelled，而不是 Error。协议内部可以区分 VoiceList、Connection、Protocol、Synthesis、InvalidAudio、Timeout、Network 等诊断阶段，但 Provider Runtime/Playback 只暴露现有稳定 Speech 错误语义，不建立 Edge 专属公共错误状态，也不持久化 Healthy/Offline/LastSuccessfulAt 等 Provider 健康状态。
 
@@ -380,7 +383,7 @@ Edge transport 可用性须以**生产代码路径**对真实 Edge 服务的成�
 
 只保留脱敏的验证日期、环境、protocol profile 版本、VoiceId 和 VoiceList/Synthesis/Decode 成败作为任务完成证据。不把正文、完整 SSML/请求、Token 或音频保存为长期测试资产。持续 CI 使用隔离 transport/协议解析测试，不依赖外部 Edge 服务。
 
-当前 profile 验证：2026-09-29，Windows `10.0.19045.0` / .NET `10.0.12`；VoiceId 为 `Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoxiaoNeural)`；生产 Voice List、Runtime 合成和现有音频解码路径均成功。验证音频与临时验证入口已删除。
+当前 profile 验证：2026-10-13，Windows `10.0.19045.0` / .NET `10.0.12`；VoiceId 为 `Microsoft Server Speech Text to Speech Voice (zh-CN, XiaoxiaoNeural)`；生产 Voice List、Runtime 合成和现有音频解码路径均成功。首次使用环境中的本地代理时出现 Voice List/连接失败；仅在临时验证进程禁用代理后完整链路成功，未修改系统或产品代理设置。验证音频与临时验证入口已删除。
 
 ## 13. Provider Runtime 与缓存身份
 
