@@ -4,7 +4,7 @@
 
 - **决策基线：** 2026-10-11，`dev` @ `2c46304b4eece3f346403d435155f78c48aa9f05`。远端 Git 仍为此提交；E1-A T001/T002 完成信息来自用户交付的仓库外临时报告。Codex 执行时以**本地实际 HEAD、工作区改动**为准，不能将本地未提交的 E1-A 收口覆盖掉。
 - **已完成研究：** E1-A T001 全项目广覆盖静态审计；T002 对高风险和复杂度候选进行隔离动态验证。两轮临时报告由用户手动管理，**不提交 Git/不迁入项目 docs**。20 个领域的初审尚有部分覆盖缺口，E1-A 收口不等于项目通过逐行审计。
-- **本轮定位：** 只实施已由用户与 ChatGPT 筛出的四项具体问题；不是新的全项目重构，也不开始在线书源功能。工程专项结束后转 U1 全局视觉与交互体系设计。
+- **本轮定位：** 只实施已由用户与 ChatGPT 筛出的四项具体问题，以及用户于 2026-10-13 插入的 Edge 连接协议修复；不是新的全项目重构，也不开始在线书源功能。工程专项结束后转 U1 全局视觉与交互体系设计。
 - **已批准的产品决策：HTTP Provider 完全禁止自动重定向（方案 A）。** 任意重定向 Location 均不能自动发出后续请求，包括同源；已有依赖 redirect 的规则需用户自行改为最终 URL。不增加允许重定向的开关、跨源例外、手动跟随链或凭据过滤框架。该合同在 T003 同步写入 `docs/specs/HTTP_TTS.md`。
 - **其它三项授权：** 修正 Active Cache / Export 启动通知异常导致的 stuck slot；把 Active Cache 纳入现有进程退出取消/有界排空路径；将 CacheManagement 的书目选择器替换为真正支持虚拟化的 WPF 列表，不重做视觉体系。
 - **长期边界：** 保护正式用户数据、本地 TXT、Book/Source/CurrentCatalog、Playback target-first、背景缓存跨页面运行和已有正常用户行为。只做当前问题所需的最小设计变化，避免新通用抽象/Compat/V2 层。详细合同见对应 `tasks/` 文件，`AGENTS.md` 及有关正式 `docs/`。
@@ -12,7 +12,7 @@
 ## 2. 执行规则
 
 - `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 仅表示遇到超出授权边界、必须由用户与 ChatGPT 决定的阻断问题。
-- **默认串行 T003 → T004 → T005 → T006 → T007。** T004 与 T005 涉及同一后台 job 生命周期，先处理启动完成责任再接退出 drain。每个任务结束应保持可构建、可测试；本轮不启用 staged breaking migration window。
+- **默认串行 T008（插入修复）→ T003 → T004 → T005 → T006 → T007。** T004 与 T005 涉及同一后台 job 生命周期，先处理启动完成责任再接退出 drain。每个任务结束应保持可构建、可测试；本轮不启用 staged breaking migration window。
 - Codex 只负责实施已经确定的行为和局部技术判断，不自行修改 Provider 兼容策略、模块所有权、用户数据格式、视觉风格或功能范围。非关键低层实现细节由 Codex 选择。发现超出合同的设计冲突，记录 `Needs Decision` 及证据，继续可独立执行的工作。
 - 永久测试只保护安全边界、关键生命周期和真实规模功能。临时 harness、截图、模拟服务、性能数据在验收后清除；不为本轮设置新增测试数量目标或复活脆弱的实现细节测试。人工体验验收可选、不阻塞自动任务。
 - 按 `AGENTS.md` 执行相应 focused tests 和任务收口门禁；T007 执行完整标准门禁。文本统一 LF。不得未经授权 push、PR、Release 或 tag。
@@ -29,6 +29,8 @@
 
 ### Phase B — E1-B 定向实施
 
+- [x] **T008（P1 / Reliability，插入修复）— Edge 新端点与 Sec-MS-GEC v2**
+  成果：按 ms-ra-forwarder `fix/drudream` @ `4936d3e1` 更新 Infrastructure 固定 profile 为 `edge-readaloud-155-v2`，采用新合成端点、Subscription Key 参数及 v2 认证，删除 v1 算法/握手；Voice 配置、合成身份、缓存与数据格式保持原合同。新增上游独立计算的 6 个认证向量及新握手离线回归，保留现有协议/Provider 核心测试。锁定还原、format、Release build（0 警告/错误）、Infrastructure Speech/Provider 66 项、Application Edge/TTS 11 项、架构 19 项及 diff 检查通过。2026-10-13 Windows/.NET 生产 Voice List → Runtime → transport → MP3/解码全部成功（晓晓，35,424 bytes，约 2.95 秒）；初次环境代理导致失败，仅在临时验证进程绕过代理后通过，未修改产品/系统代理设置。临时 harness、音频、参考副本及任务规格已清理；未执行全量 test（阶段完整门禁仍由 T007 执行），无其它环境未执行项或文档冲突。
 - [ ] **T003（P1 / Security）— HTTP Provider 完全禁止自动重定向**
   规格：[`tasks/T003_HTTP_REDIRECT_SAFETY.md`](tasks/T003_HTTP_REDIRECT_SAFETY.md)。优先完成安全修复、明确 3xx 错误反馈、用 loopback 假凭据回归验证，并将已批准合同写入正式 HTTP TTS 规范。
 - [ ] **T004（P2 / Reliability）— Active Cache / Export 启动与事件通知异常隔离**
