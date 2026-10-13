@@ -148,6 +148,8 @@ public sealed class ServiceCollectionExtensionsTests
                 Assert.IsAssignableFrom<IAudioGenerationProvider>(provider.GetRequiredService<IAudioGenerationProvider>());
                 Assert.IsType<CacheAudioGenerationProvider>(provider.GetRequiredService<IAudioGenerationProvider>());
                 Assert.IsType<ActiveCacheCoordinator>(provider.GetRequiredService<IActiveCacheCoordinator>());
+                Assert.Same(provider.GetRequiredService<IActiveCacheCoordinator>(),
+                    provider.GetRequiredService<IActiveCacheLifetime>());
                 Assert.IsType<ChapterExportCoordinator>(provider.GetRequiredService<IChapterExportCoordinator>());
                 Assert.IsType<ShellChapterExportController>(provider.GetRequiredService<ShellChapterExportController>());
                 Assert.IsType<PlaybackSegmentRunner>(provider.GetRequiredService<PlaybackSegmentRunner>());

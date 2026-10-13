@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using NovelSpeaker.Application.Abstractions;
 using NovelSpeaker.Application.DependencyInjection;
 using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.Application.Diagnostics;
 using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.Application.Playback;
@@ -58,6 +59,9 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     private IOperationScope? _startupOperation;
     private IOperationScope? _shutdownOperation;
     private ServiceProvider? _serviceProvider;
+    private CancellationTokenSource? _backgroundShutdownBudget;
+    private bool _backgroundDrainIncomplete;
+    private Task? _activeCacheStopTask;
 
     public WpfStartupRuntime(Dispatcher dispatcher, Action<MainWindow> setMainWindow)
     {
@@ -69,7 +73,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     internal WpfStartupRuntime(
         Dispatcher dispatcher,
         Action<MainWindow> setMainWindow,
-        TimeSpan backgroundShutdownTimeout)
+        TimeSpan backgroundShutdownTimeout,
+        ServiceProvider? serviceProvider = null)
         : this(dispatcher, setMainWindow)
     {
         if (backgroundShutdownTimeout <= TimeSpan.Zero)
@@ -78,6 +83,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         }
 
         _backgroundShutdownTimeout = backgroundShutdownTimeout;
+        _serviceProvider = serviceProvider;
     }
 
     public Func<CancellationToken, Task>? ShutdownRequestedAsync { get; set; }
@@ -285,6 +291,12 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     public void BeginShutdown()
     {
         _shutdownGate.TryBeginShutdown();
+        if (_serviceProvider is not null && _activeCacheStopTask is null)
+        {
+            _activeCacheStopTask = _serviceProvider.GetRequiredService<IActiveCacheLifetime>()
+                .StopAsync(CancellationToken.None);
+            ObserveLateFailure(_activeCacheStopTask);
+        }
         if (_serviceProvider is not null && _shutdownOperation is null)
         {
             _shutdownOperation = _serviceProvider
@@ -342,6 +354,7 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         if (_serviceProvider is not null)
         {
             await WaitForBackgroundTasksAsync(
+                _serviceProvider.GetRequiredService<IActiveCacheLifetime>(),
                 _serviceProvider.GetRequiredService<IChapterExportCoordinator>(),
                 _serviceProvider.GetRequiredService<ISpeechPlanRepairLifetime>(),
                 _serviceProvider.GetRequiredService<ICacheChangeLifetime>(),
@@ -350,77 +363,68 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     }
 
     internal async Task WaitForBackgroundTasksAsync(
+        IActiveCacheLifetime activeCacheLifetime,
         IChapterExportCoordinator chapterExportCoordinator,
         ISpeechPlanRepairLifetime speechPlanRepairCoordinator,
         ICacheChangeLifetime? cacheChangeLifetime,
         CancellationToken cancellationToken)
     {
+        ArgumentNullException.ThrowIfNull(activeCacheLifetime);
         ArgumentNullException.ThrowIfNull(chapterExportCoordinator);
         ArgumentNullException.ThrowIfNull(speechPlanRepairCoordinator);
+        var budget = GetBackgroundShutdownBudget();
+        using var waitCancellation = CancellationTokenSource.CreateLinkedTokenSource(budget, cancellationToken);
+        var token = waitCancellation.Token;
 
-        await WaitForBackgroundTasksCoreAsync(
-            chapterExportCoordinator,
-            speechPlanRepairCoordinator.StopAsync,
-            cacheChangeLifetime,
-            cancellationToken).ConfigureAwait(false);
-    }
+        // Cancel both batch owners before waiting for either one; they share one budget.
+        await Task.WhenAll(
+            DrainAsync("active-cache-shutdown", stopToken => _activeCacheStopTask ?? activeCacheLifetime.StopAsync(stopToken), token),
+            DrainAsync("chapter-export-shutdown", chapterExportCoordinator.CancelAsync, token))
+            .ConfigureAwait(false);
 
-    private async Task WaitForBackgroundTasksCoreAsync(
-        IChapterExportCoordinator chapterExportCoordinator,
-        Func<CancellationToken, Task> stopSpeechPlanRepairsAsync,
-        ICacheChangeLifetime? cacheChangeLifetime,
-        CancellationToken cancellationToken)
-    {
-        ArgumentNullException.ThrowIfNull(chapterExportCoordinator);
-        ArgumentNullException.ThrowIfNull(stopSpeechPlanRepairsAsync);
-
-        try
-        {
-            await chapterExportCoordinator
-                .CancelAsync(cancellationToken)
-                .WaitAsync(_backgroundShutdownTimeout, TimeProvider.System, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (TimeoutException exception)
-        {
-            RecordLifecycleFailure(
-                "chapter-export-shutdown",
-                "等待章节导出后台任务退出超时，将继续关闭。",
-                exception);
-        }
-
-        try
-        {
-            await stopSpeechPlanRepairsAsync(cancellationToken)
-                .WaitAsync(_backgroundShutdownTimeout, TimeProvider.System, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (TimeoutException exception)
-        {
-            RecordLifecycleFailure(
-                "chapter-speech-plan-shutdown",
-                "等待章节朗读清单后台任务退出超时，将继续关闭。",
-                exception);
-        }
+        await DrainAsync("chapter-speech-plan-shutdown", speechPlanRepairCoordinator.StopAsync, token)
+            .ConfigureAwait(false);
 
         if (cacheChangeLifetime is not null)
         {
+            await DrainAsync("cache-invalidation-shutdown", cacheChangeLifetime.StopAsync, token)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private CancellationToken GetBackgroundShutdownBudget()
+    {
+        _backgroundShutdownBudget ??= new CancellationTokenSource(_backgroundShutdownTimeout);
+        return _backgroundShutdownBudget.Token;
+    }
+
+    private async Task DrainAsync(string name, Func<CancellationToken, Task> stopAsync, CancellationToken token)
+    {
+        Task? task = null;
+        try
+        {
+            task = stopAsync(token);
+            await task.WaitAsync(token).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            _backgroundDrainIncomplete = true;
+            if (task is not null) ObserveLateFailure(task);
             try
             {
-                await cacheChangeLifetime
-                    .StopAsync(cancellationToken)
-                    .WaitAsync(_backgroundShutdownTimeout, TimeProvider.System, cancellationToken)
-                    .ConfigureAwait(false);
+                RecordLifecycleFailure(name, "后台任务未完成排空，将继续尽力关闭。", exception);
             }
-            catch (TimeoutException exception)
+            catch
             {
-                RecordLifecycleFailure(
-                    "cache-invalidation-shutdown",
-                    "等待缓存失效通知退出超时，将继续关闭。",
-                    exception);
+                // A failing diagnostic sink must not prevent the remaining stop requests.
             }
         }
     }
+
+    private static void ObserveLateFailure(Task task) =>
+        _ = task.ContinueWith(static faulted => _ = faulted.Exception,
+            CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
 
     public Task FlushAsync(CancellationToken cancellationToken)
     {
@@ -473,7 +477,8 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
     public async Task NotifyProcessExitAsync(ProcessExitReason exitReason, CancellationToken cancellationToken)
     {
         _startupOperation?.Complete(OperationResult.Cancelled());
-        _shutdownOperation?.Complete(OperationResult.Succeeded());
+        _shutdownOperation?.Complete(_backgroundDrainIncomplete
+            ? OperationResult.Failed("background-shutdown-incomplete") : OperationResult.Succeeded());
         _diagnostics?.RecordProcessExit(exitReason);
         if (_serviceProvider is not null)
         {
@@ -489,17 +494,22 @@ internal sealed class WpfStartupRuntime : IStartupRuntime, IProcessLifecycleDiag
         CloseStartupStatus();
         if (_serviceProvider is not null)
         {
-            await _serviceProvider.DisposeAsync().ConfigureAwait(false);
+            // Container disposal must not restart a fresh timeout for each owner after
+            // the process drain has already exhausted its budget.
+            await DrainAsync("container-disposal", _ => _serviceProvider.DisposeAsync().AsTask(),
+                GetBackgroundShutdownBudget()).ConfigureAwait(false);
             _serviceProvider = null;
         }
 
         if (_loggerProvider is not null)
         {
-            await _loggerProvider.DisposeAsync().ConfigureAwait(false);
+            await DrainAsync("logger-disposal", _ => _loggerProvider.DisposeAsync().AsTask(),
+                GetBackgroundShutdownBudget()).ConfigureAwait(false);
             _loggerProvider = null;
         }
 
         _shutdownGate.Dispose();
+        _backgroundShutdownBudget?.Dispose();
     }
 
     private AppDataDirectoryProvider RequireDirectories() =>

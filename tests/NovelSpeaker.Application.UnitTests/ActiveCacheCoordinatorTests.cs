@@ -3,6 +3,7 @@ using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache.Audio;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Application.Speech.Compilation;
@@ -16,6 +17,125 @@ namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class ActiveCacheCoordinatorTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Process_stop_tracks_external_synthesis_and_rejects_late_audio(bool cooperative, bool joinPlayback)
+    {
+        var runtime = new ShutdownProviderRuntime(cooperative);
+        var provider = new ShutdownCurrentProvider(runtime);
+        var store = new ShutdownAudioStore();
+        var audio = new CacheAudioGenerationProvider(store, store);
+        var coordinator = new ActiveCacheCoordinator(new FakeContentService(), provider, audio, new BookMutationGate());
+        using var playbackCancellation = new CancellationTokenSource();
+        Task<AudioGenerationResult>? playback = null;
+        try
+        {
+            if (joinPlayback)
+            {
+                var segment = (await new FakeContentService().GetChapterAsync("book-1", 8, CancellationToken.None))!.Segments[0];
+                playback = audio.GetAudioAsync(new("book-1", 8, 0, segment.SpeechText,
+                    (await provider.GetSelectedProviderAsync(CancellationToken.None))!, 10, Guid.NewGuid())
+                {
+                    StableSegmentIdentity = segment.StableIdentity
+                }, AudioGenerationPriority.Current, null, playbackCancellation.Token);
+                await runtime.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+            await coordinator.StartAsync(new("book-1", [8], 10), CancellationToken.None);
+            await runtime.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            // Playback remains the shared synthesis owner. Process shutdown stops it
+            // before draining cache jobs; active-cache cancellation cannot take it over.
+            if (joinPlayback) playbackCancellation.Cancel();
+            using var budget = new CancellationTokenSource();
+            var stop = coordinator.StopAsync(budget.Token);
+            Assert.True(runtime.Token.IsCancellationRequested);
+            if (cooperative)
+            {
+                await stop.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal(ActiveCacheBatchStatus.Cancelled, coordinator.CurrentSnapshot!.Status);
+            }
+            else
+            {
+                Assert.False(stop.IsCompleted);
+                budget.Cancel();
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => stop);
+                await coordinator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(7));
+                Assert.Equal(ActiveCacheBatchStatus.Cancelling, coordinator.CurrentSnapshot!.Status);
+                Assert.Equal(0, coordinator.CurrentSnapshot.CompletedSegmentCount);
+            }
+        }
+        finally
+        {
+            runtime.Release.TrySetResult(new(runtime.Audio, "audio/mpeg", null));
+            await coordinator.StopAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+            await coordinator.DisposeAsync();
+            if (playback is not null) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => playback);
+        }
+
+        Assert.Equal(ActiveCacheBatchStatus.Cancelled, coordinator.CurrentSnapshot!.Status);
+        Assert.Equal(0, store.WriteCount);
+        if (!cooperative) Assert.False(runtime.Audio.CanRead);
+    }
+
+    [Fact]
+    public async Task Process_stop_cancels_immediately_rejects_new_work_and_preserves_completed_progress()
+    {
+        var audio = new ControlledAudioProvider();
+        audio.EnqueueSuccess();
+        var pending = audio.EnqueuePending(holdCancellation: true);
+        await using var coordinator = new ActiveCacheCoordinator(new FakeContentService(),
+            new MutableRuleProvider(CreateRule(7, "Provider")), audio, new BookMutationGate());
+        await coordinator.StartAsync(new("book-1", [3, 8], 10), CancellationToken.None);
+        await pending.Started;
+
+        var stop = coordinator.StopAsync(CancellationToken.None);
+        Assert.True(audio.Calls[1].CancellationToken.IsCancellationRequested);
+        Assert.False(stop.IsCompleted);
+        Assert.Equal(ActiveCacheBatchStatus.Cancelling, coordinator.CurrentSnapshot!.Status);
+        await Assert.ThrowsAsync<ObjectDisposedException>(() =>
+            coordinator.StartAsync(new("book-1", [8], 10), CancellationToken.None));
+        pending.ReleaseCancellation();
+        await stop.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal(ActiveCacheBatchStatus.Cancelled, coordinator.CurrentSnapshot.Status);
+        Assert.Equal(1, coordinator.CurrentSnapshot.CompletedSegmentCount);
+        Assert.Equal(2, audio.Calls.Count);
+        await coordinator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
+    public async Task Process_stop_cancels_admission_already_in_progress()
+    {
+        var mutations = new BookMutationGate();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var holder = mutations.RunAsync(async () =>
+        {
+            entered.SetResult();
+            await release.Task;
+            return true;
+        }, CancellationToken.None);
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var audio = new ControlledAudioProvider();
+        await using var coordinator = new ActiveCacheCoordinator(new FakeContentService(),
+            new MutableRuleProvider(CreateRule(7, "Provider")), audio, mutations);
+        try
+        {
+            var start = coordinator.StartAsync(new("book-1", [3], 10), CancellationToken.None);
+            var stop = coordinator.StopAsync(CancellationToken.None);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => start.WaitAsync(TimeSpan.FromSeconds(5)));
+            await stop.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Null(coordinator.CurrentSnapshot);
+            Assert.Empty(audio.Calls);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await holder;
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -330,6 +450,47 @@ public sealed class ActiveCacheCoordinatorTests
 
     private static SpeechProviderInstance CreateRule(long id, string name) =>
         TestSpeechProviders.Create(id, name, "https://example.com/tts?text={{speakText}}");
+
+    private sealed class ShutdownCurrentProvider(IProviderRuntime runtime) : TestCurrentSpeechProvider
+    {
+        public override Task<ResolvedSpeechProvider?> GetSelectedProviderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ResolvedSpeechProvider?>(new(CreateRule(7, "Provider"), runtime));
+    }
+
+    private sealed class ShutdownProviderRuntime(bool cooperative) : IProviderRuntime
+    {
+        public SpeechProviderType Type => SpeechProviderType.Http;
+        public CancellationToken Token { get; private set; }
+        public MemoryStream Audio { get; } = new([1, 2, 3]);
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<ProviderSynthesisResult> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<ProviderSynthesisResult> SynthesizeAsync(SpeechProviderInstance provider,
+            ProviderSynthesisRequest request, CancellationToken cancellationToken)
+        {
+            Token = cancellationToken;
+            Started.TrySetResult();
+            return cooperative ? Release.Task.WaitAsync(cancellationToken) : Release.Task;
+        }
+    }
+
+    private sealed class ShutdownAudioStore : IAudioCache, IGeneratedAudioFileStore
+    {
+        public int WriteCount { get; private set; }
+        public Task<AudioCacheEntry?> TryGetAsync(AudioCacheKey key, CancellationToken cancellationToken) =>
+            Task.FromResult<AudioCacheEntry?>(null);
+        public Task<AudioCacheEntry> StoreAsync(AudioCacheWriteRequest request, CancellationToken cancellationToken)
+        {
+            WriteCount++;
+            throw new InvalidOperationException("Cancelled synthesis must not commit cache audio.");
+        }
+        public Task<TtsAudioResponse> WriteAsync(ProviderSynthesisResult audio, CancellationToken cancellationToken)
+        {
+            WriteCount++;
+            throw new InvalidOperationException("Cancelled synthesis must not create an audio file.");
+        }
+        public Task InvalidateAsync(AudioCacheKey key, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
 
     private sealed class FakeContentService : IBookPlaybackContentService
     {

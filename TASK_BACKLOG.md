@@ -35,8 +35,8 @@
   成果：生产共享 SocketsHttpHandler 禁止自动重定向；所有 3xx 走既有失败路径，提示配置最终 URL，不读取重定向正文或暴露 Location。HTTP TTS 正式合同补充正文处理边界，无配置/数据迁移。保留现有 Speech 核心测试，新增一组真实 loopback 安全回归（6 场景：301/302/303/307/308、同源/跨源、GET/POST 与合成凭据），确认 Location 端点零请求且不重试。锁定还原、format、Release build（0 警告/错误）、Infrastructure Speech 70 项、Application Provider/TTS/Speech 49 项及 diff 检查通过。未遗留临时产物；全量 test 留待 T007，无环境未执行项或文档冲突。
 - [x] **T004（P2 / Reliability）— Active Cache / Export 启动与事件通知异常隔离**
   成果：两个 coordinator 的 Publish 逐订阅者隔离异常，初始 Waiting、运行/进度、Cancelling 和终态通知均不能中断 worker 或其它订阅者；沿用原有唯一 job owner、TCS 完成责任、冻结配置与取消语义，移除 multicast Invoke 的异常传播窗口，无新增调度/通知框架。保留现有核心测试，新增每个 coordinator 两组生命周期回归（共 6 场景），使用可控 TCS 证明异常 observer 下启动、真实失败、进度、终态、重复提交拒绝、重试、取消保留进度与 Dispose 均可完成。format、Release build（0 警告/错误）、Application Cache/Export 60 项、Shell/架构 28 项及 diff 检查通过。现有长期合同已明确此边界，无需扩写；无临时产物、环境未执行项或文档冲突。全量 test 留待 T007，Active Cache 退出有界排空由 T005 继续。
-- [ ] **T005（P2 / Lifecycle）— Active Cache 进程退出取消与有界排空**
-  规格：[`tasks/T005_ACTIVE_CACHE_SHUTDOWN.md`](tasks/T005_ACTIVE_CACHE_SHUTDOWN.md)。与现有 Export/repair drain 协调，处理不响应取消的 Provider，保护已成功缓存的派生数据和有界退出。
+- [x] **T005（P2 / Lifecycle）— Active Cache 进程退出取消与有界排空**
+  成果：Active Cache 通过同实例专用 lifetime 在正式退出开始时停止接单、取消批次及准备中的提交，保留页面/托盘隐藏的后台生命周期。Active Cache/Export、repair/invalidation 与容器释放共享后台退出预算，移除逐服务完整超时叠加及 Active Cache Dispose 无限等待；未结束 worker 继续持有自己的 CTS，超时记录未排空且不误报成功。音频层保留 Active Cache 发起/加入的真实合成执行责任，迟到音频经取消检查拒绝落盘/Ready，既有有效缓存不清理。保留既有核心测试，新增 5 个 Application 退出/迟到音频场景和 2 个隔离真实 DI/Startup 退出场景（合作与不合作生成服务），扩展已有 DI/后台清理回归。format、Release build（0 警告/错误）、Application Cache/Export/Plan 34 项、启动/Shell/架构 36 项、WPF 11 项、缓存/诊断集成 63 项及 diff 检查通过。未执行独立可执行文件的 OS 退出事件或全量 test（后者留待 T007）；WPF host 已验证生产 Startup→Runtime→DI→Active Cache 及超时后的容器排空，非合作外部调用只能尽力收尾，不能保证外部服务已经停止。无临时产物、环境阻断或长期文档冲突，现有长期退出合同无需扩写。
 - [ ] **T006（P2 / Performance）— CacheManagement 书目选择器 WPF 虚拟化**
   规格：[`tasks/T006_CACHE_BOOK_LIST_VIRTUALIZATION.md`](tasks/T006_CACHE_BOOK_LIST_VIRTUALIZATION.md)。只修改技术容器与必要绑定/滚动逻辑，不引入 U1 视觉设计变更；用隔离真实 WPF host 进行合成规模验证。
 

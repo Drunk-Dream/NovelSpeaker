@@ -12,14 +12,18 @@ namespace NovelSpeaker.Application.Cache.ActiveCache;
 /// <summary>
 /// Captures immutable playback inputs and owns their ordered background cache execution.
 /// </summary>
-public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisposable
+public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCacheLifetime, IAsyncDisposable
 {
+    private static readonly TimeSpan DisposeWaitTimeout = TimeSpan.FromSeconds(5);
     private const string UnexpectedFailureSummary = "主动缓存失败，请重试。";
     private readonly IBookPlaybackContentService _contentService;
     private readonly ICurrentSpeechProvider _providers;
     private readonly IAudioGenerationProvider _audioProvider;
     private readonly BookMutationGate _mutations;
     private readonly object _syncRoot = new();
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private TaskCompletionSource? _startingCompletion;
+    private bool _stopping;
     private ActiveCacheSnapshot? _currentSnapshot;
     private CancellationTokenSource? _activeCancellation;
     private Task? _activeTask;
@@ -49,10 +53,12 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.BookId);
         ArgumentNullException.ThrowIfNull(request.ChapterIndices);
-        ThrowIfDisposed();
-
+        CancellationTokenSource startCancellation;
+        TaskCompletionSource startingCompletion;
         lock (_syncRoot)
         {
+            ThrowIfDisposed();
+            ObjectDisposedException.ThrowIf(_stopping, this);
             if (_isStarting || _activeTask is { IsCompleted: false })
             {
                 return new ActiveCacheStartResult(
@@ -62,8 +68,14 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
             }
 
             _isStarting = true;
+            startingCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _startingCompletion = startingCompletion;
+            startCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, _lifetimeCancellation.Token);
         }
 
+        using var ownedStartCancellation = startCancellation;
+        cancellationToken = startCancellation.Token;
         try
         {
             return await _mutations.RunAsync(async () =>
@@ -145,8 +157,8 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
                 lock (_syncRoot)
                 {
                     ThrowIfDisposed();
-                    _activeCancellation?.Dispose();
-                    batchCancellation = new CancellationTokenSource();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    batchCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCancellation.Token);
                     _activeCancellation = batchCancellation;
                     _activeTask = completion.Task;
                     _activeSourceId = book.SourceContext?.SourceId;
@@ -162,6 +174,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
             lock (_syncRoot)
             {
                 _isStarting = false;
+                startingCompletion.TrySetResult();
             }
         }
     }
@@ -221,8 +234,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
 
     public async ValueTask DisposeAsync()
     {
-        Task? activeTask;
-        CancellationTokenSource? activeCancellation;
+        Task stopTask;
         lock (_syncRoot)
         {
             if (_disposed)
@@ -231,18 +243,41 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
             }
 
             _disposed = true;
-            activeTask = _activeTask;
-            activeCancellation = _activeCancellation;
+            stopTask = StopAsync(CancellationToken.None);
         }
 
-        activeCancellation?.Cancel();
-        if (activeTask is not null)
+        try
         {
-            // Container shutdown owns this final, deliberately non-cancellable drain.
-            await activeTask.ConfigureAwait(false);
+            await stopTask.WaitAsync(DisposeWaitTimeout).ConfigureAwait(false);
+        }
+        catch (TimeoutException)
+        {
+            // The process drain records the timeout. A late worker still owns its CTS;
+            // disposal cannot declare that worker complete or release resources it uses.
         }
 
-        activeCancellation?.Dispose();
+        _lifetimeCancellation.Dispose();
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        lock (_syncRoot)
+        {
+            if (!_stopping)
+            {
+                _stopping = true;
+                _lifetimeCancellation.Cancel();
+                var snapshot = CurrentSnapshot;
+                if (_activeTask is { IsCompleted: false } && snapshot is not null &&
+                    snapshot.Status is ActiveCacheBatchStatus.Waiting or ActiveCacheBatchStatus.Running)
+                {
+                    Publish(snapshot with { Status = ActiveCacheBatchStatus.Cancelling });
+                }
+            }
+
+            return Task.WhenAll(_startingCompletion?.Task ?? Task.CompletedTask,
+                _activeTask ?? Task.CompletedTask).WaitAsync(cancellationToken);
+        }
     }
 
     private async Task RunOwnedBatchAsync(
@@ -265,6 +300,12 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
         finally
         {
             completion.TrySetResult();
+            lock (_syncRoot)
+            {
+                if (ReferenceEquals(_activeCancellation, batchCancellation))
+                    _activeCancellation = null;
+                batchCancellation.Dispose();
+            }
         }
     }
 

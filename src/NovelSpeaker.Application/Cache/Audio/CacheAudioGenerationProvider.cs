@@ -99,7 +99,10 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                     existing.PromoteToCurrent();
                 }
 
-                var result = await existing.WaitAsync(cancellationToken).ConfigureAwait(false);
+                // Keep joined executions visible to active-cache drain as well. The
+                // original owner retains cancellation authority over shared synthesis.
+                var result = await existing.WaitAsync(priority == AudioGenerationPriority.ActiveCache
+                    ? CancellationToken.None : cancellationToken).ConfigureAwait(false);
                 if (priority == AudioGenerationPriority.Current && existing.ExecutionToken.IsCancellationRequested &&
                     !cancellationToken.IsCancellationRequested && result.Failure?.Kind == TtsErrorKind.Cancelled)
                 {
@@ -123,7 +126,11 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                 () => ExecuteOperationAsync(request, cacheKey, operation),
                 () => _inFlight.TryRemove(new KeyValuePair<AudioCacheKey, InFlightOperation>(cacheKey, operation)));
 
-            return await operation.WaitAsync(cancellationToken).ConfigureAwait(false);
+            // The active-cache owner must retain its execution until the external provider
+            // returns, so process drain can distinguish cancellation from a stopped worker.
+            // Execution itself still receives the linked owner cancellation token.
+            return await operation.WaitAsync(priority == AudioGenerationPriority.ActiveCache
+                ? CancellationToken.None : cancellationToken).ConfigureAwait(false);
         }
     }
 
