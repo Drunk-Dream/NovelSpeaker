@@ -410,7 +410,17 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IAsyncDisp
     private void Publish(ActiveCacheSnapshot snapshot)
     {
         Volatile.Write(ref _currentSnapshot, snapshot);
-        SnapshotChanged?.Invoke(this, snapshot);
+        foreach (EventHandler<ActiveCacheSnapshot> handler in SnapshotChanged?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                handler(this, snapshot);
+            }
+            catch (Exception)
+            {
+                // UI observers cannot interrupt the batch owner or other observers.
+            }
+        }
     }
 
     private static ActiveCacheSnapshot CreateInitialSnapshot(FrozenBatch batch)

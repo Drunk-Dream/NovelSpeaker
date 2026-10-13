@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using NovelSpeaker.Domain.Speech.Providers;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Books;
@@ -15,6 +16,83 @@ namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class ActiveCacheCoordinatorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Throwing_observer_does_not_prevent_worker_progress_terminal_result_or_retry(bool fail)
+    {
+        var audio = new ControlledAudioProvider();
+        var pending = audio.EnqueuePending();
+        if (fail) audio.EnqueueException();
+        else audio.EnqueueSuccess();
+        await using var coordinator = new ActiveCacheCoordinator(new FakeContentService(),
+            new MutableRuleProvider(CreateRule(7, "Provider")), audio, new BookMutationGate());
+        var snapshots = new ConcurrentQueue<ActiveCacheSnapshot>();
+        coordinator.SnapshotChanged += (_, _) => throw new InvalidOperationException("fixture observer failure");
+        coordinator.SnapshotChanged += (_, snapshot) => snapshots.Enqueue(snapshot);
+
+        var start = await coordinator.StartAsync(new("book-1", [3], 10), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ActiveCacheStartStatus.Accepted, start.Status);
+        await pending.Started;
+        pending.CompleteUsingCache();
+        await coordinator.WaitForCurrentBatchAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+        var terminal = fail ? ActiveCacheBatchStatus.Failed : ActiveCacheBatchStatus.Completed;
+        Assert.Equal(terminal, coordinator.CurrentSnapshot!.Status);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == ActiveCacheBatchStatus.Waiting);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == ActiveCacheBatchStatus.Running);
+        Assert.Contains(snapshots, snapshot => snapshot.CompletedSegmentCount > 0);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == terminal);
+        if (fail) Assert.Equal("主动缓存失败，请重试。", coordinator.CurrentSnapshot.ErrorSummary);
+
+        var retry = await coordinator.StartAsync(new("book-1", [8], 10), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        await coordinator.WaitForCurrentBatchAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ActiveCacheStartStatus.Accepted, retry.Status);
+        Assert.NotEqual(start.BatchId, retry.BatchId);
+        Assert.Equal(ActiveCacheBatchStatus.Completed, coordinator.CurrentSnapshot.Status);
+    }
+
+    [Fact]
+    public async Task Throwing_observer_does_not_block_duplicate_rejection_cancel_restart_or_dispose()
+    {
+        var audio = new ControlledAudioProvider();
+        audio.EnqueueSuccess();
+        var pending = audio.EnqueuePending(holdCancellation: true);
+        await using var coordinator = new ActiveCacheCoordinator(new FakeContentService(),
+            new MutableRuleProvider(CreateRule(7, "Provider")), audio, new BookMutationGate());
+        var snapshots = new ConcurrentQueue<ActiveCacheSnapshot>();
+        coordinator.SnapshotChanged += (_, _) => throw new InvalidOperationException("fixture observer failure");
+        coordinator.SnapshotChanged += (_, snapshot) => snapshots.Enqueue(snapshot);
+
+        var start = await coordinator.StartAsync(new("book-1", [3], 10), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        var duplicate = await coordinator.StartAsync(new("book-1", [8], 10), CancellationToken.None);
+        await pending.Started;
+        Assert.Equal(ActiveCacheStartStatus.Accepted, start.Status);
+        Assert.Equal(ActiveCacheStartStatus.BatchAlreadyActive, duplicate.Status);
+        var cancel = coordinator.CancelAsync(CancellationToken.None);
+        pending.ReleaseCancellation();
+        await cancel.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(audio.Calls[1].CancellationToken.IsCancellationRequested);
+        Assert.Equal(ActiveCacheBatchStatus.Cancelled, coordinator.CurrentSnapshot!.Status);
+        Assert.Equal(1, coordinator.CurrentSnapshot.CompletedSegmentCount);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == ActiveCacheBatchStatus.Cancelling);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == ActiveCacheBatchStatus.Cancelled);
+
+        var replacementAudio = audio.EnqueuePending();
+        var replacement = await coordinator.StartAsync(new("book-1", [8], 10), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        await replacementAudio.Started;
+        Assert.Equal(ActiveCacheStartStatus.Accepted, replacement.Status);
+        await coordinator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.True(audio.Calls[2].CancellationToken.IsCancellationRequested);
+        Assert.Equal(ActiveCacheBatchStatus.Cancelled, coordinator.CurrentSnapshot.Status);
+        Assert.Contains(snapshots, snapshot => snapshot.BatchId == replacement.BatchId &&
+            snapshot.Status == ActiveCacheBatchStatus.Cancelled);
+    }
+
     [Fact]
     public async Task Source_removal_cancels_only_its_frozen_active_cache_batch_and_waits_for_completion()
     {
@@ -321,9 +399,9 @@ public sealed class ActiveCacheCoordinatorTests
 
         public void EnqueueException() => _responses.Enqueue(static _ => throw new IOException("sensitive test detail"));
 
-        public PendingCall EnqueuePending()
+        public PendingCall EnqueuePending(bool holdCancellation = false)
         {
-            var pending = new PendingCall();
+            var pending = new PendingCall(holdCancellation);
             _responses.Enqueue(pending.RunAsync);
             return pending;
         }
@@ -354,8 +432,10 @@ public sealed class ActiveCacheCoordinatorTests
         AudioGenerationPriority Priority,
         CancellationToken CancellationToken);
 
-    private sealed class PendingCall
+    private sealed class PendingCall(bool holdCancellation)
     {
+        private readonly TaskCompletionSource _cancellationRelease =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<AudioGenerationResult> _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource<bool> _started =
@@ -366,8 +446,18 @@ public sealed class ActiveCacheCoordinatorTests
         public async Task<AudioGenerationResult> RunAsync(Call call)
         {
             _started.TrySetResult(true);
-            return await _completion.Task.WaitAsync(call.CancellationToken);
+            try
+            {
+                return await _completion.Task.WaitAsync(call.CancellationToken);
+            }
+            catch (OperationCanceledException) when (holdCancellation)
+            {
+                await _cancellationRelease.Task;
+                throw;
+            }
         }
+
+        public void ReleaseCancellation() => _cancellationRelease.TrySetResult();
 
         public void CompleteUsingCache() =>
             _completion.TrySetResult(new AudioGenerationResult("cached.mp3", true, null));

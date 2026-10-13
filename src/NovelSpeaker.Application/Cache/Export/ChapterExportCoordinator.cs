@@ -305,7 +305,17 @@ public sealed class ChapterExportCoordinator : IChapterExportCoordinator, IAsync
     private void Publish(ChapterExportSnapshot snapshot)
     {
         Volatile.Write(ref _currentSnapshot, snapshot);
-        SnapshotChanged?.Invoke(this, snapshot);
+        foreach (EventHandler<ChapterExportSnapshot> handler in SnapshotChanged?.GetInvocationList() ?? [])
+        {
+            try
+            {
+                handler(this, snapshot);
+            }
+            catch (Exception)
+            {
+                // UI observers cannot interrupt the batch owner or other observers.
+            }
+        }
     }
 
     private static string? ResolveChapterTitle(FrozenBatch batch, int? chapterIndex)

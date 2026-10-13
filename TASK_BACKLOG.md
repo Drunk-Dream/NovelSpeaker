@@ -33,8 +33,8 @@
   成果：按 ms-ra-forwarder `fix/drudream` @ `4936d3e1` 更新 Infrastructure 固定 profile 为 `edge-readaloud-155-v2`，采用新合成端点、Subscription Key 参数及 v2 认证，删除 v1 算法/握手；Voice 配置、合成身份、缓存与数据格式保持原合同。新增上游独立计算的 6 个认证向量及新握手离线回归，保留现有协议/Provider 核心测试。锁定还原、format、Release build（0 警告/错误）、Infrastructure Speech/Provider 66 项、Application Edge/TTS 11 项、架构 19 项及 diff 检查通过。2026-10-13 Windows/.NET 生产 Voice List → Runtime → transport → MP3/解码全部成功（晓晓，35,424 bytes，约 2.95 秒）；初次环境代理导致失败，仅在临时验证进程绕过代理后通过，未修改产品/系统代理设置。临时 harness、音频、参考副本及任务规格已清理；未执行全量 test（阶段完整门禁仍由 T007 执行），无其它环境未执行项或文档冲突。
 - [x] **T003（P1 / Security）— HTTP Provider 完全禁止自动重定向**
   成果：生产共享 SocketsHttpHandler 禁止自动重定向；所有 3xx 走既有失败路径，提示配置最终 URL，不读取重定向正文或暴露 Location。HTTP TTS 正式合同补充正文处理边界，无配置/数据迁移。保留现有 Speech 核心测试，新增一组真实 loopback 安全回归（6 场景：301/302/303/307/308、同源/跨源、GET/POST 与合成凭据），确认 Location 端点零请求且不重试。锁定还原、format、Release build（0 警告/错误）、Infrastructure Speech 70 项、Application Provider/TTS/Speech 49 项及 diff 检查通过。未遗留临时产物；全量 test 留待 T007，无环境未执行项或文档冲突。
-- [ ] **T004（P2 / Reliability）— Active Cache / Export 启动与事件通知异常隔离**
-  规格：[`tasks/T004_BACKGROUND_START_ATOMICITY.md`](tasks/T004_BACKGROUND_START_ATOMICITY.md)。使 UI 观察者异常无法导致 worker 未启动但 active slot 永远不完成；保持 job owner / 取消 / 快照语义。
+- [x] **T004（P2 / Reliability）— Active Cache / Export 启动与事件通知异常隔离**
+  成果：两个 coordinator 的 Publish 逐订阅者隔离异常，初始 Waiting、运行/进度、Cancelling 和终态通知均不能中断 worker 或其它订阅者；沿用原有唯一 job owner、TCS 完成责任、冻结配置与取消语义，移除 multicast Invoke 的异常传播窗口，无新增调度/通知框架。保留现有核心测试，新增每个 coordinator 两组生命周期回归（共 6 场景），使用可控 TCS 证明异常 observer 下启动、真实失败、进度、终态、重复提交拒绝、重试、取消保留进度与 Dispose 均可完成。format、Release build（0 警告/错误）、Application Cache/Export 60 项、Shell/架构 28 项及 diff 检查通过。现有长期合同已明确此边界，无需扩写；无临时产物、环境未执行项或文档冲突。全量 test 留待 T007，Active Cache 退出有界排空由 T005 继续。
 - [ ] **T005（P2 / Lifecycle）— Active Cache 进程退出取消与有界排空**
   规格：[`tasks/T005_ACTIVE_CACHE_SHUTDOWN.md`](tasks/T005_ACTIVE_CACHE_SHUTDOWN.md)。与现有 Export/repair drain 协调，处理不响应取消的 Provider，保护已成功缓存的派生数据和有界退出。
 - [ ] **T006（P2 / Performance）— CacheManagement 书目选择器 WPF 虚拟化**
