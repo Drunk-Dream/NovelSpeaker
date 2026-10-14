@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Cache;
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.Sqlite;
 using NovelSpeaker.Application.Abstractions;

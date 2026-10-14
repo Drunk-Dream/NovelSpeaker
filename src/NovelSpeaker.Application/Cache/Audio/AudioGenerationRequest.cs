@@ -20,6 +20,8 @@ public sealed record AudioGenerationRequest(
     /// <summary>Stable persisted chapter identity supplied by the content loader.</summary>
     public string? ChapterId { get; init; }
 
+    public ChapterSpeechPlan? SpeechPlan { get; init; }
+
     /// <summary>Source identity independent from the runtime playback order.</summary>
     public StableSpeechSegmentIdentity? StableSegmentIdentity { get; init; }
 

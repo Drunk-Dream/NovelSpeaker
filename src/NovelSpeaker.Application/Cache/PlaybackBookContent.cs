@@ -1,6 +1,7 @@
 using NovelSpeaker.Domain.Books;
+using NovelSpeaker.Application.Books;
 
-namespace NovelSpeaker.Application.Books;
+namespace NovelSpeaker.Application.Cache;
 
 /// <summary>
 /// Represents one imported book projected into playback-ready chapters and segments.
@@ -51,6 +52,8 @@ public sealed record PlaybackChapterContent
     public PlaybackChapterLoadState LoadState { get; }
 
     public string? ChapterId { get; }
+
+    public ChapterSpeechPlan? SpeechPlan { get; init; }
 
     public static PlaybackChapterContent Unloaded(int chapterIndex, string title, string? chapterId = null) =>
         new(chapterIndex, title, [], PlaybackChapterLoadState.Unloaded, chapterId);

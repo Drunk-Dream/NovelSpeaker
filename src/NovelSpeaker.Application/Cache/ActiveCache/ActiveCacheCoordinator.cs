@@ -132,6 +132,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
                         loaded.ChapterIndex,
                         loaded.ChapterId,
                         loaded.Title,
+                        loaded.SpeechPlan,
                         loaded.Segments
                             .Where(segment => NarratableText.HasContent(segment.SpeechText))
                             .Select(segment => new FrozenSegment(
@@ -347,6 +348,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
                                 batch.BatchId)
                             {
                                 ChapterId = chapter.ChapterId,
+                                SpeechPlan = chapter.SpeechPlan,
                                 StableSegmentIdentity = segment.StableIdentity
                             },
                             AudioGenerationPriority.ActiveCache,
@@ -541,6 +543,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
         int ChapterIndex,
         string? ChapterId,
         string Title,
+        ChapterSpeechPlan? SpeechPlan,
         IReadOnlyList<FrozenSegment> Segments);
 
     private sealed record FrozenSegment(

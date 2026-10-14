@@ -890,7 +890,7 @@ public sealed class PlaybackCoordinator :
         var segment = chapter.Segments[position.SegmentIndex];
         return new(new AudioGenerationRequest(state.Book!.BookId, position.ChapterIndex, position.SegmentIndex,
             segment.SpeechText, state.Provider!, state.SpeakSpeed, state.Identity!.SessionId)
-        { ChapterId = chapter.ChapterId, StableSegmentIdentity = segment.StableIdentity },
+        { ChapterId = chapter.ChapterId, SpeechPlan = chapter.SpeechPlan, StableSegmentIdentity = segment.StableIdentity },
             $"{state.Book.BookTitle} · {chapter.Title}", state.ResumePositionMilliseconds, forceInvalidate,
             token => ValidateBookAsync(state.Book, token), state.Preparation?.Identity);
     }
@@ -1144,7 +1144,7 @@ public sealed class PlaybackCoordinator :
             var segment = chapter.Segments[position.SegmentIndex];
             requests.Add(new(book.BookId, position.ChapterIndex, position.SegmentIndex, segment.SpeechText,
                 provider, state.SpeakSpeed, state.Identity.SessionId)
-            { ChapterId = chapter.ChapterId, StableSegmentIdentity = segment.StableIdentity });
+            { ChapterId = chapter.ChapterId, SpeechPlan = chapter.SpeechPlan, StableSegmentIdentity = segment.StableIdentity });
         }
         await ValidateBookAsync(book, token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
@@ -1183,7 +1183,7 @@ public sealed class PlaybackCoordinator :
         var segment = chapter.Segments[position.SegmentIndex];
         return new AudioGenerationRequest(state.Book.BookId, position.ChapterIndex, position.SegmentIndex,
             segment.SpeechText, state.Provider, state.SpeakSpeed, identity.SessionId)
-        { ChapterId = chapter.ChapterId, StableSegmentIdentity = segment.StableIdentity };
+        { ChapterId = chapter.ChapterId, SpeechPlan = chapter.SpeechPlan, StableSegmentIdentity = segment.StableIdentity };
     }
 
     private async Task ObservePrefetchWindowSubmissionAsync(

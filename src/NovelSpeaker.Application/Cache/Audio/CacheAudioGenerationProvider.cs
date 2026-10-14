@@ -215,7 +215,8 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
 
                 await using var audio = await _files.WriteAsync(synthesis, operation.ExecutionToken).ConfigureAwait(false);
                 var stored = await _audioCache.StoreAsync(new AudioCacheWriteRequest(
-                    cacheKey, request.BookId, request.ChapterIndex, 0, audio.FilePath, audio.ResponseContentType),
+                    cacheKey, request.BookId, request.ChapterIndex, 0, audio.FilePath, audio.ResponseContentType)
+                { SpeechPlan = request.SpeechPlan },
                     operation.ExecutionToken).ConfigureAwait(false);
                 return new AudioGenerationResult(stored.FilePath, false, null);
             }

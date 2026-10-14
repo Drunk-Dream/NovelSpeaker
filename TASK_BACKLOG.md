@@ -28,8 +28,8 @@
 
 ### Phase B — Plan 计算与真实缓存生命周期
 
-- [ ] **T002（P0 / Persistence）— Plan 计算与持久化解耦**  
-  规格：[`tasks/T002_PLAN_LIFECYCLE.md`](tasks/T002_PLAN_LIFECYCLE.md)。正文加载与 Plan 计算不隐含 SQLite 写入；实际建立音频缓存时确保关联 Plan 可持久复原；Playback/Active Cache/Export 不回归。
+- [x] **T002（P0 / Persistence）— Plan 计算与持久化解耦**
+  完成成果：Plan Build/正文加载纯计算；语音内容 port/DTO 收归 Cache，避免 Books 反向依赖。生成音频时 Plan 与 Ready 索引同事务保存，保留 Header-only 优化；移除 Build 隐式保存。保留并改写核心 Plan/Playback 测试，新增首写回滚、取消、并发及重开库 Coverage/导出键回归；Application 128 项、Infrastructure 111 项、Presentation 78 项（含架构）、Release build、format/diff check 通过。完整门禁留待 T005；未新增 schema，无文档冲突。
 
 ### Phase C — Stale 异步修复和真实百分比
 

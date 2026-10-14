@@ -8,27 +8,24 @@ using NovelSpeaker.Domain.Books;
 namespace NovelSpeaker.Application.Cache;
 
 /// <summary>
-/// Creates one deterministic current plan and atomically hands it to the persistence port.
+/// Computes one deterministic current plan without persistence side effects.
 /// </summary>
 public sealed class ChapterSpeechPlanService : IChapterSpeechPlanService
 {
     private readonly ITextSegmenter _textSegmenter;
     private readonly IRegexReplacementPipeline _regexReplacementPipeline;
     private readonly IRegexReplacementRuleRepository _ruleRepository;
-    private readonly IChapterSpeechPlanStore _store;
     private readonly TimeProvider _timeProvider;
 
     public ChapterSpeechPlanService(
         ITextSegmenter textSegmenter,
         IRegexReplacementPipeline regexReplacementPipeline,
         IRegexReplacementRuleRepository ruleRepository,
-        IChapterSpeechPlanStore store,
         TimeProvider timeProvider)
     {
         _textSegmenter = textSegmenter;
         _regexReplacementPipeline = regexReplacementPipeline;
         _ruleRepository = ruleRepository;
-        _store = store;
         _timeProvider = timeProvider;
     }
 
@@ -77,7 +74,6 @@ public sealed class ChapterSpeechPlanService : IChapterSpeechPlanService
             _timeProvider.GetUtcNow(),
             planSegments);
 
-        await _store.SaveAsync(plan, cancellationToken).ConfigureAwait(false);
         return new ChapterSpeechPlanBuildResult(replaced.Segments, plan);
     }
 

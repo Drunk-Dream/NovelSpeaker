@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Cache;
 using System.IO;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;

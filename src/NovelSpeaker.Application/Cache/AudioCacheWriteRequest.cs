@@ -10,4 +10,7 @@ public sealed record AudioCacheWriteRequest(
     long LegacyRuleId,
     string SourceFilePath,
     string? ContentType,
-    long? DurationMilliseconds = null);
+    long? DurationMilliseconds = null)
+{
+    public ChapterSpeechPlan? SpeechPlan { get; init; }
+}

@@ -86,28 +86,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
             .ConfigureAwait(false);
         try
         {
-            using var existingCommand = connection.CreateCommand();
-            existingCommand.Transaction = transaction;
-            existingCommand.CommandText =
-                "SELECT PlanOutputHash FROM ChapterSpeechPlans WHERE ChapterId = $chapterId LIMIT 1;";
-            existingCommand.Parameters.AddWithValue("$chapterId", plan.ChapterId);
-            var existingHash = await existingCommand
-                .ExecuteScalarAsync(cancellationToken)
-                .ConfigureAwait(false);
-            var outputIsUnchanged = existingHash is byte[] hash &&
-                hash.AsSpan().SequenceEqual(plan.PlanOutputHash.Bytes.Span);
-
-            if (outputIsUnchanged)
-            {
-                await UpdateHeaderAsync(connection, transaction, plan, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            else
-            {
-                await ReplacePlanAsync(connection, transaction, plan, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
+            await SaveAsync(connection, transaction, plan, cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -115,6 +94,36 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             throw;
         }
+    }
+
+    internal static async Task SaveAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        ChapterSpeechPlan plan,
+        CancellationToken cancellationToken)
+    {
+        using var existingCommand = connection.CreateCommand();
+        existingCommand.Transaction = transaction;
+        existingCommand.CommandText =
+            "SELECT PlanOutputHash FROM ChapterSpeechPlans WHERE ChapterId = $chapterId LIMIT 1;";
+        existingCommand.Parameters.AddWithValue("$chapterId", plan.ChapterId);
+        var existingHash = await existingCommand
+            .ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var outputIsUnchanged = existingHash is byte[] hash &&
+            hash.AsSpan().SequenceEqual(plan.PlanOutputHash.Bytes.Span);
+
+        if (outputIsUnchanged)
+        {
+            await UpdateHeaderAsync(connection, transaction, plan, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await ReplacePlanAsync(connection, transaction, plan, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
     }
 
     public async Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken)

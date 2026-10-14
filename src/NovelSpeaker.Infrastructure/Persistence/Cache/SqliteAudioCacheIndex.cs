@@ -133,15 +133,24 @@ internal sealed class SqliteAudioCacheIndex
     {
         var now = SqliteDateTimeMapper.Format(_timeProvider.GetUtcNow());
         await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
-        var chapterId = await ResolveChapterIdAsync(connection, request, cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        var chapterId = await ResolveChapterIdAsync(connection, transaction, request, cancellationToken).ConfigureAwait(false);
+        if (request.SpeechPlan is { } plan)
+        {
+            if (plan.ChapterId != chapterId || plan.State != ChapterSpeechPlanState.Ready)
+                throw new InvalidDataException("音频缓存与语音计划身份不一致。");
+            await SqliteChapterSpeechPlanStore.SaveAsync(connection, transaction, plan, cancellationToken).ConfigureAwait(false);
+        }
         await EnsureSynthesisProfileAsync(
             connection,
+            transaction,
             request.Key.Identity.SynthesisProfile,
             request.LegacyRuleId,
             now,
             cancellationToken).ConfigureAwait(false);
 
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             INSERT INTO AudioCacheEntries (
@@ -218,6 +227,7 @@ internal sealed class SqliteAudioCacheIndex
         command.Parameters.AddWithValue("$createdAt", now);
         command.Parameters.AddWithValue("$lastAccessedAt", now);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task RemoveAsync(string cacheKey, CancellationToken cancellationToken)
@@ -906,10 +916,12 @@ internal sealed class SqliteAudioCacheIndex
 
     private static async Task<string> ResolveChapterIdAsync(
         SqliteConnection connection,
+        SqliteTransaction transaction,
         AudioCacheWriteRequest request,
         CancellationToken cancellationToken)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             "SELECT c.Id FROM Books b JOIN Chapters c ON c.BookId = b.Id AND c.SourceBindingId = b.ActiveSourceBindingId WHERE b.Id = $bookId AND c.ChapterIndex = $chapterIndex AND c.Id = $technicalChapter LIMIT 1;";
         command.Parameters.AddWithValue("$bookId", request.BookId);
@@ -926,12 +938,14 @@ internal sealed class SqliteAudioCacheIndex
 
     private static async Task EnsureSynthesisProfileAsync(
         SqliteConnection connection,
+        SqliteTransaction transaction,
         SynthesisProfileFingerprint profile,
         long ruleId,
         string now,
         CancellationToken cancellationToken)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText =
             """
             INSERT OR IGNORE INTO SynthesisProfiles

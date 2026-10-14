@@ -18,6 +18,7 @@ internal sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
     private readonly IChapterSpeechPlanStore? _speechPlanStore;
     private readonly ICacheInvalidationCoordinator? _invalidationCoordinator;
     private readonly ICacheCompletenessFailureReporter? _failureReporter;
+    private readonly IAudioCacheStore? _audioCacheStore;
     private readonly ConcurrentDictionary<RepairKey, Lazy<Task>> _repairs = new();
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly SemaphoreSlim _concurrency = new(MaximumConcurrency, MaximumConcurrency);
@@ -32,7 +33,8 @@ internal sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
         IRegexReplacementRuleRepository? regexRuleRepository = null,
         IChapterSpeechPlanStore? speechPlanStore = null,
         ICacheInvalidationCoordinator? invalidationCoordinator = null,
-        ICacheCompletenessFailureReporter? failureReporter = null)
+        ICacheCompletenessFailureReporter? failureReporter = null,
+        IAudioCacheStore? audioCacheStore = null)
     {
         _contentService = contentService;
         _settingsService = settingsService;
@@ -40,6 +42,7 @@ internal sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
         _speechPlanStore = speechPlanStore;
         _invalidationCoordinator = invalidationCoordinator;
         _failureReporter = failureReporter;
+        _audioCacheStore = audioCacheStore;
     }
 
     public Task RequestAsync(
@@ -127,6 +130,9 @@ internal sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
 
             while (true)
             {
+                if (_audioCacheStore is null || await _audioCacheStore.GetChapterAsync(
+                    request.BookId, request.ChapterIndex, _lifetimeCancellation.Token).ConfigureAwait(false) is null)
+                    return;
                 var profileBefore = await GetCurrentTextProfileAsync(_lifetimeCancellation.Token)
                     .ConfigureAwait(false);
                 var chapter = await _contentService
@@ -140,10 +146,24 @@ internal sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
                 var profileAfter = await GetCurrentTextProfileAsync(_lifetimeCancellation.Token)
                     .ConfigureAwait(false);
                 if (!profileBefore.Equals(profileAfter) ||
-                    !await IsPersistedPlanCurrentAsync(request, profileAfter).ConfigureAwait(false))
+                    chapter.ChapterId != request.ChapterId ||
+                    chapter.SpeechPlan is not { } plan ||
+                    !plan.TextProfileFingerprint.Equals(profileAfter))
                 {
-                    continue;
+                    return;
                 }
+
+                if (_speechPlanStore is not null)
+                    await _speechPlanStore.SaveAsync(plan, _lifetimeCancellation.Token).ConfigureAwait(false);
+                if (await _audioCacheStore.GetChapterAsync(request.BookId, request.ChapterIndex,
+                    _lifetimeCancellation.Token).ConfigureAwait(false) is null)
+                {
+                    if (_speechPlanStore is not null)
+                        await _speechPlanStore.DeletePlansWithoutCacheEntriesAsync(_lifetimeCancellation.Token).ConfigureAwait(false);
+                    return;
+                }
+                if (!await IsPersistedPlanCurrentAsync(request, profileAfter).ConfigureAwait(false))
+                    return;
 
                 _invalidationCoordinator?.Publish(
                     CacheInvalidation.ForChapters(

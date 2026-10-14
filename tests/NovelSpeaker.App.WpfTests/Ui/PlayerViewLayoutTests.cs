@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Cache;
 using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls.Primitives;

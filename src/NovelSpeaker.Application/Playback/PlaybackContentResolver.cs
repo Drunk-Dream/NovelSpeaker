@@ -203,12 +203,14 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             metadata,
             cancellationToken).ConfigureAwait(false);
         IReadOnlyList<SpeechSegment> replacedSegments;
+        ChapterSpeechPlan? plan = null;
         if (_speechPlanService is not null && metadata.ChapterId is not null)
         {
             var planResult = await _speechPlanService
                 .BuildAsync(metadata.ChapterId, chapterText, options, cancellationToken, frozenRules)
                 .ConfigureAwait(false);
             replacedSegments = planResult.Segments;
+            plan = planResult.Plan;
         }
         else
         {
@@ -233,6 +235,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             metadata.ChapterIndex,
             metadata.Title,
             playbackSegments,
-            metadata.ChapterId);
+            metadata.ChapterId) with
+        { SpeechPlan = plan };
     }
 }

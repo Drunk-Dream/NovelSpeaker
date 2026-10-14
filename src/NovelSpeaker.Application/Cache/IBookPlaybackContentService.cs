@@ -1,6 +1,6 @@
 using NovelSpeaker.Application.Books;
 
-namespace NovelSpeaker.Application.Books;
+namespace NovelSpeaker.Application.Cache;
 
 /// <summary>
 /// Loads persisted books for playback, separating chapter metadata from on-demand text segmentation.
