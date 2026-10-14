@@ -103,7 +103,8 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                 // original owner retains cancellation authority over shared synthesis.
                 var result = await existing.WaitAsync(priority == AudioGenerationPriority.ActiveCache
                     ? CancellationToken.None : cancellationToken).ConfigureAwait(false);
-                if (priority == AudioGenerationPriority.Current && existing.ExecutionToken.IsCancellationRequested &&
+                if (priority is AudioGenerationPriority.Current or AudioGenerationPriority.Prefetch &&
+                    existing.ExecutionToken.IsCancellationRequested &&
                     !cancellationToken.IsCancellationRequested && result.Failure?.Kind == TtsErrorKind.Cancelled)
                 {
                     _inFlight.TryRemove(new KeyValuePair<AudioCacheKey, InFlightOperation>(cacheKey, existing));

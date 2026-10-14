@@ -102,6 +102,8 @@ Current Playback > Playback Prefetch > Active Cache
 
 Active Source context 或 target revision 改变后，旧上下文未完成 Prefetch 必须取消或失效。正常播放/Prefetch 只保存当前实际需要的临时正文和 Plan；不得因仅准备内容就无条件写入 Plan。
 
+自动音频预取仅在 Playback intent 为 Play 时运行。暂停（包括定时暂停）立即撤销待处理窗口并尽力取消在途预取；暂停状态打开书籍、跳转及修改语音/文本配置均不重启预取，迟到的旧窗口不得重新生效。已提交的有效音频缓存保留，已加载的暂停音频仍可恢复；Resume 按原 PrefetchCount 恢复预取，0 继续禁用。暂停仅撤销 Playback Prefetch 所拥有的工作，不取消独立的 Active Cache。
+
 ## 8. Active Cache
 
 - 全应用最多一个 Active Cache batch。

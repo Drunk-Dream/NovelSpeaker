@@ -1,9 +1,10 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 当前阶段：Cache Speech Plan / Coverage 架构收口
+## 1. 当前阶段：Playback 暂停预取行为修复（Cache 架构收口已完成）
 
-- **工作基线：** GitHub `dev`，2026-10-14 可见的最新已推送代码。用户已安排 Codex 完成上一轮 **T007**，但相关更改**尚未推送**；新一轮执行时必须以本地实际 HEAD 和工作区为准，保留所有已完成但未提交/未推送的 T007 成果，不能为了应用本文档 reset、checkout 或覆盖用户改动。
-- **本轮授权：** 修复目录滚动触发 `ChapterSpeechPlanSegments` 大量写入、数据库膨胀和卡顿的问题；收紧 Plan 创建/保存边界，保证当前配置下缓存百分比准确；简化 Stale repair；治理相关临时内存和孤立 Plan。
+- **工作基线：** 以 Codex 执行时本地实际 `HEAD` 和工作区为准；T001–T005 与上一轮 E1-C/T007 已完成并推送到 `dev`。先核对工作区，保留所有既有用户改动，不以覆盖旧任务成果的方式实施 T006。
+- **已完成阶段：** T001–T005 收口了目录滚动引发的 Plan 写入、真实 Coverage、Stale 修复、缓存生命周期和资源使用问题。
+- **当前新增授权：** T006 仅修复 Playback 暂停状态仍执行自动音频预取的问题。Speech Plan 计算/持久化分离成果及缓存完整度规则继续保持。
 - **已存在功能继续保持：** Provider/语速等 synthesis fingerprint 改变时，缓存按新配置重新匹配；**不因为 Provider 改变而重建 Speech Plan**，不另开实现任务。
 - **长期合同：** `docs/04_CACHE_AND_BACKGROUND_WORK.md` 为 Cache owner；生命周期参见 `docs/02_RUNTIME_AND_NAVIGATION.md`，规则影响参见 `docs/specs/REGEX_REPLACEMENT.md`；其余遵守 `AGENTS.md`。
 - 本轮不开发在线书源，不启动 U1 视觉改版，不重构其它系统。尽量在既有模型、服务和 SQLite 表结构内解决，不为“可能有用”新增通用机制。
@@ -11,13 +12,13 @@
 ## 2. 执行规则
 
 - `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 遇到超出授权边界、必须由用户与 ChatGPT 决定的阻断问题。
-- **默认串行：T001 → T002 → T003 → T004 → T005。** 每一任务结束须可构建、可执行相关测试。本轮不启用 staged breaking migration window。
-- 阅读 `AGENTS.md`、当前 task spec 和 task spec 明确引用的少量长期文档；以本地实现为准，不机械照搬任务中提到的类名。先 `git status`/检查相关 diff，保护本地 T007 以及其它用户改动；在已有改动上增量集成，不能当作纯远端工作树。
+- **T001–T005 已完成，当前只执行 T006。** 任务结束必须可构建并通过相关核心测试；不启用 staged breaking migration window。
+- 阅读 `AGENTS.md`、当前 task spec 和 task spec 明确引用的少量长期文档；以本地实现为准，不机械照搬任务中提到的类名。先 `git status`/检查相关 diff，保护其它用户改动；在实际工作树上增量集成。
 - 仅在真实需要时调整 Application port、Infrastructure Store、UI binding；不添加多余状态机、通用 Scheduler/EventBus、全局 Plan 内存缓存、无限队列、重复兼容路径或永久的迁移补丁层。
 - 已发布 SQLite schema/migration 不擅自更改；本轮计划在现有 `ChapterSpeechPlans`、`ChapterSpeechPlanSegments` 和 `AudioCacheEntries` 中完成。若确需新增持久化结构或改变正式数据语义，先按 `AGENTS.md` 记录具体影响并请求决策。
 - 只保留核心行为的正式测试；可使用受控临时规模测试/基准，完成后删除临时 harness、数据文件和截图。人工验收仅作可选补充，不作为阻断下一任务的条件。
 - 每任务完成后把状态标记 `[x]`，记录简短成果/自动验证/限制，删除对应 `tasks/Txxx_*.md`；由 Git 记录历史。不得未经授权 push、发 PR、发布或创建 tag。项目文本使用 LF。
-- 若旧 `tasks/` 仍有上一轮 `T007_E1_CLOSURE.md` 或其它遗留任务文件，先确认其已执行完毕及成果已被本地保留，再移除旧任务规格；**禁止删改尚在执行中的 T007 工作**。本轮 `tasks/` 最终只保留未完成的新任务规格。
+- 上一轮 T001–T005 的已完成任务规格应已删除；本轮 `tasks/` 只增加 T006 规格，不恢复历史任务或删除无关工作。
 
 ## 3. 当前任务
 
@@ -48,6 +49,12 @@
   规模验收：真实 SQLite 的 10,000 章目录扫过 125 个窗口，Plan/Segment 行数 0/0 → 0/0，DB 2,387,968 → 2,387,968 字节、WAL 0 → 0，正文读取/修复 0/0，data_version 不变；窗口查询 P50/P95 4.25/6.21 ms（首次 38.43 ms）。加入 4 个真实部分缓存章节后，行数 4/8 → 4/8、DB/WAL 不变，读取/修复为零，P50/P95 4.37/4.80 ms。Stale 快速跨 125 窗口撤回后仅旧章 0 与最新章 9999 各读取一次，旧结果废弃，最新章修复后 50%；切 Provider 为 0%、切回恢复 50%，无 Plan 重建且物理缓存保留。
   自动验收：locked win-x64 restore、format verify、零警告 Release build、完整测试 1,019 项（Domain 34 / Application 261 / Infrastructure 352 / Presentation 319 / 隔离 Desktop WPF 53）全部通过；局部刷新修正后 CacheManagement 20 项通过，原失败用例独立进程重复 20/20 通过。架构/全量 XAML 主题静态检查包含于完整测试，既有主题运行证据保留，diff/LF/schema/临时产物检查通过。发现 10 个历史 lock 文件含 CRLF，仅归一化为 LF，逐文件确认依赖 JSON 未变。临时真实 BookDetails 10k 章滚动 125 窗口，最多 15 个容器，滚动加 layout P50/P95 14.65/18.10 ms；环境无未执行的强制检查，受控本机采样不承诺所有机器绝对无卡顿，人工视觉验收未执行。
 
+### Phase F — Playback 暂停预取修复
+
+- [x] **T006（P1 / Playback）— 暂停时停止自动音频预取**
+  完成成果：Playback intent 为 Play 才生成预取需求；手动/定时暂停立即递增窗口版本、清空待处理请求并协作取消在途预取，暂停打开/跳转/配置刷新不再入队。异步解析前及串行提交时复核 intent、session、target 和窗口版本，拒绝迟到窗口；恢复未加载音频时也刷新预取，已取消的同键在途请求不再吞掉快速 Resume 的新需求。共享生成层沿用 Current 的取消结果重试语义，使仍有效的恢复预取不被旧 execution 吞掉。删除暂停“一段例外”和 maxCount 分支，保留播放时当前目标保护、设备音频恢复、已完成缓存及独立 Active Cache；仅在 Cache owner 文档补充稳定规则，无 schema/配置/兼容层变化或长期文档冲突。
+  自动验收：新增 7 个核心用例覆盖暂停打开/跳转/Provider/语速、0 预取、手动/定时暂停、在途与待处理取消、Active Cache 隔离、快速恢复、迟到窗口及真实共享生成链的取消后恢复/Ready 保留/旧流释放；保留既有 Playback/Prefetch、Plan/SQLite、退出和架构回归，不删除/合并核心测试。Playback 集成 47 项、Application Playback/Active Cache focused 79 项、locked win-x64 restore、format verify、零警告 Release build、完整测试 1,026 项（Domain 34 / Application 262 / Infrastructure 358 / Presentation 319 / 隔离 Desktop WPF 53）、diff/LF 检查通过；任务临时诊断产物与规格已清理。无环境阻止的强制检查；取消沿用已有协作语义，无法承诺远端请求瞬时中断；人工交互验收未执行。
+
 ## 4. 明确不实施
 
 - 不因为 Provider 切换而生成新的 Speech Plan，保留已有 synthesis fingerprint + 音频键匹配设计。
@@ -65,3 +72,10 @@
 4. UI 仅显示有效且非零的真实百分比；无缓存、0%、缺失、过期或失败均空白。切换 Provider 后的当前配置匹配行为不退化。
 5. 维持现有可用的 MP3 导出、正常播放及 target-first、主动缓存、退出排空；无长期持有跨大量章节正文/段落的批次内存结构。
 6. 无不必要 schema migration、Compat/V2 层、临时测试文件；T005 完整质量门禁结果如实记录。
+
+## 6. T006 独立验收
+
+- 暂停、定时暂停、以暂停状态打开书籍、暂停中切段/切章和修改 Provider/语速，均不发起新的自动预取 TTS；预取窗口撤销时的旧异步结果不能重新激活预取。
+- 暂停时仅取消 Playback Prefetch 所拥有的待处理及进行中工作，尽力取消进行中的预取；已成功提交的缓存保留，不影响主动缓存及已加载的暂停音频。
+- 恢复播放后按原有配置恢复正常预取，保留 `target-first` 和当前音频准备优先级。
+- 完成后将 T006 标记 `[x]`，记录核心测试/构建与限制，删除 `tasks/T006_PAUSED_PREFETCH.md`；不新增数据库 schema、配置开关或通用任务调度组件。

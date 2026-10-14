@@ -25,7 +25,7 @@ public sealed partial class PlaybackCoordinatorTests
         FakeAudioGenerationProvider? audioProvider = null,
         PlaybackBookContent? book = null,
         FakeReadingProgressStore? readingProgressStore = null,
-        FakePrefetchScheduler? prefetchScheduler = null,
+        IPlaybackPrefetchController? prefetchScheduler = null,
         FakeAppSettingsStore? appSettingsStore = null,
         TimeProvider? timeProvider = null,
         IBookSourceChangeSource? sourceChanges = null,
@@ -240,9 +240,17 @@ public sealed partial class PlaybackCoordinatorTests
 
         public TaskCompletionSource? CurrentContextRequested { get; set; }
 
+        public int? CurrentContextGateCall { get; set; }
+
+        private int _currentContextCallCount;
+
+        public int CurrentContextCallCount => Volatile.Read(ref _currentContextCallCount);
+
         public async Task<bool> IsCurrentAsync(PlaybackBookContent book, CancellationToken cancellationToken)
         {
-            if (CurrentContextGate is { } gate)
+            var call = Interlocked.Increment(ref _currentContextCallCount);
+            if (CurrentContextGate is { } gate &&
+                (CurrentContextGateCall is null || call == CurrentContextGateCall))
             {
                 CurrentContextRequested?.TrySetResult();
                 await gate.Task.WaitAsync(cancellationToken);
@@ -652,7 +660,7 @@ public sealed partial class PlaybackCoordinatorTests
         }
     }
 
-    private sealed class FakePrefetchScheduler : IPlaybackPrefetchController
+    private sealed class FakePrefetchScheduler(IPlaybackPrefetchController? inner = null) : IPlaybackPrefetchController
     {
         public List<(Guid SessionId, IReadOnlyList<AudioGenerationRequest> Requests)> ScheduleCalls { get; } = [];
 
@@ -673,15 +681,16 @@ public sealed partial class PlaybackCoordinatorTests
             ScheduleCalls.Add((window.SessionId, window.Requests.ToArray()));
             Revisions.Add(window.Revision);
             KeepActiveKeys.Add(window.KeepActiveKey);
+            var submission = inner?.SubmitAsync(window, cancellationToken) ?? Task.CompletedTask;
             ActivityChanged?.Invoke(this, EventArgs.Empty);
-            return Task.CompletedTask;
+            return submission;
         }
 
         public Task CancelAsync(Guid sessionId, CancellationToken cancellationToken)
         {
             CancelledSessions.Add(sessionId);
             ActivityChanged?.Invoke(this, EventArgs.Empty);
-            return Task.CompletedTask;
+            return inner?.CancelAsync(sessionId, cancellationToken) ?? Task.CompletedTask;
         }
     }
 

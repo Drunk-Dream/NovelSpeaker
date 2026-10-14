@@ -432,9 +432,9 @@ public sealed class PlaybackCoordinator :
         cancellationToken.ThrowIfCancellationRequested();
         var transition = _runtime.Pause();
         CancelPreparationEffects(transition);
+        InvalidatePrefetchWindow(transition.State);
         PublishSnapshot();
         await ExecuteCheckpointsAsync(transition, cancellationToken).ConfigureAwait(false);
-        SchedulePrefetchRefresh(_runtime.Current, 1);
     }
 
     private Task PauseFromTimerAsync(CancellationToken cancellationToken) => RunSerializedAsync(async ct =>
@@ -465,7 +465,7 @@ public sealed class PlaybackCoordinator :
             AcceptDeviceSnapshot(_localAudio.CurrentSnapshot);
             _runtime.ResetFailureWindow();
             PublishSnapshot();
-            SchedulePrefetchRefresh(_runtime.Current, null);
+            SchedulePrefetchRefresh(_runtime.Current);
             return;
         }
         var provider = await _selectedProvider.GetSelectedProviderAsync(cancellationToken).ConfigureAwait(false);
@@ -490,6 +490,7 @@ public sealed class PlaybackCoordinator :
         var transition = _runtime.BeginPlayback(true);
         PublishSnapshot();
         SchedulePreparationEffects(transition);
+        SchedulePrefetchRefresh(transition.State);
     }
 
     private async Task StopCoreAsync(CancellationToken cancellationToken)
@@ -558,7 +559,7 @@ public sealed class PlaybackCoordinator :
                 _runtime.UpdateContent(book, new(position.ChapterIndex, mapped), "正则替换规则已应用。");
                 if (current.Identity is { } identity)
                     await _prefetchController.CancelAsync(identity.SessionId, token).ConfigureAwait(false);
-                SchedulePrefetchRefresh(_runtime.Current, null);
+                SchedulePrefetchRefresh(_runtime.Current);
                 PublishSnapshot();
                 return;
             }
@@ -715,7 +716,7 @@ public sealed class PlaybackCoordinator :
             }
         }
         PublishSnapshot();
-        SchedulePrefetchRefresh(_runtime.Current, null);
+        SchedulePrefetchRefresh(_runtime.Current);
     }
 
     private async Task ChangeSpeedCoreAsync(int speed, CancellationToken ct)
@@ -735,7 +736,7 @@ public sealed class PlaybackCoordinator :
         }
         else _runtime.ChangeIdleSpeed(speed);
         PublishSnapshot();
-        SchedulePrefetchRefresh(_runtime.Current, null);
+        SchedulePrefetchRefresh(_runtime.Current);
     }
 
     private async Task ReplacePlaybackSessionAsync(PlaybackSessionTarget target, bool checkpoint, bool forceInvalidate, CancellationToken ct,
@@ -795,7 +796,7 @@ public sealed class PlaybackCoordinator :
             System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(effectFailure).Throw();
         }
         SchedulePreparationEffects(transition, forceInvalidate);
-        SchedulePrefetchRefresh(transition.State, null);
+        SchedulePrefetchRefresh(transition.State);
     }
 
     private async Task ExecuteTargetTransitionAsync(
@@ -827,13 +828,14 @@ public sealed class PlaybackCoordinator :
                     _runtime.ReportMessage("播放切换未完成，已保留当前目标。");
                 else
                     _runtime.Pause();
+                InvalidatePrefetchWindow(_runtime.Current);
                 PublishSnapshot();
             }
             if (!propagateFailure) return;
             throw;
         }
         SchedulePreparationEffects(transition);
-        SchedulePrefetchRefresh(transition.State, null);
+        SchedulePrefetchRefresh(transition.State);
         transitionToken.ThrowIfCancellationRequested();
     }
 
@@ -1116,9 +1118,9 @@ public sealed class PlaybackCoordinator :
         await ExecuteTargetTransitionAsync(transition, stopAudio, ct).ConfigureAwait(false);
     }
 
-    private async Task RefreshPrefetchWindowAsync(PlaybackRuntimeState state, int? maxCount, long revision, CancellationToken ct)
+    private async Task RefreshPrefetchWindowAsync(PlaybackRuntimeState state, long revision, CancellationToken ct)
     {
-        if (state.Identity is not { } session || !_runtime.IsCurrent(session)) return;
+        if (state.Identity is not { } session || !IsCurrentPrefetchDemand(state, revision)) return;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _runtime.SessionToken, _commandProcessor.LifecycleToken);
         var token = linked.Token;
         if (state.Target is null || state.Book is null || state.Position is not { } position)
@@ -1128,14 +1130,13 @@ public sealed class PlaybackCoordinator :
                 { Revision = revision }, token).ConfigureAwait(false);
             return;
         }
-        var targetIdentity = state.Target.Identity;
         var requests = new List<AudioGenerationRequest>();
         var provider = await _selectedProvider.GetSelectedProviderAsync(token).ConfigureAwait(false);
         var count = Math.Clamp(_appSettingsService.Current.PrefetchCount, 0, AppSettings.DefaultPrefetchCountValue);
-        if (maxCount is not null) count = Math.Min(count, maxCount.Value);
         var book = state.Book;
         for (var i = 0; provider is not null && i < count; i++)
         {
+            if (!IsCurrentPrefetchDemand(state, revision)) return;
             var next = await ResolveRelativeSegmentAsync(book, position.ChapterIndex, position.SegmentIndex, 1, token).ConfigureAwait(false);
             if (next is null) break;
             book = next.Value.Book;
@@ -1148,19 +1149,30 @@ public sealed class PlaybackCoordinator :
         }
         await ValidateBookAsync(book, token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
-        if (!_runtime.IsCurrent(state.Identity) || _runtime.Current.Target?.Identity != targetIdentity) return;
         var currentTargetRequest = CreateCurrentTargetAudioRequest(state);
-        await _prefetchController.SubmitAsync(new PlaybackPrefetchWindow(state.Identity.SessionId, requests)
+        // Serialize authorization and submission with Pause/Resume and target commits.
+        await _commandProcessor.RunSerializedAsync(async commitToken =>
         {
-            Revision = revision,
-            KeepActiveKey = currentTargetRequest?.ToCacheKey()
+            if (!IsCurrentPrefetchDemand(state, revision)) return;
+            await _prefetchController.SubmitAsync(new PlaybackPrefetchWindow(session.SessionId, requests)
+            {
+                Revision = revision,
+                KeepActiveKey = currentTargetRequest?.ToCacheKey()
+            }, commitToken).ConfigureAwait(false);
         }, token).ConfigureAwait(false);
     }
+
+    private bool IsCurrentPrefetchDemand(PlaybackRuntimeState state, long revision) =>
+        state.Intent == PlaybackIntent.Play && _runtime.Current.Intent == PlaybackIntent.Play &&
+        state.Identity is { } identity && _runtime.IsCurrent(identity) &&
+        _runtime.Current.Target?.Identity == state.Target?.Identity &&
+        revision == Interlocked.Read(ref _prefetchWindowRevision);
 
     private void InvalidatePrefetchWindow(PlaybackRuntimeState state)
     {
         if (state.Identity is not { } session) return;
-        var currentTargetRequest = CreateCurrentTargetAudioRequest(state);
+        var currentTargetRequest = state.Intent == PlaybackIntent.Play
+            ? CreateCurrentTargetAudioRequest(state) : null;
         var requests = currentTargetRequest is { } targetRequest
             ? new[] { targetRequest }
             : Array.Empty<AudioGenerationRequest>();
@@ -1200,15 +1212,20 @@ public sealed class PlaybackCoordinator :
         catch { }
     }
 
-    private void SchedulePrefetchRefresh(PlaybackRuntimeState state, int? maxCount)
+    private void SchedulePrefetchRefresh(PlaybackRuntimeState state)
     {
+        if (state.Intent != PlaybackIntent.Play)
+        {
+            InvalidatePrefetchWindow(state);
+            return;
+        }
         var revision = Interlocked.Increment(ref _prefetchWindowRevision);
-        _ = ObservePrefetchRefreshAsync(state, maxCount, revision);
+        _ = ObservePrefetchRefreshAsync(state, revision);
     }
 
-    private async Task ObservePrefetchRefreshAsync(PlaybackRuntimeState state, int? maxCount, long revision)
+    private async Task ObservePrefetchRefreshAsync(PlaybackRuntimeState state, long revision)
     {
-        try { await RefreshPrefetchWindowAsync(state, maxCount, revision, CancellationToken.None).ConfigureAwait(false); }
+        try { await RefreshPrefetchWindowAsync(state, revision, CancellationToken.None).ConfigureAwait(false); }
         catch (OperationCanceledException) { }
         catch { }
     }
