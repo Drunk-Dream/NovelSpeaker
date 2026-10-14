@@ -120,6 +120,9 @@ public sealed partial class PlayerViewTests
 
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         private readonly PlaybackBookContent? _book;
         private readonly PlaybackChapterContent? _chapter;
 

@@ -18,8 +18,8 @@ public sealed class ShellActiveCacheControllerTests
             new InlineUiScheduler());
 
         Assert.True(controller.IsVisible);
-        Assert.Equal("缓存中 · 1/3 章 · 40%", controller.CompactStatusText);
-        Assert.Equal("总进度 4 / 10 段", controller.TotalSegmentProgressText);
+        Assert.Equal("缓存中 · 1/3 章 · 47%", controller.CompactStatusText);
+        Assert.Equal("总进度 1 / 3 章", controller.TotalChapterProgressText);
         Assert.Equal(["已完成", "2 / 5", "等待中"], controller.Chapters.Select(chapter => chapter.StatusText));
         Assert.True(controller.CanCancel);
     }
@@ -150,7 +150,7 @@ public sealed class ShellActiveCacheControllerTests
         Assert.Equal([nameof(ShellActiveCacheChapterItem.StatusText), nameof(ShellActiveCacheChapterItem.StatusText)],
             changedProperties);
         Assert.Equal(0, collectionChanges);
-        Assert.Equal("总进度 6 / 10 段", controller.TotalSegmentProgressText);
+        Assert.Equal("总进度 1 / 3 章", controller.TotalChapterProgressText);
     }
 
     private void Replacing_the_batch_rebuilds_rows_in_snapshot_order()

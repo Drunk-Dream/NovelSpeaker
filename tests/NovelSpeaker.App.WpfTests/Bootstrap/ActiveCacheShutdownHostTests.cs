@@ -120,6 +120,9 @@ public sealed class ActiveCacheShutdownHostTests
 
     private sealed class Content : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
             Task.FromResult<PlaybackBookContent?>(new(bookId, "Synthetic", [PlaybackChapterContent.Unloaded(0, "Chapter")]));
         public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) =>

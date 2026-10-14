@@ -84,7 +84,7 @@ public sealed class PlaybackContentResolverTests
     }
 
     [Fact]
-    public async Task GetChaptersAsync_loads_requested_chapters_in_catalog_order()
+    public async Task Frozen_chapter_reader_preserves_rules_settings_and_plan_profile_between_chapters()
     {
         using var database = CreateDatabase(createContentFile: true);
         await using (var connection = new SqliteConnection(database.ConnectionString))
@@ -102,17 +102,35 @@ public sealed class PlaybackContentResolverTests
         }
 
         var connectionFactory = new TestSqliteConnectionFactory(database.ConnectionString);
+        var rules = new RegexReplacementRuleRepository(connectionFactory, TimeProvider.System);
+        var rule = new RegexReplacementRule(Guid.NewGuid(), "fixture", true, 0, "第一段", "冻结语音",
+            RegexReplacementScope.Speech, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow);
+        await rules.SaveAsync(rule, CancellationToken.None);
+        var options = new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default);
+        var settings = new StaticAppSettingsService(AppSettings.Default with { ReadChapterTitle = true });
+        var pipeline = new RegexReplacementPipeline(rules, new RegexReplacementRuleErrorStore());
         var service = new PlaybackContentResolver(
-            new SqliteBookPlaybackMetadataQuery(connectionFactory),
-            CreateContentReader(database),
-            new TextSegmenter(),
-            new StaticTextSegmentationOptionsProvider(TextSegmentationOptions.Default),
-            new PassthroughRegexReplacementPipeline());
-
-        var chapters = await service.GetChaptersAsync("book-1", [1, 0], CancellationToken.None);
-
-        Assert.Equal([0, 1], chapters.Select(chapter => chapter.ChapterIndex));
-        Assert.All(chapters, chapter => Assert.Equal(PlaybackChapterLoadState.Loaded, chapter.LoadState));
+            new SqliteBookPlaybackMetadataQuery(connectionFactory), CreateContentReader(database),
+            new TextSegmenter(), options, pipeline, settings,
+            new ChapterSpeechPlanService(new TextSegmenter(), pipeline, rules, TimeProvider.System),
+            regexRules: rules);
+        var expectedProfile = TextProfileFingerprint.Create(options.Options, [rule]);
+        var reader = await service.FreezeChapterReaderAsync(CancellationToken.None);
+        var first = (await reader("book-1", 0, CancellationToken.None))!;
+        await rules.SaveAsync(rule with { Replacement = "变更语音" }, CancellationToken.None);
+        options.Options = options.Options with { EnableLongParagraphSplitting = !options.Options.EnableLongParagraphSplitting };
+        settings.Current = settings.Current with { ReadChapterTitle = false };
+        var second = (await reader("book-1", 1, CancellationToken.None))!;
+        foreach (var chapter in new[] { first, second })
+        {
+            Assert.True(chapter.Segments[0].IsChapterTitle);
+            Assert.Contains(chapter.Segments, segment => segment.SpeechText == "冻结语音。");
+            Assert.Equal(expectedProfile, chapter.SpeechPlan!.TextProfileFingerprint);
+        }
+        var fresh = (await service.GetChapterAsync("book-1", 1, CancellationToken.None))!;
+        Assert.DoesNotContain(fresh.Segments, segment => segment.IsChapterTitle);
+        Assert.Contains(fresh.Segments, segment => segment.SpeechText == "变更语音。");
+        Assert.NotEqual(expectedProfile, fresh.SpeechPlan!.TextProfileFingerprint);
     }
 
     [Fact]
@@ -283,19 +301,19 @@ public sealed class PlaybackContentResolverTests
 
     private sealed class StaticTextSegmentationOptionsProvider : ITextSegmentationOptionsProvider
     {
-        private readonly TextSegmentationOptions _options;
+        public TextSegmentationOptions Options { get; set; }
 
         public StaticTextSegmentationOptionsProvider(TextSegmentationOptions options)
         {
-            _options = options;
+            Options = options;
         }
 
-        public TextSegmentationOptions GetCurrent() => _options;
+        public TextSegmentationOptions GetCurrent() => Options;
     }
 
     private sealed class StaticAppSettingsService(AppSettings settings) : IAppSettingsService
     {
-        public AppSettings Current { get; } = settings.Normalize();
+        public AppSettings Current { get; set; } = settings.Normalize();
 
         public event EventHandler<AppSettingsChangedEventArgs>? Changed
         {

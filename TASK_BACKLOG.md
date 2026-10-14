@@ -38,8 +38,8 @@
 
 ### Phase D — 资源收口
 
-- [ ] **T004（P1 / Resource）— 孤立 Plan 清理与 Active Cache 按章处理**  
-  规格：[`tasks/T004_CACHE_RESOURCE_CLOSURE.md`](tasks/T004_CACHE_RESOURCE_CLOSURE.md)。及时清理不再需要的 Plan；避免批量主动缓存同时持有所有章节的完整正文和语音分段；保留既有后台生命周期。
+- [x] **T004（P1 / Resource）— 孤立 Plan 清理与 Active Cache 按章处理**
+  完成成果：沿用最后缓存删除/淘汰的事务内定向清理与启动兜底，补修复遇到无缓存的按章清理；保留其它 Provider 的物理缓存及 Plan。Active Cache 冻结轻量章节身份、Provider/语速和文本配置读取委托，正文/分段/Plan 逐章处理释放；删除批量内容加载与 FrozenChapter/FrozenSegment 副本，总进度按章、章内按段。改写并保留冻结/退出/播放核心测试，补来源中途失效及缓存生命周期回归；Application 136 项、Infrastructure 105 项、Presentation 123 项（含架构）、隔离 Desktop WPF 12 项、Release build、format/diff check 通过。完整门禁留待 T005；无新 schema、临时产物或长期文档冲突。
 
 ### Phase E — 工程验证
 

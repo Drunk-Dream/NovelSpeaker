@@ -1,6 +1,5 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache.Audio;
-using NovelSpeaker.Application.Speech.Compilation;
 using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech;
@@ -95,6 +94,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
                         ActiveCacheStartStatus.SelectedProviderUnavailable,
                         "尚未选择语音服务。");
                 }
+                var frozenProvider = provider with { Provider = CurrentSpeechProvider.Snapshot(provider.Provider) };
 
                 var book = await _contentService
                     .GetBookAsync(request.BookId, cancellationToken)
@@ -113,44 +113,22 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
                     return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "所选章节不存在。");
                 }
 
-                var frozenChapters = new List<FrozenChapter>(selectedChapters.Length);
-                var loadedChapters = await _contentService.GetChaptersAsync(book.BookId,
-                    selectedChapters.Select(chapter => chapter.ChapterIndex).ToArray(), cancellationToken).ConfigureAwait(false);
+                var chapterReader = await _contentService.FreezeChapterReaderAsync(cancellationToken).ConfigureAwait(false);
                 if (!await _contentService.IsCurrentAsync(book, cancellationToken).ConfigureAwait(false))
                     return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "活动来源目录已更新，请重新选择章节。");
-                var loadedByIndex = loadedChapters.ToDictionary(chapter => chapter.ChapterIndex);
-                foreach (var chapter in selectedChapters)
+                var frozenBook = book with
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (!loadedByIndex.TryGetValue(chapter.ChapterIndex, out var loaded) ||
-                        (chapter.ChapterId is not null && chapter.ChapterId != loaded.ChapterId))
-                    {
-                        return Rejected(ActiveCacheStartStatus.NoChaptersSelected, "所选章节无法读取。");
-                    }
-
-                    frozenChapters.Add(new FrozenChapter(
-                        loaded.ChapterIndex,
-                        loaded.ChapterId,
-                        loaded.Title,
-                        loaded.SpeechPlan,
-                        loaded.Segments
-                            .Where(segment => NarratableText.HasContent(segment.SpeechText))
-                            .Select(segment => new FrozenSegment(
-                                segment.SegmentIndex,
-                                segment.StableIdentity,
-                                segment.SpeechText))
-                            .ToArray()));
-                }
+                    Chapters = selectedChapters.Select(chapter => PlaybackChapterContent.Unloaded(
+                        chapter.ChapterIndex, chapter.Title, chapter.ChapterId)).ToArray()
+                };
 
                 var batchId = Guid.NewGuid();
-                var frozenProvider = provider with { Provider = CurrentSpeechProvider.Snapshot(provider.Provider) };
                 var batch = new FrozenBatch(
                     batchId,
-                    book.BookId,
-                    book.BookTitle,
+                    frozenBook,
                     frozenProvider,
                     AppSettings.NormalizeSpeakSpeed(request.SpeakSpeed),
-                    frozenChapters);
+                    chapterReader);
                 var completion = new TaskCompletionSource(
                     TaskCreationOptions.RunContinuationsAsynchronously);
                 CancellationTokenSource batchCancellation;
@@ -166,7 +144,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
                 }
 
                 Publish(CreateInitialSnapshot(batch));
-                _ = RunOwnedBatchAsync(batch, batchCancellation, completion);
+                _ = Task.Run(() => RunOwnedBatchAsync(batch, batchCancellation, completion));
                 return new ActiveCacheStartResult(ActiveCacheStartStatus.Accepted, batchId, null);
             }, cancellationToken).ConfigureAwait(false);
         }
@@ -290,7 +268,7 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
         {
             await RunBatchAsync(batch, batchCancellation.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) when (batchCancellation.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             PublishCancelled();
         }
@@ -312,91 +290,14 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
 
     private async Task RunBatchAsync(FrozenBatch batch, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var snapshot = CurrentSnapshot! with { Status = ActiveCacheBatchStatus.Running };
         Publish(snapshot);
 
-        for (var chapterPosition = 0; chapterPosition < batch.Chapters.Count; chapterPosition++)
+        for (var chapterPosition = 0; chapterPosition < batch.Book.Chapters.Count; chapterPosition++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var chapter = batch.Chapters[chapterPosition];
-            snapshot = UpdateChapter(
-                CurrentSnapshot!,
-                chapterPosition,
-                ActiveCacheChapterStatus.Running,
-                null,
-                currentChapter: true);
-            Publish(snapshot);
-
-            var usedOnlyCache = true;
-            var chapterFailed = false;
-            foreach (var segment in chapter.Segments)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                AudioGenerationResult result;
-                do
-                {
-                    try
-                    {
-                        result = await _audioProvider.GetAudioAsync(
-                            new AudioGenerationRequest(
-                                batch.BookId,
-                                chapter.ChapterIndex,
-                                segment.SegmentIndex,
-                                segment.SpeechText,
-                                batch.Provider,
-                                batch.SpeakSpeed,
-                                batch.BatchId)
-                            {
-                                ChapterId = chapter.ChapterId,
-                                SpeechPlan = chapter.SpeechPlan,
-                                StableSegmentIdentity = segment.StableIdentity
-                            },
-                            AudioGenerationPriority.ActiveCache,
-                            null,
-                            cancellationToken).ConfigureAwait(false);
-                    }
-                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-                    catch (Exception)
-                    {
-                        result = new AudioGenerationResult(null, false,
-                            new TtsExecutionFailure(TtsErrorKind.Unknown, UnexpectedFailureSummary, null, null, null, null));
-                    }
-
-                    cancellationToken.ThrowIfCancellationRequested();
-                }
-                while (result.Failure?.Kind == TtsErrorKind.Cancelled);
-
-                if (!result.IsSuccess)
-                {
-                    var summary = result.Failure?.Message ?? UnexpectedFailureSummary;
-                    Publish(UpdateChapter(
-                        CurrentSnapshot!,
-                        chapterPosition,
-                        ActiveCacheChapterStatus.Failed,
-                        summary,
-                        currentChapter: true) with
-                    {
-                        ErrorSummary = summary
-                    });
-                    chapterFailed = true;
-                    break;
-                }
-
-                usedOnlyCache &= result.IsUsingCache;
-                snapshot = IncrementSegment(CurrentSnapshot!, chapterPosition);
-                Publish(snapshot);
-            }
-
-            snapshot = UpdateChapter(
-                CurrentSnapshot!,
-                chapterPosition,
-                chapterFailed ? ActiveCacheChapterStatus.Failed : usedOnlyCache ? ActiveCacheChapterStatus.Skipped : ActiveCacheChapterStatus.Completed,
-                chapterFailed ? CurrentSnapshot!.Chapters[chapterPosition].ErrorSummary : null,
-                currentChapter: true) with
-            {
-                CompletedChapterCount = CurrentSnapshot!.CompletedChapterCount + 1
-            };
-            Publish(snapshot);
+            await RunChapterAsync(batch, chapterPosition, cancellationToken).ConfigureAwait(false);
         }
 
         Publish(CurrentSnapshot! with
@@ -406,6 +307,104 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
             CurrentChapterIndex = null,
             CurrentChapterTitle = null
         });
+    }
+
+    private async Task RunChapterAsync(FrozenBatch batch, int chapterPosition, CancellationToken cancellationToken)
+    {
+        var chapter = batch.Book.Chapters[chapterPosition];
+        Publish(UpdateChapter(CurrentSnapshot!, chapterPosition, ActiveCacheChapterStatus.Running,
+            null, currentChapter: true));
+        if (!await _contentService.IsCurrentAsync(batch.Book, cancellationToken).ConfigureAwait(false))
+            throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
+        var loaded = await batch.ReadChapter(batch.Book.BookId, chapter.ChapterIndex, cancellationToken).ConfigureAwait(false);
+        if (loaded is null || (chapter.ChapterId is not null && loaded.ChapterId != chapter.ChapterId) ||
+            !await _contentService.IsCurrentAsync(batch.Book, cancellationToken).ConfigureAwait(false))
+            throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        var chapters = CurrentSnapshot!.Chapters.ToArray();
+        var count = loaded.Segments.Count(segment => NarratableText.HasContent(segment.SpeechText));
+        chapters[chapterPosition] = chapters[chapterPosition] with { TotalSegmentCount = count };
+        var snapshot = CurrentSnapshot with
+        {
+            Chapters = chapters,
+            TotalSegmentCount = CurrentSnapshot.TotalSegmentCount + count
+        };
+        Publish(snapshot);
+
+        var usedOnlyCache = true;
+        var chapterFailed = false;
+        foreach (var segment in loaded.Segments.Where(segment => NarratableText.HasContent(segment.SpeechText)))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!await _contentService.IsCurrentAsync(batch.Book, cancellationToken).ConfigureAwait(false))
+                throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
+            AudioGenerationResult result;
+            do
+            {
+                try
+                {
+                    result = await _audioProvider.GetAudioAsync(
+                        new AudioGenerationRequest(
+                            batch.Book.BookId,
+                            chapter.ChapterIndex,
+                            segment.SegmentIndex,
+                            segment.SpeechText,
+                            batch.Provider,
+                            batch.SpeakSpeed,
+                            batch.BatchId)
+                        {
+                            ChapterId = chapter.ChapterId,
+                            SpeechPlan = loaded.SpeechPlan,
+                            StableSegmentIdentity = segment.StableIdentity
+                        },
+                        AudioGenerationPriority.ActiveCache,
+                        null,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception)
+                {
+                    result = new AudioGenerationResult(null, false,
+                        new TtsExecutionFailure(TtsErrorKind.Unknown, UnexpectedFailureSummary, null, null, null, null));
+                }
+
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!await _contentService.IsCurrentAsync(batch.Book, cancellationToken).ConfigureAwait(false))
+                    throw new OperationCanceledException("活动来源目录已更新。", cancellationToken);
+            }
+            while (result.Failure?.Kind == TtsErrorKind.Cancelled);
+
+            if (!result.IsSuccess)
+            {
+                var summary = result.Failure?.Message ?? UnexpectedFailureSummary;
+                Publish(UpdateChapter(
+                    CurrentSnapshot!,
+                    chapterPosition,
+                    ActiveCacheChapterStatus.Failed,
+                    summary,
+                    currentChapter: true) with
+                {
+                    ErrorSummary = summary
+                });
+                chapterFailed = true;
+                break;
+            }
+
+            usedOnlyCache &= result.IsUsingCache;
+            snapshot = IncrementSegment(CurrentSnapshot!, chapterPosition);
+            Publish(snapshot);
+        }
+
+        snapshot = UpdateChapter(
+            CurrentSnapshot!,
+            chapterPosition,
+            chapterFailed ? ActiveCacheChapterStatus.Failed : usedOnlyCache ? ActiveCacheChapterStatus.Skipped : ActiveCacheChapterStatus.Completed,
+            chapterFailed ? CurrentSnapshot!.Chapters[chapterPosition].ErrorSummary : null,
+            currentChapter: true) with
+        {
+            CompletedChapterCount = CurrentSnapshot!.CompletedChapterCount + 1
+        };
+        Publish(snapshot);
     }
 
     private void PublishCancelled()
@@ -468,19 +467,19 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
 
     private static ActiveCacheSnapshot CreateInitialSnapshot(FrozenBatch batch)
     {
-        var chapters = batch.Chapters
+        var chapters = batch.Book.Chapters
             .Select(chapter => new ActiveCacheChapterSnapshot(
                 chapter.ChapterIndex,
                 chapter.Title,
                 0,
-                chapter.Segments.Count,
+                0,
                 ActiveCacheChapterStatus.Pending,
                 null))
             .ToArray();
         return new ActiveCacheSnapshot(
             batch.BatchId,
-            batch.BookId,
-            batch.BookTitle,
+            batch.Book.BookId,
+            batch.Book.BookTitle,
             ActiveCacheBatchStatus.Waiting,
             0,
             chapters.Length,
@@ -533,22 +532,8 @@ public sealed class ActiveCacheCoordinator : IActiveCacheCoordinator, IActiveCac
 
     private sealed record FrozenBatch(
         Guid BatchId,
-        string BookId,
-        string BookTitle,
+        PlaybackBookContent Book,
         ResolvedSpeechProvider Provider,
         int SpeakSpeed,
-        IReadOnlyList<FrozenChapter> Chapters);
-
-    private sealed record FrozenChapter(
-        int ChapterIndex,
-        string? ChapterId,
-        string Title,
-        ChapterSpeechPlan? SpeechPlan,
-        IReadOnlyList<FrozenSegment> Segments);
-
-    private sealed record FrozenSegment(
-        int SegmentIndex,
-        StableSpeechSegmentIdentity StableIdentity,
-        string SpeechText);
-
+        ChapterContentReader ReadChapter);
 }

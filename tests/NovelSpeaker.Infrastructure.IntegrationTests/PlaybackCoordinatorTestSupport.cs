@@ -226,6 +226,9 @@ public sealed partial class PlaybackCoordinatorTests
 
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         public FakeBookPlaybackContentService(PlaybackBookContent book)
         {
             Book = book;

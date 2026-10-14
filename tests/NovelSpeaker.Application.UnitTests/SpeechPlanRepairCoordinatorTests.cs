@@ -12,6 +12,20 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class SpeechPlanRepairCoordinatorTests
 {
     [Fact]
+    public async Task Audio_removed_before_repair_cleans_only_that_chapter_without_reading_text()
+    {
+        var fixture = new Fixture { MissingAudioChapter = 0 };
+        await using var worker = fixture.CreateWorker();
+        using var window = new CancellationTokenSource();
+        worker.UpdateDemand([Request(0), Request(1)], window.Token);
+        await fixture.Published.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await worker.StopAsync(CancellationToken.None);
+        Assert.Equal([0], fixture.Cleaned);
+        Assert.Equal([1], fixture.Reads);
+        Assert.Equal(["chapter-1"], fixture.Saved);
+    }
+
+    [Fact]
     public async Task Rapid_window_changes_and_leaving_discard_queued_and_running_old_work()
     {
         var fixture = new Fixture();
@@ -111,8 +125,13 @@ public sealed class SpeechPlanRepairCoordinatorTests
         IChapterSpeechPlanStore, IAppSettingsService, IRegexReplacementRuleRepository, ICacheInvalidationCoordinator,
         ICacheCompletenessFailureReporter
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         public ConcurrentQueue<int> Reads { get; } = new();
         public ConcurrentQueue<string> Saved { get; } = new();
+        public ConcurrentQueue<int> Cleaned { get; } = new();
+        public int? MissingAudioChapter { get; set; }
         public TaskCompletionSource<CacheInvalidation> Published { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Failed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Func<int, Task> Load { get; set; } = _ => Task.CompletedTask;
@@ -145,7 +164,13 @@ public sealed class SpeechPlanRepairCoordinatorTests
             };
         }
         Task<CachedChapterStoreSummary?> IAudioCacheStore.GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) =>
-            Task.FromResult<CachedChapterStoreSummary?>(new(bookId, chapterIndex, 1, 1, 100));
+            Task.FromResult<CachedChapterStoreSummary?>(chapterIndex == MissingAudioChapter ? null : new(bookId, chapterIndex, 1, 1, 100));
+        public Task DeleteIfUncachedAsync(string chapterId, CancellationToken cancellationToken)
+        {
+            Cleaned.Enqueue(int.Parse(chapterId["chapter-".Length..], System.Globalization.CultureInfo.InvariantCulture));
+            return Task.CompletedTask;
+        }
+
         public Task<bool> SaveIfCachedAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();

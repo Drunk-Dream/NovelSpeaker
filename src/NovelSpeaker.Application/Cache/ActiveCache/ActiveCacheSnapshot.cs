@@ -17,8 +17,17 @@ public sealed record ActiveCacheSnapshot(
     IReadOnlyList<ActiveCacheChapterSnapshot> Chapters,
     string? ErrorSummary)
 {
-    public double Progress =>
-        TotalSegmentCount == 0
-            ? Status == ActiveCacheBatchStatus.Completed ? 1d : 0d
-            : (double)CompletedSegmentCount / TotalSegmentCount;
+    public double Progress
+    {
+        get
+        {
+            if (Status == ActiveCacheBatchStatus.Completed) return 1d;
+            if (TotalChapterCount == 0) return 0d;
+            // Pending chapters have no segment count until their body is loaded.
+            var current = CompletedChapterCount < Chapters.Count ? Chapters[CompletedChapterCount] : null;
+            var fraction = current is { TotalSegmentCount: > 0 }
+                ? current.CompletedSegmentCount / (double)current.TotalSegmentCount : 0d;
+            return Math.Clamp((CompletedChapterCount + fraction) / TotalChapterCount, 0d, 1d);
+        }
+    }
 }

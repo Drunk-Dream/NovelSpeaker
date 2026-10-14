@@ -163,7 +163,10 @@ internal sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
     private async Task RepairAsync(SpeechPlanRepairRequest request, CancellationToken token)
     {
         if (await _audio.GetChapterAsync(request.BookId, request.ChapterIndex, token).ConfigureAwait(false) is null)
+        {
+            await _plans.DeleteIfUncachedAsync(request.ChapterId, token).ConfigureAwait(false);
             return;
+        }
         var metadata = await _metadata.GetChapterAsync(request.BookId, request.ChapterIndex, token).ConfigureAwait(false);
         if (metadata?.ChapterId != request.ChapterId) return;
         var profile = await GetProfileAsync(token).ConfigureAwait(false);

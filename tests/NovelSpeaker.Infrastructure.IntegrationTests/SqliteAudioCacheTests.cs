@@ -20,6 +20,42 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed class SqliteAudioCacheTests
 {
     [Fact]
+    public async Task Plan_cleanup_preserves_other_provider_audio_and_removes_last_evicted_and_startup_orphans()
+    {
+        var fixture = await CreateFixtureAsync();
+        var store = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        var plan = CreatePlan("cache-chapter-1-0", ChapterSpeechPlanState.Ready, [CreatePlanSegment(0, 0, "正文")]);
+        var first = CreateKey("book-1", 0, 0, 7, 12, "正文");
+        var otherProvider = CreateKey("book-1", 0, 0, 8, 12, "正文");
+        foreach (var key in new[] { first, otherProvider })
+        {
+            await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(key, "book-1", 0, 0,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg")
+            { SpeechPlan = plan }, CancellationToken.None);
+        }
+        await fixture.Cache.InvalidateAsync(first, CancellationToken.None);
+        await store.DeleteIfUncachedAsync(plan.ChapterId, CancellationToken.None);
+        Assert.NotNull(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        var statuses = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
+            [new CurrentCacheChapterQuery(plan.ChapterId, 0, false, null, plan.TextProfileFingerprint)],
+            otherProvider.Identity.SynthesisProfile, CancellationToken.None);
+        Assert.Equal(new ChapterCacheStatus(0, 1, 1), Assert.Single(statuses));
+        fixture.LimitProvider.CurrentLimitBytes = 1;
+        await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        await store.SaveAsync(plan, CancellationToken.None);
+        await fixture.Cache.RunStartupMaintenanceAsync(CancellationToken.None);
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        // A stale repair encountering pre-existing orphan metadata also cleans only its chapter.
+        await store.SaveAsync(plan, CancellationToken.None);
+        Assert.False(await store.SaveIfCachedAsync(plan, CancellationToken.None));
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        await store.SaveAsync(plan, CancellationToken.None);
+        await store.DeleteIfUncachedAsync(plan.ChapterId, CancellationToken.None);
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+    }
+
+    [Fact]
     public async Task First_audio_write_commits_plan_and_index_together_and_survives_reopening()
     {
         var fixture = await CreateFixtureAsync();
@@ -999,6 +1035,9 @@ public sealed class SqliteAudioCacheTests
         public Task SaveAsync(
             ChapterSpeechPlan plan,
             CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task DeleteIfUncachedAsync(string chapterId, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<bool> SaveIfCachedAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken) =>

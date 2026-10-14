@@ -18,6 +18,27 @@ namespace NovelSpeaker.Application.UnitTests;
 public sealed class ActiveCacheCoordinatorTests
 {
     [Theory]
+    [InlineData(3)]
+    [InlineData(8)]
+    public async Task Source_change_stops_the_batch_before_more_segments_or_chapters_are_read(int chapterIndex)
+    {
+        var content = new FakeContentService();
+        var audio = new ControlledAudioProvider();
+        var pending = audio.EnqueuePending();
+        await using var coordinator = new ActiveCacheCoordinator(content,
+            new MutableRuleProvider(CreateRule(7, "Provider")), audio, new BookMutationGate());
+        await coordinator.StartAsync(new("book-1", chapterIndex == 3 ? [3, 8] : [8], 12), CancellationToken.None);
+        await pending.Started;
+        content.Context = new("new-source", "new-catalog");
+        pending.CompleteUsingCache();
+        await coordinator.WaitForCurrentBatchAsync(CancellationToken.None);
+        Assert.Equal(ActiveCacheBatchStatus.Cancelled, coordinator.CurrentSnapshot!.Status);
+        Assert.Single(audio.Calls);
+        Assert.Equal([chapterIndex], content.ReadChapterIndices);
+        Assert.Equal(0, coordinator.CurrentSnapshot.CompletedChapterCount);
+    }
+
+    [Theory]
     [InlineData(false, false)]
     [InlineData(true, false)]
     [InlineData(false, true)]
@@ -26,7 +47,7 @@ public sealed class ActiveCacheCoordinatorTests
         var runtime = new ShutdownProviderRuntime(cooperative);
         var provider = new ShutdownCurrentProvider(runtime);
         var store = new ShutdownAudioStore();
-        var audio = new CacheAudioGenerationProvider(store, store);
+        var audio = new ObservedAudioProvider(new CacheAudioGenerationProvider(store, store));
         var coordinator = new ActiveCacheCoordinator(new FakeContentService(), provider, audio, new BookMutationGate());
         using var playbackCancellation = new CancellationTokenSource();
         Task<AudioGenerationResult>? playback = null;
@@ -44,6 +65,7 @@ public sealed class ActiveCacheCoordinatorTests
             }
             await coordinator.StartAsync(new("book-1", [8], 10), CancellationToken.None);
             await runtime.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await audio.ActiveEntered.Task.WaitAsync(TimeSpan.FromSeconds(5));
             // Playback remains the shared synthesis owner. Process shutdown stops it
             // before draining cache jobs; active-cache cancellation cannot take it over.
             if (joinPlayback) playbackCancellation.Cancel();
@@ -261,7 +283,8 @@ public sealed class ActiveCacheCoordinatorTests
         Assert.Equal(3, coordinator.CurrentSnapshot.CurrentChapterIndex);
         Assert.Equal(ActiveCacheChapterStatus.Running, coordinator.CurrentSnapshot.Chapters[0].Status);
         Assert.Equal(0, coordinator.CurrentSnapshot.CompletedSegmentCount);
-        Assert.Equal(3, coordinator.CurrentSnapshot.TotalSegmentCount);
+        Assert.Equal(2, coordinator.CurrentSnapshot.TotalSegmentCount);
+        Assert.Equal([3], content.ReadChapterIndices);
 
         content.SpeechTextSuffix = "-changed";
         rules.Current = CreateRule(9, "新规则");
@@ -326,7 +349,7 @@ public sealed class ActiveCacheCoordinatorTests
     public async Task CancelAsync_does_not_cancel_replacement_batch_when_old_batch_finishes_during_notification()
     {
         var audio = new ControlledAudioProvider();
-        var oldBatchAudio = audio.EnqueuePending();
+        var oldBatchAudio = audio.EnqueuePending(holdCancellation: true);
         var replacementAudio = audio.EnqueuePending();
         await using var coordinator = new ActiveCacheCoordinator(
             new FakeContentService(),
@@ -349,6 +372,7 @@ public sealed class ActiveCacheCoordinatorTests
             }
 
             notificationHandled = true;
+            oldBatchAudio.ReleaseCancellation();
             coordinator.WaitForCurrentBatchAsync(CancellationToken.None).GetAwaiter().GetResult();
             replacement = coordinator.StartAsync(
                 new StartActiveCacheRequest("book-1", [3], 10),
@@ -494,6 +518,16 @@ public sealed class ActiveCacheCoordinatorTests
 
     private sealed class FakeContentService : IBookPlaybackContentService
     {
+        public List<int> ReadChapterIndices { get; } = [];
+
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken)
+        {
+            var suffix = SpeechTextSuffix;
+            return Task.FromResult<ChapterContentReader>((bookId, index, token) => ReadChapterAsync(bookId, index, token, suffix));
+        }
+
+        public ActiveSourceContext Context { get; set; } = new("local:book-1", "catalog");
+
         public string SpeechTextSuffix { get; set; } = string.Empty;
 
         public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken)
@@ -505,24 +539,29 @@ public sealed class ActiveCacheCoordinatorTests
                 [
                     PlaybackChapterContent.Unloaded(3, "第三章"),
                     PlaybackChapterContent.Unloaded(8, "第八章")
-                ], SourceContext: new("local:book-1", "catalog")));
+                ], SourceContext: Context));
         }
 
-        public Task<PlaybackChapterContent?> GetChapterAsync(
+        public Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken) =>
+            ReadChapterAsync(bookId, chapterIndex, cancellationToken, SpeechTextSuffix);
+
+        private Task<PlaybackChapterContent?> ReadChapterAsync(
             string bookId,
             int chapterIndex,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            string suffix)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ReadChapterIndices.Add(chapterIndex);
             IReadOnlyList<SpeechSegment> segments = chapterIndex switch
             {
                 3 =>
                 [
-                    new SpeechSegment(0, 0, 3, "三-一", $"三-一{SpeechTextSuffix}"),
+                    new SpeechSegment(0, 0, 3, "三-一", $"三-一{suffix}"),
                     new SpeechSegment(1, 4, 3, "章节分隔符", "………"),
-                    new SpeechSegment(2, 8, 3, "三-二", $"三-二{SpeechTextSuffix}")
+                    new SpeechSegment(2, 8, 3, "三-二", $"三-二{suffix}")
                 ],
-                8 => [new SpeechSegment(0, 0, 3, "八-一", $"八-一{SpeechTextSuffix}")],
+                8 => [new SpeechSegment(0, 0, 3, "八-一", $"八-一{suffix}")],
                 _ => []
             };
             return Task.FromResult<PlaybackChapterContent?>(
@@ -547,6 +586,22 @@ public sealed class ActiveCacheCoordinatorTests
 
         public override Task<ResolvedSpeechProvider?> SelectProviderAsync(ProviderId ruleId, CancellationToken cancellationToken) =>
             GetSelectedProviderAsync(cancellationToken);
+    }
+
+    private sealed class ObservedAudioProvider(IAudioGenerationProvider inner) : IAudioGenerationProvider
+    {
+        public TaskCompletionSource ActiveEntered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<AudioGenerationResult> GetAudioAsync(AudioGenerationRequest request, AudioGenerationPriority priority,
+            Action<AudioGenerationProgress>? progressCallback, CancellationToken cancellationToken)
+        {
+            var execution = inner.GetAudioAsync(request, priority, progressCallback, cancellationToken);
+            if (priority == AudioGenerationPriority.ActiveCache) ActiveEntered.TrySetResult();
+            return execution;
+        }
+
+        public Task InvalidateAsync(AudioGenerationRequest request, CancellationToken cancellationToken) =>
+            inner.InvalidateAsync(request, cancellationToken);
     }
 
     private sealed class ControlledAudioProvider : IAudioGenerationProvider

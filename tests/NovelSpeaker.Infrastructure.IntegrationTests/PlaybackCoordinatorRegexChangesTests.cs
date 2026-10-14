@@ -122,6 +122,9 @@ public sealed partial class PlaybackCoordinatorTests
 
     private sealed class RegexPlaybackContent(FakeBookPlaybackContentService source, IRegexReplacementPipeline pipeline) : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         public FakeBookPlaybackContentService Source => source;
         private TaskCompletionSource? _chapterGate;
         public TaskCompletionSource ChapterRequested { get; private set; } = new(TaskCreationOptions.RunContinuationsAsynchronously);

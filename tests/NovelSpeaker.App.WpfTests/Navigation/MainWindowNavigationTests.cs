@@ -161,9 +161,9 @@ public sealed class MainWindowNavigationTests
 
                 var entry = Assert.IsType<NavigationViewItem>(window.FindName("ActiveCacheNavigationItem"));
                 Assert.Equal(Visibility.Visible, entry.Visibility);
-                Assert.Equal("缓存中 · 1/3 章 · 40%", entry.Content);
+                Assert.Equal("缓存中 · 1/3 章 · 47%", entry.Content);
                 Assert.Equal("查看主动缓存进度", entry.ToolTip);
-                Assert.Equal("缓存中 · 1/3 章 · 40%", AutomationProperties.GetName(entry));
+                Assert.Equal("缓存中 · 1/3 章 · 47%", AutomationProperties.GetName(entry));
 
                 InvokeClick(entry);
                 window.UpdateLayout();
@@ -173,6 +173,8 @@ public sealed class MainWindowNavigationTests
                 var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
                     window.FindName("CancelActiveCacheButton"));
                 Assert.True(flyout.IsOpen);
+                Assert.Contains(VisualTreeTestHelper.FindDescendants<System.Windows.Controls.TextBlock>((DependencyObject)flyout.Content),
+                    text => text.Text == "总进度 1 / 3 章");
                 Assert.Equal(3, chapterList.Items.Count);
                 Assert.Equal(
                     ["已完成", "2 / 5", "等待中"],
@@ -183,7 +185,7 @@ public sealed class MainWindowNavigationTests
                 await DrainDispatcherAsync(window.Dispatcher);
 
                 Assert.Equal(Visibility.Visible, entry.Visibility);
-                Assert.Equal("缓存中 · 1/3 章 · 40%", entry.Content);
+                Assert.Equal("缓存中 · 1/3 章 · 47%", entry.Content);
             }
             finally
             {

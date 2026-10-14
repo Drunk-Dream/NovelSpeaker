@@ -59,6 +59,9 @@ public sealed class PlayerSourceContextTests
 
     private sealed class Content : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         public PlaybackBookContent Book { get; set; } = Create("old", "旧章", "旧正文");
         public static PlaybackBookContent Create(string version, string title, string text) =>
             new("book", "书", [PlaybackChapterContent.FromLoaded(0, title, [new SpeechSegment(0, 0, text.Length, text, text)], version)],
@@ -77,6 +80,9 @@ public sealed class PlayerSourceContextTests
 
     private sealed class DeferredContent : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         public PlaybackBookContent Book { get; } = Content.Create("old", "旧章", "旧正文");
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource<PlaybackBookContent?> Result { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
