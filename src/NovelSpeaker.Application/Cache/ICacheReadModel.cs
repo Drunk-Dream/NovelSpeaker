@@ -20,4 +20,9 @@ public interface ICacheReadModel
 
     Task<CacheReadResult<IReadOnlyList<CacheChapterView>>> GetChaptersAsync(
         string bookId, IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken);
+
+    /// <summary>Reads a visible window whose background enhancement lasts until visibility is cancelled.</summary>
+    Task<CacheReadResult<IReadOnlyList<CacheChapterView>>> GetChaptersAsync(
+        string bookId, IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken,
+        CancellationToken visibilityToken);
 }

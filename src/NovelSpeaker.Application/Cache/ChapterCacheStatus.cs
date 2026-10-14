@@ -9,6 +9,8 @@ public sealed record ChapterCacheStatus(
     int CachedSegmentCount,
     int? TotalSegmentCount)
 {
+    internal TextProfileFingerprint? TargetTextProfile { get; init; }
+
     /// <summary>
     /// Distinguishes an unavailable calculation from a valid zero-percent result.
     /// </summary>

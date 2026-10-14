@@ -11,6 +11,9 @@ public interface IChapterSpeechPlanStore
         ChapterSpeechPlan plan,
         CancellationToken cancellationToken);
 
+    /// <summary>Saves only while a physical audio index entry still exists, atomically with that check.</summary>
+    Task<bool> SaveIfCachedAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken);
+
     /// <summary>
     /// Deletes plans whose chapters no longer have any persisted audio-cache index entry.
     /// </summary>

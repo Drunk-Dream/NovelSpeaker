@@ -42,6 +42,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private readonly LatestOperationSlot _bookLoad = new();
     private readonly LatestOperationSlot _selectedBook = new();
     private readonly LatestOperationSlot _chapterDecoration = new();
+    private readonly LatestOperationSlot _chapterVisibility = new();
     private PageActivationScope? _activation;
     private bool _chapterCatalogProjectionPending;
     private string? _selectedBookId;
@@ -172,12 +173,32 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         }
 
         var bookId = _selectedBookId;
+        if (!_chapterDecorationWindow.SetEquals(chapterIndices) || _chapterVisibility.Current is not { IsCurrent: true })
+            _chapterVisibility.Begin(cancellationToken, _activation);
         _chapterDecorationWindow.Clear();
         _chapterDecorationWindow.UnionWith(chapterIndices);
         ClearStaleChapterDecorations(chapterIndices);
+        if (forceRefresh)
+        {
+            foreach (var index in chapterIndices)
+            {
+                if (_chapterRefreshOverrides.TryGet(index, out var previous))
+                {
+                    _chapterRefreshOverrides.Set(index, previous with
+                    {
+                        CachedSegmentCount = 0,
+                        CurrentConfigurationSegmentCount = null,
+                        CurrentConfigurationStatus = ChapterCacheStatusKind.ConfigurationUnavailable,
+                        IsExportable = false
+                    });
+                    RefreshChapterRow(index);
+                }
+            }
+        }
+        var visibility = _chapterVisibility.Current!;
         var operation = _chapterDecoration.Begin(cancellationToken, _activation);
         _activation?.Register(operation.RunAsync(
-            current => RefreshChapterDecorationsAsync(bookId, chapterIndices, current),
+            current => RefreshChapterDecorationsAsync(bookId, chapterIndices, current, visibility),
             exception => ReportChapterDecorationRefreshFailure(exception, cancellationToken)));
     }
 
@@ -634,7 +655,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private async Task RefreshChapterDecorationsAsync(
         string bookId,
         IReadOnlyCollection<int> chapterIndices,
-        LatestOperationSlot.Operation operation)
+        LatestOperationSlot.Operation operation,
+        LatestOperationSlot.Operation visibility)
     {
         var cancellationToken = operation.CancellationToken;
         if (chapterIndices.Count == 0)
@@ -646,7 +668,8 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
         try
         {
             var selectedBook = _selectedBook.Current;
-            var result = await _readModel.GetChaptersAsync(bookId, chapterIndices, cancellationToken);
+            var result = await _readModel.GetChaptersAsync(bookId, chapterIndices, cancellationToken,
+                visibility.CancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             if (!IsCurrentSelectedBook(bookId, selectedBook, cancellationToken) || !operation.IsCurrent)
             {
@@ -789,6 +812,7 @@ public sealed partial class CacheManagementViewModel : ObservableObject, ITransi
     private void InvalidateChapterDecorationRequests()
     {
         _chapterDecoration.Cancel();
+        _chapterVisibility.Cancel();
         _chapterDecorationWindow.Clear();
     }
 

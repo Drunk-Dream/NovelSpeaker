@@ -347,14 +347,14 @@ public sealed partial class PlayerViewModelTests
         Assert.Equal("100%", viewModel.Chapters[9_999].CachePercentageText);
         viewModel.RequestCacheDecorationWindow(100, 8);
         cacheDependencies.Publish(new CacheReadModelScope.Book("book-1"));
-        Assert.All(Enumerable.Range(100, 8), index => Assert.Contains(index, cacheDependencies.LastRequestedChapterIndices));
+        Assert.Equal(Enumerable.Range(100, 8), cacheDependencies.VisibleChapterQueries[^1]);
         Assert.Contains(9_999, cacheDependencies.LastRequestedChapterIndices);
         Assert.True(cacheDependencies.LastRequestedChapterIndices.Count <= 9);
         var queriesBeforeConfigurationChange = cacheDependencies.StatusCallCount;
         playback.Publish(playback.CurrentSnapshot with { SpeakSpeed = 11, ProviderId = TestSpeechProviders.Id(2) });
         Assert.Equal(queriesBeforeConfigurationChange, cacheDependencies.StatusCallCount);
         cacheDependencies.Publish(new CacheReadModelScope.Global());
-        Assert.All(Enumerable.Range(100, 8), index => Assert.Contains(index, cacheDependencies.LastRequestedChapterIndices));
+        Assert.Equal(Enumerable.Range(100, 8), cacheDependencies.VisibleChapterQueries[^1]);
         Assert.Contains(9_999, cacheDependencies.LastRequestedChapterIndices);
         Assert.True(cacheDependencies.LastRequestedChapterIndices.Count <= 9);
     }

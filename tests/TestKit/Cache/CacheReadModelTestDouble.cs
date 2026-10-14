@@ -17,6 +17,8 @@ internal sealed class CacheReadModelTestDouble : ICacheReadModel
     public IReadOnlyList<ChapterCacheStatus> Statuses { get; set; } = [];
     public Func<string, IReadOnlyCollection<int>, CancellationToken, Task<IReadOnlyList<ChapterCacheStatus>>>? CoverageHandler { get; set; }
     public int StatusCallCount => ChapterQueries.Count;
+    public CancellationToken LastVisibilityToken { get; private set; }
+    public List<int[]> VisibleChapterQueries { get; } = [];
     public IReadOnlyList<int> LastRequestedChapterIndices => ChapterQueries.LastOrDefault().Indices?.ToArray() ?? [];
 
     public void Publish(params CacheReadModelScope[] scopes)
@@ -59,5 +61,13 @@ internal sealed class CacheReadModelTestDouble : ICacheReadModel
         return new CacheReadResult<IReadOnlyList<CacheChapterView>>(Revision, chapterIndices.Select(index =>
                 ChaptersByBook.GetValueOrDefault(bookId, []).FirstOrDefault(view => view.ChapterIndex == index) ??
                 new CacheChapterView(index, null, statuses.FirstOrDefault(status => status.ChapterIndex == index) ?? new(index, 0, null))).ToArray());
+    }
+
+    public Task<CacheReadResult<IReadOnlyList<CacheChapterView>>> GetChaptersAsync(string bookId,
+        IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken, CancellationToken visibilityToken)
+    {
+        LastVisibilityToken = visibilityToken;
+        VisibleChapterQueries.Add(chapterIndices.ToArray());
+        return GetChaptersAsync(bookId, chapterIndices, cancellationToken);
     }
 }

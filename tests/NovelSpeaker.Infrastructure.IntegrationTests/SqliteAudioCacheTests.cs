@@ -29,6 +29,7 @@ public sealed class SqliteAudioCacheTests
         var source = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path);
         var request = new AudioCacheWriteRequest(key, "book-1", 0, 7, source, "audio/mpeg")
         { SpeechPlan = plan };
+        Assert.False(await new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory).SaveIfCachedAsync(plan, CancellationToken.None));
 
         // An index failure must roll back the plan as well as remove the new file.
         await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
@@ -998,6 +999,9 @@ public sealed class SqliteAudioCacheTests
         public Task SaveAsync(
             ChapterSpeechPlan plan,
             CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<bool> SaveIfCachedAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken)

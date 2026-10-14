@@ -143,6 +143,20 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<bool> SaveIfCachedAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT 1 FROM AudioCacheEntries WHERE ChapterId = $chapterId LIMIT 1;";
+        command.Parameters.AddWithValue("$chapterId", plan.ChapterId);
+        if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null) return false;
+        await SaveAsync(connection, transaction, plan, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
     private static async Task UpdateHeaderAsync(
         SqliteConnection connection,
         SqliteTransaction transaction,

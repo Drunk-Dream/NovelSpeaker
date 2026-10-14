@@ -4,7 +4,7 @@ namespace NovelSpeaker.Application.Cache;
 
 /// <summary>
 /// Composes Cache facts within a committed revision. No process-wide chapter mirror is retained.
-/// Repair tasks belong to the process coordinator; page cancellation only cancels the query.
+/// The process worker consumes only explicitly observed, cancellable visible windows.
 /// </summary>
 internal sealed class CacheReadModel : ICacheReadModel, IDisposable
 {
@@ -51,8 +51,18 @@ internal sealed class CacheReadModel : ICacheReadModel, IDisposable
             return new CachedBookCatalog(summary, chapters);
         }, cancellationToken);
 
-    public async Task<CacheReadResult<IReadOnlyList<CacheChapterView>>> GetChaptersAsync(
-        string bookId, IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken)
+    public Task<CacheReadResult<IReadOnlyList<CacheChapterView>>> GetChaptersAsync(
+        string bookId, IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken) =>
+        GetChaptersCoreAsync(bookId, chapterIndices, cancellationToken, null);
+
+    public Task<CacheReadResult<IReadOnlyList<CacheChapterView>>> GetChaptersAsync(
+        string bookId, IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken,
+        CancellationToken visibilityToken) =>
+        GetChaptersCoreAsync(bookId, chapterIndices, cancellationToken, visibilityToken);
+
+    private async Task<CacheReadResult<IReadOnlyList<CacheChapterView>>> GetChaptersCoreAsync(
+        string bookId, IReadOnlyCollection<int> chapterIndices, CancellationToken cancellationToken,
+        CancellationToken? visibilityToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         ArgumentNullException.ThrowIfNull(chapterIndices);
@@ -77,14 +87,14 @@ internal sealed class CacheReadModel : ICacheReadModel, IDisposable
             .Where(status => status.Kind is ChapterCacheStatusKind.PlanStale &&
                 cachedChapterIndices.Contains(status.ChapterIndex))
             .Select(static status => status.ChapterIndex).ToHashSet();
-        foreach (var chapter in result.Value.Metadata)
+        if (visibilityToken is { } visible)
         {
-            if (repairIndices.Contains(chapter.ChapterIndex) && !string.IsNullOrWhiteSpace(chapter.ChapterId))
-            {
-                Observe(_repair.RequestAsync(
-                    new SpeechPlanRepairRequest(bookId, chapter.ChapterIndex, chapter.ChapterId),
-                    CancellationToken.None));
-            }
+            cancellationToken.ThrowIfCancellationRequested();
+            var profiles = result.Value.Coverage.ToDictionary(status => status.ChapterIndex);
+            _repair.UpdateDemand(result.Value.Metadata
+                .Where(chapter => repairIndices.Contains(chapter.ChapterIndex) && !string.IsNullOrWhiteSpace(chapter.ChapterId))
+                .Select(chapter => new SpeechPlanRepairRequest(bookId, chapter.ChapterIndex, chapter.ChapterId!)
+                { TargetTextProfile = profiles[chapter.ChapterIndex].TargetTextProfile }).ToArray(), visible);
         }
 
         var physicalByIndex = result.Value.Physical.ToDictionary(static chapter => chapter.ChapterIndex);
@@ -137,12 +147,6 @@ internal sealed class CacheReadModel : ICacheReadModel, IDisposable
             }
         }
     }
-
-    private static void Observe(Task task) => _ = task.ContinueWith(
-        static completed => _ = completed.Exception,
-        CancellationToken.None,
-        TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-        TaskScheduler.Default);
 
     public void Dispose() => _invalidation.BatchPublished -= OnInvalidated;
 }

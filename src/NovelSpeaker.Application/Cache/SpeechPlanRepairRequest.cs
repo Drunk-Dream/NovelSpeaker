@@ -18,4 +18,6 @@ internal sealed record SpeechPlanRepairRequest
     public int ChapterIndex { get; }
 
     public string ChapterId { get; }
+
+    public TextProfileFingerprint? TargetTextProfile { get; init; }
 }

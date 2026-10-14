@@ -96,10 +96,12 @@ public sealed class BookDetailsViewModelTests
         Assert.Equal(Enumerable.Range(100, 8), cache.ReadModel.LastRequestedChapterIndices);
         Assert.Equal("100%", viewModel.Chapters[100].CachePercentageText);
         Assert.Empty(viewModel.Chapters[0].CachePercentageText);
-        cache.ReadModel.Statuses = [new(100, 1, 4)];
+        cache.ReadModel.Statuses = [new(100, 1, 4), new(0, 3, 4)];
         cache.ReadModel.Publish(new CacheReadModelScope.Book("book-1"));
         Assert.Equal("25%", viewModel.Chapters[100].CachePercentageText);
-        Assert.All(Enumerable.Range(100, 8), index => Assert.Contains(index, cache.ReadModel.LastRequestedChapterIndices));
+        Assert.Equal("75%", viewModel.CurrentChapterItem!.CachePercentageText);
+        Assert.Equal(Enumerable.Range(100, 8), cache.ReadModel.VisibleChapterQueries[^1]);
+        Assert.Equal([0], cache.ReadModel.LastRequestedChapterIndices);
         Assert.True(cache.ReadModel.LastRequestedChapterIndices.Count <= 9);
         viewModel.HandleNavigatedFrom();
         Assert.Equal(0, cache.ReadModel.SubscriberCount);

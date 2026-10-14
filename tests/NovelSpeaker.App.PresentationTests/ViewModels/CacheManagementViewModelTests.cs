@@ -14,6 +14,18 @@ namespace NovelSpeaker.App.PresentationTests.ViewModels;
 
 public sealed class CacheManagementViewModelTests
 {
+    [Theory]
+    [InlineData(ChapterCacheStatusKind.PlanMissing)]
+    [InlineData(ChapterCacheStatusKind.PlanStale)]
+    [InlineData(ChapterCacheStatusKind.PlanUnavailable)]
+    [InlineData(ChapterCacheStatusKind.ConfigurationUnavailable)]
+    [InlineData(ChapterCacheStatusKind.NoPlayableContent)]
+    public void Untrusted_coverage_is_blank_even_if_old_counts_exist(ChapterCacheStatusKind kind)
+    {
+        Assert.Empty(NovelSpeaker.App.Features.Cache.CacheManagementCompletenessFormatter.Format(
+            new ChapterCacheStatus(0, 1, 1) { Kind = kind }));
+    }
+
     [Fact]
     public async Task Returning_to_page_rejects_old_selected_book_failure_and_drains_all_page_work()
     {
@@ -175,7 +187,7 @@ public sealed class CacheManagementViewModelTests
     }
 
     [Fact]
-    public async Task Chapter_changes_update_only_affected_rows_and_keep_zero_percent_and_selection()
+    public async Task Chapter_changes_update_only_affected_rows_hide_zero_percent_and_keep_selection()
     {
         var fixture = CreateCache(chapterCount: 10_000);
         var viewModel = CreateViewModel(fixture);
@@ -189,12 +201,12 @@ public sealed class CacheManagementViewModelTests
         var current = fixture.ReadModel.ChaptersByBook["book-1"].ToArray();
         current[5000] = current[5000] with { Coverage = new(5000, 0, 4) };
         fixture.ReadModel.ChaptersByBook["book-1"] = current;
-        await AwaitStateAsync(viewModel, () => viewModel.Chapters[5000].CompletenessText.Contains("0/4"),
+        await AwaitStateAsync(viewModel, () => viewModel.Chapters[5000].CompletenessText.Length == 0,
             () => fixture.ReadModel.Publish(new CacheReadModelScope.Chapters("book-1", [5000])));
 
         Assert.Same(unchanged, viewModel.Chapters[5001]);
         Assert.Equal([5001], viewModel.SelectedChapterIndices);
-        Assert.Contains("0%", viewModel.Chapters[5000].CompletenessText);
+        Assert.Empty(viewModel.Chapters[5000].CompletenessText);
         Assert.DoesNotContain(System.Collections.Specialized.NotifyCollectionChangedAction.Reset, actions);
         Assert.Equal([5000], fixture.ReadModel.ChapterQueries[^1].Indices);
         Assert.All(fixture.ReadModel.ChapterQueries, query => Assert.InRange(query.Indices.Count, 1, 32));
@@ -334,7 +346,7 @@ public sealed class CacheManagementViewModelTests
         Assert.True(viewModel.HasSelection);
         Assert.Equal("第一本", viewModel.SelectedBookTitle);
         Assert.Equal(["第 1 章", "第 2 章"], viewModel.Chapters.Select(chapter => chapter.Title));
-        Assert.Equal("完整度：1/2 段 · 50%", viewModel.Chapters[0].CompletenessText);
+        Assert.Equal("完整度：50%", viewModel.Chapters[0].CompletenessText);
     }
 
     [Fact]

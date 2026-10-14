@@ -518,6 +518,9 @@ public sealed class ExportChaptersServiceTests
         public Task SaveAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
+        public Task<bool> SaveIfCachedAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
         public Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken) =>
             throw new NotSupportedException();
     }

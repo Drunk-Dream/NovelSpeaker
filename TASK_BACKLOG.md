@@ -33,8 +33,8 @@
 
 ### Phase C — Stale 异步修复和真实百分比
 
-- [ ] **T003（P0 / Background & UX）— 简化 Stale repair 与完整度展示**  
-  规格：[`tasks/T003_STALE_REPAIR_AND_UI.md`](tasks/T003_STALE_REPAIR_AND_UI.md)。单 worker、轻量去重、最新可视需求、过期/离开取消；修复成功按章更新；所有无有效缓存状态保持空白。
+- [x] **T003（P0 / Background & UX）— 简化 Stale repair 与完整度展示**
+  完成成果：单 worker 只持有可撤回窗口身份及当前尝试记录，移除逐章 Task.Run、双并发和无界重试；窗口/离页取消、配置/来源复核及事务内有缓存才保存，成功仅按章 invalidation，合并的窗口外通知仍只读。三处 UI 隐藏零值/过期/不可用标注，CacheManagement 保留物理条目。新增核心窗口撤回、失败去重、迟到结果和退出预算回归，更新零值展示测试；Application 74 项、Infrastructure 104 项、Presentation 123 项（含架构）、WPF DI/退出 7 项、Release build、format/diff check 通过。完整门禁留待 T005，无新增 schema 或长期文档冲突。
 
 ### Phase D — 资源收口
 

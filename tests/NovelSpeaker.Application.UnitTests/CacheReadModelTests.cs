@@ -50,8 +50,9 @@ public sealed class CacheReadModelTests
 
         for (var start = 0; start < 10_000; start += 80)
         {
+            using var window = new CancellationTokenSource();
             var indices = Enumerable.Range(start, Math.Min(80, 10_000 - start)).ToArray();
-            var result = await model.GetChaptersAsync("book", indices, CancellationToken.None);
+            var result = await model.GetChaptersAsync("book", indices, CancellationToken.None, window.Token);
             Assert.All(result.Value, chapter => Assert.Equal(ChapterCacheStatusKind.PlanMissing, chapter.Coverage.Kind));
         }
 
@@ -78,7 +79,8 @@ public sealed class CacheReadModelTests
         var repair = new PendingRepair();
         using var model = new CacheReadModel(catalog, coverage, new Metadata(), repair, invalidation);
 
-        var result = await model.GetChaptersAsync("book", [0, 1, 2, 3, 4, 5, 6, 7], CancellationToken.None);
+        using var visible = new CancellationTokenSource();
+        var result = await model.GetChaptersAsync("book", [0, 1, 2, 3, 4, 5, 6, 7], CancellationToken.None, visible.Token);
 
         Assert.Equal(8, result.Value.Count);
         Assert.All(result.Value.Take(6), chapter => Assert.Equal(100, chapter.Physical!.TotalSizeBytes));
@@ -92,8 +94,6 @@ public sealed class CacheReadModelTests
         Assert.Equal(ChapterCacheStatusKind.PlanStale, result.Value[7].Coverage.Kind);
         Assert.Null(result.Value[7].Physical);
         Assert.Equal([3], repair.Requests.Select(request => request.ChapterIndex));
-        Assert.False(repair.Completion.Task.IsCompleted);
-        repair.Completion.SetResult();
     }
 
     [Fact]
@@ -160,12 +160,9 @@ public sealed class CacheReadModelTests
     private sealed class PendingRepair : ISpeechPlanRepairCoordinator
     {
         public List<SpeechPlanRepairRequest> Requests { get; } = [];
-        public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public Task RequestAsync(SpeechPlanRepairRequest request, CancellationToken cancellationToken)
+        public void UpdateDemand(IReadOnlyList<SpeechPlanRepairRequest> requests, CancellationToken visibilityToken)
         {
-            Requests.Add(request);
-            return Completion.Task;
+            Requests.AddRange(requests);
         }
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
