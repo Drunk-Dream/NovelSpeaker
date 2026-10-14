@@ -1,6 +1,6 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 当前阶段：Stabilization & Refinement — E1-B 实施与 E1-C 收口
+## 1. 当前阶段：Stabilization & Refinement — E1 已收口，待 U1 设计
 
 - **决策基线：** 2026-10-11，`dev` @ `2c46304b4eece3f346403d435155f78c48aa9f05`。远端 Git 仍为此提交；E1-A T001/T002 完成信息来自用户交付的仓库外临时报告。Codex 执行时以**本地实际 HEAD、工作区改动**为准，不能将本地未提交的 E1-A 收口覆盖掉。
 - **已完成研究：** E1-A T001 全项目广覆盖静态审计；T002 对高风险和复杂度候选进行隔离动态验证。两轮临时报告由用户手动管理，**不提交 Git/不迁入项目 docs**。20 个领域的初审尚有部分覆盖缺口，E1-A 收口不等于项目通过逐行审计。
@@ -42,8 +42,8 @@
 
 ### Phase C — E1-C 工程收口
 
-- [ ] **T007（P1 / Closure）— E1-B 回归、做减法检查与完整门禁**
-  规格：[`tasks/T007_E1_CLOSURE.md`](tasks/T007_E1_CLOSURE.md)。合并验证四项修复与现有 Book、Playback、Speech、Cache、数据边界；清除一次性产物；完整质量门禁；仅根据确证情况修正本轮残留。
+- [x] **T007（P1 / Closure）— E1-B 回归、做减法检查与完整门禁**
+  成果：2026-10-14 合并验证 HTTP 禁止同源/跨源重定向、Active Cache/Export observer 异常隔离及唯一完成责任、Active Cache 退出取消/共享有界排空与迟到音频拒绝、CacheManagement 书目及章节虚拟化，并回归 Book/Source/CurrentCatalog、Playback target-first、Speech、Cache、正式导出、诊断退出及数据安全边界。静态追踪确认生产 HTTP handler 唯一且无隐式/手动 redirect、allowlist 或绕过开关；异步 UI 投影沿用现有 owner/异常观察，页面离开不取消已接受批次，章节 staged/delta 保护保留。减法检查未发现本轮需继续删除的冗余保护、包装、重复 helper 或兼容层；保留全部核心测试，本次未新增/删除/合并永久测试，删除 T007 临时规格，本轮未遗留临时测试、脚本、截图或 trace，无 migration/持久格式变更，未操作用户真实数据。Windows/.NET 完整锁定还原、format、Release build（0 警告/错误）、全量 test 1,002 项（Domain 34、Application 253、Infrastructure 350、Presentation 312、隔离 Desktop WPF 53；0 失败/跳过）及 diff/LF 检查通过，含真实 loopback 6 个 redirect 场景、合作/非合作退出与 10k 书目+10k 章节回归。1k/10k 对照及主题运行证据沿用 T006，本次未重做临时探针、独立 EXE 的 OS 退出事件或可选人工 UI 复核；无环境阻断或长期文档冲突。非合作外部 Provider 仍只能尽力收尾，超时不宣称已停止；D001/D007/D008 等未授权候选、Playback gate 与架构检查器重写继续暂缓，不自动开启 U1。
 
 ## 4. 本轮明确不实施
 
