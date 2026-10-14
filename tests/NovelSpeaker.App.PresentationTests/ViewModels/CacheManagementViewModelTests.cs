@@ -190,15 +190,20 @@ public sealed class CacheManagementViewModelTests
     public async Task Chapter_changes_update_only_affected_rows_hide_zero_percent_and_keep_selection()
     {
         var fixture = CreateCache(chapterCount: 10_000);
+        var current = fixture.ReadModel.ChaptersByBook["book-1"].ToArray();
+        current[5000] = current[5000] with { Coverage = new(5000, 2, 4) };
+        fixture.ReadModel.ChaptersByBook["book-1"] = current;
         var viewModel = CreateViewModel(fixture);
         await viewModel.LoadAsync(CancellationToken.None);
         await viewModel.SelectBookCommand.ExecuteAsync(viewModel.Books[0]);
-        viewModel.RequestChapterDecorationWindow(5000, 32);
+        // Establish a visible nonzero value before invalidating it. An already blank
+        // row cannot signal that the asynchronous zero-coverage refresh has finished.
+        await AwaitStateAsync(viewModel, () => viewModel.Chapters[5000].CompletenessText == "完整度：50%",
+            () => viewModel.RequestChapterDecorationWindow(5000, 32));
         viewModel.HandleChapterClick(viewModel.Chapters[5001], DesktopSelectionModifiers.None);
         var unchanged = viewModel.Chapters[5001];
         var actions = new List<System.Collections.Specialized.NotifyCollectionChangedAction>();
         viewModel.Chapters.CollectionChanged += (_, args) => actions.Add(args.Action);
-        var current = fixture.ReadModel.ChaptersByBook["book-1"].ToArray();
         current[5000] = current[5000] with { Coverage = new(5000, 0, 4) };
         fixture.ReadModel.ChaptersByBook["book-1"] = current;
         await AwaitStateAsync(viewModel, () => viewModel.Chapters[5000].CompletenessText.Length == 0,
