@@ -2,111 +2,130 @@
 
 ## 1. 定位
 
-本文件中的 `Cache` 默认指 **Speech/Audio Cache** 以及由其派生的 Speech Plan/Coverage/后台工作。它不是 Book Source Content 的所有者。
-
-Source Content 边界：
+本文件中的 `Cache` 默认指 **Speech/Audio Cache** 及其派生的 Speech Plan、Coverage 和相关后台工作，不是 Book Source Content 的所有者。
 
 - Local Source 正文是持久业务数据，不属于 Cache。
-- Future Online Source 正文使用独立文本缓存体系，不进入 Audio Cache 模块。
-- Book / Source / Content 精确合同见 `specs/BOOK_DATA_MODEL.md`。
+- Future Online Source 正文使用独立文本缓存，不进入 Audio Cache。
+- Book / Source / Content 的权威合同见 `specs/BOOK_DATA_MODEL.md`。
 
-## 2. Audio Cache 职责
+## 2. 职责与数据所有权
 
-长期至少区分：
+- **CacheStore**：物理音频文件、索引及其有效性事实的唯一 owner。
+- **CacheCatalog / read model**：组合物理事实和按需 Coverage，返回只读、场景化视图；读取本身不得生成正文、Plan 或写入缓存数据库。
+- **Cache invalidation**：描述提交完成后受影响的作用域；不维护第二份持久化完整度真值。
+- **Coverage**：用当前 Text Profile、Synthesis Profile、有效 Speech Plan 与缓存索引精确匹配。
+- **Speech Plan 计算**：输入章节正文及冻结的文本处理配置，得到可播放分段及其身份；计算不隐含数据库持久化。
+- **Speech Plan 持久化**：在存在音频缓存或将建立音频缓存时保存必要 Plan；不为仅被浏览、仅被读取的章节建表记录。
+- **Stale repair**：仅为有实际音频缓存的过期 Plan 提供低优先级、按需后台修复。
+- **Active Cache / Export**：各自拥有已提交批次的运行生命周期。
 
-- **CacheStore**：物理 audio cache/index/file 的唯一事实；
-- **CacheCatalog/read model**：提供场景化 immutable 缓存视图；
-- **Cache invalidation**：表达受影响 scope，不把派生统计当第二真值；
-- **Coverage**：组合当前配置、Speech Plan 与物理缓存；
-- **Speech Plan repair**：缺失/过期 plan 的后台补建 owner；
-- **Active Cache**：用户主动缓存 batch owner；
-- **Export**：章节 MP3 导出 batch owner。
-
-不建立大一统 `CacheManager`。
+不建立通用 `CacheManager`、任务调度平台或额外的跨页面 Plan 内存缓存。
 
 ## 3. Physical Cache 与 Coverage
 
-物理统计和逻辑完整度分离。普通目录只显示有有效计划且能形成正常百分比的缓存完整度；0%/异常状态不显示。CacheManagement 展示所有有缓存章节，即使当前配置下为 0%。
+物理统计与当前配置下的逻辑完整度分离。`AudioCacheEntries` 的物理存在不代表在当前配置下有效。
 
-普通 read query 不同步等待 repair；repair 由 Cache-owned orchestration 登记并异步处理。
+- **普通目录**（Player、BookDetails 等）：先加载和展示目录；在可见窗口范围内异步补充稀疏 Coverage。仅当 Plan 有效、当前配置下存在有效缓存且能够精确计算时显示百分比；其它情况（包括 0%、过期、失败、无缓存）均留空，不显示“计算中”、过期百分比或替代文案。
+- **CacheManagement**：基于物理缓存事实保留所有实际有缓存的章节，不因切换 Provider 后当前配置的有效比例为 0% 而隐藏这些条目。完整度标注遵循同样的真实百分比／空白规则。
+- **查询路径**：保持轻量、批量、只读、可取消，不加载章节正文，不进行分段/Regex 处理，不创建 Speech Plan，不因滚动导致 `ChapterSpeechPlanSegments` 增长。大目录使用虚拟化及 viewport 级查询，不为不可见的未缓存章节主动计算。
+- **缓存匹配**：有效 Plan 的当前分段身份、最终 SpeechText 哈希、当前 Synthesis Profile 和 Ready 音频索引必须一致；过期 Plan 不能提供旧百分比。缓存文件的损坏/缺失由既有维护/失效机制处理，不为了每次滚动做文件扫描或音频解码。
+- UI 查询无需等待异步修复。修复成功只发布相应章节的 Coverage 变化，按当前页面激活状态重新读取并显示真实百分比。
 
 ## 4. Cache invalidation
 
-- mutation 只有在物理/index 提交完成后才发布 invalidation。
-- 已知具体章节时不无条件退化为整本书失效。
-- 高频 mutation 可以在 Cache 域内有界合并。
-- Settings/Speech/Regex 等源模块只发布自身 semantic change，由 Cache 内部解释影响。
-- CurrentCatalog replacement / Source switch 是 Books/Playback 上下文变化；Cache 不反向建立跨 Source Chapter Identity。
+- 物理/index mutation 只有提交成功后才发布 invalidation。
+- 已知具体章节时，不无条件退化为整本书或全目录刷新。
+- 高频 mutation 可在 Cache 域内有界合并；read model 保持单一真实数据来源。
+- Settings/Speech/Regex 等源模块只发布语义变化，Cache 解释对 Coverage 的影响。
+- Provider/语速等合成配置变化沿用现有 `SynthesisProfileFingerprint` 匹配，**不因此重建 Speech Plan**；这是已有行为，保持不变。
+- Text Profile 变化可使已有 Plan 过期；重新匹配旧音频前必须先获得当前文本配置下的 Plan。
+- CurrentCatalog replacement / Source switch 是 Books/Playback 上下文变化，Cache 不建立跨 Source Chapter Identity。
 
-## 5. Speech Plan
+## 5. Speech Plan 计算、保存和修复
 
-- 播放、prefetch、Active Cache、Export 在消费前确保当前 plan。
-- Coverage 发现缺失/过期 plan 时返回当前状态，并触发后台 repair，不同步等待。
-- 同章 in-flight 合并，并发受限。
-- 删除某章最后一条音频缓存时可以同步删除不再有意义的对应 plan/segment。
-- Catalog Entry 的 ChapterId 只是当前目录内的技术引用，不定义跨 Source/跨 Catalog 的业务章节身份。
+### 5.1 三项通用原则
+
+1. **读取不创建**：目录、Coverage 及物理缓存查询不得计算或持久化 Plan。
+2. **使用时计算**：Playback、Prefetch、Active Cache 等实际需要正文和朗读分段的用例按需计算 Plan，计算本身不写数据库。
+3. **按需持久化**：只有章节存在音频缓存或即将成功建立音频缓存，才需要持久化可用于后续精确 Coverage / Export 的 Plan；没有音频缓存时不长期保存 Plan。
+
+Plan 是可重建的派生数据，而不是必须随着每次正文加载写入的业务记录。临时正文、分段及计算 Plan 随单章操作结束释放，不建立不受约束的进程级大对象缓存。
+
+### 5.2 Plan 状态和修复边界
+
+- `PlanMissing`：普通查询直接跳过，不登记补建；正常设计中不应存在有缓存音频却没有对应 Plan 的持久状态。已有异常数据通过定向维护修复或安全失效，不在滚动路径中补偿。
+- `PlanStale`：仅在存在实际音频缓存、且当前需要展示其 Coverage 时申请后台修复；修复前不显示旧百分比。
+- 有效 Plan：直接批量匹配当前配置下的音频，不重新读取正文、分段或持久化。
+- 没有音频缓存的过期/孤立 Plan：不修复，随缓存生命周期清理。
+- 配置或来源不可用、不可朗读等现有状态沿用错误/缺省处理，不新增 UI 状态机或复杂持久化状态枚举。
+
+仅 Text Profile 或正文身份等确实影响 Plan 的变化才需要重新计算。Provider、语速等 Synthesis Profile 变化只使旧音频可能不匹配，不构成 Plan 重建理由；切回旧 Provider 时，其尚存有效缓存可再次匹配。
+
+### 5.3 简单、按需的 Stale repair
+
+保持 Cache 模块内部的轻量异步 owner，不建立通用调度器：
+
+- **单 worker 顺序处理**，避免目录后台计算与播放、主动缓存争用明显资源。
+- **只保存最新需要显示的窗口中的待处理项**，按章节与目标配置去重；队列仅保留轻量身份，不保留正文、Plan 或大型段落数组。
+- 新滚动窗口取代旧窗口时，移除未开始且不再需要的请求；离开页面、当前来源失效或相关配置变化时撤销旧需求，正在执行的操作协作取消或安全丢弃过期结果。
+- 任务执行前复核章节当前身份、物理缓存是否仍存在及目标 Text Profile；提交前再检查结果没有失效。一次修复尝试不得用无界循环追逐变化的配置。
+- 一章修复成功后释放临时数据，只对该章节发布 Coverage invalidation；失败被观察/记录，但不得因查询或 invalidation 立即无限重试。
+- 后台 owner 具有明确异常观察和进程退出有界停止；页面只拥有需求与订阅，不直接成为永久 worker 的 owner。
+
+队列容量、细小取消优化和实现原语留给代码决定，不把通用优先级、持久任务队列、退避框架或多套 CTS/状态机变成长期要求。
+
+### 5.4 缓存与 Plan 的一致性
+
+- 首条音频缓存持久化时，应确保相应章节当前 Plan 的持久身份与音频索引一致；不允许长期产生“有音频却无 Plan”的部分提交状态。
+- 尽可能在现有持久化 owner 内保证 Plan/音频索引元数据的原子提交或同等可靠的一致性；文件写入仍遵守既有临时文件、验证及取消规则。
+- 无效/过期 Plan 不得通过旧完整度掩盖结果。仅 Plan Header 需要更新、分段输出未变时，应复用现有 `PlanOutputHash` 优化，避免删写全部分段行。
+- 删除章节最后一份物理音频缓存后，对应 Plan 不再需要长期保存；在适当缓存清理/维护边界删除孤立 Plan，启动维护保留兜底。无音频时不把 Plan 长期堆积在 SQLite。
+- 这些约束原则上使用当前表结构实现，不为内部职责拆分引入新 schema、持久状态或兼容层。
+
+Catalog Entry 的 ChapterId 仅是当前目录的技术引用，不是跨 Source/跨 Catalog 的业务身份。
 
 ## 6. Audio Cache identity 与写入
 
-Audio Cache identity 必须反映：
+Audio Cache identity 必须反映稳定段身份、最终 SpeechText、Provider Type 的版本化合成指纹、语速及真正影响音频结果的参数；不能把 Provider 名称、排序或最近使用时间当合成语义。
 
-- 稳定段身份；
-- 最终 SpeechText；
-- Provider Type 的版本化 synthesis fingerprint；
-- 全局语速与其它真正影响音频结果的参数。
+缓存命中无需合成；缓存未命中需遵守 Provider admission、音频校验、原子文件写入和索引提交。完成第一份持久音频时同步建立必要 Plan 元数据；后续复用同一当前 Plan，不为缓存命中而无条件重写 Plan。
 
-不得使用 Provider 名称、排序或最近使用时间代替合成语义。
-
-写入保持：
-
-```text
-resolve current plan
-→ cache lookup
-→ provider admission
-→ synthesize
-→ validate audio
-→ atomic file write
-→ commit index
-```
-
-失败/取消不得留下被视为 Ready 的不完整条目。
+失败/取消不得留下被视为 Ready 的不完整音频、孤立文件或无主 Plan。
 
 ## 7. Playback Prefetch
 
-Playback Prefetch 属于 Playback session，复用 Cache/Speech 稳定能力但不成为 Cache process background job。
+Playback Prefetch 属于 Playback session，不是 Cache process background job。
 
 ```text
 Current Playback > Playback Prefetch > Active Cache
 ```
 
-Active Source context 或 target revision 改变后，旧上下文未完成 Prefetch 必须取消或失效。
+Active Source context 或 target revision 改变后，旧上下文未完成 Prefetch 必须取消或失效。正常播放/Prefetch 只保存当前实际需要的临时正文和 Plan；不得因仅准备内容就无条件写入 Plan。
 
 ## 8. Active Cache
 
 - 全应用最多一个 Active Cache batch。
-- batch 创建时冻结章节集合、Provider、typed config、语速和其它影响合成的配置快照。
-- 页面切换、播放切章和主窗口隐藏不取消已提交 batch。
-- 真实应用退出要主动请求批次取消并有界排空，不能仅依赖 DI Dispose；外部生成服务不响应取消时仍保证退出流程有界。
-- 取消停止未开始工作，已经生成的有效缓存保留；未完成结果不能标为 Ready。
-- 页面只消费 immutable progress snapshot，不拥有 batch lifecycle。
+- batch 创建时冻结章节集合、Provider、typed config、语速及影响朗读的规则/文本配置快照。
+- 仅持久化必要的轻量批次身份和运行快照；**章节正文、朗读分段和计算 Plan 按章获取、处理、释放**，不把大量章节的完整正文/分段长时间留在一个 FrozenBatch 中。
+- 来源上下文在准备或执行期间失效，应沿用现有明确拒绝/取消语义，不能混用新旧正文。
+- 页面切换、播放切章和隐藏主窗口不取消已提交 batch。真实应用退出主动请求取消并有界排空。
+- 取消停止未开始的工作，已成功提交的有效缓存保留；未完成结果不能标为 Ready。
+- 页面只消费 immutable progress snapshot，不拥有 batch 生命周期。
 
 ## 9. MP3 Export
 
-- 全应用最多一个导出批次。
-- 提交时冻结书籍/章节集合与目标目录。
-- 每章一个 MP3，不覆盖现有同名文件。
-- 失败/取消清理未完成临时文件。
-- 页面离开不取消已提交导出。
+- 全应用最多一个导出批次。提交时冻结书籍/章节集合与目标目录。
+- 导出以当前 Text Profile 的有效 Plan 与当前合成配置对应的完整音频为依据；不得把过期音频计作已缓存，也不得为了导出自动补全缺失音频。
+- 每章一个 MP3，不覆盖现有同名文件；失败/取消清理未完成临时文件。
+- 页面离开不取消已提交导出。当前有效 Plan 的持久元数据可用于复原导出键。
 
 ## 10. Cache UI
 
-CacheManagement 页面只拥有 filter/selection/live projection；页面离开取消页面查询/订阅，但不取消 Active Cache/Export/repair。Player、BookDetails、CacheAndData 与 CacheManagement 复用 Cache-owned read model/change source，不各自重新实现一致性算法。
+CacheManagement 页面只拥有 filter/selection/live projection；页面离开取消页面查询/订阅，且撤回由该页面提出、不再需要的 Stale repair 需求，但不取消已提交的 Active Cache/Export。Player、BookDetails、CacheAndData 与 CacheManagement 复用 Cache-owned read model/change source，不各自重新实现完整度算法。
 
 ## 11. Future Online Source Text Cache
 
-该缓存与 Audio Cache 完全独立。
-
-长期边界：
+该缓存与 Audio Cache 完全独立：
 
 ```text
 BookSourceBinding + ContentLocator
@@ -116,40 +135,28 @@ Online text cache metadata
 plain text file
 ```
 
-要求：
+- 正文实体保存为文本文件；SQLite 只保存必要元数据（Binding、locator/URL、本地路径等）。
+- 缓存身份不得只取章节序号，优先 Binding + stable ContentLocator；Catalog Entry 通过 locator 找到正文。
+- Source switch、catalog refresh 不自动清理正文；Binding 暂时未发现时不立即删除缓存。
+- 不使用 LRU，不设置普通运行期自动淘汰。
+- Book 删除时清理相关在线正文缓存；用户显式清理时按选定范围处理。
+- locator 变化不复用旧正文。Local Source 永远不进入这一缓存体系。
 
-- 正文实体以文本文件保存；SQLite 只保存必要元数据，例如 Binding、locator/URL 和本地路径；
-- 缓存唯一性不得只使用章节序号；优先以 Binding + stable ContentLocator 识别；
-- Catalog Entry 能通过自身 locator 找到对应正文；
-- Source switch 不清理缓存；
-- refresh catalog 不清理缓存；
-- refresh bound-source list 不因某个 Binding 暂时未发现就即时清理正文文件；
-- 不使用 LRU，不设置普通运行期自动淘汰；
-- Book 删除时清理该 Book 的所有在线正文缓存；
-- 用户主动“清理正文缓存”时按明确范围清理；
-- locator 明确变化时不允许把旧正文错误复用于新章节；
-- Local Source 正文永远不进入这一缓存体系。
-
-当前阶段只允许为上述未来能力预留不会阻碍实现的数据/接口边界，**不得实现 Online Source text fetching、缓存管理 UI 或 LRU**。
+当前仅保留不会阻碍未来实现的边界，不实现 Online Source 抓取、运行时缓存或管理 UI。
 
 ## 12. 后台 owner 原则
 
-Active Cache、Export、Speech Plan repair 各自拥有明确生命周期，不建设通用 BackgroundTaskManager。
+Active Cache、Export 的已提交批次属于跨页面 process background job。Stale repair 的**执行 worker** 由 Cache 进程 owner 管理，但其**待修复需求**来自当前有效页面/可视窗口；页面关闭可撤回未处理需求，不意味着停止其它已提交批次。
 
-所有 background owner：
+所有后台 owner 必须可取消、观察异常并有界退出；observer 异常不破坏 worker 完成责任或 slot 释放。不把 progress snapshot 当成持久业务真值，不建立通用 `BackgroundTaskManager`。
 
-- 可取消；
-- 可观察异常；
-- 有 bounded shutdown；
-- 不依赖页面实例存在；
-- snapshot 订阅者异常与 worker 完成责任相互隔离；无论是否成功通知 UI，已接受 job 都必须走到终态并释放 active slot；
-- 不把 progress snapshot 当持久业务真值。
-
-未来 SearchSession / RefreshSession 不属于 Audio Cache background owner；其生命周期由对应搜索/换源功能拥有。
+未来 SearchSession / RefreshSession 不属于 Audio Cache owner。
 
 ## 13. 非目标
 
-- 不把 Cache 变成所有模块变化的事件中心。
-- 不为普通 cache mutation 全量重算 UI。
-- 不为内部重构长期保留 compatibility reader/wrapper。
-- 本轮不实现 Online Source 正文抓取、在线正文缓存运行时或高级管理。
+- 不将 Cache 作为其它模块的通用事件中心。
+- 不为普通 Cache mutation 或目录滚动全量重算 UI。
+- 不为内部重构保留 Old/New/V2/Compat reader、wrapper、状态机。
+- 不引入进程级巨大 Plan 内存缓存、持久化修复队列或通用重试调度框架。
+- 不变更已有 Provider 合成身份计算和重匹配行为。
+- 不实现 Online Source 抓取、缓存运行时或高级管理。

@@ -61,9 +61,9 @@ normalized chapter text
 - 分段边界变化：受影响来源范围形成新身份，未变化来源范围仍可复用。
 - 仅影响 DisplayText 的规则变化不重建 Speech Plan，也不生成新音频。
 
-Coverage 读取携带当前 TextProfileFingerprint。已有 Plan 指纹过期时返回更新中/过期状态，并由明确 orchestration 异步补建；普通目录不会为从未建立计划的普通章节无条件建立新计划。
+Coverage 读取当前 `TextProfileFingerprint`。已有 Plan 过期时返回 `PlanStale`；有物理音频缓存并且当前可见时，由 Cache 内部轻量后台 worker 按需修复，修复前不显示旧完整度。`PlanMissing` 不触发自动计算或持久化；没有音频缓存的过期 Plan 无需修复。仅加载正文/目录不代表有持久化 Plan 的需求。
 
-Active Cache batch 创建时冻结规则快照和稳定段计划；运行中编辑规则不改变该批次。MP3 Export 只认当前 Plan 与当前合成配置对应的缓存。
+Active Cache batch 创建时冻结规则与文本配置，执行时按章计算和释放朗读分段，不为了冻结批次而长期保存所有章节的正文或段列表。MP3 Export 只认可当前 Plan 与当前合成配置相匹配的完整音频缓存。
 
 ## 7. 与播放状态关系
 
