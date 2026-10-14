@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Cache;
+using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.App.Bootstrap;
 using NovelSpeaker.Infrastructure.FileSystem;
@@ -104,10 +105,10 @@ public sealed class WpfStartupRuntimeTests
                 _ => { },
                 TimeSpan.FromSeconds(1));
 
-            await runtime.WaitForBackgroundTasksAsync(export, planRepairs, new FakeCacheChangeLifetime(events), CancellationToken.None);
+            await runtime.WaitForBackgroundTasksAsync(new FakeActiveCacheLifetime(Task.CompletedTask, events), export, planRepairs, new FakeCacheChangeLifetime(events), CancellationToken.None);
 
             Assert.Equal(1, export.CancelCallCount);
-            Assert.Equal(["export", "cache", "changes"], events);
+            Assert.Equal(["active-cache", "export", "cache", "changes"], events);
         });
     }
 
@@ -125,10 +126,10 @@ public sealed class WpfStartupRuntimeTests
                 _ => { },
                 TimeSpan.FromMilliseconds(50));
 
-            await runtime.WaitForBackgroundTasksAsync(export, planRepairs, new FakeCacheChangeLifetime(events), CancellationToken.None);
+            await runtime.WaitForBackgroundTasksAsync(new FakeActiveCacheLifetime(Task.CompletedTask, events), export, planRepairs, new FakeCacheChangeLifetime(events), CancellationToken.None);
 
             Assert.Equal(1, export.CancelCallCount);
-            Assert.Equal(["export", "cache", "changes"], events);
+            Assert.Equal(["active-cache", "export", "cache", "changes"], events);
             exportCancellation.TrySetResult();
         });
     }
@@ -167,7 +168,6 @@ public sealed class WpfStartupRuntimeTests
     {
         public Task StopAsync(CancellationToken cancellationToken)
         {
-            cancellationToken.ThrowIfCancellationRequested();
             events.Add("changes");
             return Task.CompletedTask;
         }
@@ -177,9 +177,17 @@ public sealed class WpfStartupRuntimeTests
     {
         public Task StopAsync(CancellationToken cancellationToken)
         {
-            cancellationToken.ThrowIfCancellationRequested();
             events.Add("cache");
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeActiveCacheLifetime(Task stopTask, List<string> events) : IActiveCacheLifetime
+    {
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            events.Add("active-cache");
+            return stopTask;
         }
     }
 }

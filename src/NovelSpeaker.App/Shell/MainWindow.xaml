@@ -251,7 +251,7 @@
 
                     <TextBlock Margin="0,12,0,0"
                                Style="{StaticResource App.Typography.Secondary}"
-                               Text="{Binding ActiveCache.TotalSegmentProgressText}" />
+                               Text="{Binding ActiveCache.TotalChapterProgressText}" />
                     <Button x:Name="CancelActiveCacheButton"
                             Margin="0,16,0,0"
                             HorizontalAlignment="Right"

@@ -1,12 +1,15 @@
 using NovelSpeaker.Application.Books;
 
-namespace NovelSpeaker.Application.Books;
+namespace NovelSpeaker.Application.Cache;
 
 /// <summary>
 /// Loads persisted books for playback, separating chapter metadata from on-demand text segmentation.
 /// </summary>
 public interface IBookPlaybackContentService
 {
+    /// <summary>Captures text settings and rules without loading any chapter body.</summary>
+    Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken);
+
     Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken);
 
     async Task<PlaybackBookContent?> GetBookAsync(
@@ -38,25 +41,8 @@ public interface IBookPlaybackContentService
 
     Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken);
 
-    async Task<IReadOnlyList<PlaybackChapterContent>> GetChaptersAsync(
-        string bookId,
-        IReadOnlyCollection<int> chapterIndices,
-        CancellationToken cancellationToken)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-        ArgumentNullException.ThrowIfNull(chapterIndices);
-
-        var chapters = new List<PlaybackChapterContent>(chapterIndices.Count);
-        foreach (var chapterIndex in chapterIndices.Distinct().Order())
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var chapter = await GetChapterAsync(bookId, chapterIndex, cancellationToken).ConfigureAwait(false);
-            if (chapter is not null)
-            {
-                chapters.Add(chapter);
-            }
-        }
-
-        return chapters;
-    }
 }
+
+/// <summary>Loads one chapter using the captured text-processing configuration.</summary>
+public delegate Task<PlaybackChapterContent?> ChapterContentReader(
+    string bookId, int chapterIndex, CancellationToken cancellationToken);

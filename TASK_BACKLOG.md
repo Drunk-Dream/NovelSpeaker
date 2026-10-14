@@ -1,66 +1,81 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 当前阶段：Stabilization & Refinement — E1-B 实施与 E1-C 收口
+## 1. 当前阶段：Playback 暂停预取行为修复（Cache 架构收口已完成）
 
-- **决策基线：** 2026-10-11，`dev` @ `2c46304b4eece3f346403d435155f78c48aa9f05`。远端 Git 仍为此提交；E1-A T001/T002 完成信息来自用户交付的仓库外临时报告。Codex 执行时以**本地实际 HEAD、工作区改动**为准，不能将本地未提交的 E1-A 收口覆盖掉。
-- **已完成研究：** E1-A T001 全项目广覆盖静态审计；T002 对高风险和复杂度候选进行隔离动态验证。两轮临时报告由用户手动管理，**不提交 Git/不迁入项目 docs**。20 个领域的初审尚有部分覆盖缺口，E1-A 收口不等于项目通过逐行审计。
-- **本轮定位：** 只实施已由用户与 ChatGPT 筛出的四项具体问题，以及用户于 2026-10-13 插入的 Edge 连接协议修复；不是新的全项目重构，也不开始在线书源功能。工程专项结束后转 U1 全局视觉与交互体系设计。
-- **已批准的产品决策：HTTP Provider 完全禁止自动重定向（方案 A）。** 任意重定向 Location 均不能自动发出后续请求，包括同源；已有依赖 redirect 的规则需用户自行改为最终 URL。不增加允许重定向的开关、跨源例外、手动跟随链或凭据过滤框架。该合同在 T003 同步写入 `docs/specs/HTTP_TTS.md`。
-- **其它三项授权：** 修正 Active Cache / Export 启动通知异常导致的 stuck slot；把 Active Cache 纳入现有进程退出取消/有界排空路径；将 CacheManagement 的书目选择器替换为真正支持虚拟化的 WPF 列表，不重做视觉体系。
-- **长期边界：** 保护正式用户数据、本地 TXT、Book/Source/CurrentCatalog、Playback target-first、背景缓存跨页面运行和已有正常用户行为。只做当前问题所需的最小设计变化，避免新通用抽象/Compat/V2 层。详细合同见对应 `tasks/` 文件，`AGENTS.md` 及有关正式 `docs/`。
+- **工作基线：** 以 Codex 执行时本地实际 `HEAD` 和工作区为准；T001–T005 与上一轮 E1-C/T007 已完成并推送到 `dev`。先核对工作区，保留所有既有用户改动，不以覆盖旧任务成果的方式实施 T006。
+- **已完成阶段：** T001–T005 收口了目录滚动引发的 Plan 写入、真实 Coverage、Stale 修复、缓存生命周期和资源使用问题。
+- **当前新增授权：** T006 仅修复 Playback 暂停状态仍执行自动音频预取的问题。Speech Plan 计算/持久化分离成果及缓存完整度规则继续保持。
+- **已存在功能继续保持：** Provider/语速等 synthesis fingerprint 改变时，缓存按新配置重新匹配；**不因为 Provider 改变而重建 Speech Plan**，不另开实现任务。
+- **长期合同：** `docs/04_CACHE_AND_BACKGROUND_WORK.md` 为 Cache owner；生命周期参见 `docs/02_RUNTIME_AND_NAVIGATION.md`，规则影响参见 `docs/specs/REGEX_REPLACEMENT.md`；其余遵守 `AGENTS.md`。
+- 本轮不开发在线书源，不启动 U1 视觉改版，不重构其它系统。尽量在既有模型、服务和 SQLite 表结构内解决，不为“可能有用”新增通用机制。
 
 ## 2. 执行规则
 
-- `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 仅表示遇到超出授权边界、必须由用户与 ChatGPT 决定的阻断问题。
-- **默认串行 T008（插入修复）→ T003 → T004 → T005 → T006 → T007。** T004 与 T005 涉及同一后台 job 生命周期，先处理启动完成责任再接退出 drain。每个任务结束应保持可构建、可测试；本轮不启用 staged breaking migration window。
-- Codex 只负责实施已经确定的行为和局部技术判断，不自行修改 Provider 兼容策略、模块所有权、用户数据格式、视觉风格或功能范围。非关键低层实现细节由 Codex 选择。发现超出合同的设计冲突，记录 `Needs Decision` 及证据，继续可独立执行的工作。
-- 永久测试只保护安全边界、关键生命周期和真实规模功能。临时 harness、截图、模拟服务、性能数据在验收后清除；不为本轮设置新增测试数量目标或复活脆弱的实现细节测试。人工体验验收可选、不阻塞自动任务。
-- 按 `AGENTS.md` 执行相应 focused tests 和任务收口门禁；T007 执行完整标准门禁。文本统一 LF。不得未经授权 push、PR、Release 或 tag。
-- 每任务完成时在本文件保留 `[x]` 与**简短完成成果、测试结果和限制**，删除该任务在 `tasks/` 的临时规格。用户保留的审计原报告不加入 Git；Codex 可在任务执行期间使用仓库外临时工作记录，最终清除无用副产物。
+- `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 遇到超出授权边界、必须由用户与 ChatGPT 决定的阻断问题。
+- **T001–T005 已完成，当前只执行 T006。** 任务结束必须可构建并通过相关核心测试；不启用 staged breaking migration window。
+- 阅读 `AGENTS.md`、当前 task spec 和 task spec 明确引用的少量长期文档；以本地实现为准，不机械照搬任务中提到的类名。先 `git status`/检查相关 diff，保护其它用户改动；在实际工作树上增量集成。
+- 仅在真实需要时调整 Application port、Infrastructure Store、UI binding；不添加多余状态机、通用 Scheduler/EventBus、全局 Plan 内存缓存、无限队列、重复兼容路径或永久的迁移补丁层。
+- 已发布 SQLite schema/migration 不擅自更改；本轮计划在现有 `ChapterSpeechPlans`、`ChapterSpeechPlanSegments` 和 `AudioCacheEntries` 中完成。若确需新增持久化结构或改变正式数据语义，先按 `AGENTS.md` 记录具体影响并请求决策。
+- 只保留核心行为的正式测试；可使用受控临时规模测试/基准，完成后删除临时 harness、数据文件和截图。人工验收仅作可选补充，不作为阻断下一任务的条件。
+- 每任务完成后把状态标记 `[x]`，记录简短成果/自动验证/限制，删除对应 `tasks/Txxx_*.md`；由 Git 记录历史。不得未经授权 push、发 PR、发布或创建 tag。项目文本使用 LF。
+- 上一轮 T001–T005 的已完成任务规格应已删除；本轮 `tasks/` 只增加 T006 规格，不恢复历史任务或删除无关工作。
 
-## 3. 任务安排
+## 3. 当前任务
 
-### Phase A — E1-A 已完成研究
+### Phase A — 目录查询不再放大工作量
 
-- [x] **T001（Research）— 全项目广覆盖审计**
-  成果：形成 Domain/Application/Infrastructure/WPF、工具/测试的系统地图；查找状态所有权、生命周期、复杂度、历史残留与做减法机会，保留扫描覆盖缺口。静态调查未认定已验证 P0/P1。
-- [x] **T002（Research）— 高风险问题动态补证及复杂度深挖**
-  成果：真实 coordinator/假 Provider 证明 Active Cache 退出等待风险，合成 observer 复现 Cache/Export stuck slot；loopback 证实跨源 redirect 转发 X-Api-Key/Cookie/自定义 Header；受控 Playback 内容解析证明命令 gate 等待；WPF 合成 10k 书目全部 realized，Cache VM staged 机制具有实际必要性。限制：多数实验为隔离样本，非真实用户故障发生率或生产性能统计。详见由用户保存的 `E1_AUDIT_FOLLOWUP_REPORT.md`。
+- [x] **T001（P0 / Query Boundary）— Cache 只读查询与 PlanMissing 止血**
+  完成成果：目录查询不再为 `PlanMissing` 请求 repair；`PlanStale` 仅在同窗口存在物理缓存时请求。10k 章节多窗口回归、SQLite Cache 22 项、Presentation 25 项、格式检查及 Release 构建通过。
 
-### Phase B — E1-B 定向实施
+### Phase B — Plan 计算与真实缓存生命周期
 
-- [x] **T008（P1 / Reliability，插入修复）— Edge 新端点与 Sec-MS-GEC v2**
-  成果：按 ms-ra-forwarder `fix/drudream` @ `4936d3e1` 更新 Infrastructure 固定 profile 为 `edge-readaloud-155-v2`，采用新合成端点、Subscription Key 参数及 v2 认证，删除 v1 算法/握手；Voice 配置、合成身份、缓存与数据格式保持原合同。新增上游独立计算的 6 个认证向量及新握手离线回归，保留现有协议/Provider 核心测试。锁定还原、format、Release build（0 警告/错误）、Infrastructure Speech/Provider 66 项、Application Edge/TTS 11 项、架构 19 项及 diff 检查通过。2026-10-13 Windows/.NET 生产 Voice List → Runtime → transport → MP3/解码全部成功（晓晓，35,424 bytes，约 2.95 秒）；初次环境代理导致失败，仅在临时验证进程绕过代理后通过，未修改产品/系统代理设置。临时 harness、音频、参考副本及任务规格已清理；未执行全量 test（阶段完整门禁仍由 T007 执行），无其它环境未执行项或文档冲突。
-- [ ] **T003（P1 / Security）— HTTP Provider 完全禁止自动重定向**
-  规格：[`tasks/T003_HTTP_REDIRECT_SAFETY.md`](tasks/T003_HTTP_REDIRECT_SAFETY.md)。优先完成安全修复、明确 3xx 错误反馈、用 loopback 假凭据回归验证，并将已批准合同写入正式 HTTP TTS 规范。
-- [ ] **T004（P2 / Reliability）— Active Cache / Export 启动与事件通知异常隔离**
-  规格：[`tasks/T004_BACKGROUND_START_ATOMICITY.md`](tasks/T004_BACKGROUND_START_ATOMICITY.md)。使 UI 观察者异常无法导致 worker 未启动但 active slot 永远不完成；保持 job owner / 取消 / 快照语义。
-- [ ] **T005（P2 / Lifecycle）— Active Cache 进程退出取消与有界排空**
-  规格：[`tasks/T005_ACTIVE_CACHE_SHUTDOWN.md`](tasks/T005_ACTIVE_CACHE_SHUTDOWN.md)。与现有 Export/repair drain 协调，处理不响应取消的 Provider，保护已成功缓存的派生数据和有界退出。
-- [ ] **T006（P2 / Performance）— CacheManagement 书目选择器 WPF 虚拟化**
-  规格：[`tasks/T006_CACHE_BOOK_LIST_VIRTUALIZATION.md`](tasks/T006_CACHE_BOOK_LIST_VIRTUALIZATION.md)。只修改技术容器与必要绑定/滚动逻辑，不引入 U1 视觉设计变更；用隔离真实 WPF host 进行合成规模验证。
+- [x] **T002（P0 / Persistence）— Plan 计算与持久化解耦**
+  完成成果：Plan Build/正文加载纯计算；语音内容 port/DTO 收归 Cache，避免 Books 反向依赖。生成音频时 Plan 与 Ready 索引同事务保存，保留 Header-only 优化；移除 Build 隐式保存。保留并改写核心 Plan/Playback 测试，新增首写回滚、取消、并发及重开库 Coverage/导出键回归；Application 128 项、Infrastructure 111 项、Presentation 78 项（含架构）、Release build、format/diff check 通过。完整门禁留待 T005；未新增 schema，无文档冲突。
 
-### Phase C — E1-C 工程收口
+### Phase C — Stale 异步修复和真实百分比
 
-- [ ] **T007（P1 / Closure）— E1-B 回归、做减法检查与完整门禁**
-  规格：[`tasks/T007_E1_CLOSURE.md`](tasks/T007_E1_CLOSURE.md)。合并验证四项修复与现有 Book、Playback、Speech、Cache、数据边界；清除一次性产物；完整质量门禁；仅根据确证情况修正本轮残留。
+- [x] **T003（P0 / Background & UX）— 简化 Stale repair 与完整度展示**
+  完成成果：单 worker 只持有可撤回窗口身份及当前尝试记录，移除逐章 Task.Run、双并发和无界重试；窗口/离页取消、配置/来源复核及事务内有缓存才保存，成功仅按章 invalidation，合并的窗口外通知仍只读。三处 UI 隐藏零值/过期/不可用标注，CacheManagement 保留物理条目。新增核心窗口撤回、失败去重、迟到结果和退出预算回归，更新零值展示测试；Application 74 项、Infrastructure 104 项、Presentation 123 项（含架构）、WPF DI/退出 7 项、Release build、format/diff check 通过。完整门禁留待 T005，无新增 schema 或长期文档冲突。
 
-## 4. 本轮明确不实施
+### Phase D — 资源收口
 
-- 不重构 Playback 命令 gate（慢内容解析虽可复现，但尚未证明常见本地使用下有用户可感知收益）；不调整 target-first/迟到音频身份规则。
-- 不删除 CacheManagementViewModel 的 `>512` staged 更新、deferred refresh 或大目录保护；T002 已验证其必要工作路径。
-- 不重写约 3,000 行架构检查器为 Roslyn，不扩大永久测试体系；该项进入后续 E5 候选。
-- 不修改 Book committed event 语义、Library 局部重复查询、Provider/Settings 跨 SQLite/JSON 所有权、v8 既定 migration 策略、SourceHash、orphan temp 等。本阶段均未批准整改。
-- 不开发 Online Source、搜索/刷新或在线缓存；不做 U1 色彩、字体、圆角、视觉风格的重设计；不新增数据库 migration/正式数据格式更改。
+- [x] **T004（P1 / Resource）— 孤立 Plan 清理与 Active Cache 按章处理**
+  完成成果：沿用最后缓存删除/淘汰的事务内定向清理与启动兜底，补修复遇到无缓存的按章清理；保留其它 Provider 的物理缓存及 Plan。Active Cache 冻结轻量章节身份、Provider/语速和文本配置读取委托，正文/分段/Plan 逐章处理释放；删除批量内容加载与 FrozenChapter/FrozenSegment 副本，总进度按章、章内按段。改写并保留冻结/退出/播放核心测试，补来源中途失效及缓存生命周期回归；Application 136 项、Infrastructure 105 项、Presentation 123 项（含架构）、隔离 Desktop WPF 12 项、Release build、format/diff check 通过。完整门禁留待 T005；无新 schema、临时产物或长期文档冲突。
 
-## 5. 阶段完成标准
+### Phase E — 工程验证
 
-- T003–T006 的核心行为均有可重复的自动验证及必要的反证/限制记录，安全凭据不因 HTTP redirect 发往 Location。
-- Active Cache/Export 的 listener 异常不破坏任务完成责任；Active Cache 退出有明确取消与有界清理机制，不依赖无限等待；正常前台/后台操作不退化。
-- CacheManagement 的大书目容器实际虚拟化，原有选择、进度、主题、页面激活及 10k 章节列表行为保留。
-- 新增/保留的测试符合核心行为准入，未遗留一次性测试、兼容层、临时诊断脚本/文件；必要长期文档与实现一致。
-- T007 完整质量门禁通过；无法运行的项按环境限制如实记录，不假报绿色。E1 结束后由用户与 ChatGPT 审核并进入 U1。
+- [x] **T005（P1 / Closure）— 长目录性能、完整度和完整质量门禁**
+  完成成果：复核 T001–T004 与上一轮 T007 的读取/事务/窗口撤回/逐章处理/退出边界；missing 自动补建、批量正文副本及旧修复队列已在前序任务移除，无其它兼容残留、新 schema 或长期文档冲突。保留既有 Plan/SQLite、配置匹配、失败/取消/并发、页面生命周期、播放/导出/主动缓存/退出及架构核心测试，不新增永久测试；修正 1 个局部刷新回归用例，先事件驱动确认 50% 再验证零值隐藏，消除原本空白谓词提前完成导致的偶发失败。一次性规模与 WPF harness、隔离数据库和音频已清理，完成任务规格已删除。
+  规模验收：真实 SQLite 的 10,000 章目录扫过 125 个窗口，Plan/Segment 行数 0/0 → 0/0，DB 2,387,968 → 2,387,968 字节、WAL 0 → 0，正文读取/修复 0/0，data_version 不变；窗口查询 P50/P95 4.25/6.21 ms（首次 38.43 ms）。加入 4 个真实部分缓存章节后，行数 4/8 → 4/8、DB/WAL 不变，读取/修复为零，P50/P95 4.37/4.80 ms。Stale 快速跨 125 窗口撤回后仅旧章 0 与最新章 9999 各读取一次，旧结果废弃，最新章修复后 50%；切 Provider 为 0%、切回恢复 50%，无 Plan 重建且物理缓存保留。
+  自动验收：locked win-x64 restore、format verify、零警告 Release build、完整测试 1,019 项（Domain 34 / Application 261 / Infrastructure 352 / Presentation 319 / 隔离 Desktop WPF 53）全部通过；局部刷新修正后 CacheManagement 20 项通过，原失败用例独立进程重复 20/20 通过。架构/全量 XAML 主题静态检查包含于完整测试，既有主题运行证据保留，diff/LF/schema/临时产物检查通过。发现 10 个历史 lock 文件含 CRLF，仅归一化为 LF，逐文件确认依赖 JSON 未变。临时真实 BookDetails 10k 章滚动 125 窗口，最多 15 个容器，滚动加 layout P50/P95 14.65/18.10 ms；环境无未执行的强制检查，受控本机采样不承诺所有机器绝对无卡顿，人工视觉验收未执行。
 
-## 6. 上轮里程碑
+### Phase F — Playback 暂停预取修复
 
-Book / Source / CurrentCatalog / SQLite v13 基础重构与删除/音频缓存收口（历史 T001–T005A）已完成，详细过程留在 Git 历史，本 Backlog 不重复复制长篇旧实施日志；各编号以阶段为作用域。
+- [x] **T006（P1 / Playback）— 暂停时停止自动音频预取**
+  完成成果：Playback intent 为 Play 才生成预取需求；手动/定时暂停立即递增窗口版本、清空待处理请求并协作取消在途预取，暂停打开/跳转/配置刷新不再入队。异步解析前及串行提交时复核 intent、session、target 和窗口版本，拒绝迟到窗口；恢复未加载音频时也刷新预取，已取消的同键在途请求不再吞掉快速 Resume 的新需求。共享生成层沿用 Current 的取消结果重试语义，使仍有效的恢复预取不被旧 execution 吞掉。删除暂停“一段例外”和 maxCount 分支，保留播放时当前目标保护、设备音频恢复、已完成缓存及独立 Active Cache；仅在 Cache owner 文档补充稳定规则，无 schema/配置/兼容层变化或长期文档冲突。
+  自动验收：新增 7 个核心用例覆盖暂停打开/跳转/Provider/语速、0 预取、手动/定时暂停、在途与待处理取消、Active Cache 隔离、快速恢复、迟到窗口及真实共享生成链的取消后恢复/Ready 保留/旧流释放；保留既有 Playback/Prefetch、Plan/SQLite、退出和架构回归，不删除/合并核心测试。Playback 集成 47 项、Application Playback/Active Cache focused 79 项、locked win-x64 restore、format verify、零警告 Release build、完整测试 1,026 项（Domain 34 / Application 262 / Infrastructure 358 / Presentation 319 / 隔离 Desktop WPF 53）、diff/LF 检查通过；任务临时诊断产物与规格已清理。无环境阻止的强制检查；取消沿用已有协作语义，无法承诺远端请求瞬时中断；人工交互验收未执行。
+
+## 4. 明确不实施
+
+- 不因为 Provider 切换而生成新的 Speech Plan，保留已有 synthesis fingerprint + 音频键匹配设计。
+- 不为 `PlanMissing` 批量预计算、不为无音频的章节提前写入 `ChapterSpeechPlanSegments`。
+- 不在普通目录显示 0%、“计算中”、过期值或其它替代文案；真实有效百分比计算完成后再显示。
+- 不进行同步等待修复、不在 Dispatcher 做正文分段/Regex 计算、不扫描/解码可见章节的所有音频文件。
+- 不添加复杂优先级、多 worker 池、持久化修复任务表、跨页面永久缓存或通用 Scheduler。
+- 不重写 Book/Source/CurrentCatalog、Provider、TTS 输出身份、缓存文件根信任边界、Playback target-first 或已完成的上一轮 T007 修复。
+
+## 5. 完成标准
+
+1. 仅打开/滚动 10k 章节目录，未缓存章节不会创建新 Plan/Segment 行，数据库写入量和 UI 交互不随扫过章节数异常膨胀。
+2. `PlanStale` 只在存在实际缓存且当前需要展示时异步修复；快速滚动/离开页面后不残留大量排队补建；修复失败不触发无限重试。
+3. Speech Plan 计算是无持久化副作用的能力；实际 Ready 音频缓存和可用 Plan 在重启后保持正确关联；失效缓存不能计入当前配置的百分比。
+4. UI 仅显示有效且非零的真实百分比；无缓存、0%、缺失、过期或失败均空白。切换 Provider 后的当前配置匹配行为不退化。
+5. 维持现有可用的 MP3 导出、正常播放及 target-first、主动缓存、退出排空；无长期持有跨大量章节正文/段落的批次内存结构。
+6. 无不必要 schema migration、Compat/V2 层、临时测试文件；T005 完整质量门禁结果如实记录。
+
+## 6. T006 独立验收
+
+- 暂停、定时暂停、以暂停状态打开书籍、暂停中切段/切章和修改 Provider/语速，均不发起新的自动预取 TTS；预取窗口撤销时的旧异步结果不能重新激活预取。
+- 暂停时仅取消 Playback Prefetch 所拥有的待处理及进行中工作，尽力取消进行中的预取；已成功提交的缓存保留，不影响主动缓存及已加载的暂停音频。
+- 恢复播放后按原有配置恢复正常预取，保留 `target-first` 和当前音频准备优先级。
+- 完成后将 T006 标记 `[x]`，记录核心测试/构建与限制，删除 `tasks/T006_PAUSED_PREFETCH.md`；不新增数据库 schema、配置开关或通用任务调度组件。

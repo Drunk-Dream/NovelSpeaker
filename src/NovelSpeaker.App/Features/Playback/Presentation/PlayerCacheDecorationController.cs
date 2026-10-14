@@ -179,7 +179,7 @@ internal sealed class PlayerCacheDecorationController
             }
 
             _contentController.SetCacheDecorationWindow(chapterIndices);
-            _statusRefreshController.Request(bookId, chapterIndices);
+            _statusRefreshController.Request(bookId, chapterIndices, replaceWindow: true);
         }
 
         if (!_uiScheduler.CheckAccess())
@@ -225,7 +225,7 @@ internal sealed class PlayerCacheDecorationController
             _explicitStatusRequests.Add(chapterIndex.Value);
         }
 
-        _statusRefreshController.Request(bookId, chapterIndices);
+        _statusRefreshController.Request(bookId, chapterIndices, replaceWindow: chapterIndex is null);
     }
 
     private IReadOnlyList<int> GetDecorationWindow()
@@ -357,6 +357,7 @@ internal sealed class PlayerCacheDecorationController
             _explicitStatusRequests.Add(_currentChapterIndex);
         }
 
+        foreach (var index in indices) _contentController.ApplyChapterCacheStatus(index, 0, null);
         _statusRefreshController.Request(bookId, indices);
     }
 

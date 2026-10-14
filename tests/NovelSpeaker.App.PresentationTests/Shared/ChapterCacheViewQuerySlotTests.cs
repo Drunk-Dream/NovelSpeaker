@@ -12,6 +12,68 @@ namespace NovelSpeaker.App.PresentationTests.Shared;
 public sealed class ChapterCacheViewQuerySlotTests
 {
     [Fact]
+    public async Task Coalesced_offscreen_invalidations_remain_read_only()
+    {
+        using var owner = new PageActivationController();
+        var activation = owner.Activate();
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var queryCount = 0;
+        var model = new CacheReadModelTestDouble
+        {
+            CoverageHandler = async (_, indices, token) =>
+            {
+                if (Interlocked.Increment(ref queryCount) == 1)
+                {
+                    started.SetResult();
+                    await release.Task.WaitAsync(token);
+                }
+                return indices.Select(index => new ChapterCacheStatus(index, 0, null)
+                { Kind = ChapterCacheStatusKind.PlanStale }).ToArray();
+            }
+        };
+        var slot = new ChapterCacheViewQuerySlot(model, new ImmediateUiScheduler(), (_, _, _) => { }, _ => { });
+        slot.Activate(activation.CancellationToken, activation);
+        activation.Register(slot.Deactivate);
+        slot.Request("book", [0], replaceWindow: true);
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        slot.Request("book", [0], replaceWindow: true);
+        slot.Request("book", [9]);
+        release.SetResult();
+        await activation.WaitForPendingOperationsAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(3, queryCount);
+        Assert.All(model.VisibleChapterQueries, indices => Assert.Equal([0], indices));
+        Assert.Equal([9], model.ChapterQueries[^1].Indices);
+    }
+
+    [Fact]
+    public async Task Visible_demand_lasts_after_query_and_is_withdrawn_when_window_or_page_changes()
+    {
+        using var owner = new PageActivationController();
+        var activation = owner.Activate();
+        var model = new CacheReadModelTestDouble();
+        var slot = new ChapterCacheViewQuerySlot(model, new ImmediateUiScheduler(), (_, _, _) => { }, _ => { });
+        slot.Activate(activation.CancellationToken, activation);
+        activation.Register(slot.Deactivate);
+        slot.Request("book", [0], replaceWindow: true);
+        await activation.WaitForPendingOperationsAsync();
+        var first = model.LastVisibilityToken;
+        Assert.True(first.CanBeCanceled);
+        Assert.False(first.IsCancellationRequested);
+        slot.Request("book", [0], replaceWindow: true);
+        await activation.WaitForPendingOperationsAsync();
+        Assert.Equal(first, model.LastVisibilityToken);
+        Assert.False(first.IsCancellationRequested);
+        slot.Request("book", [1], replaceWindow: true);
+        await activation.WaitForPendingOperationsAsync();
+        Assert.True(first.IsCancellationRequested);
+        var second = model.LastVisibilityToken;
+        Assert.False(second.IsCancellationRequested);
+        owner.Deactivate();
+        Assert.True(second.IsCancellationRequested);
+    }
+
+    [Fact]
     public async Task Failure_with_pending_requests_keeps_the_retry_attached_to_activation_until_completion()
     {
         using var owner = new PageActivationController();

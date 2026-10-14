@@ -428,6 +428,9 @@ public sealed partial class PlayerViewModelTests
 
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         private readonly PlaybackBookContent? _book;
         private readonly PlaybackChapterContent? _chapter;
         private readonly IReadOnlyDictionary<int, PlaybackChapterContent> _chapters;
@@ -535,6 +538,9 @@ public sealed partial class PlayerViewModelTests
 
     private sealed class DelayedBookPlaybackContentService : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         private readonly PlaybackBookContent _book;
         private readonly Queue<Task<PlaybackChapterContent?>> _chapterLoads;
         private readonly object _requestSignalSync = new();

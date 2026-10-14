@@ -16,7 +16,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed class ChapterSpeechPlanPlaybackIntegrationTests
 {
     [Fact]
-    public async Task Playback_content_service_reuses_the_shared_plan_builder_and_persists_one_current_plan()
+    public async Task Playback_content_service_computes_without_persisting_a_plan()
     {
         var root = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         var directories = new AppDataDirectoryProvider(root);
@@ -55,7 +55,6 @@ public sealed class ChapterSpeechPlanPlaybackIntegrationTests
             new TextSegmenter(),
             new PassthroughRegexReplacementPipeline(),
             regexRepository,
-            new SqliteChapterSpeechPlanStore(factory),
             TimeProvider.System);
         var service = new PlaybackContentResolver(
             new SqliteBookPlaybackMetadataQuery(factory),
@@ -71,9 +70,12 @@ public sealed class ChapterSpeechPlanPlaybackIntegrationTests
 
         Assert.NotNull(chapter);
         Assert.Equal(2, chapter!.Segments.Count);
-        Assert.NotNull(plan);
-        Assert.Equal(2, plan!.BodySegmentCount);
-        Assert.Equal([0, 5], plan.Segments.Select(segment => segment.SourceStartOffset));
+        Assert.Null(plan);
+        Assert.NotNull(chapter.SpeechPlan);
+        Assert.Equal(2, chapter.SpeechPlan.BodySegmentCount);
+        Assert.Equal([0, 5], chapter.SpeechPlan.Segments.Select(segment => segment.SourceStartOffset));
+        await service.GetChapterAsync("book-1", 0, CancellationToken.None);
+        Assert.Null(await new SqliteChapterSpeechPlanStore(factory).GetAsync("chapter-1", CancellationToken.None));
     }
 
     private sealed class StaticTextSegmentationOptionsProvider : ITextSegmentationOptionsProvider

@@ -20,6 +20,100 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests;
 public sealed class SqliteAudioCacheTests
 {
     [Fact]
+    public async Task Plan_cleanup_preserves_other_provider_audio_and_removes_last_evicted_and_startup_orphans()
+    {
+        var fixture = await CreateFixtureAsync();
+        var store = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        var plan = CreatePlan("cache-chapter-1-0", ChapterSpeechPlanState.Ready, [CreatePlanSegment(0, 0, "正文")]);
+        var first = CreateKey("book-1", 0, 0, 7, 12, "正文");
+        var otherProvider = CreateKey("book-1", 0, 0, 8, 12, "正文");
+        foreach (var key in new[] { first, otherProvider })
+        {
+            await fixture.Cache.StoreAsync(new AudioCacheWriteRequest(key, "book-1", 0, 0,
+                CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path), "audio/mpeg")
+            { SpeechPlan = plan }, CancellationToken.None);
+        }
+        await fixture.Cache.InvalidateAsync(first, CancellationToken.None);
+        await store.DeleteIfUncachedAsync(plan.ChapterId, CancellationToken.None);
+        Assert.NotNull(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        var statuses = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
+            [new CurrentCacheChapterQuery(plan.ChapterId, 0, false, null, plan.TextProfileFingerprint)],
+            otherProvider.Identity.SynthesisProfile, CancellationToken.None);
+        Assert.Equal(new ChapterCacheStatus(0, 1, 1), Assert.Single(statuses));
+        fixture.LimitProvider.CurrentLimitBytes = 1;
+        await fixture.Cache.RunMaintenanceAsync(CancellationToken.None);
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        await store.SaveAsync(plan, CancellationToken.None);
+        await fixture.Cache.RunStartupMaintenanceAsync(CancellationToken.None);
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        // A stale repair encountering pre-existing orphan metadata also cleans only its chapter.
+        await store.SaveAsync(plan, CancellationToken.None);
+        Assert.False(await store.SaveIfCachedAsync(plan, CancellationToken.None));
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        await store.SaveAsync(plan, CancellationToken.None);
+        await store.DeleteIfUncachedAsync(plan.ChapterId, CancellationToken.None);
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task First_audio_write_commits_plan_and_index_together_and_survives_reopening()
+    {
+        var fixture = await CreateFixtureAsync();
+        var key = CreateKey("book-1", 0, 0, 7, 12, "正文");
+        var plan = CreatePlan("cache-chapter-1-0", ChapterSpeechPlanState.Ready,
+            [CreatePlanSegment(0, 0, "正文")]);
+        var source = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path);
+        var request = new AudioCacheWriteRequest(key, "book-1", 0, 7, source, "audio/mpeg")
+        { SpeechPlan = plan };
+        Assert.False(await new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory).SaveIfCachedAsync(plan, CancellationToken.None));
+
+        // An index failure must roll back the plan as well as remove the new file.
+        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TRIGGER RejectAudio BEFORE INSERT ON AudioCacheEntries BEGIN SELECT RAISE(ABORT, 'test failure'); END;";
+            await command.ExecuteNonQueryAsync();
+        }
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => fixture.Cache.StoreAsync(request, CancellationToken.None));
+        var store = new SqliteChapterSpeechPlanStore(fixture.ConnectionFactory);
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        Assert.Empty(await fixture.Cache.GetChaptersAsync("book-1", CancellationToken.None));
+        await using (var connection = await fixture.ConnectionFactory.OpenConnectionAsync(CancellationToken.None))
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = "DROP TRIGGER RejectAudio;";
+            await command.ExecuteNonQueryAsync();
+        }
+
+        // Invalid plan segments cannot leave a Ready audio entry either.
+        request = request with { SourceFilePath = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path) };
+        var invalid = plan with { Segments = [plan.Segments[0], plan.Segments[0]], BodySegmentCount = 2 };
+        await Assert.ThrowsAsync<Microsoft.Data.Sqlite.SqliteException>(() => fixture.Cache.StoreAsync(
+            request with { SpeechPlan = invalid }, CancellationToken.None));
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+        request = request with { SourceFilePath = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path) };
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => fixture.Cache.StoreAsync(request, cancelled.Token));
+        Assert.Null(await store.GetAsync(plan.ChapterId, CancellationToken.None));
+
+        await Task.WhenAll(fixture.Cache.StoreAsync(request, CancellationToken.None),
+            fixture.Cache.StoreAsync(request with { SourceFilePath = CopyAudioToTempFile(PlaybackTestAudio.DemoMp3Path) }, CancellationToken.None));
+        var reopenedFactory = new SqliteConnectionFactory(fixture.Directories);
+        var reopened = await new SqliteChapterSpeechPlanStore(reopenedFactory).GetAsync(plan.ChapterId, CancellationToken.None);
+        Assert.NotNull(reopened);
+        var segment = Assert.Single(reopened.Segments);
+        var restoredKey = AudioCacheKey.FromSpeechTextHash(reopened.ChapterId,
+            StableSpeechSegmentIdentity.Body(segment.SourceStartOffset, segment.SourceLength),
+            segment.SpeechTextHash, key.Identity.SynthesisProfile);
+        Assert.Equal(key, restoredKey);
+        var statuses = await fixture.Cache.GetCurrentConfigurationStatusesAsync(
+            [new CurrentCacheChapterQuery(plan.ChapterId, 0, false, null, plan.TextProfileFingerprint)],
+            key.Identity.SynthesisProfile, CancellationToken.None);
+        Assert.Equal(new ChapterCacheStatus(0, 1, 1), Assert.Single(statuses));
+    }
+
+    [Fact]
     public async Task Catalog_replacement_removes_old_plans_and_cache_and_rejects_old_audio_write()
     {
         var fixture = await CreateFixtureAsync();
@@ -941,6 +1035,12 @@ public sealed class SqliteAudioCacheTests
         public Task SaveAsync(
             ChapterSpeechPlan plan,
             CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task DeleteIfUncachedAsync(string chapterId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<bool> SaveIfCachedAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
 
         public Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken)

@@ -173,6 +173,8 @@ internal sealed class CacheCoverageQuery : ICacheCoverageQuery
         var statusesByIndex = queriedStatuses.ToDictionary(status => status.ChapterIndex);
         return normalizedIndices
             .Select(index => statusesByIndex.GetValueOrDefault(index, CreateConfigurationUnavailable(index)))
+            .Select(status => status.Kind == ChapterCacheStatusKind.PlanStale
+                ? status with { TargetTextProfile = textProfile } : status)
             .ToArray();
     }
 

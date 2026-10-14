@@ -68,6 +68,12 @@ public sealed class TtsResponseValidator : ITtsResponseValidator
         TtsTransportResponse response,
         CancellationToken cancellationToken)
     {
+        if (response.StatusCode is >= 300 and < 400)
+        {
+            return Failure(TtsErrorKind.InvalidResponse,
+                "服务返回了重定向，请将 HTTP Provider URL 配置为最终地址。", response, null);
+        }
+
         if (response.StatusCode is 401 or 403)
         {
             return await ErrorAsync(TtsErrorKind.Unauthorized, "服务拒绝了当前请求，请检查鉴权 Header。", response, cancellationToken);

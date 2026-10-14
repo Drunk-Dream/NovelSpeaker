@@ -59,6 +59,33 @@ public partial class CacheManagementPage : System.Windows.Controls.Page, INaviga
         return Task.CompletedTask;
     }
 
+    private void BooksListBox_OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Tab || Keyboard.Modifiers is not (ModifierKeys.None or ModifierKeys.Shift) ||
+            e.OriginalSource is not Button button ||
+            ItemsControl.ContainerFromElement(BooksListBox, button) is not ListBoxItem current)
+        {
+            return;
+        }
+
+        // Native Tab traversal sees only realized buttons. Keep the original book-card
+        // traversal by asking WPF to realize just the adjacent item before focusing it.
+        var direction = Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1;
+        var nextIndex = BooksListBox.ItemContainerGenerator.IndexFromContainer(current) + direction;
+        if (nextIndex < 0 || nextIndex >= BooksListBox.Items.Count)
+        {
+            return;
+        }
+
+        BooksListBox.ScrollIntoView(BooksListBox.Items[nextIndex]);
+        BooksListBox.UpdateLayout();
+        if (BooksListBox.ItemContainerGenerator.ContainerFromIndex(nextIndex) is ListBoxItem next &&
+            FindDescendant<Button>(next) is { } nextButton)
+        {
+            e.Handled = nextButton.Focus();
+        }
+    }
+
     private void ChapterCard_OnClick(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { DataContext: CachedChapterListItemViewModel chapter })

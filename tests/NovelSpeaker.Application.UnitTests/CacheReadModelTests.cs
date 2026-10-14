@@ -1,6 +1,5 @@
 using NovelSpeaker.Application.Books;
 using NovelSpeaker.Application.Cache;
-using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.TestKit.Cache;
 using NovelSpeaker.TestKit.Common;
@@ -37,33 +36,28 @@ public sealed class CacheReadModelTests
     }
 
     [Fact]
-    public async Task Repeated_missing_plan_queries_share_background_repair_and_completion_changes_only_that_chapter()
+    public async Task Browsing_large_missing_plan_catalog_does_not_request_repair_or_load_chapter_content()
     {
         await using var invalidation = new CacheInvalidationCoordinator(new ManualTimeProvider());
-        var content = new GatedContent();
-        await using var repair = new SpeechPlanRepairCoordinator(content, new Settings(), invalidationCoordinator: invalidation);
-        var coverage = new CacheCoverageTestDouble
-        {
-            Statuses = [new(2, 0, null) { Kind = ChapterCacheStatusKind.PlanMissing }]
-        };
+        var repair = new PendingRepair();
+        var coverage = new CacheCoverageTestDouble();
+        coverage.CoverageHandler = (_, indices, _) => Task.FromResult<IReadOnlyList<ChapterCacheStatus>>(
+            indices.Select(index => new ChapterCacheStatus(index, 0, null)
+            {
+                Kind = ChapterCacheStatusKind.PlanMissing
+            }).ToArray());
         using var model = new CacheReadModel(new CacheCatalogTestDouble(), coverage, new Metadata(), repair, invalidation);
-        var changes = new List<CacheReadModelChange>();
-        model.Changed += (_, change) => changes.Add(change);
-        await model.GetChaptersAsync("book", [2], CancellationToken.None);
-        await content.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await model.GetChaptersAsync("book", [2], CancellationToken.None);
-        Assert.Equal(1, content.LoadCount);
-        Assert.Empty(changes);
-        var completion = repair.RequestAsync(new SpeechPlanRepairRequest("book", 2, "chapter-2"), CancellationToken.None);
-        content.Release.SetResult();
-        await completion.WaitAsync(TimeSpan.FromSeconds(10));
-        await invalidation.FlushPendingAsync(CancellationToken.None);
-        var scope = Assert.IsType<CacheReadModelScope.Chapters>(Assert.Single(Assert.Single(changes).Scopes));
-        Assert.Equal("book", scope.BookId);
-        Assert.Equal([2], scope.ChapterIndices);
-        await repair.StopAsync(CancellationToken.None);
-        await repair.RequestAsync(new SpeechPlanRepairRequest("other", 1, "other-chapter"), CancellationToken.None);
-        Assert.Equal(1, content.LoadCount);
+
+        for (var start = 0; start < 10_000; start += 80)
+        {
+            using var window = new CancellationTokenSource();
+            var indices = Enumerable.Range(start, Math.Min(80, 10_000 - start)).ToArray();
+            var result = await model.GetChaptersAsync("book", indices, CancellationToken.None, window.Token);
+            Assert.All(result.Value, chapter => Assert.Equal(ChapterCacheStatusKind.PlanMissing, chapter.Coverage.Kind));
+        }
+
+        Assert.Equal(125, coverage.CoverageQueryCallCount);
+        Assert.Empty(repair.Requests);
     }
 
     [Fact]
@@ -79,14 +73,16 @@ public sealed class CacheReadModelTests
                 new(0, 2, 2), new(1, 0, 2),
                 new(2, 0, null) { Kind = ChapterCacheStatusKind.PlanMissing },
                 new(3, 0, null) { Kind = ChapterCacheStatusKind.PlanStale },
-                new(4, 0, null), new(5, 0, 0)]
+                new(4, 0, null), new(5, 0, 0),
+                new(7, 0, null) { Kind = ChapterCacheStatusKind.PlanStale }]
         };
         var repair = new PendingRepair();
         using var model = new CacheReadModel(catalog, coverage, new Metadata(), repair, invalidation);
 
-        var result = await model.GetChaptersAsync("book", [0, 1, 2, 3, 4, 5, 6], CancellationToken.None);
+        using var visible = new CancellationTokenSource();
+        var result = await model.GetChaptersAsync("book", [0, 1, 2, 3, 4, 5, 6, 7], CancellationToken.None, visible.Token);
 
-        Assert.Equal(7, result.Value.Count);
+        Assert.Equal(8, result.Value.Count);
         Assert.All(result.Value.Take(6), chapter => Assert.Equal(100, chapter.Physical!.TotalSizeBytes));
         Assert.True(result.Value[0].IsExportable);
         Assert.All(result.Value.Skip(1), chapter => Assert.False(chapter.IsExportable));
@@ -95,9 +91,9 @@ public sealed class CacheReadModelTests
         Assert.Equal(ChapterCacheStatusKind.PlanStale, result.Value[3].Coverage.Kind);
         Assert.Equal(ChapterCacheStatusKind.ConfigurationUnavailable, result.Value[4].Coverage.Kind);
         Assert.Null(result.Value[6].Physical);
-        Assert.Equal([2, 3], repair.Requests.Select(request => request.ChapterIndex));
-        Assert.False(repair.Completion.Task.IsCompleted);
-        repair.Completion.SetResult();
+        Assert.Equal(ChapterCacheStatusKind.PlanStale, result.Value[7].Coverage.Kind);
+        Assert.Null(result.Value[7].Physical);
+        Assert.Equal([3], repair.Requests.Select(request => request.ChapterIndex));
     }
 
     [Fact]
@@ -164,40 +160,13 @@ public sealed class CacheReadModelTests
     private sealed class PendingRepair : ISpeechPlanRepairCoordinator
     {
         public List<SpeechPlanRepairRequest> Requests { get; } = [];
-        public TaskCompletionSource Completion { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-
-        public Task RequestAsync(SpeechPlanRepairRequest request, CancellationToken cancellationToken)
+        public void UpdateDemand(IReadOnlyList<SpeechPlanRepairRequest> requests, CancellationToken visibilityToken)
         {
-            Requests.Add(request);
-            return Completion.Task;
+            Requests.AddRange(requests);
         }
 
         public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
-    private sealed class Settings : IAppSettingsService
-    {
-        public AppSettings Current => AppSettings.Default;
-        public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
-        public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-    }
-
-    private sealed class GatedContent : IBookPlaybackContentService
-    {
-        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public int LoadCount { get; private set; }
-        public Task<PlaybackBookContent?> GetBookAsync(string bookId, CancellationToken cancellationToken) =>
-            throw new NotSupportedException();
-
-        public async Task<PlaybackChapterContent?> GetChapterAsync(string bookId, int chapterIndex, CancellationToken cancellationToken)
-        {
-            LoadCount++;
-            Started.TrySetResult();
-            await Release.Task.WaitAsync(cancellationToken);
-            return PlaybackChapterContent.FromLoaded(chapterIndex, "Chapter", [], $"chapter-{chapterIndex}");
-        }
-    }
 }

@@ -114,6 +114,9 @@ public sealed class NavigationPageLifecycleTests
 
     private sealed class FakeBookPlaybackContentService : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         private readonly PlaybackBookContent _book;
         private readonly PlaybackChapterContent _chapter;
 

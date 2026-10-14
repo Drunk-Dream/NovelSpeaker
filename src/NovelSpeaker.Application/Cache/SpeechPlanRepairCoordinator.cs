@@ -1,239 +1,203 @@
-using System.Collections.Concurrent;
 using NovelSpeaker.Application.Books;
-using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Application.Cache;
 
-/// <summary>
-/// Deduplicates chapter plan repairs and drains them as one process-owned background lifetime.
-/// </summary>
+/// <summary>One process-owned worker, retaining only current window identities and attempts.</summary>
 internal sealed class SpeechPlanRepairCoordinator : ISpeechPlanRepairCoordinator
 {
-    private const int MaximumConcurrency = 2;
-    private readonly IBookPlaybackContentService? _contentService;
-    private readonly IAppSettingsService _settingsService;
-    private readonly IRegexReplacementRuleRepository? _regexRuleRepository;
-    private readonly IChapterSpeechPlanStore? _speechPlanStore;
-    private readonly ICacheInvalidationCoordinator? _invalidationCoordinator;
+    private readonly IBookPlaybackContentService _content;
+    private readonly IBookPlaybackMetadataQuery _metadata;
+    private readonly IAudioCacheStore _audio;
+    private readonly IChapterSpeechPlanStore _plans;
+    private readonly IAppSettingsService _settings;
+    private readonly IRegexReplacementRuleRepository _rules;
+    private readonly ICacheInvalidationCoordinator _invalidation;
     private readonly ICacheCompletenessFailureReporter? _failureReporter;
-    private readonly ConcurrentDictionary<RepairKey, Lazy<Task>> _repairs = new();
-    private readonly CancellationTokenSource _lifetimeCancellation = new();
-    private readonly SemaphoreSlim _concurrency = new(MaximumConcurrency, MaximumConcurrency);
     private readonly object _gate = new();
-    private Task? _stopTask;
+    private readonly Dictionary<CancellationToken, Demand> _demands = [];
+    private readonly SemaphoreSlim _wake = new(0, 1);
+    private readonly CancellationTokenSource _lifetime = new();
+    private readonly Task _worker;
+    private SpeechPlanRepairRequest? _running;
+    private CancellationTokenSource? _runningCancellation;
     private bool _stopping;
-    private bool _disposed;
 
     public SpeechPlanRepairCoordinator(
-        IBookPlaybackContentService? contentService,
+        IBookPlaybackContentService contentService,
+        IBookPlaybackMetadataQuery metadata,
+        IAudioCacheStore audioCacheStore,
+        IChapterSpeechPlanStore speechPlanStore,
         IAppSettingsService settingsService,
-        IRegexReplacementRuleRepository? regexRuleRepository = null,
-        IChapterSpeechPlanStore? speechPlanStore = null,
-        ICacheInvalidationCoordinator? invalidationCoordinator = null,
+        IRegexReplacementRuleRepository regexRuleRepository,
+        ICacheInvalidationCoordinator invalidationCoordinator,
         ICacheCompletenessFailureReporter? failureReporter = null)
     {
-        _contentService = contentService;
-        _settingsService = settingsService;
-        _regexRuleRepository = regexRuleRepository;
-        _speechPlanStore = speechPlanStore;
-        _invalidationCoordinator = invalidationCoordinator;
+        _content = contentService;
+        _metadata = metadata;
+        _audio = audioCacheStore;
+        _plans = speechPlanStore;
+        _settings = settingsService;
+        _rules = regexRuleRepository;
+        _invalidation = invalidationCoordinator;
         _failureReporter = failureReporter;
+        _worker = Task.Run(RunAsync);
     }
 
-    public Task RequestAsync(
-        SpeechPlanRepairRequest request,
-        CancellationToken cancellationToken)
+    public void UpdateDemand(IReadOnlyList<SpeechPlanRepairRequest> requests, CancellationToken visibilityToken)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        Task repairTask;
         lock (_gate)
         {
-            if (_stopping || _disposed)
+            if (_stopping || !visibilityToken.CanBeCanceled || visibilityToken.IsCancellationRequested) return;
+            if (!_demands.TryGetValue(visibilityToken, out var demand))
             {
-                return Task.CompletedTask;
+                demand = new Demand();
+                _demands.Add(visibilityToken, demand);
+                demand.Registration = visibilityToken.Register(() => Withdraw(visibilityToken));
+                if (visibilityToken.IsCancellationRequested) return;
             }
 
-            var repair = _repairs.GetOrAdd(
-                new RepairKey(request.BookId, request.ChapterIndex),
-                _ => new Lazy<Task>(
-                    () => Task.Run(() => RunRepairAsync(request)),
-                    LazyThreadSafetyMode.ExecutionAndPublication));
-            repairTask = repair.Value;
+            demand.Requests = requests.Distinct().ToArray();
+            demand.Attempted.IntersectWith(demand.Requests);
+            if (_running is { } running && _runningCancellation?.IsCancellationRequested == false &&
+                demand.Requests.Contains(running))
+                demand.Attempted.Add(running);
+            CancelUnneededWork();
+            if (_wake.CurrentCount == 0) _wake.Release();
         }
+    }
 
-        return repairTask.WaitAsync(cancellationToken);
+    private void Withdraw(CancellationToken visibilityToken)
+    {
+        lock (_gate)
+        {
+            if (_demands.Remove(visibilityToken, out var demand)) demand.Registration.Unregister();
+            CancelUnneededWork();
+        }
+    }
+
+    private void CancelUnneededWork()
+    {
+        if (_running is { } running && !_demands.Values.Any(demand => demand.Requests.Contains(running)))
+            _runningCancellation?.Cancel();
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
-        Task stopTask;
         lock (_gate)
         {
-            if (_disposed)
+            if (!_stopping)
             {
-                return;
+                _stopping = true;
+                foreach (var demand in _demands.Values) demand.Registration.Unregister();
+                _demands.Clear();
+                _lifetime.Cancel();
             }
-
-            _stopping = true;
-            _lifetimeCancellation.Cancel();
-            _stopTask ??= Task.WhenAll(
-                _repairs.Values
-                    .Where(static repair => repair.IsValueCreated)
-                    .Select(static repair => repair.Value)
-                    .ToArray());
-            ObserveFaults(_stopTask);
-            stopTask = _stopTask;
         }
-
-        await stopTask.WaitAsync(cancellationToken).ConfigureAwait(false);
+        await _worker.WaitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async ValueTask DisposeAsync()
     {
+        using var budget = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+        try { await StopAsync(budget.Token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (budget.IsCancellationRequested) { }
+        // A late worker owns disposal of the resources it still uses.
+    }
+
+    private async Task RunAsync()
+    {
+        var lifetimeToken = _lifetime.Token;
         try
         {
-            await StopAsync(CancellationToken.None).ConfigureAwait(false);
+            while (true)
+            {
+                await _wake.WaitAsync(lifetimeToken).ConfigureAwait(false);
+                while (true)
+                {
+                    SpeechPlanRepairRequest? request;
+                    CancellationTokenSource cancellation;
+                    lock (_gate)
+                    {
+                        if (_stopping) return;
+                        request = _demands.Values.SelectMany(demand => demand.Requests
+                            .Where(candidate => !demand.Attempted.Contains(candidate))).FirstOrDefault();
+                        if (request is null) break;
+                        foreach (var demand in _demands.Values.Where(demand => demand.Requests.Contains(request)))
+                            demand.Attempted.Add(request);
+                        _running = request;
+                        cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken);
+                        _runningCancellation = cancellation;
+                    }
+                    try { await RepairAsync(request, cancellation.Token).ConfigureAwait(false); }
+                    catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+                    catch (Exception exception) { ReportFailure(exception); }
+                    finally
+                    {
+                        lock (_gate)
+                        {
+                            _running = null;
+                            _runningCancellation = null;
+                            cancellation.Dispose();
+                        }
+                    }
+                }
+            }
         }
+        catch (OperationCanceledException) when (lifetimeToken.IsCancellationRequested) { }
+        catch (Exception exception) { ReportFailure(exception); }
         finally
         {
             lock (_gate)
             {
-                _disposed = true;
+                _stopping = true;
+                foreach (var demand in _demands.Values) demand.Registration.Unregister();
+                _demands.Clear();
             }
-
-            _concurrency.Dispose();
-            _lifetimeCancellation.Dispose();
+            _wake.Dispose();
+            _lifetime.Dispose();
         }
     }
 
-    private async Task RunRepairAsync(SpeechPlanRepairRequest request)
+    private async Task RepairAsync(SpeechPlanRepairRequest request, CancellationToken token)
     {
-        var entered = false;
-        try
+        if (await _audio.GetChapterAsync(request.BookId, request.ChapterIndex, token).ConfigureAwait(false) is null)
         {
-            if (_contentService is null)
-            {
-                return;
-            }
-
-            await _concurrency
-                .WaitAsync(_lifetimeCancellation.Token)
-                .ConfigureAwait(false);
-            entered = true;
-
-            while (true)
-            {
-                var profileBefore = await GetCurrentTextProfileAsync(_lifetimeCancellation.Token)
-                    .ConfigureAwait(false);
-                var chapter = await _contentService
-                    .GetChapterAsync(request.BookId, request.ChapterIndex, _lifetimeCancellation.Token)
-                    .ConfigureAwait(false);
-                if (chapter is null)
-                {
-                    return;
-                }
-
-                var profileAfter = await GetCurrentTextProfileAsync(_lifetimeCancellation.Token)
-                    .ConfigureAwait(false);
-                if (!profileBefore.Equals(profileAfter) ||
-                    !await IsPersistedPlanCurrentAsync(request, profileAfter).ConfigureAwait(false))
-                {
-                    continue;
-                }
-
-                _invalidationCoordinator?.Publish(
-                    CacheInvalidation.ForChapters(
-                        request.BookId,
-                        [request.ChapterIndex],
-                        CacheInvalidationAspect.Coverage));
-                return;
-            }
+            await _plans.DeleteIfUncachedAsync(request.ChapterId, token).ConfigureAwait(false);
+            return;
         }
-        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
-        {
-        }
-        catch (Exception exception)
-        {
-            ReportFailure(exception);
-        }
-        finally
-        {
-            if (entered)
-            {
-                try
-                {
-                    _concurrency.Release();
-                }
-                catch (ObjectDisposedException) when (_disposed)
-                {
-                }
-            }
-
-            _repairs.TryRemove(new RepairKey(request.BookId, request.ChapterIndex), out _);
-        }
+        var metadata = await _metadata.GetChapterAsync(request.BookId, request.ChapterIndex, token).ConfigureAwait(false);
+        if (metadata?.ChapterId != request.ChapterId) return;
+        var profile = await GetProfileAsync(token).ConfigureAwait(false);
+        if (request.TargetTextProfile is { } target && !target.Equals(profile)) return;
+        var chapter = await _content.GetChapterAsync(request.BookId, request.ChapterIndex, token).ConfigureAwait(false);
+        if (chapter?.ChapterId != request.ChapterId || chapter.SpeechPlan is not { } plan ||
+            !plan.TextProfileFingerprint.Equals(profile) ||
+            !profile.Equals(await GetProfileAsync(token).ConfigureAwait(false))) return;
+        var current = await _metadata.GetChapterAsync(request.BookId, request.ChapterIndex, token).ConfigureAwait(false);
+        if (current?.ChapterId != request.ChapterId || current.SourceContext != metadata.SourceContext) return;
+        token.ThrowIfCancellationRequested();
+        if (!await _plans.SaveIfCachedAsync(plan, token).ConfigureAwait(false)) return;
+        token.ThrowIfCancellationRequested();
+        if (!profile.Equals(await GetProfileAsync(token).ConfigureAwait(false))) return;
+        _invalidation.Publish(CacheInvalidation.ForChapters(request.BookId, [request.ChapterIndex], CacheInvalidationAspect.Coverage));
     }
 
-    private async Task<TextProfileFingerprint> GetCurrentTextProfileAsync(
-        CancellationToken cancellationToken)
-    {
-        var settings = _settingsService.Current;
-        IReadOnlyList<RegexReplacementRule> rules = _regexRuleRepository is null
-            ? Array.Empty<RegexReplacementRule>()
-            : await _regexRuleRepository
-                .GetAllAsync(cancellationToken)
-                .ConfigureAwait(false);
-        return TextProfileFingerprint.Create(settings.ToTextSegmentationOptions(), rules);
-    }
-
-    private async Task<bool> IsPersistedPlanCurrentAsync(
-        SpeechPlanRepairRequest request,
-        TextProfileFingerprint currentProfile)
-    {
-        ChapterSpeechPlan? plan = null;
-        if (_speechPlanStore is not null)
-        {
-            plan = await _speechPlanStore
-                .GetAsync(request.ChapterId, _lifetimeCancellation.Token)
-                .ConfigureAwait(false);
-        }
-
-        var stableProfile = await GetCurrentTextProfileAsync(_lifetimeCancellation.Token)
-            .ConfigureAwait(false);
-        if (!currentProfile.Equals(stableProfile))
-        {
-            return false;
-        }
-
-        return _speechPlanStore is null ||
-            (plan is not null &&
-            plan.State == ChapterSpeechPlanState.Ready &&
-            plan.TextProfileFingerprint.Equals(stableProfile));
-    }
+    private async Task<TextProfileFingerprint> GetProfileAsync(CancellationToken token) =>
+        TextProfileFingerprint.Create(_settings.Current.ToTextSegmentationOptions(),
+            await _rules.GetAllAsync(token).ConfigureAwait(false));
 
     private void ReportFailure(Exception exception)
     {
-        try
-        {
-            _failureReporter?.ReportCompletenessUnavailable(exception);
-        }
-        catch
-        {
-            // Failure reporting is best effort and must not strand the owner task.
-        }
+        try { _failureReporter?.ReportCompletenessUnavailable(exception); }
+        catch { /* Diagnostics cannot interrupt the worker. */ }
     }
 
-    private static void ObserveFaults(Task task)
+    private sealed class Demand
     {
-        _ = task.ContinueWith(
-            static completed => _ = completed.Exception,
-            CancellationToken.None,
-            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+        public IReadOnlyList<SpeechPlanRepairRequest> Requests { get; set; } = [];
+        public HashSet<SpeechPlanRepairRequest> Attempted { get; } = [];
+        public CancellationTokenRegistration Registration { get; set; }
     }
-
-    private sealed record RepairKey(string BookId, int ChapterIndex);
 }

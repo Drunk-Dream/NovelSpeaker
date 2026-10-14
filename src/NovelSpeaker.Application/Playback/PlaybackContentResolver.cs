@@ -83,10 +83,18 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
         return header is not null && header.SourceContext == book.SourceContext;
     }
 
-    public async Task<PlaybackChapterContent?> GetChapterAsync(
+    public Task<PlaybackChapterContent?> GetChapterAsync(
         string bookId,
         int chapterIndex,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) => GetChapterCoreAsync(bookId, chapterIndex, cancellationToken);
+
+    private async Task<PlaybackChapterContent?> GetChapterCoreAsync(
+        string bookId,
+        int chapterIndex,
+        CancellationToken cancellationToken,
+        TextSegmentationOptions? frozenOptions = null,
+        bool? frozenReadTitle = null,
+        IReadOnlyList<RegexReplacementRule>? frozenRules = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
 
@@ -100,7 +108,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
 
         try
         {
-            var loaded = await LoadChapterAsync(metadata, cancellationToken).ConfigureAwait(false);
+            var loaded = await LoadChapterAsync(metadata, cancellationToken, frozenOptions, frozenReadTitle, frozenRules).ConfigureAwait(false);
             await EnsureCurrentAsync(bookId, metadata.SourceContext, cancellationToken).ConfigureAwait(false);
             return loaded;
         }
@@ -115,49 +123,14 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
         }
     }
 
-    public async Task<IReadOnlyList<PlaybackChapterContent>> GetChaptersAsync(
-        string bookId,
-        IReadOnlyCollection<int> chapterIndices,
-        CancellationToken cancellationToken)
+    public async Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
-        ArgumentNullException.ThrowIfNull(chapterIndices);
-
-        var normalizedIndices = chapterIndices.Distinct().Order().ToArray();
-        if (normalizedIndices.Length == 0)
-        {
-            return [];
-        }
-
         var options = _optionsProvider.GetCurrent();
         var readTitle = _settingsService?.Current.ReadChapterTitle == true;
-        var rules = _regexRules is null ? null :
-            (await _regexRules.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToArray();
-        var metadata = await _metadataQuery
-            .GetChaptersAsync(bookId, normalizedIndices, cancellationToken)
-            .ConfigureAwait(false);
-        var chapters = new List<PlaybackChapterContent>(metadata.Count);
-        foreach (var chapter in metadata)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                chapters.Add(await LoadChapterAsync(chapter, cancellationToken, options, readTitle, rules).ConfigureAwait(false));
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception exception) when (IsExpectedContentFailure(exception))
-            {
-                ReportContentFailure(exception);
-                throw;
-            }
-        }
-
-        if (metadata.Count > 0)
-            await EnsureCurrentAsync(bookId, metadata[0].SourceContext, cancellationToken).ConfigureAwait(false);
-        return chapters;
+        var repository = _regexRules ?? throw new InvalidOperationException("冻结朗读配置需要规则仓储。");
+        var rules = (await repository.GetAllAsync(cancellationToken).ConfigureAwait(false)).ToArray();
+        cancellationToken.ThrowIfCancellationRequested();
+        return (bookId, chapterIndex, token) => GetChapterCoreAsync(bookId, chapterIndex, token, options, readTitle, rules);
     }
 
     private async Task EnsureCurrentAsync(string bookId, ActiveSourceContext? context, CancellationToken cancellationToken)
@@ -203,12 +176,14 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             metadata,
             cancellationToken).ConfigureAwait(false);
         IReadOnlyList<SpeechSegment> replacedSegments;
+        ChapterSpeechPlan? plan = null;
         if (_speechPlanService is not null && metadata.ChapterId is not null)
         {
             var planResult = await _speechPlanService
                 .BuildAsync(metadata.ChapterId, chapterText, options, cancellationToken, frozenRules)
                 .ConfigureAwait(false);
             replacedSegments = planResult.Segments;
+            plan = planResult.Plan;
         }
         else
         {
@@ -233,6 +208,7 @@ internal sealed class PlaybackContentResolver : IBookPlaybackContentService
             metadata.ChapterIndex,
             metadata.Title,
             playbackSegments,
-            metadata.ChapterId);
+            metadata.ChapterId) with
+        { SpeechPlan = plan };
     }
 }

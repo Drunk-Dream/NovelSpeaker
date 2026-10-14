@@ -6,12 +6,12 @@
 |---|---|---|
 | Process | Shell、Settings、导航、托盘、长期基础设施 | Process service/coordinator |
 | Playback session | 当前 Book/Source context、logical target、播放意图、audio preparation/transport、prefetch、snapshot | Playback session owner |
-| Page activation | 页面加载、filter、selection、draft、locator | Transient Page/ViewModel |
-| Background job | 主动缓存、章节导出、Speech Plan repair | 对应 coordinator |
+| Page activation | 页面加载、filter、selection、draft、locator、可见窗口的 Stale repair 需求 | Transient Page/ViewModel |
+| Background job | 主动缓存、章节导出、Speech Plan repair 的执行 worker | 对应 coordinator |
 | Diagnostic session | 问题复现期间的诊断现场 | Diagnostics session owner |
 | Operation | 导入、保存、试听、清理等一次性流程 | 发起 use case/controller |
 
-模块归属与生命周期是两个维度。例如 Active Cache 属于 Cache 模块，但运行态是 process background job。
+模块归属与生命周期是两个维度。例如 Active Cache 属于 Cache 模块，但运行态是 process background job。Stale repair 的执行者由 Cache 管理，其需要处理哪些章节则取决于当前有效的可见窗口需求。
 
 ## 2. 启动
 
@@ -40,7 +40,8 @@ bootstrap essential logging
 - 取消 page-owned work；
 - 解除页面订阅；
 - 拒绝旧 activation 的迟到结果；
-- 不取消 process/session/background owner 的工作。
+- 撤回该页面提出且不再需要的 Stale repair 待处理需求；
+- 不取消已提交的 Active Cache/Export，也不销毁 Cache process worker。
 
 不通过 Page singleton、Navigation cache 或固定延时保存/恢复业务真值。
 
@@ -82,6 +83,7 @@ Critical
 - enrichment/locator 不形成 Dispatcher 长工作窗。
 - 所有阶段受当前 activation/version 保护。
 - 快速离开/返回后旧阶段不得重新写入新页面。
+- 目录的 Speech Plan 完整度属于稀疏异步 enhancement，不应因读取目录或滚动触发无缓存章节的正文加载、分段和数据库写入。
 
 ## 6. Dispatcher 与异步
 
@@ -137,15 +139,15 @@ ReadingProgress 的逻辑位置可以在 target commit 后 checkpoint；音频�
 
 ## 8. Background job
 
-主动缓存、章节导出和 Speech Plan repair 由对应 process background owner 持有。
+主动缓存、章节导出由 process background owner 持有。页面只提交参数和观察 snapshot：
 
-页面只提交参数和观察 snapshot：
-
-- 页面离开不取消已经提交的 background job；
+- 页面离开不取消已经提交的 Active Cache/Export job；
 - coordinator 拥有 CTS、Task、进度和终态；
-- snapshot 订阅者只是观察者；其通知异常不得阻止已接受任务的启动、终态完成或 active slot 释放，也不得妨碍其它订阅者收到通知；
+- snapshot 订阅者只是观察者，其通知异常不得阻止已接受任务启动、终态完成或 active slot 释放，也不得妨碍其它订阅者收到通知；
 - shutdown 统一取消并进行有界等待；
 - 不建立通用 BackgroundTaskManager。
+
+Speech Plan Stale repair 不等同于已提交的 Active Cache/Export 批次：Cache process owner 只拥有轻量单 worker，其待处理需求来自当前章节可视窗口。页面/窗口变化撤销不再需要的排队项，运行中的修复可协作取消；worker 本身在页面离开后仍可安全存在，直到进程 shutdown 有界停止。不能因为目录 query 生命周期已结束而留下无界、不可取消的补建任务。
 
 ## 9. 桌面生命周期
 

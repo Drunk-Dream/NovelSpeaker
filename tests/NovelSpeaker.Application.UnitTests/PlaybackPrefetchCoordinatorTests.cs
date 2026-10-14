@@ -1,7 +1,10 @@
+using System.Collections.Concurrent;
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Cache.Audio;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Speech.Providers;
+using NovelSpeaker.Application.Speech.Execution;
 using NovelSpeaker.Domain.Books;
 using NovelSpeaker.Domain.Settings;
 using NovelSpeaker.Domain.Speech.Providers;
@@ -12,6 +15,51 @@ namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class PlaybackPrefetchCoordinatorTests
 {
+    [Fact]
+    public async Task Restored_window_retries_cancelled_shared_synthesis_and_preserves_ready_cache()
+    {
+        var runtime = new GatedSynthesisRuntime();
+        var provider = new ResolvedSpeechProvider(TestSpeechProviders.Item(1, "默认服务"), runtime);
+        var sessionId = Guid.NewGuid();
+        var request = Request(provider, sessionId, 1);
+        var ready = new AudioCacheEntry(Request(provider, sessionId, 0).ToCacheKey(), "ready.mp3");
+        var store = new PrefetchAudioStore();
+        store.Entries[ready.Key] = ready;
+        var audio = new ObservedGeneration(new CacheAudioGenerationProvider(store, store));
+        var coordinator = new PlaybackPrefetchCoordinator(audio, new SelectedProvider(provider),
+            new FakeSettings(AppSettings.Default with { DefaultSpeakSpeed = 10 }));
+        try
+        {
+            await coordinator.SubmitAsync(new PlaybackPrefetchWindow(sessionId, [request])
+            { Revision = 1 }, CancellationToken.None);
+            await runtime.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await coordinator.SubmitAsync(new PlaybackPrefetchWindow(sessionId, [])
+            { Revision = 2 }, CancellationToken.None);
+            Assert.True(runtime.FirstToken.IsCancellationRequested);
+            Assert.Same(ready, store.Entries[ready.Key]);
+
+            await coordinator.SubmitAsync(new PlaybackPrefetchWindow(sessionId, [request])
+            { Revision = 3 }, CancellationToken.None);
+            // Signalled after the real generator has joined the still-blocked old execution.
+            await audio.Rejoined.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            runtime.Release.TrySetResult(new(runtime.OldAudio, "audio/mpeg", null));
+            var resumed = await audio.ResumedAudio!.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.True(resumed.IsSuccess);
+            Assert.Equal(2, runtime.CallCount);
+            Assert.Equal(1, store.WriteCount);
+            Assert.Equal(2, store.Entries.Count);
+            Assert.Same(ready, store.Entries[ready.Key]);
+            Assert.Equal(resumed.FilePath, store.Entries[request.ToCacheKey()].FilePath);
+            Assert.False(runtime.OldAudio.CanRead);
+        }
+        finally
+        {
+            runtime.Release.TrySetResult(new(runtime.OldAudio, "audio/mpeg", null));
+            await coordinator.CancelAsync(sessionId, CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
     [Fact]
     public async Task Older_window_submission_cannot_replace_a_newer_session_window()
     {
@@ -109,5 +157,77 @@ public sealed class PlaybackPrefetchCoordinatorTests
         public event EventHandler<AppSettingsChangedEventArgs>? Changed { add { } remove { } }
         public Task<AppSettings> UpdateAsync(AppSettingsUpdate update, CancellationToken cancellationToken) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class ObservedGeneration(IAudioGenerationProvider inner) : IAudioGenerationProvider
+    {
+        private int _calls;
+        public TaskCompletionSource Rejoined { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<AudioGenerationResult>? ResumedAudio { get; private set; }
+
+        public Task<AudioGenerationResult> GetAudioAsync(AudioGenerationRequest request,
+            AudioGenerationPriority priority, Action<AudioGenerationProgress>? progressCallback,
+            CancellationToken cancellationToken)
+        {
+            var task = inner.GetAudioAsync(request, priority, progressCallback, cancellationToken);
+            if (Interlocked.Increment(ref _calls) == 2)
+            {
+                ResumedAudio = task;
+                Rejoined.TrySetResult();
+            }
+            return task;
+        }
+
+        public Task InvalidateAsync(AudioGenerationRequest request, CancellationToken cancellationToken) =>
+            inner.InvalidateAsync(request, cancellationToken);
+    }
+
+    private sealed class GatedSynthesisRuntime : IProviderRuntime
+    {
+        public SpeechProviderType Type => SpeechProviderType.Http;
+        public int CallCount { get; private set; }
+        public CancellationToken FirstToken { get; private set; }
+        public MemoryStream OldAudio { get; } = new([1, 2, 3]);
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<ProviderSynthesisResult> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<ProviderSynthesisResult> SynthesizeAsync(SpeechProviderInstance provider,
+            ProviderSynthesisRequest request, CancellationToken cancellationToken)
+        {
+            if (++CallCount != 1)
+                return Task.FromResult(new ProviderSynthesisResult(new MemoryStream([4, 5, 6]), "audio/mpeg", null));
+            FirstToken = cancellationToken;
+            Started.TrySetResult();
+            return Release.Task;
+        }
+    }
+
+    private sealed class PrefetchAudioStore : IAudioCache, IGeneratedAudioFileStore
+    {
+        public ConcurrentDictionary<AudioCacheKey, AudioCacheEntry> Entries { get; } = new();
+        public int WriteCount { get; private set; }
+
+        public Task<AudioCacheEntry?> TryGetAsync(AudioCacheKey key, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(Entries.GetValueOrDefault(key));
+        }
+
+        public Task<TtsAudioResponse> WriteAsync(ProviderSynthesisResult audio, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            WriteCount++;
+            return Task.FromResult(new TtsAudioResponse("generated.mp3", 200, "audio/mpeg", "mp3"));
+        }
+
+        public Task<AudioCacheEntry> StoreAsync(AudioCacheWriteRequest request, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var entry = new AudioCacheEntry(request.Key, request.SourceFilePath);
+            Entries[entry.Key] = entry;
+            return Task.FromResult(entry);
+        }
+
+        public Task InvalidateAsync(AudioCacheKey key, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

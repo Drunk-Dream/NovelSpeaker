@@ -32,6 +32,8 @@ public sealed class LocalHttpTtsTestServer : IAsyncDisposable
 
     public string? LastJsonBody { get; private set; }
     public string? LastFormBody { get; private set; }
+    public Uri? RedirectLocation { get; set; }
+    public int RedirectStatusCode { get; set; } = 302;
 
     public int GetRequestCount(string path)
     {
@@ -112,6 +114,11 @@ public sealed class LocalHttpTtsTestServer : IAsyncDisposable
 
         switch (path)
         {
+            case "/redirect":
+                context.Response.StatusCode = RedirectStatusCode;
+                context.Response.RedirectLocation = RedirectLocation!.ToString();
+                await WriteTextAsync(context.Response, $"Redirect to {RedirectLocation}", "text/plain", cancellationToken);
+                return;
             case "/empty-once" when GetRequestCount(path) == 1:
                 context.Response.ContentType = "audio/wav";
                 return;

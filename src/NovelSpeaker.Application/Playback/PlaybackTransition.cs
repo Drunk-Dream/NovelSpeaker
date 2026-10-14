@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Cache;
 namespace NovelSpeaker.Application.Playback;
 
 internal enum PlaybackTransitionRejection
@@ -64,7 +65,7 @@ internal sealed class PlaybackPreparationLifetime : IDisposable
     private readonly Action<PlaybackPreparationLifetime> _release;
     private bool _disposed;
     public PlaybackPreparationLifetime(
-        Books.PlaybackBookContent book,
+        PlaybackBookContent book,
         PlaybackAudioPreparationIdentity identity,
         Action<PlaybackPreparationLifetime> release)
     {
@@ -73,7 +74,7 @@ internal sealed class PlaybackPreparationLifetime : IDisposable
         Token = _cancellation.Token;
         _release = release;
     }
-    public Books.PlaybackBookContent Book { get; }
+    public PlaybackBookContent Book { get; }
     public PlaybackAudioPreparationIdentity Identity { get; }
     public CancellationToken Token { get; }
     public bool IsActive { get { lock (_gate) return !_disposed; } }
@@ -98,17 +99,17 @@ internal sealed class PlaybackContentWorkLifetime : IDisposable
     private readonly Action<PlaybackContentWorkLifetime> _release;
     private bool _disposed;
 
-    public PlaybackContentWorkLifetime(Books.PlaybackBookContent book, Action<PlaybackContentWorkLifetime> release)
+    public PlaybackContentWorkLifetime(PlaybackBookContent book, Action<PlaybackContentWorkLifetime> release)
     {
         Book = book;
         _release = release;
         Token = _cancellation.Token;
     }
 
-    public Books.PlaybackBookContent Book { get; private set; }
+    public PlaybackBookContent Book { get; private set; }
     public CancellationToken Token { get; }
     public bool IsActive { get { lock (_gate) return !_disposed; } }
-    public void SetBook(Books.PlaybackBookContent book) { lock (_gate) Book = book; }
+    public void SetBook(PlaybackBookContent book) { lock (_gate) Book = book; }
     public void Cancel() { lock (_gate) { if (!_disposed) _cancellation.Cancel(); } }
 
     public void Dispose()

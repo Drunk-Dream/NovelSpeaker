@@ -86,28 +86,7 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
             .ConfigureAwait(false);
         try
         {
-            using var existingCommand = connection.CreateCommand();
-            existingCommand.Transaction = transaction;
-            existingCommand.CommandText =
-                "SELECT PlanOutputHash FROM ChapterSpeechPlans WHERE ChapterId = $chapterId LIMIT 1;";
-            existingCommand.Parameters.AddWithValue("$chapterId", plan.ChapterId);
-            var existingHash = await existingCommand
-                .ExecuteScalarAsync(cancellationToken)
-                .ConfigureAwait(false);
-            var outputIsUnchanged = existingHash is byte[] hash &&
-                hash.AsSpan().SequenceEqual(plan.PlanOutputHash.Bytes.Span);
-
-            if (outputIsUnchanged)
-            {
-                await UpdateHeaderAsync(connection, transaction, plan, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            else
-            {
-                await ReplacePlanAsync(connection, transaction, plan, cancellationToken)
-                    .ConfigureAwait(false);
-            }
-
+            await SaveAsync(connection, transaction, plan, cancellationToken).ConfigureAwait(false);
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -115,6 +94,36 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
             await transaction.RollbackAsync(CancellationToken.None).ConfigureAwait(false);
             throw;
         }
+    }
+
+    internal static async Task SaveAsync(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        ChapterSpeechPlan plan,
+        CancellationToken cancellationToken)
+    {
+        using var existingCommand = connection.CreateCommand();
+        existingCommand.Transaction = transaction;
+        existingCommand.CommandText =
+            "SELECT PlanOutputHash FROM ChapterSpeechPlans WHERE ChapterId = $chapterId LIMIT 1;";
+        existingCommand.Parameters.AddWithValue("$chapterId", plan.ChapterId);
+        var existingHash = await existingCommand
+            .ExecuteScalarAsync(cancellationToken)
+            .ConfigureAwait(false);
+        var outputIsUnchanged = existingHash is byte[] hash &&
+            hash.AsSpan().SequenceEqual(plan.PlanOutputHash.Bytes.Span);
+
+        if (outputIsUnchanged)
+        {
+            await UpdateHeaderAsync(connection, transaction, plan, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await ReplacePlanAsync(connection, transaction, plan, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
     }
 
     public async Task<int> DeletePlansWithoutCacheEntriesAsync(CancellationToken cancellationToken)
@@ -132,6 +141,38 @@ public sealed class SqliteChapterSpeechPlanStore : IChapterSpeechPlanStore
                 WHERE AudioCacheEntries.ChapterId = ChapterSpeechPlans.ChapterId);
             """;
         return await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<bool> SaveIfCachedAsync(ChapterSpeechPlan plan, CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = (SqliteTransaction)await connection.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT 1 FROM AudioCacheEntries WHERE ChapterId = $chapterId LIMIT 1;";
+        command.Parameters.AddWithValue("$chapterId", plan.ChapterId);
+        if (await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false) is null)
+        {
+            command.CommandText = "DELETE FROM ChapterSpeechPlans WHERE ChapterId = $chapterId;";
+            await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            return false;
+        }
+        await SaveAsync(connection, transaction, plan, cancellationToken).ConfigureAwait(false);
+        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+        return true;
+    }
+
+    public async Task DeleteIfUncachedAsync(string chapterId, CancellationToken cancellationToken)
+    {
+        await using var connection = await _connectionFactory.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+        using var command = connection.CreateCommand();
+        command.CommandText = """
+            DELETE FROM ChapterSpeechPlans WHERE ChapterId = $chapterId
+            AND NOT EXISTS (SELECT 1 FROM AudioCacheEntries WHERE ChapterId = $chapterId);
+            """;
+        command.Parameters.AddWithValue("$chapterId", chapterId);
+        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task UpdateHeaderAsync(

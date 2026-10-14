@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Cache;
 using NovelSpeaker.Application.Playback;
 using NovelSpeaker.Domain.Settings;
 

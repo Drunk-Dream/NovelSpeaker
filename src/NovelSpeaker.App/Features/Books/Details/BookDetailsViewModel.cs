@@ -167,7 +167,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
 
             _projection.SetCacheDecorationWindow(chapterIndices);
             _projection.ClearStaleCacheDecorations(chapterIndices);
-            _cacheStatusRefresh.Request(_bookId!, chapterIndices);
+            _cacheStatusRefresh.Request(_bookId!, chapterIndices, replaceWindow: true);
         }
 
         if (!_uiScheduler.CheckAccess())
@@ -642,12 +642,16 @@ public sealed partial class BookDetailsViewModel : ObservableObject
         }
 
         var indices = _projection.CacheDecorationWindow.ToHashSet();
-        if (_projection.CurrentChapterItem is { } current)
+        var currentChapterIndex = _projection.CurrentChapterItem?.ChapterIndex;
+        if (currentChapterIndex is { } current)
         {
-            indices.Add(current.ChapterIndex);
-            _projection.MarkExplicitCacheStatusRequest(current.ChapterIndex);
+            indices.Add(current);
+            _projection.MarkExplicitCacheStatusRequest(current);
         }
 
+        ApplyChapterCacheStatuses(indices, []);
+        if (currentChapterIndex is { } currentIndex)
+            _projection.MarkExplicitCacheStatusRequest(currentIndex);
         _cacheStatusRefresh.Request(bookId, indices);
     }
 
@@ -695,7 +699,7 @@ public sealed partial class BookDetailsViewModel : ObservableObject
             _projection.MarkExplicitCacheStatusRequest(chapterIndex.Value);
         }
 
-        _cacheStatusRefresh.Request(bookId, chapterIndices.ToArray());
+        _cacheStatusRefresh.Request(bookId, chapterIndices.ToArray(), replaceWindow: chapterIndex is null);
     }
 
     private void ApplyChapterCacheStatuses(

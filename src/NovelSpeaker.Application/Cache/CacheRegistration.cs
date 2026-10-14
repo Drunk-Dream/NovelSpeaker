@@ -49,6 +49,7 @@ public static class CacheRegistration
         services.TryAddSingleton<IChapterExportCoordinator, ChapterExportCoordinator>();
         services.TryAddSingleton<ActiveCacheCoordinator>();
         services.TryAddSingleton<IActiveCacheCoordinator>(provider => provider.GetRequiredService<ActiveCacheCoordinator>());
+        services.TryAddSingleton<IActiveCacheLifetime>(provider => provider.GetRequiredService<ActiveCacheCoordinator>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<IBookRemovalWorkStopper, ActiveCacheRemovalWorkStopper>());
 
         return services;

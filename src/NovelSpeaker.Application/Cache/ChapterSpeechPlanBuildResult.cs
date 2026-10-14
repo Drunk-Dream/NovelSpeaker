@@ -2,7 +2,7 @@ using NovelSpeaker.Domain.Books;
 
 namespace NovelSpeaker.Application.Cache;
 
-/// <summary>Provides both the current runtime projection and its persisted identity plan.</summary>
+/// <summary>Provides the runtime projection and its computed, unpersisted identity plan.</summary>
 public sealed record ChapterSpeechPlanBuildResult(
     IReadOnlyList<SpeechSegment> Segments,
     ChapterSpeechPlan Plan);

@@ -6,6 +6,78 @@ namespace NovelSpeaker.Application.UnitTests;
 
 public sealed class ChapterExportCoordinatorTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Throwing_observer_does_not_prevent_worker_progress_terminal_result_or_retry(bool fail)
+    {
+        var exporter = new ControlledExportService();
+        await using var coordinator = new ChapterExportCoordinator(exporter);
+        var snapshots = new ConcurrentQueue<ChapterExportSnapshot>();
+        coordinator.SnapshotChanged += (_, _) => throw new InvalidOperationException("fixture observer failure");
+        coordinator.SnapshotChanged += (_, snapshot) => snapshots.Enqueue(snapshot);
+
+        var start = await coordinator.StartAsync(CreateRequest(), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ChapterExportStartStatus.Accepted, start.Status);
+        await exporter.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        exporter.Report(new ExportChaptersProgress(1, 2, 1));
+        if (fail) exporter.Fail(new IOException("fixture worker failure"));
+        else exporter.Complete(SucceededResult());
+        await coordinator.WaitForCurrentBatchAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+
+        var terminal = fail ? ChapterExportBatchStatus.Failed : ChapterExportBatchStatus.Completed;
+        Assert.Equal(terminal, coordinator.CurrentSnapshot!.Status);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == ChapterExportBatchStatus.Waiting);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == ChapterExportBatchStatus.Running &&
+            snapshot.CompletedChapterCount == 1);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == terminal);
+        if (fail) Assert.Equal("章节导出失败，请重试。", coordinator.CurrentSnapshot.ErrorSummary);
+
+        exporter.Reset();
+        var retry = await coordinator.StartAsync(CreateRequest(), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        await exporter.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        exporter.Complete(SucceededResult());
+        await coordinator.WaitForCurrentBatchAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ChapterExportStartStatus.Accepted, retry.Status);
+        Assert.NotEqual(start.BatchId, retry.BatchId);
+        Assert.Equal(ChapterExportBatchStatus.Completed, coordinator.CurrentSnapshot.Status);
+    }
+
+    [Fact]
+    public async Task Throwing_observer_does_not_block_duplicate_rejection_cancel_restart_or_dispose()
+    {
+        var exporter = new ControlledExportService();
+        await using var coordinator = new ChapterExportCoordinator(exporter);
+        var snapshots = new ConcurrentQueue<ChapterExportSnapshot>();
+        coordinator.SnapshotChanged += (_, _) => throw new InvalidOperationException("fixture observer failure");
+        coordinator.SnapshotChanged += (_, snapshot) => snapshots.Enqueue(snapshot);
+
+        var start = await coordinator.StartAsync(CreateRequest(), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        var duplicate = await coordinator.StartAsync(CreateRequest(), CancellationToken.None);
+        await exporter.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ChapterExportStartStatus.Accepted, start.Status);
+        Assert.Equal(ChapterExportStartStatus.BatchAlreadyActive, duplicate.Status);
+        exporter.Report(new ExportChaptersProgress(1, 2, 1));
+        await coordinator.CancelAsync(CancellationToken.None).WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ChapterExportBatchStatus.Cancelled, coordinator.CurrentSnapshot!.Status);
+        Assert.Equal(1, coordinator.CurrentSnapshot.CompletedChapterCount);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == ChapterExportBatchStatus.Cancelling);
+        Assert.Contains(snapshots, snapshot => snapshot.Status == ChapterExportBatchStatus.Cancelled);
+
+        exporter.Reset();
+        var replacement = await coordinator.StartAsync(CreateRequest(), CancellationToken.None)
+            .WaitAsync(TimeSpan.FromSeconds(5));
+        await exporter.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ChapterExportStartStatus.Accepted, replacement.Status);
+        await coordinator.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(ChapterExportBatchStatus.Cancelled, coordinator.CurrentSnapshot.Status);
+        Assert.Contains(snapshots, snapshot => snapshot.BatchId == replacement.BatchId &&
+            snapshot.Status == ChapterExportBatchStatus.Cancelled);
+    }
+
     [Fact]
     public async Task StartAsync_owns_background_batch_and_publishes_chapter_progress()
     {
@@ -166,7 +238,7 @@ public sealed class ChapterExportCoordinatorTests
 
     private sealed class ControlledExportService : IExportChaptersService
     {
-        private readonly TaskCompletionSource<ExportChaptersResult> _completion =
+        private TaskCompletionSource<ExportChaptersResult> _completion =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         private IProgress<ExportChaptersProgress>? _progress;
 
@@ -176,7 +248,7 @@ public sealed class ChapterExportCoordinatorTests
 
         public ExportChaptersRequest? LastRequest { get; private set; }
 
-        public TaskCompletionSource Started { get; } =
+        public TaskCompletionSource Started { get; private set; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public Task<ExportChaptersResult> ExportAsync(
@@ -211,5 +283,13 @@ public sealed class ChapterExportCoordinatorTests
         public void Report(ExportChaptersProgress progress) => _progress?.Report(progress);
 
         public void Complete(ExportChaptersResult result) => _completion.TrySetResult(result);
+
+        public void Fail(Exception exception) => _completion.TrySetException(exception);
+
+        public void Reset()
+        {
+            _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
     }
 }

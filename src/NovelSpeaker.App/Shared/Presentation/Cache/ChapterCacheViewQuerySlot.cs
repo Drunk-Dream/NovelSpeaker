@@ -15,6 +15,8 @@ internal sealed class ChapterCacheViewQuerySlot
     private readonly Action<string, IReadOnlyCollection<int>, IReadOnlyList<CacheChapterView>> _applyViews;
     private readonly Action<Exception> _reportFailure;
     private readonly LatestOperationSlot _catalogObservation = new();
+    private readonly LatestOperationSlot _windowObservation = new();
+    private readonly HashSet<int> _windowIndices = [];
     private readonly object _syncRoot = new();
     private readonly HashSet<int> _pendingChapterIndices = [];
 
@@ -49,6 +51,8 @@ internal sealed class ChapterCacheViewQuerySlot
         lock (_syncRoot)
         {
             _catalogObservation.Cancel();
+            _windowObservation.Cancel();
+            _windowIndices.Clear();
             _pageActivation = null;
             _pendingChapterIndices.Clear();
             _pendingBookId = null;
@@ -58,7 +62,8 @@ internal sealed class ChapterCacheViewQuerySlot
 
     public void Request(
         string bookId,
-        IReadOnlyCollection<int> chapterIndices)
+        IReadOnlyCollection<int> chapterIndices,
+        bool replaceWindow = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(bookId);
         ArgumentNullException.ThrowIfNull(chapterIndices);
@@ -79,6 +84,14 @@ internal sealed class ChapterCacheViewQuerySlot
             }
 
             cancellationToken = current.CancellationToken;
+            if ((replaceWindow && !_windowIndices.SetEquals(chapterIndices)) ||
+                _pendingBookId != bookId || _windowObservation.Current is not { IsCurrent: true })
+            {
+                _windowObservation.Begin(cancellationToken, _pageActivation);
+                _windowIndices.Clear();
+                _windowIndices.UnionWith(chapterIndices);
+                _pendingChapterIndices.Clear();
+            }
             if (!string.Equals(_pendingBookId, bookId, StringComparison.Ordinal))
             {
                 _pendingChapterIndices.Clear();
@@ -120,6 +133,8 @@ internal sealed class ChapterCacheViewQuerySlot
             {
                 string bookId;
                 int[] chapterIndices;
+                LatestOperationSlot.Operation window;
+                bool observeWindow;
                 lock (_syncRoot)
                 {
                     if (!observation.IsCurrent)
@@ -135,19 +150,29 @@ internal sealed class ChapterCacheViewQuerySlot
 
                     bookId = _pendingBookId;
                     chapterIndices = [.. _pendingChapterIndices];
-                    _pendingChapterIndices.Clear();
+                    window = _windowObservation.Current!;
+                    observeWindow = _windowIndices.IsSubsetOf(chapterIndices);
+                    if (observeWindow) chapterIndices = [.. _windowIndices];
+                    _pendingChapterIndices.ExceptWith(chapterIndices);
                 }
 
-                var result = await _readModel.GetChaptersAsync(
-                    bookId,
-                    chapterIndices,
-                    cancellationToken);
+                CacheReadResult<IReadOnlyList<CacheChapterView>> result;
+                try
+                {
+                    result = observeWindow
+                        ? await _readModel.GetChaptersAsync(bookId, chapterIndices, window.CancellationToken, window.CancellationToken)
+                        : await _readModel.GetChaptersAsync(bookId, chapterIndices, window.CancellationToken);
+                }
+                catch (Exception) when (!window.IsCurrent)
+                {
+                    continue;
+                }
                 cancellationToken.ThrowIfCancellationRequested();
 
                 await _uiScheduler.InvokeAsync(
                     () =>
                     {
-                        if (observation.IsCurrent)
+                        if (observation.IsCurrent && window.IsCurrent)
                         {
                             _applyViews(bookId, chapterIndices, result.Value);
                         }

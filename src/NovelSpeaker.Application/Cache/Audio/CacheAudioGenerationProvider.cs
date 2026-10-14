@@ -99,8 +99,12 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                     existing.PromoteToCurrent();
                 }
 
-                var result = await existing.WaitAsync(cancellationToken).ConfigureAwait(false);
-                if (priority == AudioGenerationPriority.Current && existing.ExecutionToken.IsCancellationRequested &&
+                // Keep joined executions visible to active-cache drain as well. The
+                // original owner retains cancellation authority over shared synthesis.
+                var result = await existing.WaitAsync(priority == AudioGenerationPriority.ActiveCache
+                    ? CancellationToken.None : cancellationToken).ConfigureAwait(false);
+                if (priority is AudioGenerationPriority.Current or AudioGenerationPriority.Prefetch &&
+                    existing.ExecutionToken.IsCancellationRequested &&
                     !cancellationToken.IsCancellationRequested && result.Failure?.Kind == TtsErrorKind.Cancelled)
                 {
                     _inFlight.TryRemove(new KeyValuePair<AudioCacheKey, InFlightOperation>(cacheKey, existing));
@@ -123,7 +127,11 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
                 () => ExecuteOperationAsync(request, cacheKey, operation),
                 () => _inFlight.TryRemove(new KeyValuePair<AudioCacheKey, InFlightOperation>(cacheKey, operation)));
 
-            return await operation.WaitAsync(cancellationToken).ConfigureAwait(false);
+            // The active-cache owner must retain its execution until the external provider
+            // returns, so process drain can distinguish cancellation from a stopped worker.
+            // Execution itself still receives the linked owner cancellation token.
+            return await operation.WaitAsync(priority == AudioGenerationPriority.ActiveCache
+                ? CancellationToken.None : cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -208,7 +216,8 @@ public sealed class CacheAudioGenerationProvider : IAudioGenerationProvider
 
                 await using var audio = await _files.WriteAsync(synthesis, operation.ExecutionToken).ConfigureAwait(false);
                 var stored = await _audioCache.StoreAsync(new AudioCacheWriteRequest(
-                    cacheKey, request.BookId, request.ChapterIndex, 0, audio.FilePath, audio.ResponseContentType),
+                    cacheKey, request.BookId, request.ChapterIndex, 0, audio.FilePath, audio.ResponseContentType)
+                { SpeechPlan = request.SpeechPlan },
                     operation.ExecutionToken).ConfigureAwait(false);
                 return new AudioGenerationResult(stored.FilePath, false, null);
             }

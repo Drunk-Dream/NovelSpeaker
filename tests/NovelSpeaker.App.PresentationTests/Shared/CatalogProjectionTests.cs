@@ -1,3 +1,4 @@
+using NovelSpeaker.Application.Cache;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using NovelSpeaker.Application.Books;
@@ -340,6 +341,9 @@ public sealed class CatalogProjectionTests
 
     private sealed class StubPlaybackContentService(PlaybackBookContent book) : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         public Task<PlaybackBookContent?> GetBookAsync(
             string bookId,
             CancellationToken cancellationToken) =>
@@ -355,6 +359,9 @@ public sealed class CatalogProjectionTests
 
     private sealed class DelayedPlaybackContentService : IBookPlaybackContentService
     {
+        public Task<ChapterContentReader> FreezeChapterReaderAsync(CancellationToken cancellationToken) =>
+            Task.FromResult<ChapterContentReader>(GetChapterAsync);
+
         public TaskCompletionSource<PlaybackBookContent?> BookResult { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
 

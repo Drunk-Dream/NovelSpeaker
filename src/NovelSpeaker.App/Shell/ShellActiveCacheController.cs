@@ -55,7 +55,7 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
     private string batchStatusText = string.Empty;
 
     [ObservableProperty]
-    private string totalSegmentProgressText = string.Empty;
+    private string totalChapterProgressText = string.Empty;
 
     [ObservableProperty]
     private bool canCancel;
@@ -150,8 +150,8 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
             ActiveCacheBatchStatus.Cancelling => "正在取消",
             _ => "正在缓存"
         };
-        TotalSegmentProgressText =
-            $"总进度 {snapshot.CompletedSegmentCount} / {snapshot.TotalSegmentCount} 段";
+        TotalChapterProgressText =
+            $"总进度 {snapshot.CompletedChapterCount} / {snapshot.TotalChapterCount} 章";
         CanCancel = snapshot.Status is ActiveCacheBatchStatus.Waiting or ActiveCacheBatchStatus.Running;
 
         ProjectChapters(snapshot);
@@ -164,7 +164,7 @@ public sealed partial class ShellActiveCacheController : ObservableObject, IDisp
         CompactStatusText = string.Empty;
         BookTitle = string.Empty;
         BatchStatusText = string.Empty;
-        TotalSegmentProgressText = string.Empty;
+        TotalChapterProgressText = string.Empty;
         CanCancel = false;
         Chapters.Clear();
         _chapterPositions.Clear();

@@ -157,9 +157,13 @@ internal sealed class PlaybackPrefetchCoordinator : IPlaybackPrefetchController
                         _activeRequestCts?.Cancel();
                     }
 
-                    desired = desired
-                        .Where(request => request.ToCacheKey() != _activeKey)
-                        .ToList();
+                    // A cancelled execution cannot satisfy a rapidly restored window.
+                    if (_activeRequestCts?.IsCancellationRequested != true)
+                    {
+                        desired = desired
+                            .Where(request => request.ToCacheKey() != _activeKey)
+                            .ToList();
+                    }
                 }
 
                 _pendingRequests = desired;
