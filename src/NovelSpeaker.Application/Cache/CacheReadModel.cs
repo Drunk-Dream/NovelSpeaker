@@ -70,8 +70,12 @@ internal sealed class CacheReadModel : ICacheReadModel, IDisposable
             return (Physical: physical, Metadata: metadata, Coverage: coverage);
         }, cancellationToken).ConfigureAwait(false);
 
+        var cachedChapterIndices = result.Value.Physical
+            .Select(static chapter => chapter.ChapterIndex)
+            .ToHashSet();
         var repairIndices = result.Value.Coverage
-            .Where(static status => status.Kind is ChapterCacheStatusKind.PlanMissing or ChapterCacheStatusKind.PlanStale)
+            .Where(status => status.Kind is ChapterCacheStatusKind.PlanStale &&
+                cachedChapterIndices.Contains(status.ChapterIndex))
             .Select(static status => status.ChapterIndex).ToHashSet();
         foreach (var chapter in result.Value.Metadata)
         {

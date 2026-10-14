@@ -23,8 +23,8 @@
 
 ### Phase A — 目录查询不再放大工作量
 
-- [ ] **T001（P0 / Query Boundary）— Cache 只读查询与 PlanMissing 止血**  
-  规格：[`tasks/T001_CACHE_READ_BOUNDARY.md`](tasks/T001_CACHE_READ_BOUNDARY.md)。滚动/可视窗口查询不得为 `PlanMissing` 建 Plan；`PlanStale` 仅在有实际缓存时才可申请修复；确保查询不读正文、不写入。
+- [x] **T001（P0 / Query Boundary）— Cache 只读查询与 PlanMissing 止血**
+  完成成果：目录查询不再为 `PlanMissing` 请求 repair；`PlanStale` 仅在同窗口存在物理缓存时请求。10k 章节多窗口回归、SQLite Cache 22 项、Presentation 25 项、格式检查及 Release 构建通过。
 
 ### Phase B — Plan 计算与真实缓存生命周期
 
