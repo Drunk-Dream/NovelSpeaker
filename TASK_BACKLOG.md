@@ -1,81 +1,58 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 当前阶段：Playback 暂停预取行为修复（Cache 架构收口已完成）
+## 1. 当前阶段：U2 — 播放页布局与交互体验
 
-- **工作基线：** 以 Codex 执行时本地实际 `HEAD` 和工作区为准；T001–T005 与上一轮 E1-C/T007 已完成并推送到 `dev`。先核对工作区，保留所有既有用户改动，不以覆盖旧任务成果的方式实施 T006。
-- **已完成阶段：** T001–T005 收口了目录滚动引发的 Plan 写入、真实 Coverage、Stale 修复、缓存生命周期和资源使用问题。
-- **当前新增授权：** T006 仅修复 Playback 暂停状态仍执行自动音频预取的问题。Speech Plan 计算/持久化分离成果及缓存完整度规则继续保持。
-- **已存在功能继续保持：** Provider/语速等 synthesis fingerprint 改变时，缓存按新配置重新匹配；**不因为 Provider 改变而重建 Speech Plan**，不另开实现任务。
-- **长期合同：** `docs/04_CACHE_AND_BACKGROUND_WORK.md` 为 Cache owner；生命周期参见 `docs/02_RUNTIME_AND_NAVIGATION.md`，规则影响参见 `docs/specs/REGEX_REPLACEMENT.md`；其余遵守 `AGENTS.md`。
-- 本轮不开发在线书源，不启动 U1 视觉改版，不重构其它系统。尽量在既有模型、服务和 SQLite 表结构内解决，不为“可能有用”新增通用机制。
+- **阶段衔接：** E1（结构与生命周期）、U1（全局视觉语言）、E2（性能与资源调查）已完成或收口。E2 未发现证据充分、值得立即实施的缓存启动优化，暂不继续 E2-B。
+- **执行基线：** Codex 开工时本地 `dev` 的实际 HEAD 与工作区。上一轮 E2 报告及 Backlog/`tasks/` 可能尚未推送；先运行 `git status` 并检查差异，保留所有用户已有的提交、未提交修改和临时报告。不以远端旧 Backlog 覆盖本地成果。此文件是**新一轮任务规划的目标 Backlog**，替换旧轮次的调度记录；旧任务完成历史由 Git 和用户管理的报告保存。
+- **本轮目标：** 保留目前“左侧章节目录 + 右侧正文预览 + 顶部工具 + 底部媒体控制”的播放页形态，修复窗口缩小时的全局纵向滚动/控制栏遮挡，增加可拖动的目录宽度；之后仅修复有证据的正文跟读、滚动和状态反馈问题。
+- **已确定产品方案：** 不做窄屏自动收起目录或单栏改版；分隔条只显示轻量竖线、hover 增强、水平调整光标、键盘可用；目录采用用户偏好的**固定宽度**，窗口宽度变化主要由正文吸收，空间不足时目录可临时收缩、空间恢复后回到偏好宽度；每栏有可用的最小宽度。
+- **保持既有业务合同：** Playback logical target-first，UI 先切换目标再异步准备音频；暂停不自动预取；Provider/语速下一段生效；自动跟读、手动浏览与“返回当前段落”语义；章节管理页面级多选；Speech Plan、Coverage、Active Cache 的现有规则均不在 U2 中重做。
+- **长期依据：** `AGENTS.md`、`docs/06_UI_AND_VISUAL_SYSTEM.md`、`docs/02_RUNTIME_AND_NAVIGATION.md`、`docs/03_BOOKS_PLAYBACK_AND_PROGRESS.md`、`docs/04_CACHE_AND_BACKGROUND_WORK.md` 与 `docs/08_QUALITY_AND_TESTING.md`，按任务规格选择性阅读。
 
 ## 2. 执行规则
 
-- `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 遇到超出授权边界、必须由用户与 ChatGPT 决定的阻断问题。
-- **T001–T005 已完成，当前只执行 T006。** 任务结束必须可构建并通过相关核心测试；不启用 staged breaking migration window。
-- 阅读 `AGENTS.md`、当前 task spec 和 task spec 明确引用的少量长期文档；以本地实现为准，不机械照搬任务中提到的类名。先 `git status`/检查相关 diff，保护其它用户改动；在实际工作树上增量集成。
-- 仅在真实需要时调整 Application port、Infrastructure Store、UI binding；不添加多余状态机、通用 Scheduler/EventBus、全局 Plan 内存缓存、无限队列、重复兼容路径或永久的迁移补丁层。
-- 已发布 SQLite schema/migration 不擅自更改；本轮计划在现有 `ChapterSpeechPlans`、`ChapterSpeechPlanSegments` 和 `AudioCacheEntries` 中完成。若确需新增持久化结构或改变正式数据语义，先按 `AGENTS.md` 记录具体影响并请求决策。
-- 只保留核心行为的正式测试；可使用受控临时规模测试/基准，完成后删除临时 harness、数据文件和截图。人工验收仅作可选补充，不作为阻断下一任务的条件。
-- 每任务完成后把状态标记 `[x]`，记录简短成果/自动验证/限制，删除对应 `tasks/Txxx_*.md`；由 Git 记录历史。不得未经授权 push、发 PR、发布或创建 tag。项目文本使用 LF。
-- 上一轮 T001–T005 的已完成任务规格应已删除；本轮 `tasks/` 只增加 T006 规格，不恢复历史任务或删除无关工作。
+- 状态：`[ ]` 未开始、`[-]` 进行中、`[x]` 已完成、`[!]` 确有超出授权范围的产品/架构阻断。
+- **默认顺序 T001 → T002 → T003 → T004**。各任务按 `tasks/Txxx_*.md` 执行，完成后保留 Backlog 条目、标记 `[x]` 并记录简短成果和自动验证；删除对应已完成的临时任务规格。无需等待人工验收才能进入下一任务。
+- 所有项目文本保持 LF。以最新代码和真实调用链判断根因，优先使用 WPF/Wpf.Ui 的成熟布局与控件能力，不增加通用 Viewport/Splitter/Layout Manager、全局 Scheduler、事件总线或只为迁就旧测试的兼容层。
+- 若任务引用的现有代码名称/路径发生变化，由 Codex 根据实际实现适配；但若涉及用户未授权的产品行为变化、数据迁移、安全边界或重新设计播放页，则仅记录问题，不擅自扩大实现。
+- 优先 focused build/tests、WPF 隔离 Desktop 的布局与交互验证；不在用户真实桌面自动展示测试窗口，不读取/修改真实用户书库、缓存、TXT、Provider 凭据。必要时建立受控临时视觉截图/诊断，完成后清理。人工视觉验收可选且永不阻塞任务。
+- 只留下符合 `docs/08_QUALITY_AND_TESTING.md` 准入标准的核心正式测试；不为像素、具体 Visual Tree、拖动每一小步或中间私有状态增加长期测试。
+- 任何阶段都不未经授权执行 `git push`、PR、tag、release，不修改无关模块；每个任务结束保持可构建、可执行相关测试。
 
 ## 3. 当前任务
 
-### Phase A — 目录查询不再放大工作量
+### Phase A — 垂直布局正确性
 
-- [x] **T001（P0 / Query Boundary）— Cache 只读查询与 PlanMissing 止血**
-  完成成果：目录查询不再为 `PlanMissing` 请求 repair；`PlanStale` 仅在同窗口存在物理缓存时请求。10k 章节多窗口回归、SQLite Cache 22 项、Presentation 25 项、格式检查及 Release 构建通过。
+- [ ] **T001（P0 / Layout）— 修复播放页垂直缩放时全局滚动与控制栏遮挡**
+  规格：[`tasks/T001_PLAYER_HEIGHT_LAYOUT.md`](tasks/T001_PLAYER_HEIGHT_LAYOUT.md)。从 WPF 测量约束链确认根因，令顶部与底部控制始终可见，目录/正文中间区随窗口高度双向伸缩，仅各自内部滚动。
 
-### Phase B — Plan 计算与真实缓存生命周期
+### Phase B — 双栏宽度调节
 
-- [x] **T002（P0 / Persistence）— Plan 计算与持久化解耦**
-  完成成果：Plan Build/正文加载纯计算；语音内容 port/DTO 收归 Cache，避免 Books 反向依赖。生成音频时 Plan 与 Ready 索引同事务保存，保留 Header-only 优化；移除 Build 隐式保存。保留并改写核心 Plan/Playback 测试，新增首写回滚、取消、并发及重开库 Coverage/导出键回归；Application 128 项、Infrastructure 111 项、Presentation 78 项（含架构）、Release build、format/diff check 通过。完整门禁留待 T005；未新增 schema，无文档冲突。
+- [ ] **T002（P1 / Interaction）— 目录与正文间可拖动分隔条及宽度偏好**
+  规格：[`tasks/T002_PLAYER_SPLITTER.md`](tasks/T002_PLAYER_SPLITTER.md)。保持现有双栏，复用 WPF GridSplitter；横向调整窗口时保留目录偏好宽度，执行真实最小宽度约束与恢复语义。
 
-### Phase C — Stale 异步修复和真实百分比
+### Phase C — 已有阅读/播放交互收敛
 
-- [x] **T003（P0 / Background & UX）— 简化 Stale repair 与完整度展示**
-  完成成果：单 worker 只持有可撤回窗口身份及当前尝试记录，移除逐章 Task.Run、双并发和无界重试；窗口/离页取消、配置/来源复核及事务内有缓存才保存，成功仅按章 invalidation，合并的窗口外通知仍只读。三处 UI 隐藏零值/过期/不可用标注，CacheManagement 保留物理条目。新增核心窗口撤回、失败去重、迟到结果和退出预算回归，更新零值展示测试；Application 74 项、Infrastructure 104 项、Presentation 123 项（含架构）、WPF DI/退出 7 项、Release build、format/diff check 通过。完整门禁留待 T005，无新增 schema 或长期文档冲突。
+- [ ] **T003（P1 / UX Audit）— 正文跟读、滚动与播放反馈定向审查**
+  规格：[`tasks/T003_PLAYER_UX_AUDIT.md`](tasks/T003_PLAYER_UX_AUDIT.md)。对照已存在的产品语义验证真实用户流程，只有复现的明显缺陷或现有规范冲突才作小范围修复。没有证据则不动代码；不添加未讨论过的新功能或视觉大改版。
 
-### Phase D — 资源收口
+### Phase D — 质量与长期合同收口
 
-- [x] **T004（P1 / Resource）— 孤立 Plan 清理与 Active Cache 按章处理**
-  完成成果：沿用最后缓存删除/淘汰的事务内定向清理与启动兜底，补修复遇到无缓存的按章清理；保留其它 Provider 的物理缓存及 Plan。Active Cache 冻结轻量章节身份、Provider/语速和文本配置读取委托，正文/分段/Plan 逐章处理释放；删除批量内容加载与 FrozenChapter/FrozenSegment 副本，总进度按章、章内按段。改写并保留冻结/退出/播放核心测试，补来源中途失效及缓存生命周期回归；Application 136 项、Infrastructure 105 项、Presentation 123 项（含架构）、隔离 Desktop WPF 12 项、Release build、format/diff check 通过。完整门禁留待 T005；无新 schema、临时产物或长期文档冲突。
+- [ ] **T004（P1 / Closure）— U2 整体回归与文档收口**
+  规格：[`tasks/T004_U2_CLOSURE.md`](tasks/T004_U2_CLOSURE.md)。验证窗口高度/宽度、双栏拖动、正文滚动、状态和主题；将稳定规则合并到既有 UI 文档，删除临时产物与任务规格。
 
-### Phase E — 工程验证
+## 4. 本轮明确不实施
 
-- [x] **T005（P1 / Closure）— 长目录性能、完整度和完整质量门禁**
-  完成成果：复核 T001–T004 与上一轮 T007 的读取/事务/窗口撤回/逐章处理/退出边界；missing 自动补建、批量正文副本及旧修复队列已在前序任务移除，无其它兼容残留、新 schema 或长期文档冲突。保留既有 Plan/SQLite、配置匹配、失败/取消/并发、页面生命周期、播放/导出/主动缓存/退出及架构核心测试，不新增永久测试；修正 1 个局部刷新回归用例，先事件驱动确认 50% 再验证零值隐藏，消除原本空白谓词提前完成导致的偶发失败。一次性规模与 WPF harness、隔离数据库和音频已清理，完成任务规格已删除。
-  规模验收：真实 SQLite 的 10,000 章目录扫过 125 个窗口，Plan/Segment 行数 0/0 → 0/0，DB 2,387,968 → 2,387,968 字节、WAL 0 → 0，正文读取/修复 0/0，data_version 不变；窗口查询 P50/P95 4.25/6.21 ms（首次 38.43 ms）。加入 4 个真实部分缓存章节后，行数 4/8 → 4/8、DB/WAL 不变，读取/修复为零，P50/P95 4.37/4.80 ms。Stale 快速跨 125 窗口撤回后仅旧章 0 与最新章 9999 各读取一次，旧结果废弃，最新章修复后 50%；切 Provider 为 0%、切回恢复 50%，无 Plan 重建且物理缓存保留。
-  自动验收：locked win-x64 restore、format verify、零警告 Release build、完整测试 1,019 项（Domain 34 / Application 261 / Infrastructure 352 / Presentation 319 / 隔离 Desktop WPF 53）全部通过；局部刷新修正后 CacheManagement 20 项通过，原失败用例独立进程重复 20/20 通过。架构/全量 XAML 主题静态检查包含于完整测试，既有主题运行证据保留，diff/LF/schema/临时产物检查通过。发现 10 个历史 lock 文件含 CRLF，仅归一化为 LF，逐文件确认依赖 JSON 未变。临时真实 BookDetails 10k 章滚动 125 窗口，最多 15 个容器，滚动加 layout P50/P95 14.65/18.10 ms；环境无未执行的强制检查，受控本机采样不承诺所有机器绝对无卡顿，人工视觉验收未执行。
+- 不自动折叠目录、改成单栏阅读器、引入独立沉浸式模式或重排所有播放按钮。
+- 不重构 Playback/Speech/Cache 底层，不修改音频预取、暂停、Source、Chapter、Coverage、Active Cache、导出等业务语义。
+- 不将播放页的纵向溢出通过 `ClipToBounds`、隐藏全局 ScrollViewer、增加魔法高度或强行提高整个窗口 `MinHeight` 来掩盖；应修复布局测量/排列约束。
+- 不扩大为全应用布局系统重写；若问题根因在共同宿主，仅允许必要的局部、非破坏性修正，并验证其它页面仍保留其既有滚动行为。
+- 不为 U2 新增 DB schema/migration、多套宽度状态持久化、按书宽度配置或复杂动画控制器。
 
-### Phase F — Playback 暂停预取修复
+## 5. 阶段完成标准
 
-- [x] **T006（P1 / Playback）— 暂停时停止自动音频预取**
-  完成成果：Playback intent 为 Play 才生成预取需求；手动/定时暂停立即递增窗口版本、清空待处理请求并协作取消在途预取，暂停打开/跳转/配置刷新不再入队。异步解析前及串行提交时复核 intent、session、target 和窗口版本，拒绝迟到窗口；恢复未加载音频时也刷新预取，已取消的同键在途请求不再吞掉快速 Resume 的新需求。共享生成层沿用 Current 的取消结果重试语义，使仍有效的恢复预取不被旧 execution 吞掉。删除暂停“一段例外”和 maxCount 分支，保留播放时当前目标保护、设备音频恢复、已完成缓存及独立 Active Cache；仅在 Cache owner 文档补充稳定规则，无 schema/配置/兼容层变化或长期文档冲突。
-  自动验收：新增 7 个核心用例覆盖暂停打开/跳转/Provider/语速、0 预取、手动/定时暂停、在途与待处理取消、Active Cache 隔离、快速恢复、迟到窗口及真实共享生成链的取消后恢复/Ready 保留/旧流释放；保留既有 Playback/Prefetch、Plan/SQLite、退出和架构回归，不删除/合并核心测试。Playback 集成 47 项、Application Playback/Active Cache focused 79 项、locked win-x64 restore、format verify、零警告 Release build、完整测试 1,026 项（Domain 34 / Application 262 / Infrastructure 358 / Presentation 319 / 隔离 Desktop WPF 53）、diff/LF 检查通过；任务临时诊断产物与规格已清理。无环境阻止的强制检查；取消沿用已有协作语义，无法承诺远端请求瞬时中断；人工交互验收未执行。
-
-## 4. 明确不实施
-
-- 不因为 Provider 切换而生成新的 Speech Plan，保留已有 synthesis fingerprint + 音频键匹配设计。
-- 不为 `PlanMissing` 批量预计算、不为无音频的章节提前写入 `ChapterSpeechPlanSegments`。
-- 不在普通目录显示 0%、“计算中”、过期值或其它替代文案；真实有效百分比计算完成后再显示。
-- 不进行同步等待修复、不在 Dispatcher 做正文分段/Regex 计算、不扫描/解码可见章节的所有音频文件。
-- 不添加复杂优先级、多 worker 池、持久化修复任务表、跨页面永久缓存或通用 Scheduler。
-- 不重写 Book/Source/CurrentCatalog、Provider、TTS 输出身份、缓存文件根信任边界、Playback target-first 或已完成的上一轮 T007 修复。
-
-## 5. 完成标准
-
-1. 仅打开/滚动 10k 章节目录，未缓存章节不会创建新 Plan/Segment 行，数据库写入量和 UI 交互不随扫过章节数异常膨胀。
-2. `PlanStale` 只在存在实际缓存且当前需要展示时异步修复；快速滚动/离开页面后不残留大量排队补建；修复失败不触发无限重试。
-3. Speech Plan 计算是无持久化副作用的能力；实际 Ready 音频缓存和可用 Plan 在重启后保持正确关联；失效缓存不能计入当前配置的百分比。
-4. UI 仅显示有效且非零的真实百分比；无缓存、0%、缺失、过期或失败均空白。切换 Provider 后的当前配置匹配行为不退化。
-5. 维持现有可用的 MP3 导出、正常播放及 target-first、主动缓存、退出排空；无长期持有跨大量章节正文/段落的批次内存结构。
-6. 无不必要 schema migration、Compat/V2 层、临时测试文件；T005 完整质量门禁结果如实记录。
-
-## 6. T006 独立验收
-
-- 暂停、定时暂停、以暂停状态打开书籍、暂停中切段/切章和修改 Provider/语速，均不发起新的自动预取 TTS；预取窗口撤销时的旧异步结果不能重新激活预取。
-- 暂停时仅取消 Playback Prefetch 所拥有的待处理及进行中工作，尽力取消进行中的预取；已成功提交的缓存保留，不影响主动缓存及已加载的暂停音频。
-- 恢复播放后按原有配置恢复正常预取，保留 `target-first` 和当前音频准备优先级。
-- 完成后将 T006 标记 `[x]`，记录核心测试/构建与限制，删除 `tasks/T006_PAUSED_PREFETCH.md`；不新增数据库 schema、配置开关或通用任务调度组件。
+1. 从允许的最小窗口高度向上拉伸再缩回，播放页的 Header 与媒体控制始终在可视区域；没有播放页全局纵向滚动，目录和正文分别正常内部滚动。
+2. 可通过鼠标和键盘调整两栏；最小宽度、拖动上下限、响应式宽度恢复和偏好持久化符合既定方案；分隔视觉轻量、Light/Dark 与 hover/focus 可用。
+3. 不破坏章节/段落切换、滚动自动居中与手动浏览、播放准备/失败反馈、暂停状态、章节管理及 Cache 装饰；长目录保持虚拟化。
+4. 交付符合证据的必要修复和少量核心测试，完成针对性的 WPF 安全验证、构建与格式检查；阶段收口完成完整质量门禁（不能运行的步骤如实说明）。
+5. 更新 `docs/06_UI_AND_VISUAL_SYSTEM.md` 的长期布局规则；Backlog 记录成果，`tasks/` 无已完成规格，临时截图/harness/数据已清理。
