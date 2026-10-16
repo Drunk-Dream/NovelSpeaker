@@ -4,6 +4,10 @@ using NovelSpeaker.App.Shell.Input;
 using NovelSpeaker.App.Shell.Navigation;
 using NovelSpeaker.App.Features.Playback.Presentation;
 using Wpf.Ui.Abstractions.Controls;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
 
 namespace NovelSpeaker.App.Features.Playback;
 
@@ -26,6 +30,30 @@ public partial class PlayerPage : System.Windows.Controls.Page, INavigationAware
     }
 
     public PlayerViewModel ViewModel { get; }
+
+    private void PlayerPage_OnLoaded(object sender, RoutedEventArgs e)
+    {
+        // Frame navigation is an inheritance boundary, so resolve the visual viewport
+        // after attachment rather than relying on an ancestor binding across the Page.
+        for (var ancestor = VisualTreeHelper.GetParent(this); ancestor is not null;
+             ancestor = VisualTreeHelper.GetParent(ancestor))
+        {
+            if (ancestor is ScrollContentPresenter viewport)
+            {
+                RootViewport.SetBinding(HeightProperty, new Binding(nameof(ActualHeight)) { Source = viewport });
+                return;
+            }
+        }
+
+        // A finite, non-scrolling host can use ordinary Stretch layout.
+        RootViewport.ClearValue(HeightProperty);
+    }
+
+    private void PlayerPage_OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        // Release the old host and keep reattachment bounded before Loaded runs again.
+        RootViewport.SetValue(HeightProperty, 0d);
+    }
 
     public bool TryHandleEscape() => ViewModel.TryHandleEscape();
 

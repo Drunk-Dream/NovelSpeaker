@@ -409,7 +409,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    private async Task Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
+    private async Task Real_guarded_navigation_to_player_page_keeps_controls_in_viewport_after_resizing()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -431,6 +431,41 @@ public sealed class MainWindowNavigationTests
                 var presenter = VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(navigationView);
                 Assert.NotNull(presenter);
                 Assert.False(presenter!.IsDynamicScrollViewerEnabled);
+
+                await DrainDispatcherAsync(window.Dispatcher);
+                var player = Assert.IsType<PlayerPage>(
+                    VisualTreeTestHelper.FindDescendant<PlayerPage>(presenter));
+                var view = Assert.IsType<PlayerView>(VisualTreeTestHelper.FindDescendant<PlayerView>(player));
+                var scroll = Assert.IsAssignableFrom<ScrollViewer>(
+                    VisualTreeTestHelper.FindDescendant<ScrollViewer>(presenter));
+                var defaultHeight = window.Height;
+                foreach (var height in new[] { defaultHeight, window.MinHeight, defaultHeight + 120, window.MinHeight })
+                {
+                    window.Height = height;
+                    window.UpdateLayout();
+                    await DrainDispatcherAsync(window.Dispatcher);
+
+                    Assert.InRange(scroll.ScrollableHeight, 0, 1);
+                    foreach (var name in new[] { "PageHeader", "NoProviderStatusView" })
+                    {
+                        var control = Assert.IsAssignableFrom<FrameworkElement>(view.FindName(name));
+                        Assert.True(control.IsVisible);
+                        Assert.True(control.ActualHeight > 0);
+                        var bounds = control.TransformToAncestor(presenter).TransformBounds(new Rect(control.RenderSize));
+                        Assert.InRange(bounds.Top, 0, presenter.ActualHeight);
+                        Assert.InRange(bounds.Bottom, bounds.Top, presenter.ActualHeight + 1);
+                    }
+                }
+
+                Assert.True(await navigationService.NavigateAsync(AppRoutes.Settings, CancellationToken.None));
+                await DrainDispatcherAsync(window.Dispatcher);
+                window.UpdateLayout();
+                var settingsScroll = Assert.IsAssignableFrom<ScrollViewer>(
+                    VisualTreeTestHelper.FindDescendant<ScrollViewer>(presenter));
+                Assert.True(settingsScroll.ScrollableHeight > 0);
+                settingsScroll.ScrollToBottom();
+                await DrainDispatcherAsync(window.Dispatcher);
+                Assert.True(settingsScroll.VerticalOffset > 0);
             }
             finally
             {
@@ -634,7 +669,7 @@ public sealed class MainWindowNavigationTests
     {
         Loaded_initializes_navigation_once_and_targets_library_page();
         Shell_exposes_only_library_and_settings_primary_items();
-        await Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration();
+        await Real_guarded_navigation_to_player_page_keeps_controls_in_viewport_after_resizing();
         await Real_navigation_to_appearance_settings_page_does_not_raise_dispatcher_exception();
         await Primary_navigation_switch_keeps_only_one_active_menu_item();
     }

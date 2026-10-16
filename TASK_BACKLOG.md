@@ -23,8 +23,9 @@
 
 ### Phase A — 垂直布局正确性
 
-- [ ] **T001（P0 / Layout）— 修复播放页垂直缩放时全局滚动与控制栏遮挡**
-  规格：[`tasks/T001_PLAYER_HEIGHT_LAYOUT.md`](tasks/T001_PLAYER_HEIGHT_LAYOUT.md)。从 WPF 测量约束链确认根因，令顶部与底部控制始终可见，目录/正文中间区随窗口高度双向伸缩，仅各自内部滚动。
+- [x] **T001（P0 / Layout）— 修复播放页垂直缩放时全局滚动与控制栏遮挡**
+  完成成果：隔离 WPF 实证确认导航 ScrollViewer 无界测量与 Page→View 的 ActualHeight 回绑形成高度反馈，820→640 时保留旧内容高度并产生 180 DIP 全局溢出。PlayerPage 加载后将根布局绑定至真实 ScrollContentPresenter 的有限 viewport 高度，卸载释放绑定；移除自身高度回绑与根裁剪，保留既有三区布局、列表滚动和虚拟化，不修改 Shell 或业务状态。
+  自动验证：临时隔离主窗口验证 1280/900 宽度下 820→640→1000→640 往返缩放、10k 目录/200 段正文的虚拟化与独立滚动、章节/段落选择、长书名、错误/章节管理/定时停止/无 Provider 状态及卸载重挂；900×640 导航栏展开时底栏与错误操作仍在 viewport 内，外层溢出为 0。扩展现有 Shell 核心导航测试，守护缩放后顶部/底部入口可达与设置页正常全局滚动，未新增长期测试入口；临时 harness 已清理。locked restore、format verify、Release build（0 警告/错误）、WPF 53/53、Presentation 319/319（含架构/主题静态检查）、diff check 与 LF 检查通过。完整全层测试留待 T004 收口；无环境受限检查或长期文档冲突。已删除本任务临时规格。
 
 ### Phase B — 双栏宽度调节
 
