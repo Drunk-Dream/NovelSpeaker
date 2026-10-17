@@ -94,6 +94,7 @@ public sealed class AppSettingsService :
             Theme = update.Theme ?? current.Theme,
             CacheLimitBytes = update.CacheLimitBytes ?? current.CacheLimitBytes,
             PlaybackVolume = update.PlaybackVolume ?? current.PlaybackVolume,
+            PlayerCatalogWidth = update.PlayerCatalogWidth ?? current.PlayerCatalogWidth,
             EnablePerformanceTelemetry = update.EnablePerformanceTelemetry ?? current.EnablePerformanceTelemetry,
             EnabledExperimentalFeatureIds = ApplyExperimentalFeatureChange(current, update),
             CurrentProviderId = update.ClearCurrentProvider ? null : update.CurrentProviderId ?? current.CurrentProviderId,

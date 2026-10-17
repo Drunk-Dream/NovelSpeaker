@@ -25,6 +25,7 @@ public sealed class JsonAppSettingsStoreTests
         var settings = await new JsonAppSettingsStore(directories).LoadAsync(CancellationToken.None);
         Assert.Equal(speed, settings.DefaultSpeakSpeed);
         Assert.Equal(original, await File.ReadAllTextAsync(directories.SettingsPath));
+        Assert.Equal(AppSettings.DefaultPlayerCatalogWidth, settings.PlayerCatalogWidth);
     }
 
     [Fact]
@@ -67,6 +68,7 @@ public sealed class JsonAppSettingsStoreTests
             ReadChapterTitle = true,
             CacheLimitBytes = 512L * 1024 * 1024,
             PlaybackVolume = 0.35,
+            PlayerCatalogWidth = 485.5,
             MainWindowCloseBehavior = MainWindowCloseBehavior.ExitApplication,
             StartMinimizedToTray = true,
             MiniPlayerLeft = 123.5,
@@ -85,6 +87,7 @@ public sealed class JsonAppSettingsStoreTests
         Assert.True(reloaded.ReadChapterTitle);
         Assert.Equal(512L * 1024 * 1024, reloaded.CacheLimitBytes);
         Assert.Equal(0.35, reloaded.PlaybackVolume);
+        Assert.Equal(485.5, reloaded.PlayerCatalogWidth);
         Assert.Equal(MainWindowCloseBehavior.ExitApplication, reloaded.MainWindowCloseBehavior);
         Assert.True(reloaded.StartMinimizedToTray);
         Assert.Equal(123.5, reloaded.MiniPlayerLeft);

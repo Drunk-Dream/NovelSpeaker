@@ -41,6 +41,7 @@ public partial class PlayerView : UserControl
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
         DataContextChanged += OnDataContextChanged;
+        SizeChanged += PlayerView_OnSizeChanged;
     }
 
     internal TimeSpan SegmentAutoCenterAnimationDuration { get; set; } = MotionTokenRuntime.Slow;
@@ -60,6 +61,7 @@ public partial class PlayerView : UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        CancelCatalogResize();
         DetachChapterViewport();
         _scrollController.OnUnloaded();
         DetachViewModel();
@@ -67,6 +69,7 @@ public partial class PlayerView : UserControl
 
     private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
+        CancelCatalogResize();
         DetachViewModel();
         AttachViewModel(e.NewValue as PlayerViewModel);
         if (IsLoaded)
@@ -235,6 +238,7 @@ public partial class PlayerView : UserControl
 
         _viewModel = viewModel;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ApplyCatalogWidth();
     }
 
     private void DetachViewModel()
@@ -322,6 +326,10 @@ public partial class PlayerView : UserControl
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(PlayerViewModel.PreferredCatalogWidth))
+        {
+            ApplyCatalogWidth();
+        }
         _scrollController.OnViewModelPropertyChanged(e);
     }
 

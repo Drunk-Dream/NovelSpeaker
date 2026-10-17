@@ -56,6 +56,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     private PreparationFeedbackIdentity? _preparationFeedbackIdentity;
     private long _preparationFeedbackGeneration;
     private bool _isPageEventsRegistered;
+    private double _preferredCatalogWidth;
 
     public PlayerViewModel(
         IPlaybackSession playbackCoordinator,
@@ -86,6 +87,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
             _uiScheduler);
         _playbackProjection = new PlayerPlaybackProjection();
         _settingsService = settingsService;
+        _preferredCatalogWidth = settingsService.Current.PlayerCatalogWidth;
         _providersSource = providers;
         _speechControlController = new PlayerSpeechControlController(
             playbackCoordinator,
@@ -108,6 +110,22 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     }
 
     public ObservableCollection<PlayerProviderItemViewModel> Providers => _providers;
+
+    public double PreferredCatalogWidth
+    {
+        get => _preferredCatalogWidth;
+        private set => SetProperty(ref _preferredCatalogWidth, value);
+    }
+
+    internal Task CommitCatalogWidthAsync(double width, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        PreferredCatalogWidth = AppSettings.NormalizePlayerCatalogWidth(width);
+        var task = _settingsService.UpdateAsync(
+            new AppSettingsUpdate { PlayerCatalogWidth = PreferredCatalogWidth }, cancellationToken);
+        _activation?.Register(task);
+        return task;
+    }
 
     public ObservableCollection<PlayerChapterItemViewModel> Chapters => _contentController.Chapters;
 
@@ -467,6 +485,7 @@ public sealed partial class PlayerViewModel : ObservableObject, ISegmentProgress
     {
         OnPageNavigatedFrom();
         _activation = activation;
+        PreferredCatalogWidth = _settingsService.Current.PlayerCatalogWidth;
         activation.Register(() =>
         {
             if (ReferenceEquals(_activation, activation)) OnPageNavigatedFrom();

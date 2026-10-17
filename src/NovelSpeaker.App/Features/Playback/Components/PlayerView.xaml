@@ -66,7 +66,7 @@
             </Style.Triggers>
         </Style>
     </UserControl.Resources>
-    <Grid Margin="24"
+    <Grid x:Name="PlayerLayout" Margin="24"
           MinHeight="0"
           ClipToBounds="True">
         <Grid.RowDefinitions>
@@ -481,14 +481,46 @@
             </Popup>
         </Grid>
 
-        <Grid Grid.Row="1"
+        <Grid x:Name="ContentColumns" Grid.Row="1"
               Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" />
+                <ColumnDefinition x:Name="CatalogColumn" Width="320" MinWidth="220" />
                 <ColumnDefinition Width="24" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" MinWidth="360" />
             </Grid.ColumnDefinitions>
+
+            <Grid Grid.Column="1">
+                <Border IsHitTestVisible="False" HorizontalAlignment="Center">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Width" Value="1" />
+                            <Setter Property="Background" Value="{DynamicResource App.Brush.Border.Subtle}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsMouseOver, ElementName=CatalogSplitter}" Value="True">
+                                    <Setter Property="Width" Value="2" />
+                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Text.Secondary}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=CatalogSplitter}" Value="True">
+                                    <Setter Property="Width" Value="2" />
+                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Focus}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                </Border>
+            </Grid>
+            <GridSplitter x:Name="CatalogSplitter" Grid.Column="1"
+                          Width="12" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                          Background="Transparent" Cursor="SizeWE" Focusable="True"
+                          ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                          KeyboardIncrement="10" DragIncrement="1"
+                          AutomationProperties.Name="调整目录与正文宽度"
+                          DragStarted="CatalogSplitter_OnDragStarted"
+                          DragCompleted="CatalogSplitter_OnDragCompleted"
+                          PreviewKeyDown="CatalogSplitter_OnPreviewKeyDown"
+                          KeyUp="CatalogSplitter_OnKeyUp"
+                          LostKeyboardFocus="CatalogSplitter_OnLostKeyboardFocus" />
 
             <commonControls:AppSectionSurface x:Name="CatalogPanelSurface"
                                               MinHeight="0">
