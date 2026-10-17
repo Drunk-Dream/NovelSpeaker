@@ -490,26 +490,17 @@
                 <ColumnDefinition Width="*" MinWidth="360" />
             </Grid.ColumnDefinitions>
 
-            <Grid Grid.Column="1">
-                <Border IsHitTestVisible="False" HorizontalAlignment="Center">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Width" Value="1" />
-                            <Setter Property="Background" Value="{DynamicResource App.Brush.Border.Subtle}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsMouseOver, ElementName=CatalogSplitter}" Value="True">
-                                    <Setter Property="Width" Value="2" />
-                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Text.Secondary}" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IsKeyboardFocusWithin, ElementName=CatalogSplitter}" Value="True">
-                                    <Setter Property="Width" Value="2" />
-                                    <Setter Property="Background" Value="{DynamicResource App.Brush.Focus}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                </Border>
-            </Grid>
+            <Path Grid.Column="1" IsHitTestVisible="False"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Fill="{Binding Foreground, ElementName=CatalogSplitter}">
+                <Path.Data>
+                    <GeometryGroup>
+                        <EllipseGeometry Center="2,2" RadiusX="1.5" RadiusY="1.5" />
+                        <EllipseGeometry Center="2,10" RadiusX="1.5" RadiusY="1.5" />
+                        <EllipseGeometry Center="2,18" RadiusX="1.5" RadiusY="1.5" />
+                    </GeometryGroup>
+                </Path.Data>
+            </Path>
             <GridSplitter x:Name="CatalogSplitter" Grid.Column="1"
                           Width="12" HorizontalAlignment="Center" VerticalAlignment="Stretch"
                           Background="Transparent" Cursor="SizeWE" Focusable="True"
@@ -520,7 +511,38 @@
                           DragCompleted="CatalogSplitter_OnDragCompleted"
                           PreviewKeyDown="CatalogSplitter_OnPreviewKeyDown"
                           KeyUp="CatalogSplitter_OnKeyUp"
-                          LostKeyboardFocus="CatalogSplitter_OnLostKeyboardFocus" />
+                          LostKeyboardFocus="CatalogSplitter_OnLostKeyboardFocus">
+                <GridSplitter.Style>
+                    <Style TargetType="GridSplitter">
+                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                        <Setter Property="FocusVisualStyle">
+                            <Setter.Value>
+                                <!-- WPF shows this chrome for keyboard focus, not mouse clicks. -->
+                                <Style TargetType="Control">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Control">
+                                                <Border Width="12" Height="32" CornerRadius="3"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        BorderThickness="1" IsHitTestVisible="False"
+                                                        BorderBrush="{DynamicResource App.Brush.Focus}" />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </GridSplitter.Style>
+            </GridSplitter>
 
             <commonControls:AppSectionSurface x:Name="CatalogPanelSurface"
                                               MinHeight="0">
