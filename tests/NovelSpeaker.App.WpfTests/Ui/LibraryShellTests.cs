@@ -1,4 +1,7 @@
 using System.IO;
+using System.ComponentModel;
+using NovelSpeaker.App.Features.Books.Details;
+using NovelSpeaker.App.Features.Playback;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Extensions.DependencyInjection;
@@ -29,7 +32,8 @@ public sealed class LibraryShellTests
             var navigation = Assert.IsType<NavigationView>(window.FindName("RootNavigationView"));
             var presenter = Assert.IsType<NavigationViewContentPresenter>(VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(navigation));
             var page = Assert.IsType<LibraryPage>(VisualTreeTestHelper.FindDescendant<LibraryPage>(navigation));
-            await page.ViewModel.LoadAsync(CancellationToken.None);
+            await WaitForAsync(page.ViewModel, () => page.ViewModel.HasVisibleBooks &&
+                page.ViewModel.Books.Count == bookCount && page.ViewModel.VisibleBookRowPositions.Count == bookCount);
             await SettleAsync(window);
             Assert.Equal(bookCount, page.ViewModel.Books.Count);
             foreach (var size in new[] { new Size(900, 640), new Size(1280, 820), new Size(1450, 1000), new Size(900, 640) })
@@ -61,6 +65,108 @@ public sealed class LibraryShellTests
             await SettleAsync(window);
             Assert.True(outer.VerticalOffset > 0);
         });
+    }
+
+    [Theory]
+    [InlineData(25)]
+    [InlineData(125)]
+    public async Task Shell_library_restores_the_visible_book_after_details_and_player(int bookCount)
+    {
+        await WpfTestHost.RunInStaAsync(async () =>
+        {
+            await using var provider = await WpfTestHost.BuildInitializedServiceProviderAsync();
+            await SeedBooksAsync(provider, bookCount);
+            var window = provider.GetRequiredService<MainWindow>();
+            using var host = WpfWindowHost.Show(window);
+            await SettleAsync(window);
+            var navigator = provider.GetRequiredService<IAppNavigator>();
+            var page = Assert.IsType<LibraryPage>(VisualTreeTestHelper.FindDescendant<LibraryPage>(window));
+            await WaitForAsync(page.ViewModel, () => page.ViewModel.HasVisibleBooks &&
+                page.ViewModel.Books.Count == bookCount && page.ViewModel.VisibleBookRowPositions.Count == bookCount);
+            await SettleAsync(window);
+            foreach (var viaDetails in new[] { true, false })
+            {
+                var items = Assert.IsType<ListBox>(page.FindName("BooksItemsControl"));
+                var scroll = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(items));
+                scroll.ScrollToVerticalOffset(scroll.ScrollableHeight * (viaDetails ? 0.5 : 1.0));
+                await SettleAsync(window);
+                var order = page.ViewModel.Books.Select(book => book.BookId).ToArray();
+                var targetTitle = page.ViewModel.Books[0].Title;
+                var anchor = Assert.IsType<string>(page.ViewModel.ScrollState.AnchorBookId);
+                Assert.NotEqual(page.ViewModel.Books[0].BookId, anchor);
+                AssertAnchorVisible(page, anchor);
+                // Reopening the first book preserves recent-reading order, independently of the visible anchor.
+                AppRoute returnRoute = viaDetails ? new BookDetailsRoute(order[0]) : AppRoutes.Library;
+                if (viaDetails)
+                {
+                    Assert.True(await navigator.NavigateAsync(returnRoute, CancellationToken.None));
+                    await WaitForDetailsAsync(window, targetTitle);
+                }
+                Assert.True(await navigator.NavigateAsync(new PlayerRoute(order[0], returnRoute), CancellationToken.None));
+                await SettleAsync(window);
+                var player = Assert.IsType<PlayerPage>(VisualTreeTestHelper.FindDescendant<PlayerPage>(window));
+                await WaitForAsync(player.ViewModel, () => player.ViewModel.CurrentTitle == targetTitle &&
+                    player.ViewModel.CurrentChapterIndex == 0 && player.ViewModel.IsCurrentChapterContentLoaded);
+                Assert.True(await navigator.NavigateBackAsync(CancellationToken.None));
+                await SettleAsync(window);
+                if (viaDetails)
+                {
+                    await WaitForDetailsAsync(window, targetTitle);
+                    Assert.True(await navigator.NavigateBackAsync(CancellationToken.None));
+                    await SettleAsync(window);
+                }
+                var returned = Assert.IsType<LibraryPage>(VisualTreeTestHelper.FindDescendant<LibraryPage>(window));
+                Assert.NotSame(page, returned);
+                page = returned;
+                await WaitForAsync(page.ViewModel, () => page.ViewModel.HasVisibleBooks &&
+                page.ViewModel.Books.Count == bookCount && page.ViewModel.VisibleBookRowPositions.Count == bookCount);
+                await SettleAsync(window);
+                Assert.Equal(order, page.ViewModel.Books.Select(book => book.BookId));
+                AssertAnchorVisible(page, anchor);
+                var restored = Assert.IsType<string>(page.ViewModel.ScrollState.AnchorBookId);
+                Assert.Equal(page.ViewModel.VisibleBookRowPositions[anchor].RowIndex,
+                    page.ViewModel.VisibleBookRowPositions[restored].RowIndex);
+            }
+        });
+    }
+
+    private static async Task WaitForDetailsAsync(Window window, string title)
+    {
+        await SettleAsync(window);
+        var page = Assert.IsType<BookDetailsPage>(VisualTreeTestHelper.FindDescendant<BookDetailsPage>(window));
+        await WaitForAsync(page.ViewModel, () => page.ViewModel.HasBook && !page.ViewModel.IsBusy &&
+            page.ViewModel.IsChapterCatalogReady && page.ViewModel.Title == title);
+        await SettleAsync(window);
+    }
+
+    private static async Task WaitForAsync(INotifyPropertyChanged source, Func<bool> isReady)
+    {
+        var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        PropertyChangedEventHandler changed = (_, _) =>
+        {
+            if (isReady()) ready.TrySetResult();
+        };
+        source.PropertyChanged += changed;
+        try
+        {
+            if (isReady()) ready.TrySetResult();
+            await ready.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        finally
+        {
+            source.PropertyChanged -= changed;
+        }
+    }
+
+    private static void AssertAnchorVisible(LibraryPage page, string anchor)
+    {
+        var items = Assert.IsType<ListBox>(page.FindName("BooksItemsControl"));
+        var scroll = Assert.IsAssignableFrom<ScrollViewer>(VisualTreeTestHelper.FindDescendant<ScrollViewer>(items));
+        var rowIndex = page.ViewModel.VisibleBookRowPositions[anchor].RowIndex;
+        var row = Assert.IsType<ListBoxItem>(items.ItemContainerGenerator.ContainerFromIndex(rowIndex));
+        var top = row.TransformToAncestor(scroll).Transform(new Point()).Y;
+        Assert.True(top < scroll.ViewportHeight && top + row.ActualHeight > 0,
+            "The previously visible logical book row must intersect the returned viewport.");
     }
 
     private static async Task SeedBooksAsync(IServiceProvider provider, int count)

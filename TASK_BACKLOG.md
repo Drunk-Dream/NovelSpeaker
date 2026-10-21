@@ -24,8 +24,9 @@
   任务合同：`tasks/T001_U3B_LIBRARY_VIEWPORT.md`。先在真实隔离 Shell 复现并确定根因，重点查 NavigationView 动态滚动开关为何与预期不一致；提供修复前后宿主、Page、ListBox、ScrollViewer、已实现行数证据，确保设置页等仍可正常滚动。
   完成成果：确认 Wpf.Ui OnNavigated 会重新启用动态滚动；Library 复用已有 Frame viewport 约束，保持内部虚拟化。25/125 本真实隔离 Shell、三尺寸往返、Light/Dark 与导航开合矩阵通过；125 本仅实现约 4–6 行，Settings 外层滚动正常。保留一个核心 WPF theory，无新增状态 owner/迁移；Release build（0 警告/错误）及 focused tests 通过。
 
-- [ ] **T002（P1 / Navigation）— 复核并必要时修复跨页面返回的书库锚点恢复**  
+- [x] **T002（P1 / Navigation）— 复核并必要时修复跨页面返回的书库锚点恢复**
   任务合同：`tasks/T002_U3B_LIBRARY_ANCHOR.md`。在 T001 之后重新执行 Library → BookDetails → Player → Library；若旧缺陷随布局修复消失且已有核心回归足够，允许无生产代码结束。否则沿现有 `LibraryScrollState`/`LibraryScrollViewerStateBehavior` 做最小修复。
+  完成成果：T001 后真实 Shell 的两条 Details/Player 返回路径恢复相同 BookId/逻辑行，无需修改原锚点实现。新增一个高层 WPF theory（25/125 本、中部/尾部、新 Page、完整顺序不变和实际行可见断言）；三尺寸 × Light/Dark 临时导航矩阵通过（24 次返回），保留 BookId + 相对偏移单一状态 owner。Release build 与 focused tests 通过。
 
 - [ ] **T003（P1 / Closure）— U3-B 回归验证、减法清理与长期合同收口**  
   任务合同：`tasks/T003_U3B_REGRESSION_CLOSURE.md`。交叉验证窗口/主题/导航/长书库/搜索排序/选择/返回及其它页面滚动，执行完整自动门禁，删除临时产物与冗余代码，必要时微调 `docs/06_UI_AND_VISUAL_SYSTEM.md`，最终清空 `tasks/` 已完成规格。
