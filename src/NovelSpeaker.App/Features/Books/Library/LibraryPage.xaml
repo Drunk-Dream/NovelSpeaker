@@ -6,6 +6,8 @@
       xmlns:library="clr-namespace:NovelSpeaker.App.Features.Books.Library"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       xmlns:views="clr-namespace:NovelSpeaker.App.Features.Books.Library"
+      xmlns:navigation="clr-namespace:NovelSpeaker.App.Shell.Navigation"
+      navigation:NavigationViewportHeightBehavior.IsEnabled="True"
       Background="Transparent">
     <Page.Resources>
     </Page.Resources>

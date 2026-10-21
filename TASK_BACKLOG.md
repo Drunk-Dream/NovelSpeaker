@@ -20,8 +20,9 @@
 
 ## 3. 当前任务
 
-- [ ] **T001（P1 / Layout）— 恢复真实 Shell 中 Library 的有限高度与列表虚拟化**  
+- [x] **T001（P1 / Layout）— 恢复真实 Shell 中 Library 的有限高度与列表虚拟化**
   任务合同：`tasks/T001_U3B_LIBRARY_VIEWPORT.md`。先在真实隔离 Shell 复现并确定根因，重点查 NavigationView 动态滚动开关为何与预期不一致；提供修复前后宿主、Page、ListBox、ScrollViewer、已实现行数证据，确保设置页等仍可正常滚动。
+  完成成果：确认 Wpf.Ui OnNavigated 会重新启用动态滚动；Library 复用已有 Frame viewport 约束，保持内部虚拟化。25/125 本真实隔离 Shell、三尺寸往返、Light/Dark 与导航开合矩阵通过；125 本仅实现约 4–6 行，Settings 外层滚动正常。保留一个核心 WPF theory，无新增状态 owner/迁移；Release build（0 警告/错误）及 focused tests 通过。
 
 - [ ] **T002（P1 / Navigation）— 复核并必要时修复跨页面返回的书库锚点恢复**  
   任务合同：`tasks/T002_U3B_LIBRARY_ANCHOR.md`。在 T001 之后重新执行 Library → BookDetails → Player → Library；若旧缺陷随布局修复消失且已有核心回归足够，允许无生产代码结束。否则沿现有 `LibraryScrollState`/`LibraryScrollViewerStateBehavior` 做最小修复。
