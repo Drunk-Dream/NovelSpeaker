@@ -245,6 +245,7 @@ Library 使用响应式多列卡片：
 - 常用窗口宽度下避免明显无意义空白。
 - Row 内少量 Card，不建立第二套 virtualization。
 - 外层列表使用 WPF 标准 recycling virtualization。
+- Library 页面高度受导航可用 viewport 约束，主体列表独立滚动；书籍数量增长不得撑开导航外层滚动区。需要整页滚动的设置页面继续由导航宿主提供滚动。
 - resize 后保持稳定书籍顺序，并尽量保持逻辑 anchor 可见。
 - 搜索继续覆盖书名与作者。
 - 排序至少提供最近阅读、标题和最近导入。
