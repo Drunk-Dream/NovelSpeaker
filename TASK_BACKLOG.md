@@ -1,68 +1,44 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 当前阶段：U2 — 播放页布局与交互体验
+## 1. 当前阶段：U3-B — 书库布局与跨页位置恢复修复
 
-- **阶段状态：** 已完成。T001–T005 均已收口，完整自动质量门禁通过；下一轮工作另行调度。
-- **阶段衔接：** E1（结构与生命周期）、U1（全局视觉语言）、E2（性能与资源调查）已完成或收口。E2 未发现证据充分、值得立即实施的缓存启动优化，暂不继续 E2-B。
-- **执行基线：** Codex 开工时本地 `dev` 的实际 HEAD 与工作区。上一轮 E2 报告及 Backlog/`tasks/` 可能尚未推送；先运行 `git status` 并检查差异，保留所有用户已有的提交、未提交修改和临时报告。不以远端旧 Backlog 覆盖本地成果。此文件是**新一轮任务规划的目标 Backlog**，替换旧轮次的调度记录；旧任务完成历史由 Git 和用户管理的报告保存。
-- **本轮目标：** 保留目前“左侧章节目录 + 右侧正文预览 + 顶部工具 + 底部媒体控制”的播放页形态，修复窗口缩小时的全局纵向滚动/控制栏遮挡，增加可拖动的目录宽度；之后仅修复有证据的正文跟读、滚动和状态反馈问题。
-- **已确定产品方案：** 不做窄屏自动收起目录或单栏改版；分隔手柄采用垂直居中的竖向三点，hover 增强、鼠标按住时强调色高亮、松开恢复 hover/默认状态，保留水平调整光标与键盘可见焦点；目录采用用户偏好的**固定宽度**，窗口宽度变化主要由正文吸收，空间不足时目录可临时收缩、空间恢复后回到偏好宽度；每栏有可用的最小宽度。
-- **保持既有业务合同：** Playback logical target-first，UI 先切换目标再异步准备音频；暂停不自动预取；Provider/语速下一段生效；自动跟读、手动浏览与“返回当前段落”语义；章节管理页面级多选；Speech Plan、Coverage、Active Cache 的现有规则均不在 U2 中重做。
-- **长期依据：** `AGENTS.md`、`docs/06_UI_AND_VISUAL_SYSTEM.md`、`docs/02_RUNTIME_AND_NAVIGATION.md`、`docs/03_BOOKS_PLAYBACK_AND_PROGRESS.md`、`docs/04_CACHE_AND_BACKGROUND_WORK.md` 与 `docs/08_QUALITY_AND_TESTING.md`，按任务规格选择性阅读。
+- **状态：** 待执行。上一阶段 U3-A（T001–T005）已调查收口，其完成历史由 Git、用户自行管理的 `U3_AUDIT_REPORT.md`、`U3_AUDIT_WORKLOG.md` 与证据包保存。本文件开始新的任务轮次，**清空上一轮任务调度，从 T001 重新编号**。
+- **执行基线：** Codex 开工时本地 `dev` 的实际 HEAD 和工作区。先执行 `git status` 并阅读现有未提交差异；不得把远端仓库状态、U3-A 报告里的旧 HEAD 当作最新实现，也不得覆盖用户未提交改动和临时报告。
+- **授权目标：** 只处理 U3-A/T005 在隔离真实 Shell 下复现的两项问题：① Library 因没有有限 viewport 而由导航外层滚动、失去有效行虚拟化；② Library → Details/Player → 返回后丢失可视书籍逻辑 anchor。后者**先在①修复后重新测试**，不能未经确认再造一套位置恢复机制。
+- **依据证据：** `U3_AUDIT_REPORT.md` 的 T005-LIB-01/02（如用户本地有该报告），以及 `U3_AUDIT_WORKLOG.md`。报告前半部分“没有确认缺陷”是 T001–T004 的历史结论，不能覆盖 T005 新证据。T005 记录：900×640 时 Frame 高约 589.6 DIP、Page 高约 2606.62 DIP、13/13 行实现；1280×820、1450×1000 同样由外层滚动；`NavigationViewContentPresenter.IsDynamicScrollViewerEnabled` 实测为 True。有限 Page host 的 10,000 本书仍可实现有界行容器。跨页返回曾从可视首行 15–17 回到 00–02。**以上是实验事实，不是根因判定。**
+- **范围边界：** 保留响应式书卡、Current/Selected、搜索排序、Management Mode、书籍导入/删除/导出、BookDetails、Player、Cache/Playback 的既有语义；不做 U3 整体 UI 改版、极窄详情页摘要重排、在线源或完整书库备份；不新增数据库迁移、持久化布局状态或自定义虚拟化框架。
+- **长期依据：** `AGENTS.md`；按各任务阅读 `docs/06_UI_AND_VISUAL_SYSTEM.md`、`docs/02_RUNTIME_AND_NAVIGATION.md`、`docs/08_QUALITY_AND_TESTING.md`，需要复核批量选择时再查 `docs/specs/BATCH_MANAGEMENT.md`。任务规格优先于本 Backlog 的实施摘要。
 
-## 2. 执行规则
+## 2. 执行约束
 
-- 状态：`[ ]` 未开始、`[-]` 进行中、`[x]` 已完成、`[!]` 确有超出授权范围的产品/架构阻断。
-- **默认顺序 T001 → T002 → T003 → T004**。各任务按 `tasks/Txxx_*.md` 执行，完成后保留 Backlog 条目、标记 `[x]` 并记录简短成果和自动验证；删除对应已完成的临时任务规格。无需等待人工验收才能进入下一任务。
-- 所有项目文本保持 LF。以最新代码和真实调用链判断根因，优先使用 WPF/Wpf.Ui 的成熟布局与控件能力，不增加通用 Viewport/Splitter/Layout Manager、全局 Scheduler、事件总线或只为迁就旧测试的兼容层。
-- 若任务引用的现有代码名称/路径发生变化，由 Codex 根据实际实现适配；但若涉及用户未授权的产品行为变化、数据迁移、安全边界或重新设计播放页，则仅记录问题，不擅自扩大实现。
-- 优先 focused build/tests、WPF 隔离 Desktop 的布局与交互验证；不在用户真实桌面自动展示测试窗口，不读取/修改真实用户书库、缓存、TXT、Provider 凭据。必要时建立受控临时视觉截图/诊断，完成后清理。人工视觉验收可选且永不阻塞任务。
-- 只留下符合 `docs/08_QUALITY_AND_TESTING.md` 准入标准的核心正式测试；不为像素、具体 Visual Tree、拖动每一小步或中间私有状态增加长期测试。
-- 任何阶段都不未经授权执行 `git push`、PR、tag、release，不修改无关模块；每个任务结束保持可构建、可执行相关测试。
+- 默认按 **T001 → T002 → T003** 顺序执行，使用 `tasks/Txxx_*.md` 作为任务合同。完成一项后在此保留 `[x]` 与简短成果、自动验证，删除其临时任务规格；按调用约定继续下一项，人工验收不是阻断条件。
+- 根因优先：从 Shell/NavigationViewContentPresenter、Page measure/arrange、ScrollViewer ownership、Library ListBox 内部虚拟化及锚点生命周期逐层测量，不能只隐藏滚动条、裁剪内容、提高窗口最小尺寸或复制一个硬编码高度补丁。优先复用 WPF/Wpf.Ui 原生能力和项目稳定组件。
+- **禁止全局破坏其它页面的滚动需求。** Library、Player、BookDetails、Settings 等的滚动行为不同；若改共享导航宿主，必须针对性验证需要外层滚动的页面未回归。不得为了 Library 而全局无条件关闭 ScrollViewer 或将所有页面改为固定高度。
+- 安全验证：仅用隔离 Windows Desktop、随机应用数据根及虚构书籍/章节；不读取真实 `Data/`、用户小说、设置或 Provider 凭据，不在交互桌面展示测试窗，不设置 `NOVELSPEAKER_TEST_ALLOW_VISIBLE_WINDOWS=1`。隔离失败须 fail closed 并如实记录。
+- 只为核心可观察回归新增最少量正式测试，集中覆盖有限 viewport/虚拟化及跨页 anchor；视觉细节、Visual Tree 私有构成和精确像素留给临时验证，不形成长期锁定。临时 harness/截图/诊断在对应任务完成前清理；若保留精选证据仅放项目根目录的用户自管临时报告/目录，明确不提交。
+- LF 换行；不未经授权 push、PR、tag、release。除本轮必要的生产修改、少量核心测试及最后必要的长期文档修订，不触碰无关文件。默认每项结束保持可构建、可执行相关测试。
 
 ## 3. 当前任务
 
-### Phase A — 垂直布局正确性
+- [ ] **T001（P1 / Layout）— 恢复真实 Shell 中 Library 的有限高度与列表虚拟化**  
+  任务合同：`tasks/T001_U3B_LIBRARY_VIEWPORT.md`。先在真实隔离 Shell 复现并确定根因，重点查 NavigationView 动态滚动开关为何与预期不一致；提供修复前后宿主、Page、ListBox、ScrollViewer、已实现行数证据，确保设置页等仍可正常滚动。
 
-- [x] **T001（P0 / Layout）— 修复播放页垂直缩放时全局滚动与控制栏遮挡**
-  完成成果：隔离 WPF 实证确认导航 ScrollViewer 无界测量与 Page→View 的 ActualHeight 回绑形成高度反馈，820→640 时保留旧内容高度并产生 180 DIP 全局溢出。PlayerPage 加载后将根布局绑定至真实 ScrollContentPresenter 的有限 viewport 高度，卸载释放绑定；移除自身高度回绑与根裁剪，保留既有三区布局、列表滚动和虚拟化，不修改 Shell 或业务状态。
-  自动验证：临时隔离主窗口验证 1280/900 宽度下 820→640→1000→640 往返缩放、10k 目录/200 段正文的虚拟化与独立滚动、章节/段落选择、长书名、错误/章节管理/定时停止/无 Provider 状态及卸载重挂；900×640 导航栏展开时底栏与错误操作仍在 viewport 内，外层溢出为 0。扩展现有 Shell 核心导航测试，守护缩放后顶部/底部入口可达与设置页正常全局滚动，未新增长期测试入口；临时 harness 已清理。locked restore、format verify、Release build（0 警告/错误）、WPF 53/53、Presentation 319/319（含架构/主题静态检查）、diff check 与 LF 检查通过。完整全层测试留待 T004 收口；无环境受限检查或长期文档冲突。已删除本任务临时规格。
+- [ ] **T002（P1 / Navigation）— 复核并必要时修复跨页面返回的书库锚点恢复**  
+  任务合同：`tasks/T002_U3B_LIBRARY_ANCHOR.md`。在 T001 之后重新执行 Library → BookDetails → Player → Library；若旧缺陷随布局修复消失且已有核心回归足够，允许无生产代码结束。否则沿现有 `LibraryScrollState`/`LibraryScrollViewerStateBehavior` 做最小修复。
 
-### Phase B — 双栏宽度调节
+- [ ] **T003（P1 / Closure）— U3-B 回归验证、减法清理与长期合同收口**  
+  任务合同：`tasks/T003_U3B_REGRESSION_CLOSURE.md`。交叉验证窗口/主题/导航/长书库/搜索排序/选择/返回及其它页面滚动，执行完整自动门禁，删除临时产物与冗余代码，必要时微调 `docs/06_UI_AND_VISUAL_SYSTEM.md`，最终清空 `tasks/` 已完成规格。
 
-- [x] **T002（P1 / Interaction）— 目录与正文间可拖动分隔条及宽度偏好**
-  完成成果：在原 24 DIP 间隔中加入原生 WPF GridSplitter，提供 12 DIP 命中区、水平调整光标、方向键调整、轻量竖线及动态 hover/focus 反馈，保留目录与正文常显。移除目录固定 320 DIP 的单一布局行为；以 PlayerView 的有限宿主宽度计算实际列上限，目录/正文最小宽度分别为 220/360 DIP，正文吸收窗口宽度变化。ViewModel 保存用户偏好、View 负责有效宽度与 WPF 手势；仅拖动完成或方向键释放/失焦时提交至现有设置服务。新增可选 PlayerCatalogWidth 字段（默认 320 DIP），沿用 Normalize 与原子 JSON 写入，旧设置无需迁移；临时收缩、取消/无变化手势与宿主缩放不覆盖偏好，空间恢复后回到偏好宽度。无新增持久化 owner、数据库变更或兼容残留。
-  自动验证：临时隔离 Desktop 验证拖动上下限/取消/无变化、900/1080/1280/1450 宽度及导航栏切换、640/820/1000 高度往返、10k 目录/200 段正文的虚拟化与独立滚动、长书名与章节管理、Light/Dark 冷启动/切换后新页面、hover/focus 与高对比资源投影；修复并验证列最小尺寸撑大 Grid 时的宿主宽度约束，正文右边界保持可见。扩展现有 Shell 核心导航测试守护键盘宽度提交、窗口收缩/恢复与新视图恢复，扩展现有设置测试守护旧 JSON 默认值与宽度 round-trip，未新增正式测试入口或删除核心测试。locked restore、format verify、Release build（0 警告/错误）、WPF 53/53、Presentation 319/319（含架构/主题静态检查）、设置集成测试 11/11、diff/LF 检查通过；临时 harness、截图与 trace 已清理。完整全层门禁与长期 UI 文档合并留待 T004；无环境受限检查或长期文档冲突。已删除本任务临时规格。
+## 4. 本轮不实施
 
-- [x] **T005（P1 / UI Fix）— 分隔手柄三点外观与鼠标高亮释放**
-  完成成果：按 T002 完成后的用户反馈，将整条竖线替换为分隔区域垂直居中的竖向三点。默认/hover/按住颜色均使用现有动态语义资源；强调色由原生 GridSplitter.IsDragging 驱动，鼠标松开即恢复 hover/默认状态，取消或失去捕获同样退出强调色。移除 IsKeyboardFocusWithin 驱动的常亮逻辑，使用 WPF 键盘专用 FocusVisualStyle 在三点周围显示轻量焦点框；保留原生 12 DIP 命中区、水平光标、宽度约束与偏好保存，无新增输入模式状态或持久化变化。
-  自动验证：临时隔离 Desktop 使用受控输入设备/捕获状态，验证三点居中与命中、按下/释放且焦点保留时的颜色、hover 恢复、取消/失去捕获、Tab 导航的真实焦点 adorner 与方向键调整；Light/Dark 冷启动、切换、切换后新视图、高对比资源投影及截图检查通过。Release build（0 警告/错误）、format verify、WPF 53/53、Presentation 319/319（含全量主题架构检查）、diff/LF 检查通过。保留既有核心测试，视觉微调未新增永久测试；临时规格、harness、截图与诊断产物已清理。无环境阻断或长期文档冲突，长期规则仍由 T004 合并。
+- 书库卡片视觉重做、BookDetails 双栏重排、长章节摘要密度优化、批量 TXT 导入或管理功能扩张。
+- 自定义虚拟化引擎、全局导航滚动重写、独立书库滚动数据库/设置保存、通用布局管理器、额外计时器和同职责重复状态 owner。
+- 仅因 T005 导入进度/取消一次不确定超时就变更导入生命周期：该项仍是 `Unknown`，需要单独可靠复现才另立任务。
+- 未经授权的数据库、Book/Source/CurrentCatalog/ReadingProgress、Playback/Cache/Speech 语义变化。
 
-### Phase C — 已有阅读/播放交互收敛
+## 5. 完成标准
 
-- [x] **T003（P1 / UX Audit）— 正文跟读、滚动与播放反馈定向审查**
-  完成成果：隔离 Desktop 的长正文实证发现并修复两处定位问题：窗口/目录改宽触发重排后误入手动浏览并偏离当前段；长段落虚拟化高度估计在自动推进动画中变化，导致结束后当前段不可见。修改仅在 Player 滚动桥接：明确滚轮/键盘/滚动条输入进入浏览，布局变化在跟读态重新定位，动画完成后用现有定位器校正最终锚点；新增事件成对释放，保留既有 4 秒恢复规则与 Playback/Speech/Cache owner。未加入新计时器、持久化或兼容层。
-  自动验证：临时隔离 WPF 验证 200 长段落、10k 目录虚拟化、900/1280/1450 宽度及 640/820/1000 高度往返、目录 220/750/320 重排、滚轮/键盘/滚动条浏览、拖动期间缩放、返回/显式跳段/动画、准备/错误/暂停 footer、Provider Popup/ESC、Light/Dark 切换及应用主题后新建视图、卸载重挂。新增 1 个永久 WPF 核心阅读流程回归，守护改宽跟读、手动浏览不抢占及返回后自动推进；全部既有核心测试保留，细节诊断 harness 与 failure diagnostics 已删除。locked restore、Release build（0 警告/错误）、format verify、WPF 54/54、focused Presentation 76/76（含 Player/架构/主题）、Application Playback/LocalAudio 62/62、diff/LF 检查通过。根目录 U2_PLAYER_UX_AUDIT.md 为未提交临时报告；未做真实外部音频服务及人工视觉验收，不声明像素/hover 外观通过。完整门禁与长期文档由 T004 收口，无长期文档冲突。已删除任务规格。
-
-### Phase D — 质量与长期合同收口
-
-- [x] **T004（P1 / Closure）— U2 整体回归与文档收口**
-  完成成果：核对 U2 全部实现与测试差异，确认导航 viewport、View 有效列宽和现有设置偏好职责清晰，新增事件均成对释放，没有新增计时器、通用框架、兼容 wrapper 或音频/缓存状态 owner；未提高窗口 MinHeight、隐藏全局滚动或裁切关键入口。将三段高度、内部独立滚动、双栏最小宽度、可拖动三点手柄、宽度偏好保存/恢复与重排跟读规则精简合入 docs/06_UI_AND_VISUAL_SYSTEM.md；运行时/音频业务语义未变，无需改写其它长期合同。本任务没有新增生产代码或永久测试，保留 T003 的 1 个核心阅读回归及全部既有核心测试。
-  自动验证：真实 Shell 的隔离 Desktop 使用虚构长标题、10k 目录和 200 长段落，交叉验证 Light/Dark、导航栏开合、900×640/1280×820/1450×1000 往返、播放/准备/失败、无 Provider、空章节投影、全选管理与主动缓存状态，Header/Footer/Slider 可达、外层溢出为 0、目录与正文独立滚动且保持虚拟化，窗口扩大恢复 485 DIP 偏好。既有 Shell 测试覆盖键盘提交与新 View 恢复、设置页滚动，设置集成测试覆盖 JSON 宽度保存/重新加载；书库创建与 10k 虚拟化测试通过。滚动、动画与鼠标拖动/取消/hover/focus 的证据分别沿用 T003 与 T002/T005 的隔离验证；本次没有更改这些样式。静态确认 resize/viewport 路径不重计算或持久化 Speech Plan。临时 matrix harness 与 failure diagnostics 均已删除，仅保留被排除提交的根目录审查报告。
-  完整门禁：locked restore、format verify、Release build（0 警告/错误）、全量 test 1027/1027（Domain 34、Application 262、Infrastructure 358、Presentation 319、WPF 54；0 跳过）、diff/LF 与临时产物检查全部通过。未执行可选人工视觉验收和真实外部语音服务调用；自动门禁无环境受限步骤，没有长期文档冲突。全部已完成任务规格已删除，U2 收口。
-
-## 4. 本轮明确不实施
-
-- 不自动折叠目录、改成单栏阅读器、引入独立沉浸式模式或重排所有播放按钮。
-- 不重构 Playback/Speech/Cache 底层，不修改音频预取、暂停、Source、Chapter、Coverage、Active Cache、导出等业务语义。
-- 不将播放页的纵向溢出通过 `ClipToBounds`、隐藏全局 ScrollViewer、增加魔法高度或强行提高整个窗口 `MinHeight` 来掩盖；应修复布局测量/排列约束。
-- 不扩大为全应用布局系统重写；若问题根因在共同宿主，仅允许必要的局部、非破坏性修正，并验证其它页面仍保留其既有滚动行为。
-- 不为 U2 新增 DB schema/migration、多套宽度状态持久化、按书宽度配置或复杂动画控制器。
-
-## 5. 阶段完成标准
-
-1. 从允许的最小窗口高度向上拉伸再缩回，播放页的 Header 与媒体控制始终在可视区域；没有播放页全局纵向滚动，目录和正文分别正常内部滚动。
-2. 可通过鼠标和键盘调整两栏；最小宽度、拖动上下限、响应式宽度恢复和偏好持久化符合既定方案；分隔视觉轻量、Light/Dark 与 hover/focus 可用。
-3. 不破坏章节/段落切换、滚动自动居中与手动浏览、播放准备/失败反馈、暂停状态、章节管理及 Cache 装饰；长目录保持虚拟化。
-4. 交付符合证据的必要修复和少量核心测试，完成针对性的 WPF 安全验证、构建与格式检查；阶段收口完成完整质量门禁（不能运行的步骤如实说明）。
-5. 更新 `docs/06_UI_AND_VISUAL_SYSTEM.md` 的长期布局规则；Backlog 记录成果，`tasks/` 无已完成规格，临时截图/harness/数据已清理。
+1. 在真实隔离 Shell 的最小/默认/宽窗口，Library 页面高度不随数据全集无限膨胀；主体列表拥有有限 viewport、独立滚动，行容器实现数量随 viewport 有界；书卡仍维持正确列数与响应式布局。
+2. Library → Details/Player → 返回，在排序/可见集合未变的情况下恢复先前可视书籍附近的逻辑 anchor，而不是重置到首行；滚动、筛选与排序变化遵循原有选择/恢复规则。
+3. 其它需要全局滚动的页面无回归，Player 内部滚动、BookDetails 目录定位、不同窗口与 Light/Dark 均正常。
+4. 完成 focused 验证与收口全量门禁；临时测试/诊断/截图已清理或用户自管且明确不提交，长期测试仅留核心回归；Backlog 记录成果，已完成的任务规格删除。
