@@ -65,14 +65,17 @@ public sealed class ButtonStyleContractTests
         var textPairs = new[]
         {
             ("App.Brush.Text.Primary", "App.Brush.Surface.Primary"),
+            ("App.Brush.Text.Primary", "App.Brush.Surface.Raised"),
             ("App.Brush.Interaction.Foreground.Hover", "App.Brush.Interaction.Surface.Hover"),
             ("App.Brush.Interaction.Foreground.Pressed", "App.Brush.Interaction.Surface.Pressed"),
+            ("App.Brush.Interaction.Foreground.Selected", "App.Brush.Accent.Subtle"),
             ("App.Brush.Accent.Text", "App.Brush.Accent.Default"),
             ("App.Brush.Accent.Text", "App.Brush.Accent.Hover"),
             ("App.Brush.Accent.Text", "App.Brush.Accent.Pressed"),
             ("App.Brush.Danger.Text", "App.Brush.Danger"),
             ("App.Brush.Danger.Text", "App.Brush.Danger.Hover"),
             ("App.Brush.Danger.Pressed.Text", "App.Brush.Danger.Pressed"),
+            ("App.Brush.Danger.Foreground", "App.Brush.Surface.Raised"),
             ("App.Brush.Danger.Subtle.Text", "App.Brush.Danger.Subtle"),
             ("App.Brush.Surface.Secondary.Text", "App.Brush.Surface.Secondary")
         };
@@ -109,6 +112,7 @@ public sealed class ButtonStyleContractTests
             .ToDictionary(brush => (string)brush.Attribute(Xaml + "Key")!, brush => (string)brush.Attribute("Color")!, StringComparer.Ordinal);
 
         AssertSystemRole(brushes, "App.Brush.Interaction.Surface.Default", "WindowColorKey");
+        AssertSystemRole(brushes, "App.Brush.Surface.Raised", "WindowColorKey");
         AssertSystemRole(brushes, "App.Brush.Interaction.Foreground.Hover", "ControlTextColorKey");
         AssertSystemRole(brushes, "App.Brush.Interaction.Foreground.Pressed", "HighlightTextColorKey");
         AssertSystemRole(brushes, "App.Brush.Danger.Foreground", "WindowTextColorKey");
