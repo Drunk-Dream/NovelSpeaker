@@ -39,7 +39,7 @@
                           DisplayMemberPath="DisplayText"
                           SelectedItem="{Binding SelectedCapacity, Mode=TwoWay}"
                           AutomationProperties.Name="诊断容量上限" />
-                <Button Margin="10,0,0,0"
+                <ui:Button Margin="10,0,0,0"
                         Content="关闭"
                         Height="34"
                         Style="{StaticResource App.Button.Secondary}"
@@ -73,12 +73,12 @@
                                TextTrimming="CharacterEllipsis"
                                MaxWidth="240" />
                 </StackPanel>
-                <Button Content="标记问题"
+                <ui:Button Content="标记问题"
                         Height="34"
                         Style="{StaticResource App.Button.Secondary}"
                         Command="{Binding MarkProblemCommand}"
                         AutomationProperties.Name="标记问题" />
-                <Button Margin="8,0,0,0"
+                <ui:Button Margin="8,0,0,0"
                         Content="截取当前窗口"
                         Height="34"
                         Style="{StaticResource App.Button.Secondary}"
@@ -118,7 +118,7 @@
                         Style="{StaticResource App.Button.Primary}"
                         Command="{Binding ExportCommand}"
                         AutomationProperties.Name="导出问题诊断" />
-                <Button Margin="8,0,0,0"
+                <ui:Button Margin="8,0,0,0"
                         Content="完成"
                         Height="34"
                         Style="{StaticResource App.Button.Secondary}"

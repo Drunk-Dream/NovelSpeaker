@@ -51,7 +51,7 @@ public sealed class ImportProgressDialogService : IImportProgressDialogService
         progressBar.SetResourceReference(FrameworkElement.StyleProperty, "App.Progress.Standard");
 
         ContentDialog? dialog = null;
-        var cancelButton = new global::System.Windows.Controls.Button
+        var cancelButton = new Wpf.Ui.Controls.Button
         {
             Content = "取消",
             Margin = new Thickness(0, 16, 0, 0),

@@ -171,7 +171,7 @@ public sealed class MainWindowNavigationTests
 
                 var flyout = Assert.IsType<Flyout>(window.FindName("ActiveCacheFlyout"));
                 var chapterList = Assert.IsType<ListBox>(window.FindName("ActiveCacheChapterList"));
-                var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
+                var cancelButton = Assert.IsAssignableFrom<System.Windows.Controls.Button>(
                     window.FindName("CancelActiveCacheButton"));
                 Assert.True(flyout.IsOpen);
                 Assert.Contains(VisualTreeTestHelper.FindDescendants<System.Windows.Controls.TextBlock>((DependencyObject)flyout.Content),
@@ -240,7 +240,7 @@ public sealed class MainWindowNavigationTests
                 window.UpdateLayout();
 
                 var flyout = Assert.IsType<Flyout>(window.FindName("ChapterExportFlyout"));
-                var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
+                var cancelButton = Assert.IsAssignableFrom<System.Windows.Controls.Button>(
                     window.FindName("CancelChapterExportButton"));
                 Assert.True(flyout.IsOpen);
                 Assert.Equal("取消章节导出任务", AutomationProperties.GetName(cancelButton));

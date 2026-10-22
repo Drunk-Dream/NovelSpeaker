@@ -1122,33 +1122,24 @@ internal static class GallerySceneBuilders
 
     private static Button CreateButtonPreview(string variant, string state)
     {
-        Button button = variant is "Primary" or "Icon" or "DangerIcon" or "ToolbarValue" or "FloatingIcon"
-            ? new WpfUiButton
+        var button = new WpfUiButton
+        {
+            Style = FindButtonStyle(variant),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 12, 8),
+            Icon = variant is "Primary" or "Secondary" or "Subtle" or "Danger" ? null : new SymbolIcon
             {
-                Style = FindButtonStyle(variant),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 12, 8),
-                Icon = variant == "Primary" ? null : new SymbolIcon
-                {
-                    Symbol = variant == "DangerIcon"
+                Symbol = variant == "DangerIcon"
                         ? SymbolRegular.Delete24
-                        : variant == "FloatingIcon"
+                        : variant == "ContextAction"
                             ? SymbolRegular.TargetArrow24
                             : variant == "ToolbarValue"
                             ? SymbolRegular.Speaker124
                             : SymbolRegular.Settings24
-                },
-                Content = variant == "Primary" ? variant : variant == "ToolbarValue" ? "10" : null,
-                ToolTip = $"{variant} · {state}"
-            }
-            : new Button
-            {
-                Style = FindButtonStyle(variant),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 12, 8),
-                Content = variant,
-                ToolTip = $"{variant} · {state}"
-            };
+            },
+            Content = variant is "Primary" or "Secondary" or "Subtle" or "Danger" ? variant : variant == "ToolbarValue" ? "10" : null,
+            ToolTip = $"{variant} · {state}"
+        };
         AutomationProperties.SetAutomationId(
             button,
             $"button-{variant.ToLowerInvariant()}-{state.ToLowerInvariant()}");
@@ -1180,7 +1171,7 @@ internal static class GallerySceneBuilders
         switch (state)
         {
             case "Hover":
-                var hoverBackground = variant == "FloatingIcon"
+                var hoverBackground = variant == "ContextAction"
                     ? "App.Brush.Interaction.Surface.Hover"
                     : variant is "Primary"
                         ? "App.Brush.Accent.Hover"
@@ -1194,12 +1185,12 @@ internal static class GallerySceneBuilders
                 stateTrigger.Setters.Add(new Setter(
                     Control.BackgroundProperty,
                     FindBrush(hoverBackground)));
-                if (variant is "Primary" or "FloatingIcon")
+                if (variant is "Primary" or "ContextAction")
                 {
                     stateTrigger.Setters.Add(new Setter(
                         WpfUiButton.MouseOverBackgroundProperty,
                         FindBrush(hoverBackground)));
-                    if (variant == "FloatingIcon")
+                    if (variant == "ContextAction")
                     {
                         stateTrigger.Setters.Add(new Setter(
                             Control.ForegroundProperty,
@@ -1217,7 +1208,7 @@ internal static class GallerySceneBuilders
 
                 break;
             case "Pressed":
-                var pressedBackground = variant == "FloatingIcon"
+                var pressedBackground = variant == "ContextAction"
                     ? "App.Brush.Interaction.Surface.Pressed"
                     : variant is "Primary"
                         ? "App.Brush.Accent.Pressed"
@@ -1229,12 +1220,12 @@ internal static class GallerySceneBuilders
                 stateTrigger.Setters.Add(new Setter(
                     Control.BackgroundProperty,
                     FindBrush(pressedBackground)));
-                if (variant is "Primary" or "FloatingIcon")
+                if (variant is "Primary" or "ContextAction")
                 {
                     stateTrigger.Setters.Add(new Setter(
                         WpfUiButton.PressedBackgroundProperty,
                         FindBrush(pressedBackground)));
-                    if (variant == "FloatingIcon")
+                    if (variant == "ContextAction")
                     {
                         stateTrigger.Setters.Add(new Setter(
                             Control.ForegroundProperty,
@@ -1258,13 +1249,13 @@ internal static class GallerySceneBuilders
             case "Focus":
                 stateTrigger.Setters.Add(new Setter(
                     Control.BackgroundProperty,
-                    FindBrush(variant == "FloatingIcon"
+                    FindBrush(variant == "ContextAction"
                         ? "App.Brush.Surface.Raised"
                         : "App.Brush.Accent.Subtle")));
                 stateTrigger.Setters.Add(new Setter(
                     Control.BorderBrushProperty,
                     FindBrush("App.Brush.Focus")));
-                if (variant == "FloatingIcon")
+                if (variant == "ContextAction")
                 {
                     stateTrigger.Setters.Add(new Setter(
                         Control.ForegroundProperty,
@@ -1333,7 +1324,7 @@ internal static class GallerySceneBuilders
         Grid.SetColumn(iconAndText, 0);
         grid.Children.Add(iconAndText);
 
-        var longText = new Button
+        var longText = new WpfUiButton
         {
             Style = FindButtonStyle("Secondary"),
             Width = 520,
@@ -1403,7 +1394,7 @@ internal static class GallerySceneBuilders
     }
 
     private static Style FindButtonStyle(string variant) =>
-        System.Windows.Application.Current?.FindResource($"App.Button.{variant}") as Style
+        System.Windows.Application.Current?.FindResource(variant == "ToolbarValue" ? "App.Media.ToolbarControl" : $"App.Button.{variant}") as Style
         ?? throw new InvalidOperationException($"Button style 'App.Button.{variant}' was not found.");
 
     private static readonly string[] ButtonStyleVariants =
@@ -1415,7 +1406,7 @@ internal static class GallerySceneBuilders
         "Danger",
         "DangerIcon",
         "ToolbarValue",
-        "FloatingIcon"
+        "ContextAction"
     ];
 
     private static readonly string[] ButtonPreviewStates =

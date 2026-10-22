@@ -5,7 +5,7 @@ using System.Windows.Input;
 using NovelSpeaker.App.Shared.Presentation.Controls.Forms;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
 using Wpf.Ui.Controls;
-using WpfButton = System.Windows.Controls.Button;
+using WpfButton = Wpf.Ui.Controls.Button;
 using WpfComboBox = System.Windows.Controls.ComboBox;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfTextBox = System.Windows.Controls.TextBox;

@@ -10,7 +10,7 @@
              PreviewKeyDown="PlayerView_OnPreviewKeyDown">
     <UserControl.Resources>
         <Style x:Key="Player.StopTimerChoice"
-               TargetType="{x:Type Button}"
+               TargetType="{x:Type ui:Button}"
                BasedOn="{StaticResource App.Button.Subtle}">
             <Style.Triggers>
                 <MultiDataTrigger>
@@ -230,7 +230,7 @@
                         <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
                                    Text="定时停止" />
                         <WrapPanel Margin="0,16,0,0">
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -238,7 +238,7 @@
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter15MinutesCommand}"
                                     Content="15 分钟" />
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -246,7 +246,7 @@
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter30MinutesCommand}"
                                     Content="30 分钟" />
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -254,7 +254,7 @@
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter45MinutesCommand}"
                                     Content="45 分钟" />
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -262,7 +262,7 @@
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter60MinutesCommand}"
                                     Content="60 分钟" />
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -284,7 +284,7 @@
                                      Text="{Binding CustomStopMinutesText, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="自定义分钟数，范围 1 到 1440"
                                      AutomationProperties.Name="自定义定时停止分钟数" />
-                            <Button x:Name="CancelStopTimerButton"
+                            <ui:Button x:Name="CancelStopTimerButton"
                                     Grid.Column="1"
                                     Margin="8,0,0,0"
                                     Padding="12,6"
@@ -375,19 +375,19 @@
                             </TextBlock>
                         <Border Height="1" Margin="0,12,0,4"
                                 Background="{DynamicResource App.Brush.Border.Subtle}" />
-                        <Button MinHeight="44" Padding="12,8"
+                        <ui:Button MinHeight="44" Padding="12,8"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                 Command="{Binding OpenSpeechServicesCommand}"
                                 AutomationProperties.Name="语音服务管理">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource App.Button.Subtle}">
+                            <ui:Button.Style>
+                                <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource App.Button.Subtle}">
                                     <Style.Triggers>
                                         <Trigger Property="IsKeyboardFocused" Value="True">
                                             <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>
-                            </Button.Style>
+                            </ui:Button.Style>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -403,7 +403,7 @@
                                                Style="{StaticResource App.Icon.Secondary}"
                                                VerticalAlignment="Center" />
                             </Grid>
-                        </Button>
+                        </ui:Button>
                     </StackPanel>
                 </Border>
             </Popup>
@@ -430,7 +430,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="DecreaseSpeedButton"
+                                <ui:Button x:Name="DecreaseSpeedButton"
                                         Grid.Column="0"
                                         Width="40"
                                         Height="36"
@@ -450,7 +450,7 @@
                                          PreviewKeyDown="SpeedEditorTextBox_OnPreviewKeyDown"
                                          LostKeyboardFocus="SpeedEditorTextBox_OnLostKeyboardFocus"
                                          Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button x:Name="IncreaseSpeedButton"
+                                <ui:Button x:Name="IncreaseSpeedButton"
                                         Grid.Column="2"
                                         Width="40"
                                         Height="36"

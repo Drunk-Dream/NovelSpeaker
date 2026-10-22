@@ -225,7 +225,7 @@
                     </Style>
                 </feedbackControls:AppStatusView.Style>
                 <feedbackControls:AppStatusView.PrimaryAction>
-                    <Button x:Name="NoResultsClearSearchButton"
+                    <ui:Button x:Name="NoResultsClearSearchButton"
                             Style="{StaticResource App.Button.Secondary}"
                             Command="{Binding ClearSearchCommand}"
                             Content="清空搜索"

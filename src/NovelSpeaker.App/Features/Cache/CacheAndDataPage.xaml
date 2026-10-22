@@ -68,7 +68,7 @@
                             <TextBlock Style="{StaticResource App.Feedback.ValidationText}"
                                        Text="{Binding LoadErrorMessage}"
                                        TextWrapping="Wrap" />
-                            <Button Margin="0,8,0,0"
+                            <ui:Button Margin="0,8,0,0"
                                     HorizontalAlignment="Right"
                                     Style="{StaticResource App.Button.Secondary}"
                                     Command="{Binding RetryCommand}"
@@ -148,10 +148,10 @@
                     Description="私人备份包含设置、语音服务凭据和四类规则，不包含书籍、进度和缓存。"
                     AutomationProperties.Name="配置备份/恢复">
                     <StackPanel Orientation="Horizontal">
-                        <Button Style="{StaticResource App.Button.Secondary}"
+                        <ui:Button Style="{StaticResource App.Button.Secondary}"
                                 Content="备份配置"
                                 Command="{Binding BackupConfigurationCommand}" />
-                        <Button Margin="12,0,0,0"
+                        <ui:Button Margin="12,0,0,0"
                                 Style="{StaticResource App.Button.Secondary}"
                                 Content="恢复配置"
                                 Command="{Binding RestoreConfigurationCommand}" />

@@ -29,13 +29,13 @@
                                           BackCommand="{Binding BackCommand}">
                 <commonControls:AppPageHeader.Actions>
                     <WrapPanel HorizontalAlignment="Right">
-                        <Button x:Name="DeleteBookButton"
+                        <ui:Button x:Name="DeleteBookButton"
                                 Margin="0,0,8,0"
                                 Style="{StaticResource App.Button.Danger}"
                                 Command="{Binding DeleteBookCommand}"
                                 Content="删除"
                                 AutomationProperties.Name="删除书籍" />
-                        <Button x:Name="ClearCacheButton"
+                        <ui:Button x:Name="ClearCacheButton"
                                 Margin="0,0,8,0"
                                 Style="{StaticResource App.Button.Secondary}"
                                 Command="{Binding ClearCacheCommand}"

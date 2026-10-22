@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using MenuItem = System.Windows.Controls.MenuItem;
-using WpfButton = System.Windows.Controls.Button;
+using WpfButton = Wpf.Ui.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.StyleGallery;

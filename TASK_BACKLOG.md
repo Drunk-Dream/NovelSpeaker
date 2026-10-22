@@ -2,7 +2,7 @@
 
 ## 1. 当前阶段：全项目按钮样式与交互状态架构收口
 
-- **状态：** 执行中（T002–T006）。
+- **状态：** 执行中（T003–T006）。
 - **执行基线：** Codex 开工时本地 `dev` 的实际 HEAD 与工作区。先执行 `git status`，保留所有用户已有修改；本任务不依赖远端分支状态覆盖本地工作。
 - **目标：** 全面审查并统一 NovelSpeaker 的可视按钮状态机制，从共享样式架构解决 WPF Button 与 Wpf.Ui `ui:Button` 的状态优先级冲突；检查所有按钮变体、所有主题及实际调用位置，不只修复危险按钮。
 - **核心决定：** 具有自身 Hover/Pressed 等可见状态的普通操作按钮，优先统一使用 `ui:Button` 和 Wpf.Ui 提供的状态属性。`App.Button.InteractionHost` 这类仅负责命令、键盘焦点和命中区域、由外层 Selection/Surface 唯一负责视觉状态的宿主保留为明确例外。菜单项属于独立控件族，按其实际模板与高亮机制处理，不强行套用 Button 属性。
@@ -28,7 +28,7 @@
 
 完成标准：形成完整的样式/调用点/主题状态清单，确认 Wpf.Ui 版本和模板实际行为；只输出根目录临时报告，不修改源码。
 
-### [ ] T002（P1 / Foundation）— 统一共享按钮样式的 Wpf.Ui 状态机制
+### [x] T002（P1 / Foundation）— 统一共享按钮样式的 Wpf.Ui 状态机制
 
 完成标准：共享可视按钮样式统一到 `ui:Button` 状态属性；同一任务内迁移所有受影响调用点，保留 InteractionHost 明确例外，不复制 Provider 模板。
 
@@ -50,7 +50,8 @@
 
 ## 4. 完成记录
 
-本阶段已完成 T001。
+本阶段已完成 T001、T002。
 
 - T001 完成：形成按钮样式、调用点、主题状态与 Wpf.Ui 4.3.0 模板行为审计报告；发现 Light DangerItem Hover 对比度 4.19:1；报告保留在根目录，不提交。
+- T002 完成：共享可视按钮统一使用 ui:Button / Provider.UiButton 状态属性，迁移页面、局部派生样式、导入取消按钮和 Gallery 调用点；保留 InteractionHost 无视觉宿主，修正 PressedForeground 的 Self 绑定桥接并清理无效 Disabled Surface Setter。Light/Dark 临时模板状态、主题切换与页面/Gallery 资源加载验证通过；永久测试保留并适配控件子类型，未新增外观测试。Release build（0 警告/错误）、Presentation 319 项、隔离 Desktop WPF 58 项及格式检查通过。
 各任务完成后按 `AGENTS.md` 更新状态、记录简短成果并删除对应的临时 `tasks/Txxx_*.md`；最终保留阶段成果摘要，Git 历史保存已完成任务规格的演进记录。
