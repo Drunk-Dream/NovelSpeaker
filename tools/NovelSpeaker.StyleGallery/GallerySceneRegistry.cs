@@ -49,7 +49,7 @@ public static class GallerySceneRegistry
         new GallerySceneDefinition(
             "button-styles",
             GallerySceneGroup.StandardControls,
-            "Explicit App.Button variants and deterministic interaction-state previews.",
+            "Explicit App.Button variants with real interactive samples and disabled states.",
             GallerySceneBuilders.CreateButtonStyles),
         new GallerySceneDefinition(
             "input-controls",

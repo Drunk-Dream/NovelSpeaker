@@ -113,7 +113,7 @@ public sealed class GalleryMediaControlBar : Border
         }.WithGalleryResource(TextBlock.ForegroundProperty, "App.Brush.Text.Primary"));
         title.Children.Add(new TextBlock
         {
-            Text = "播放上下文固定为内存 fixture；窗口动作只展示激活、Focus 和 Disabled 状态。",
+            Text = "播放上下文固定为内存 fixture；置顶激活与 Disabled 是静态语义样例。可用鼠标和 Tab 检查各按钮真实输入状态。",
             Margin = new Thickness(0, 4, 0, 0),
             TextWrapping = TextWrapping.Wrap
         }.WithGalleryResource(TextBlock.ForegroundProperty, "App.Brush.Text.Secondary"));
@@ -310,7 +310,7 @@ public sealed class GalleryMediaControlBar : Border
             "media-primary-pause",
             SymbolRegular.PauseCircle24,
             "暂停：暂停当前段。此 Gallery fixture 不执行播放命令。",
-            "App.Media.Button 暂停（Focus preview）",
+            "App.Media.Button 暂停",
             20,
             "App.Media.Button");
         NextSegmentButton = CreateButton(
@@ -365,7 +365,7 @@ public sealed class GalleryMediaControlBar : Border
             BorderThickness = new Thickness(1),
             Child = new TextBlock
             {
-                Text = "Focus preview · 长 Tooltip：置顶已激活会固定窗口在其它窗口上方；返回主窗口和关闭动作均有明确说明。",
+                Text = "Focus 资源静态样例 · 长 Tooltip：置顶已激活会固定窗口在其它窗口上方；返回主窗口和关闭动作均有明确说明。",
                 TextWrapping = TextWrapping.Wrap
             }.WithGalleryResource(TextBlock.ForegroundProperty, "App.Brush.Text.Primary")
         };

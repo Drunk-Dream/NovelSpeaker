@@ -51,7 +51,7 @@ internal static class GalleryNavigationScene
         surface.Padding = new Thickness(12);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("App.Navigation.Entry"));
-        content.Children.Add(CreateBody("显式扩展 Provider.NavigationViewItem；选中、Hover、键盘 Focus 与 Disabled 状态保持可见。"));
+        content.Children.Add(CreateBody("显式扩展 Provider.NavigationViewItem。左侧选中与禁用项是 fixture 数据状态；右侧 Hover / Focus 固定样例仅比较资源映射，真实 Button 模板输入可在按钮样式场景中操作。"));
 
         var navigation = new NavigationView
         {
@@ -106,7 +106,7 @@ internal static class GalleryNavigationScene
         surface.Padding = new Thickness(12);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("App.Navigation.SettingsEntry"));
-        content.Children.Add(CreateBody("设置导航行使用图标 + 标题 + Chevron 的整行入口；Hover、Pressed、键盘 Focus 与 Disabled 状态由 Wpf.Ui Button 模板与状态属性表达。"));
+        content.Children.Add(CreateBody("设置导航行使用图标 + 标题 + Chevron 的整行入口。这里的 Hover / Focus 样例由 Gallery fixture 固定状态，仅用于比较资源映射；真实 Button 模板输入请在按钮样式场景操作启用样本。"));
 
         foreach (var (label, symbol, state, automationId) in new[]
                  {
