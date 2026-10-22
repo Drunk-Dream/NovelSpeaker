@@ -5,7 +5,7 @@
         These are explicit, gallery-first variants. Wpf.Ui owns the Button
         templates through the Provider bridge; this dictionary only supplies
         stable semantic values and state setters. Disabled surface colors come
-        from the Provider template resources; foreground and opacity remain semantic.
+        from the Provider template resources; semantic disabled foregrounds stay opaque.
     -->
     <Style x:Key="App.Button.Primary"
            TargetType="{x:Type ui:Button}"
@@ -25,13 +25,18 @@
         <Setter Property="BorderThickness" Value="1" />
         <Style.Triggers>
             <!-- The Provider's TemplatedParent binding cannot resolve on the Button itself.
-                 Read the state property from Self, including keyboard presses. -->
-            <Trigger Property="IsPressed" Value="True">
+                 Read from Self only when the template also applies its pressed surface.
+                 Keyboard-only presses retain the default foreground/surface pair. -->
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsPressed" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
                 <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
-            </Trigger>
+            </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -51,16 +56,28 @@
         <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
         <Setter Property="MouseOverBorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="PressedBorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
-        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
         <Style.Triggers>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsMouseOver" Value="True" />
+                    <Condition Property="IsPressed" Value="False" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+            </MultiTrigger>
             <!-- The Provider's TemplatedParent binding cannot resolve on the Button itself.
-                 Read the state property from Self, including keyboard presses. -->
-            <Trigger Property="IsPressed" Value="True">
+                 Read from Self only when the template also applies its pressed surface.
+                 Keyboard-only presses retain the default foreground/surface pair. -->
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsPressed" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
                 <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
-            </Trigger>
+            </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -72,7 +89,7 @@
         <Setter Property="Padding" Value="12,8" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Default}" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
@@ -80,16 +97,28 @@
         <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
         <Setter Property="MouseOverBorderBrush" Value="Transparent" />
         <Setter Property="PressedBorderBrush" Value="Transparent" />
-        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
         <Style.Triggers>
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsMouseOver" Value="True" />
+                    <Condition Property="IsPressed" Value="False" />
+                </MultiTrigger.Conditions>
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+            </MultiTrigger>
             <!-- The Provider's TemplatedParent binding cannot resolve on the Button itself.
-                 Read the state property from Self, including keyboard presses. -->
-            <Trigger Property="IsPressed" Value="True">
+                 Read from Self only when the template also applies its pressed surface.
+                 Keyboard-only presses retain the default foreground/surface pair. -->
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsPressed" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
                 <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
-            </Trigger>
+            </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -105,7 +134,7 @@
         <Setter Property="FontSize" Value="{StaticResource App.Size.Icon.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Default}" />
         <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
         <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
@@ -117,10 +146,15 @@
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         <Style.Triggers>
             <!-- The Provider's TemplatedParent binding cannot resolve on the Button itself.
-                 Read the state property from Self, including keyboard presses. -->
-            <Trigger Property="IsPressed" Value="True">
+                 Read from Self only when the template also applies its pressed surface.
+                 Keyboard-only presses retain the default foreground/surface pair. -->
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsPressed" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
                 <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
-            </Trigger>
+            </MultiTrigger>
             <MultiTrigger>
                 <MultiTrigger.Conditions>
                     <Condition Property="IsMouseOver" Value="True" />
@@ -130,7 +164,7 @@
             </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -146,27 +180,25 @@
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Text}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Danger.Subtle}" />
+        <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Danger.Hover}" />
         <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Danger.Pressed}" />
         <Setter Property="MouseOverBorderBrush" Value="Transparent" />
         <Setter Property="PressedBorderBrush" Value="{DynamicResource App.Brush.Danger.Pressed}" />
         <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Danger.Pressed.Text}" />
         <Style.Triggers>
             <!-- The Provider's TemplatedParent binding cannot resolve on the Button itself.
-                 Read the state property from Self, including keyboard presses. -->
-            <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
-            </Trigger>
+                 Read from Self only when the template also applies its pressed surface.
+                 Keyboard-only presses retain the default foreground/surface pair. -->
             <MultiTrigger>
                 <MultiTrigger.Conditions>
+                    <Condition Property="IsPressed" Value="True" />
                     <Condition Property="IsMouseOver" Value="True" />
-                    <Condition Property="IsPressed" Value="False" />
                 </MultiTrigger.Conditions>
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+                <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
             </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -182,7 +214,7 @@
         <Setter Property="FontSize" Value="{StaticResource App.Size.Icon.Standard}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Default}" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="0" />
@@ -194,10 +226,15 @@
         <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
         <Style.Triggers>
             <!-- The Provider's TemplatedParent binding cannot resolve on the Button itself.
-                 Read the state property from Self, including keyboard presses. -->
-            <Trigger Property="IsPressed" Value="True">
+                 Read from Self only when the template also applies its pressed surface.
+                 Keyboard-only presses retain the default foreground/surface pair. -->
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsPressed" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
                 <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
-            </Trigger>
+            </MultiTrigger>
             <MultiTrigger>
                 <MultiTrigger.Conditions>
                     <Condition Property="IsMouseOver" Value="True" />
@@ -207,7 +244,7 @@
             </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -250,7 +287,7 @@
         <Style.Triggers>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -286,7 +323,7 @@
                         <Setter.Value>
                             <ControlTemplate TargetType="{x:Type Control}">
                                 <Border Margin="-2"
-                                        BorderBrush="{DynamicResource App.Brush.Focus}"
+                                        BorderBrush="{DynamicResource App.Brush.Focus.OnSurface}"
                                         BorderThickness="2"
                                         CornerRadius="999"
                                         IsHitTestVisible="False" />
@@ -298,10 +335,15 @@
         </Setter>
         <Style.Triggers>
             <!-- The Provider's TemplatedParent binding cannot resolve on the Button itself.
-                 Read the state property from Self, including keyboard presses. -->
-            <Trigger Property="IsPressed" Value="True">
+                 Read from Self only when the template also applies its pressed surface.
+                 Keyboard-only presses retain the default foreground/surface pair. -->
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsPressed" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
                 <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
-            </Trigger>
+            </MultiTrigger>
             <MultiTrigger>
                 <MultiTrigger.Conditions>
                     <Condition Property="IsMouseOver" Value="True" />
@@ -312,7 +354,7 @@
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                 <Setter Property="Effect" Value="{x:Null}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>

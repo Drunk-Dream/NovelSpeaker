@@ -19,9 +19,13 @@
                                    Value="15" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="15" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -29,9 +33,13 @@
                                    Value="30" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="30" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -39,9 +47,13 @@
                                    Value="45" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="45" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -49,9 +61,13 @@
                                    Value="60" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="60" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -59,9 +75,13 @@
                                    Value="90" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="90" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
@@ -142,12 +162,17 @@
                                     <Style TargetType="{x:Type ui:Button}"
                                         BasedOn="{StaticResource App.Media.ToolbarControl}">
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasActiveStopTimer}" Value="True">
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding HasActiveStopTimer}" Value="True" />
+                                                    <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
                                                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
                                                 <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
                                                 <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
-                                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
-                                            </DataTrigger>
+                                                <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </ui:Button.Style>

@@ -479,9 +479,6 @@
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
-            </Trigger>
             <Trigger Property="Validation.HasError" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
             </Trigger>

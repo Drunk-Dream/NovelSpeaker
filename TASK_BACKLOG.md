@@ -2,7 +2,7 @@
 
 ## 1. 当前阶段：全项目按钮样式与交互状态架构收口
 
-- **状态：** 执行中（T003–T006）。
+- **状态：** 执行中（T005–T006）。
 - **执行基线：** Codex 开工时本地 `dev` 的实际 HEAD 与工作区。先执行 `git status`，保留所有用户已有修改；本任务不依赖远端分支状态覆盖本地工作。
 - **目标：** 全面审查并统一 NovelSpeaker 的可视按钮状态机制，从共享样式架构解决 WPF Button 与 Wpf.Ui `ui:Button` 的状态优先级冲突；检查所有按钮变体、所有主题及实际调用位置，不只修复危险按钮。
 - **核心决定：** 具有自身 Hover/Pressed 等可见状态的普通操作按钮，优先统一使用 `ui:Button` 和 Wpf.Ui 提供的状态属性。`App.Button.InteractionHost` 这类仅负责命令、键盘焦点和命中区域、由外层 Selection/Surface 唯一负责视觉状态的宿主保留为明确例外。菜单项属于独立控件族，按其实际模板与高亮机制处理，不强行套用 Button 属性。
@@ -36,7 +36,7 @@
 
 完成标准：媒体、导航、页面操作、Metadata 保存/取消、图标按钮及剩余未显式声明语义的可视按钮全部经过审查；保留的例外有明确职责与理由。
 
-### [ ] T004（P1 / Themes）— 统一 Light/Dark/High Contrast 与菜单动作状态
+### [x] T004（P1 / Themes）— 统一 Light/Dark/High Contrast 与菜单动作状态
 
 完成标准：危险、强调、普通与低强调动作的 Hover/Pressed/Focus/Disabled 反馈符合语义；菜单高亮使用正确的模板/资源机制；颜色配对可读。
 
@@ -50,9 +50,10 @@
 
 ## 4. 完成记录
 
-本阶段已完成 T001–T003。
+本阶段已完成 T001–T004。
 
 - T001 完成：形成按钮样式、调用点、主题状态与 Wpf.Ui 4.3.0 模板行为审计报告；发现 Light DangerItem Hover 对比度 4.19:1；报告保留在根目录，不提交。
 - T002 完成：共享可视按钮统一使用 ui:Button / Provider.UiButton 状态属性，迁移页面、局部派生样式、导入取消按钮和 Gallery 调用点；保留 InteractionHost 无视觉宿主，修正 PressedForeground 的 Self 绑定桥接并清理无效 Disabled Surface Setter。Light/Dark 临时模板状态、主题切换与页面/Gallery 资源加载验证通过；永久测试保留并适配控件子类型，未新增外观测试。Release build（0 警告/错误）、Presentation 319 项、隔离 Desktop WPF 58 项及格式检查通过。
 - T003 完成：Metadata 保存/取消显式使用 Primary/Secondary；SettingsEntry 迁移 ui:Button/Subtle 并同步 Gallery；媒体按钮复用共享前景状态，ToolbarControl 使用状态属性桥接并删除无效 Disabled Setter。全项目 XAML/C# 按钮复扫及例外 owner 已在本地审计报告记录。Release build、Presentation 319 项、隔离 Desktop WPF 58 项通过；临时 Light/Dark 冷创建、已加载控件切换、新建控件及全部 Gallery 场景验证 2/2 通过，永久核心测试保持不变，临时验证已删除。
+- T004 完成：Filled Danger Hover 保持实色危险语义，危险菜单 Light Hover 对比度提升至 5.61:1；按背景角色拆分危险/Control 文字，修正 HC Window/Control/Highlight 配对及 Focus 外缘、活动定时/预设/置顶按钮；菜单用每项资源投影适配 Provider 内部高亮，导航用现有 Palette projection，未复制 Provider 模板。删除重复 checked Surface 和禁用透明度混色。Release build（0 警告/错误）、Presentation 319 项、隔离 Desktop WPF 58 项及格式检查通过；临时完整模板状态/对比度、主题生命周期、菜单 Popup、导航和 HC 角色替身验证 2/2 通过。保留全部永久核心测试，未新增外观测试；临时产物已清理。真实输入代表性验证仍由 T005 执行，未改系统 HC 设置。
 各任务完成后按 `AGENTS.md` 更新状态、记录简短成果并删除对应的临时 `tasks/Txxx_*.md`；最终保留阶段成果摘要，Git 历史保存已完成任务规格的演进记录。

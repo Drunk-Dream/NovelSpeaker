@@ -233,7 +233,7 @@
         <Setter Property="MinWidth" Value="{StaticResource App.Size.MediaButton}" />
         <Setter Property="MinHeight" Value="{StaticResource App.Size.MediaButton}" />
         <Setter Property="CornerRadius" Value="{StaticResource App.Radius.Small}" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Default}" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
         <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
@@ -252,7 +252,7 @@
         <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
         <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
         <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
-        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Surface.Secondary.Text}" />
         <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
         <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
         <Setter Property="MouseOverBorderBrush" Value="Transparent" />
@@ -267,12 +267,16 @@
                 </MultiTrigger.Conditions>
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
             </MultiTrigger>
-            <Trigger Property="IsPressed" Value="True">
+            <MultiTrigger>
+                <MultiTrigger.Conditions>
+                    <Condition Property="IsPressed" Value="True" />
+                    <Condition Property="IsMouseOver" Value="True" />
+                </MultiTrigger.Conditions>
                 <Setter Property="Foreground" Value="{Binding PressedForeground, RelativeSource={RelativeSource Self}}" />
-            </Trigger>
+            </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
