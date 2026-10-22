@@ -314,16 +314,31 @@ Wpf.Ui provider
 
 文本框、密码框和下拉框统一采用桌面输入密度：Standard 最小高度 32 DIP、内边距 `10,4`，Compact 最小高度 28 DIP、内边距 `8,2`，由全局 Input Token 和显式 `App.Input.*` 样式控制。文字使用正文大小；文本输入保持左对齐，多行输入随内容增高，页面可以按编辑需求声明更大的最小高度。按钮与开关继续使用各自的点击区域约定。
 
-### Button 样式语义
+### Button 样式语义与状态 owner
 
 应用级 Button Style 按稳定交互职责命名，不按“透明”“某页面按钮”或某次视觉实现命名。
 
 - Primary / Secondary / Subtle / Icon / Danger 等共享样式表达稳定动作语义。
+- 具有自身可见 Hover / Pressed / Focus / Disabled 外观的普通操作按钮统一使用 Wpf.Ui `ui:Button`，基于 `Provider.UiButton` 或以其为基础的显式 `App.*` 样式。不要让标准 `System.Windows.Controls.Button` 样式和 Wpf.Ui `ui:Button` 混用同一套可视状态约定。
+- 普通可视按钮使用 Wpf.Ui 提供的状态属性：Default 由 `Background` / `Foreground` / `BorderBrush` 表达；Hover 由 `MouseOverBackground` / `MouseOverBorderBrush` 表达；Pressed 由 `PressedBackground` / `PressedBorderBrush` / `PressedForeground` 表达。不得再用 `IsMouseOver` / `IsPressed` 触发器直接设置可视 `ui:Button` 的 `Background` 或 `BorderBrush`，与 Provider 模板争夺同一个视觉状态。
+- Wpf.Ui 4.3.0 没有独立的 `MouseOverForeground` 属性。若 Hover 确实需要改变前景，允许使用只修改 `Foreground` 的窄范围 Hover trigger；背景与边框仍由 Wpf.Ui 状态属性控制。Pressed 前景优先使用 `PressedForeground`。
+- Focus 必须保留键盘可见的 FocusVisualStyle 或明确 Focus chrome，不得仅靠背景色变化表示焦点。Disabled 状态须依据实际 Provider 模板验证；不能假定控件上的 Setter 一定覆盖模板内的 Disabled trigger，也不得为了绕过它而复制完整模板。
 - 当 Button 只负责命令、键盘焦点与命中区域，Hover / Selected / Current 等视觉由内部 Selection/Surface 统一表达时，应使用明确的 interaction-host 语义；宿主本身不得再绘制第二层 Hover/Pressed Surface。
+- `App.Button.InteractionHost` 是明确的无视觉宿主例外：它保留透明命中区和命令/键盘语义，由父级 Selection/Surface 唯一负责可见状态。不得给宿主额外增加第二层 Hover / Pressed 背景。
+- `MenuItem` / `ContextMenu` 是独立控件族，不强行改造成 Button。必须按锁定 Wpf.Ui 版本的 MenuItem 模板和 `IsHighlighted` 状态核实最终渲染；不能假定对 `MenuItem.Background` 的 Setter 一定能控制模板内部的背景。优先使用 Provider 已有资源入口或最小范围的机制，不复制完整菜单模板。
+- 每个用户可见按钮都必须使用显式语义样式或有明确职责的领域样式；剩余依赖 Provider 默认样式的按钮必须有审查依据，不能仅因历史遗留而不作判断。
 - 相同交互语义跨 Feature 复用同一共享样式，不为 Provider、Book、Cache 等页面分别创建等价 Button Style。
 - 只有控件族确实拥有独立、长期的交互模型时，才使用 `App.Media.*`、`App.Navigation.*` 等领域命名空间。
 - 同一个可点击区域只允许一个视觉状态 owner。
+- 危险操作要区分实色背景文字与 Subtle 背景文字，不能用同一前景资源默认覆盖两种不同亮度的背景。Filled Danger 的 Hover 保持明确危险语义；Danger Icon 和 Danger Menu Item 可采用不同强调强度，但必须保持可读且状态反馈一致。
+- Light / Dark 的实际前景与背景组合须满足适用的 WCAG 对比度标准；High Contrast 按系统语义配对映射，而不是强行保留品牌颜色。
 - 样式整理或重命名时直接迁移调用方并删除旧 Key，不为内部资源名长期保留兼容 alias。
+
+实现依据：
+
+- [Wpf.Ui 4.3.0 Button.xaml](https://github.com/lepoco/wpfui/blob/4.3.0/src/Wpf.Ui/Controls/Button/Button.xaml) 与 [Button.cs](https://github.com/lepoco/wpfui/blob/4.3.0/src/Wpf.Ui/Controls/Button/Button.cs)：以锁定版本的状态属性与模板行为为准。
+- [WPF Dependency Property Value Precedence](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/properties/dependency-property-value-precedence?view=netdesktop-9.0)：用于判断 Style Trigger 与 ControlTemplate Trigger 的实际优先级。
+- [WCAG 2.2 Contrast Minimum](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html) 与 [Non-text Contrast](https://www.w3.org/WAI/WCAG22/Understanding/non-text-contrast.html)：用于文字和必要控件图形的对比度验收。
 
 ## 13. Shared Controls
 
@@ -362,6 +377,7 @@ Dialog、Flyout、Popup、独立状态窗口遵守 **Single Surface**：
 - 主题切换不通过运行时代码重写标准控件完整模板。
 - Light/Dark 快捷切换保持高频可达。
 - High Contrast 下 Current/Selected/Focus 仍必须可区分；必要时优先使用系统 Highlight/Focus 资源。
+- High Contrast 的前景/背景必须按系统语义成对映射，例如 `ControlColor` + `ControlTextColor`、`HighlightColor` + `HighlightTextColor`、`WindowColor` + `WindowTextColor`。不得把 `HighlightTextColor` 用在 `ControlColor` 背景上，也不得假定用户的系统高对比配色固定为某组 RGB 值。
 
 ## 16. 控件交互
 
