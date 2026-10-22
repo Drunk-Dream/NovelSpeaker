@@ -32,7 +32,7 @@
 
 完成标准：共享可视按钮样式统一到 `ui:Button` 状态属性；同一任务内迁移所有受影响调用点，保留 InteractionHost 明确例外，不复制 Provider 模板。
 
-### [ ] T003（P1 / Call sites）— 收口领域按钮样式与全项目调用点
+### [x] T003（P1 / Call sites）— 收口领域按钮样式与全项目调用点
 
 完成标准：媒体、导航、页面操作、Metadata 保存/取消、图标按钮及剩余未显式声明语义的可视按钮全部经过审查；保留的例外有明确职责与理由。
 
@@ -50,8 +50,9 @@
 
 ## 4. 完成记录
 
-本阶段已完成 T001、T002。
+本阶段已完成 T001–T003。
 
 - T001 完成：形成按钮样式、调用点、主题状态与 Wpf.Ui 4.3.0 模板行为审计报告；发现 Light DangerItem Hover 对比度 4.19:1；报告保留在根目录，不提交。
 - T002 完成：共享可视按钮统一使用 ui:Button / Provider.UiButton 状态属性，迁移页面、局部派生样式、导入取消按钮和 Gallery 调用点；保留 InteractionHost 无视觉宿主，修正 PressedForeground 的 Self 绑定桥接并清理无效 Disabled Surface Setter。Light/Dark 临时模板状态、主题切换与页面/Gallery 资源加载验证通过；永久测试保留并适配控件子类型，未新增外观测试。Release build（0 警告/错误）、Presentation 319 项、隔离 Desktop WPF 58 项及格式检查通过。
+- T003 完成：Metadata 保存/取消显式使用 Primary/Secondary；SettingsEntry 迁移 ui:Button/Subtle 并同步 Gallery；媒体按钮复用共享前景状态，ToolbarControl 使用状态属性桥接并删除无效 Disabled Setter。全项目 XAML/C# 按钮复扫及例外 owner 已在本地审计报告记录。Release build、Presentation 319 项、隔离 Desktop WPF 58 项通过；临时 Light/Dark 冷创建、已加载控件切换、新建控件及全部 Gallery 场景验证 2/2 通过，永久核心测试保持不变，临时验证已删除。
 各任务完成后按 `AGENTS.md` 更新状态、记录简短成果并删除对应的临时 `tasks/Txxx_*.md`；最终保留阶段成果摘要，Git 历史保存已完成任务规格的演进记录。

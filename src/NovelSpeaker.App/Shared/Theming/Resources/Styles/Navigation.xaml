@@ -45,8 +45,8 @@
     </Style>
 
     <Style x:Key="App.Navigation.SettingsEntry"
-           TargetType="{x:Type Button}"
-           BasedOn="{StaticResource Provider.Button}">
+           TargetType="{x:Type ui:Button}"
+           BasedOn="{StaticResource App.Button.Subtle}">
         <Setter Property="MinHeight" Value="52" />
         <Setter Property="Padding" Value="12,8" />
         <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -56,22 +56,5 @@
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
-        <Style.Triggers>
-            <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
-            </Trigger>
-            <Trigger Property="IsPressed" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
-            </Trigger>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
-            </Trigger>
-            <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
-                <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
-            </Trigger>
-        </Style.Triggers>
     </Style>
 </ResourceDictionary>

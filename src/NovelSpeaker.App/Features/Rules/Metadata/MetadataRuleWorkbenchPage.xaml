@@ -125,8 +125,8 @@
                         <TextBlock Text="{Binding ValidationMessage}" TextWrapping="Wrap" Margin="0,8,0,0"
                             Style="{StaticResource App.Typography.Validation}" />
                         <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
-                            <ui:Button Content="保存" Command="{Binding SaveRuleCommand}" Margin="0,0,8,0" />
-                            <ui:Button Content="取消" Command="{Binding CancelEditingCommand}" />
+                            <ui:Button Style="{StaticResource App.Button.Primary}" Content="保存" Command="{Binding SaveRuleCommand}" Margin="0,0,8,0" />
+                            <ui:Button Style="{StaticResource App.Button.Secondary}" Content="取消" Command="{Binding CancelEditingCommand}" />
                         </StackPanel>
                     </StackPanel>
                 </ScrollViewer>

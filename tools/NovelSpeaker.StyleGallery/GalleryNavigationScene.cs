@@ -3,7 +3,7 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
-using WpfButton = System.Windows.Controls.Button;
+using WpfButton = Wpf.Ui.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using Wpf.Ui.Controls;
 
@@ -106,7 +106,7 @@ internal static class GalleryNavigationScene
         surface.Padding = new Thickness(12);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("App.Navigation.SettingsEntry"));
-        content.Children.Add(CreateBody("设置导航行使用图标 + 标题 + Chevron 的整行入口；Hover、Pressed、键盘 Focus 与 Disabled 状态由 Provider Button 模板与样式触发共同表达。"));
+        content.Children.Add(CreateBody("设置导航行使用图标 + 标题 + Chevron 的整行入口；Hover、Pressed、键盘 Focus 与 Disabled 状态由 Wpf.Ui Button 模板与状态属性表达。"));
 
         foreach (var (label, symbol, state, automationId) in new[]
                  {

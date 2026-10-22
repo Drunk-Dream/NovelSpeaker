@@ -1450,17 +1450,15 @@ internal static class GallerySceneBuilders
         icon.SetResourceReference(SymbolIcon.ForegroundProperty, "App.Brush.Accent");
         AutomationProperties.SetAutomationId(icon, "component-page-header-icon");
 
-        var action = new Button
+        var action = new Wpf.Ui.Controls.Button
         {
             Content = "示例动作",
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Padding = TokenPadding("App.Space.12")
         };
-        action.Style = System.Windows.Application.Current?.FindResource("Provider.Button") as Style;
+        action.SetResourceReference(FrameworkElement.StyleProperty, "App.Button.Primary");
         action.SetResourceReference(FrameworkElement.MinHeightProperty, "App.Size.Control.Compact");
-        action.SetResourceReference(Control.BackgroundProperty, "App.Brush.Accent");
-        action.SetResourceReference(Control.ForegroundProperty, "App.Brush.Accent.Text");
         AutomationProperties.SetName(action, "PageHeader sample action");
 
         var grid = new Grid();
