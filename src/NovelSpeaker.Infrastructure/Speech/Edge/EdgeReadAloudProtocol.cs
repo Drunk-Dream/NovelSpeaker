@@ -31,6 +31,18 @@ internal static class EdgeReadAloudProtocol
             "&Sec-MS-GEC=" + GenerateGecV2(now, profile.TrustedClientToken) +
             "&Sec-MS-GEC-Version=" + profile.GecVersion + "&ConnectionId=" + Uri.EscapeDataString(connectionId));
 
+    public static IReadOnlyDictionary<string, string> CreateSynthesisHeaders(EdgeReadAloudProfile profile) =>
+        new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Origin"] = profile.Origin,
+            ["User-Agent"] = profile.UserAgent,
+            ["Pragma"] = "no-cache",
+            ["Cache-Control"] = "no-cache",
+            ["Accept-Encoding"] = "gzip, deflate, br, zstd",
+            ["Accept-Language"] = "en-US,en;q=0.9",
+            ["Cookie"] = "muid=" + Convert.ToHexString(RandomNumberGenerator.GetBytes(16)) + ";"
+        };
+
     // ms-ra-forwarder fix/drudream @ 4936d3e1: prefix + five-minute FILETIME bucket,
     // followed by the little-endian wrapping-u32 patent hash and SHA-256 digest.
     public static string GenerateGecV2(DateTimeOffset utcNow, string token)

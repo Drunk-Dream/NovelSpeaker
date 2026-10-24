@@ -36,6 +36,8 @@ public sealed record AppSettingsUpdate
 
     public double? PlaybackVolume { get; init; }
 
+    public double? PlayerCatalogWidth { get; init; }
+
     public bool? EnablePerformanceTelemetry { get; init; }
 
     public IReadOnlyList<string>? EnabledExperimentalFeatureIds { get; init; }

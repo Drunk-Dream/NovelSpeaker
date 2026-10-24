@@ -238,7 +238,7 @@
                             </formControls:AppFormField>
 
                             <WrapPanel Margin="0,20,0,0" HorizontalAlignment="Right">
-                                <Button Margin="0,0,8,0"
+                                <ui:Button Margin="0,0,8,0"
                                         Style="{StaticResource App.Button.Subtle}"
                                         Command="{Binding CancelEditingCommand}"
                                         Content="取消"

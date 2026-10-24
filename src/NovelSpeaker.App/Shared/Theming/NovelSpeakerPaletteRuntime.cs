@@ -23,6 +23,7 @@ internal static class NovelSpeakerPaletteRuntime
         "WindowColor",
         "WindowTextColor",
         "ControlColor",
+        "ControlTextColor",
         "HighlightColor",
         "HighlightTextColor",
         "GrayTextColor"

@@ -24,7 +24,8 @@ public sealed record AppSettings(
     double PlaybackVolume = 1d,
     bool EnablePerformanceTelemetry = false,
     IReadOnlyList<string>? EnabledExperimentalFeatureIds = null,
-    bool SplitChaptersOnBlankLines = false)
+    bool SplitChaptersOnBlankLines = false,
+    double PlayerCatalogWidth = 320d)
 {
     public const int MinSpeakSpeed = 0;
     public const int MaxSpeakSpeed = 100;
@@ -35,6 +36,8 @@ public sealed record AppSettings(
     public const long DefaultCacheLimitBytes = 2L * 1024 * 1024 * 1024;
     public const long MinCacheLimitBytes = 256L * 1024 * 1024;
     public const double DefaultPlaybackVolumeValue = 1d;
+    public const double DefaultPlayerCatalogWidth = 320d;
+    public const double MinPlayerCatalogWidth = 220d;
 
     public static IReadOnlyList<string> SupportedLogLevels { get; } =
         ["Trace", "Debug", "Information", "Warning", "Error", "Critical"];
@@ -93,6 +96,7 @@ public sealed record AppSettings(
             Theme = NormalizeOption(Theme, SupportedThemes, DefaultTheme),
             CacheLimitBytes = NormalizeCacheLimitBytes(CacheLimitBytes),
             PlaybackVolume = NormalizePlaybackVolume(PlaybackVolume),
+            PlayerCatalogWidth = NormalizePlayerCatalogWidth(PlayerCatalogWidth),
             EnabledExperimentalFeatureIds = Array.AsReadOnly((EnabledExperimentalFeatureIds ?? [])
                 .Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray()),
             MainWindowCloseBehavior = Enum.IsDefined(MainWindowCloseBehavior)
@@ -119,6 +123,9 @@ public sealed record AppSettings(
             ? Math.Clamp(playbackVolume, 0d, 1d)
             : DefaultPlaybackVolumeValue;
     }
+
+    public static double NormalizePlayerCatalogWidth(double width) =>
+        double.IsFinite(width) ? Math.Max(MinPlayerCatalogWidth, width) : DefaultPlayerCatalogWidth;
 
     private static string NormalizeOption(string? value, IReadOnlyList<string> supportedValues, string defaultValue)
     {

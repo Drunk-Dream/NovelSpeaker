@@ -21,6 +21,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using NovelSpeaker.Application.Playback;
+using NovelSpeaker.Application.Settings;
 using NovelSpeaker.Application.Cache.ActiveCache;
 using NovelSpeaker.Application.Cache.Export;
 using NovelSpeaker.Domain.Books;
@@ -170,7 +171,7 @@ public sealed class MainWindowNavigationTests
 
                 var flyout = Assert.IsType<Flyout>(window.FindName("ActiveCacheFlyout"));
                 var chapterList = Assert.IsType<ListBox>(window.FindName("ActiveCacheChapterList"));
-                var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
+                var cancelButton = Assert.IsAssignableFrom<System.Windows.Controls.Button>(
                     window.FindName("CancelActiveCacheButton"));
                 Assert.True(flyout.IsOpen);
                 Assert.Contains(VisualTreeTestHelper.FindDescendants<System.Windows.Controls.TextBlock>((DependencyObject)flyout.Content),
@@ -239,7 +240,7 @@ public sealed class MainWindowNavigationTests
                 window.UpdateLayout();
 
                 var flyout = Assert.IsType<Flyout>(window.FindName("ChapterExportFlyout"));
-                var cancelButton = Assert.IsType<System.Windows.Controls.Button>(
+                var cancelButton = Assert.IsAssignableFrom<System.Windows.Controls.Button>(
                     window.FindName("CancelChapterExportButton"));
                 Assert.True(flyout.IsOpen);
                 Assert.Equal("取消章节导出任务", AutomationProperties.GetName(cancelButton));
@@ -409,7 +410,7 @@ public sealed class MainWindowNavigationTests
         });
     }
 
-    private async Task Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration()
+    private async Task Real_guarded_navigation_to_player_page_keeps_controls_in_viewport_after_resizing()
     {
         await WpfTestHost.RunInStaAsync(async () =>
         {
@@ -431,6 +432,105 @@ public sealed class MainWindowNavigationTests
                 var presenter = VisualTreeTestHelper.FindDescendant<NavigationViewContentPresenter>(navigationView);
                 Assert.NotNull(presenter);
                 Assert.False(presenter!.IsDynamicScrollViewerEnabled);
+
+                await DrainDispatcherAsync(window.Dispatcher);
+                var player = Assert.IsType<PlayerPage>(
+                    VisualTreeTestHelper.FindDescendant<PlayerPage>(presenter));
+                var view = Assert.IsType<PlayerView>(VisualTreeTestHelper.FindDescendant<PlayerView>(player));
+                var scroll = Assert.IsAssignableFrom<ScrollViewer>(
+                    VisualTreeTestHelper.FindDescendant<ScrollViewer>(presenter));
+                var defaultHeight = window.Height;
+                var defaultWidth = window.Width;
+                var catalog = Assert.IsAssignableFrom<FrameworkElement>(view.FindName("CatalogPanelSurface"));
+                var preview = Assert.IsAssignableFrom<FrameworkElement>(view.FindName("PreviewPanelSurface"));
+                var splitter = Assert.IsType<GridSplitter>(view.FindName("CatalogSplitter"));
+                var settings = provider.GetRequiredService<IAppSettingsService>();
+                var initialWidth = catalog.ActualWidth;
+                for (var step = 0; step < 18; step++)
+                {
+                    RaiseSplitterKey(Keyboard.PreviewKeyDownEvent);
+                    RaiseSplitterKey(Keyboard.KeyDownEvent);
+                    window.UpdateLayout();
+                }
+                var widthSaved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                EventHandler<AppSettingsChangedEventArgs> onSaved = (_, change) =>
+                {
+                    if (change.Current.PlayerCatalogWidth != change.Previous.PlayerCatalogWidth)
+                        widthSaved.TrySetResult();
+                };
+                settings.Changed += onSaved;
+                try
+                {
+                    RaiseSplitterKey(Keyboard.KeyUpEvent);
+                    await widthSaved.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                }
+                finally
+                {
+                    settings.Changed -= onSaved;
+                }
+                await DrainDispatcherAsync(window.Dispatcher);
+                var preferredWidth = catalog.ActualWidth;
+                Assert.True(preferredWidth > initialWidth);
+                Assert.Equal(preferredWidth, settings.Current.PlayerCatalogWidth, precision: 1);
+
+                foreach (var width in new[] { window.MinWidth, defaultWidth + 200, window.MinWidth, defaultWidth })
+                {
+                    window.Width = width;
+                    window.UpdateLayout();
+                    await DrainDispatcherAsync(window.Dispatcher);
+                    Assert.Equal(preferredWidth, settings.Current.PlayerCatalogWidth, precision: 1);
+                    Assert.InRange(catalog.ActualWidth, 220, preferredWidth + 1);
+                    if (width == window.MinWidth) Assert.True(catalog.ActualWidth < preferredWidth);
+                    Assert.True(preview.ActualWidth >= 359);
+                    var previewBounds = preview.TransformToAncestor(view).TransformBounds(new Rect(preview.RenderSize));
+                    Assert.True(previewBounds.Right <= view.ActualWidth + 1);
+                    Assert.InRange(scroll.ScrollableWidth, 0, 1);
+                }
+                Assert.Equal(preferredWidth, catalog.ActualWidth, precision: 1);
+
+                void RaiseSplitterKey(RoutedEvent routedEvent)
+                {
+                    splitter.RaiseEvent(new KeyEventArgs(Keyboard.PrimaryDevice,
+                        PresentationSource.FromVisual(splitter), Environment.TickCount, Key.Right)
+                    {
+                        RoutedEvent = routedEvent
+                    });
+                }
+
+                foreach (var height in new[] { defaultHeight, window.MinHeight, defaultHeight + 120, window.MinHeight })
+                {
+                    window.Height = height;
+                    window.UpdateLayout();
+                    await DrainDispatcherAsync(window.Dispatcher);
+
+                    Assert.InRange(scroll.ScrollableHeight, 0, 1);
+                    foreach (var name in new[] { "PageHeader", "NoProviderStatusView" })
+                    {
+                        var control = Assert.IsAssignableFrom<FrameworkElement>(view.FindName(name));
+                        Assert.True(control.IsVisible);
+                        Assert.True(control.ActualHeight > 0);
+                        var bounds = control.TransformToAncestor(presenter).TransformBounds(new Rect(control.RenderSize));
+                        Assert.InRange(bounds.Top, 0, presenter.ActualHeight);
+                        Assert.InRange(bounds.Bottom, bounds.Top, presenter.ActualHeight + 1);
+                    }
+                }
+
+                var reopened = new PlayerView { DataContext = provider.GetRequiredService<PlayerViewModel>() };
+                reopened.Measure(view.RenderSize);
+                reopened.Arrange(new Rect(view.RenderSize));
+                reopened.UpdateLayout();
+                var reopenedCatalog = Assert.IsAssignableFrom<FrameworkElement>(reopened.FindName("CatalogPanelSurface"));
+                Assert.Equal(preferredWidth, reopenedCatalog.ActualWidth, precision: 1);
+
+                Assert.True(await navigationService.NavigateAsync(AppRoutes.Settings, CancellationToken.None));
+                await DrainDispatcherAsync(window.Dispatcher);
+                window.UpdateLayout();
+                var settingsScroll = Assert.IsAssignableFrom<ScrollViewer>(
+                    VisualTreeTestHelper.FindDescendant<ScrollViewer>(presenter));
+                Assert.True(settingsScroll.ScrollableHeight > 0);
+                settingsScroll.ScrollToBottom();
+                await DrainDispatcherAsync(window.Dispatcher);
+                Assert.True(settingsScroll.VerticalOffset > 0);
             }
             finally
             {
@@ -634,7 +734,7 @@ public sealed class MainWindowNavigationTests
     {
         Loaded_initializes_navigation_once_and_targets_library_page();
         Shell_exposes_only_library_and_settings_primary_items();
-        await Real_guarded_navigation_to_player_page_keeps_navigation_content_presenter_configuration();
+        await Real_guarded_navigation_to_player_page_keeps_controls_in_viewport_after_resizing();
         await Real_navigation_to_appearance_settings_page_does_not_raise_dispatcher_exception();
         await Primary_navigation_switch_keeps_only_one_active_menu_item();
     }

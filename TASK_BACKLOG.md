@@ -1,81 +1,67 @@
 # NovelSpeaker 当前开发 Backlog
 
-## 1. 当前阶段：Playback 暂停预取行为修复（Cache 架构收口已完成）
+## 1. 当前阶段：全项目按钮样式与交互状态架构收口（已完成）
 
-- **工作基线：** 以 Codex 执行时本地实际 `HEAD` 和工作区为准；T001–T005 与上一轮 E1-C/T007 已完成并推送到 `dev`。先核对工作区，保留所有既有用户改动，不以覆盖旧任务成果的方式实施 T006。
-- **已完成阶段：** T001–T005 收口了目录滚动引发的 Plan 写入、真实 Coverage、Stale 修复、缓存生命周期和资源使用问题。
-- **当前新增授权：** T006 仅修复 Playback 暂停状态仍执行自动音频预取的问题。Speech Plan 计算/持久化分离成果及缓存完整度规则继续保持。
-- **已存在功能继续保持：** Provider/语速等 synthesis fingerprint 改变时，缓存按新配置重新匹配；**不因为 Provider 改变而重建 Speech Plan**，不另开实现任务。
-- **长期合同：** `docs/04_CACHE_AND_BACKGROUND_WORK.md` 为 Cache owner；生命周期参见 `docs/02_RUNTIME_AND_NAVIGATION.md`，规则影响参见 `docs/specs/REGEX_REPLACEMENT.md`；其余遵守 `AGENTS.md`。
-- 本轮不开发在线书源，不启动 U1 视觉改版，不重构其它系统。尽量在既有模型、服务和 SQLite 表结构内解决，不为“可能有用”新增通用机制。
+- **状态：** 已完成（T001–T006）。
+- **执行基线：** Codex 开工时本地 `dev` 的实际 HEAD 与工作区。先执行 `git status`，保留所有用户已有修改；本任务不依赖远端分支状态覆盖本地工作。
+- **目标：** 全面审查并统一 NovelSpeaker 的可视按钮状态机制，从共享样式架构解决 WPF Button 与 Wpf.Ui `ui:Button` 的状态优先级冲突；检查所有按钮变体、所有主题及实际调用位置，不只修复危险按钮。
+- **核心决定：** 具有自身 Hover/Pressed 等可见状态的普通操作按钮，优先统一使用 `ui:Button` 和 Wpf.Ui 提供的状态属性。`App.Button.InteractionHost` 这类仅负责命令、键盘焦点和命中区域、由外层 Selection/Surface 唯一负责视觉状态的宿主保留为明确例外。菜单项属于独立控件族，按其实际模板与高亮机制处理，不强行套用 Button 属性。
+- **长期依据：** `AGENTS.md`、`docs/06_UI_AND_VISUAL_SYSTEM.md`、`docs/08_QUALITY_AND_TESTING.md`、`tools/NovelSpeaker.StyleGallery/README.md`。
+- **技术依据：** 以仓库锁定的 Wpf.Ui 版本为准（当前调查指向 4.3.0）；参考该版本 `Button.xaml` / `Button.cs` / `MenuItem.xaml`、Microsoft WPF Dependency Property Value Precedence，以及 WCAG 2.2 对比度标准。不得用其他版本的模板行为替代当前实际实现。
 
-## 2. 执行规则
+## 2. 执行约束
 
-- `[ ]` 未开始；`[-]` 进行中；`[x]` 已完成；`[!]` 遇到超出授权边界、必须由用户与 ChatGPT 决定的阻断问题。
-- **T001–T005 已完成，当前只执行 T006。** 任务结束必须可构建并通过相关核心测试；不启用 staged breaking migration window。
-- 阅读 `AGENTS.md`、当前 task spec 和 task spec 明确引用的少量长期文档；以本地实现为准，不机械照搬任务中提到的类名。先 `git status`/检查相关 diff，保护其它用户改动；在实际工作树上增量集成。
-- 仅在真实需要时调整 Application port、Infrastructure Store、UI binding；不添加多余状态机、通用 Scheduler/EventBus、全局 Plan 内存缓存、无限队列、重复兼容路径或永久的迁移补丁层。
-- 已发布 SQLite schema/migration 不擅自更改；本轮计划在现有 `ChapterSpeechPlans`、`ChapterSpeechPlanSegments` 和 `AudioCacheEntries` 中完成。若确需新增持久化结构或改变正式数据语义，先按 `AGENTS.md` 记录具体影响并请求决策。
-- 只保留核心行为的正式测试；可使用受控临时规模测试/基准，完成后删除临时 harness、数据文件和截图。人工验收仅作可选补充，不作为阻断下一任务的条件。
-- 每任务完成后把状态标记 `[x]`，记录简短成果/自动验证/限制，删除对应 `tasks/Txxx_*.md`；由 Git 记录历史。不得未经授权 push、发 PR、发布或创建 tag。项目文本使用 LF。
-- 上一轮 T001–T005 的已完成任务规格应已删除；本轮 `tasks/` 只增加 T006 规格，不恢复历史任务或删除无关工作。
+- 严格按 **T001 → T002 → T003 → T004 → T005 → T006** 顺序执行。每个任务结束时仓库应保持可构建、可测试；不得依赖长期兼容 alias 或无文档的 staged breaking state。
+- T001 只调查，不修改生产源码、测试或长期文档；输出临时报告 `BUTTON_STYLE_AUDIT_REPORT.md` 到仓库根目录。报告不提交 Git，由用户自行管理。后续任务优先复核实际源码，不因报告缺失而盲目照搬。
+- 必须覆盖全项目 XAML 与 C# 动态创建的按钮，包括 `Button`、`ui:Button`、`App.Button.*`、`App.Media.*`、`App.Navigation.*`、菜单项、特殊交互宿主和 Style Gallery；不得只搜索 `Buttons.xaml`。
+- 不复制 Wpf.Ui 完整 `ControlTemplate`，不新增通用按钮控件或额外主题框架。优先使用现有 `Provider.UiButton`、Wpf.Ui 状态属性、语义 Palette 与显式 `App.*` 样式。
+- 同一个可点击区域只有一个视觉状态 owner。普通可视按钮不得由外层样式触发器和 Wpf.Ui 模板同时争夺背景/边框；InteractionHost 不绘制第二层 Hover/Pressed Surface。
+- 语义颜色必须成对验证：Light / Dark 检查实际颜色对比度；High Contrast 使用系统颜色的正确配对，不把品牌红色强加到系统高对比模式。
+- 不改变命令业务逻辑、删除/保存语义、Provider 生命周期、选择行为或导航行为。按钮控件类型迁移时保留命令、参数、Automation Name、Tooltip、键盘行为和点击区域。
+- 自动测试是主要验收；人工视觉/交互验收永远可选，不阻塞后续任务。
+- 临时脚本、临时测试、截图和诊断副产物在对应任务结束前清理；不得提交 `BUTTON_STYLE_AUDIT_REPORT.md`。
+- 所有文件使用 LF 换行。不得 push、创建 PR、tag 或 release。
 
-## 3. 当前任务
+## 3. 任务顺序
 
-### Phase A — 目录查询不再放大工作量
+### [x] T001（P1 / Audit）— 全项目按钮样式与状态 owner 盘点
 
-- [x] **T001（P0 / Query Boundary）— Cache 只读查询与 PlanMissing 止血**
-  完成成果：目录查询不再为 `PlanMissing` 请求 repair；`PlanStale` 仅在同窗口存在物理缓存时请求。10k 章节多窗口回归、SQLite Cache 22 项、Presentation 25 项、格式检查及 Release 构建通过。
+完成标准：形成完整的样式/调用点/主题状态清单，确认 Wpf.Ui 版本和模板实际行为；只输出根目录临时报告，不修改源码。
 
-### Phase B — Plan 计算与真实缓存生命周期
+### [x] T002（P1 / Foundation）— 统一共享按钮样式的 Wpf.Ui 状态机制
 
-- [x] **T002（P0 / Persistence）— Plan 计算与持久化解耦**
-  完成成果：Plan Build/正文加载纯计算；语音内容 port/DTO 收归 Cache，避免 Books 反向依赖。生成音频时 Plan 与 Ready 索引同事务保存，保留 Header-only 优化；移除 Build 隐式保存。保留并改写核心 Plan/Playback 测试，新增首写回滚、取消、并发及重开库 Coverage/导出键回归；Application 128 项、Infrastructure 111 项、Presentation 78 项（含架构）、Release build、format/diff check 通过。完整门禁留待 T005；未新增 schema，无文档冲突。
+完成标准：共享可视按钮样式统一到 `ui:Button` 状态属性；同一任务内迁移所有受影响调用点，保留 InteractionHost 明确例外，不复制 Provider 模板。
 
-### Phase C — Stale 异步修复和真实百分比
+### [x] T003（P1 / Call sites）— 收口领域按钮样式与全项目调用点
 
-- [x] **T003（P0 / Background & UX）— 简化 Stale repair 与完整度展示**
-  完成成果：单 worker 只持有可撤回窗口身份及当前尝试记录，移除逐章 Task.Run、双并发和无界重试；窗口/离页取消、配置/来源复核及事务内有缓存才保存，成功仅按章 invalidation，合并的窗口外通知仍只读。三处 UI 隐藏零值/过期/不可用标注，CacheManagement 保留物理条目。新增核心窗口撤回、失败去重、迟到结果和退出预算回归，更新零值展示测试；Application 74 项、Infrastructure 104 项、Presentation 123 项（含架构）、WPF DI/退出 7 项、Release build、format/diff check 通过。完整门禁留待 T005，无新增 schema 或长期文档冲突。
+完成标准：媒体、导航、页面操作、Metadata 保存/取消、图标按钮及剩余未显式声明语义的可视按钮全部经过审查；保留的例外有明确职责与理由。
 
-### Phase D — 资源收口
+### [x] T004（P1 / Themes）— 统一 Light/Dark/High Contrast 与菜单动作状态
 
-- [x] **T004（P1 / Resource）— 孤立 Plan 清理与 Active Cache 按章处理**
-  完成成果：沿用最后缓存删除/淘汰的事务内定向清理与启动兜底，补修复遇到无缓存的按章清理；保留其它 Provider 的物理缓存及 Plan。Active Cache 冻结轻量章节身份、Provider/语速和文本配置读取委托，正文/分段/Plan 逐章处理释放；删除批量内容加载与 FrozenChapter/FrozenSegment 副本，总进度按章、章内按段。改写并保留冻结/退出/播放核心测试，补来源中途失效及缓存生命周期回归；Application 136 项、Infrastructure 105 项、Presentation 123 项（含架构）、隔离 Desktop WPF 12 项、Release build、format/diff check 通过。完整门禁留待 T005；无新 schema、临时产物或长期文档冲突。
+完成标准：危险、强调、普通与低强调动作的 Hover/Pressed/Focus/Disabled 反馈符合语义；菜单高亮使用正确的模板/资源机制；颜色配对可读。
 
-### Phase E — 工程验证
+### [x] T005（P1 / Verification）— 修正 Style Gallery 状态验证并补充最少量自动检查
 
-- [x] **T005（P1 / Closure）— 长目录性能、完整度和完整质量门禁**
-  完成成果：复核 T001–T004 与上一轮 T007 的读取/事务/窗口撤回/逐章处理/退出边界；missing 自动补建、批量正文副本及旧修复队列已在前序任务移除，无其它兼容残留、新 schema 或长期文档冲突。保留既有 Plan/SQLite、配置匹配、失败/取消/并发、页面生命周期、播放/导出/主动缓存/退出及架构核心测试，不新增永久测试；修正 1 个局部刷新回归用例，先事件驱动确认 50% 再验证零值隐藏，消除原本空白谓词提前完成导致的偶发失败。一次性规模与 WPF harness、隔离数据库和音频已清理，完成任务规格已删除。
-  规模验收：真实 SQLite 的 10,000 章目录扫过 125 个窗口，Plan/Segment 行数 0/0 → 0/0，DB 2,387,968 → 2,387,968 字节、WAL 0 → 0，正文读取/修复 0/0，data_version 不变；窗口查询 P50/P95 4.25/6.21 ms（首次 38.43 ms）。加入 4 个真实部分缓存章节后，行数 4/8 → 4/8、DB/WAL 不变，读取/修复为零，P50/P95 4.37/4.80 ms。Stale 快速跨 125 窗口撤回后仅旧章 0 与最新章 9999 各读取一次，旧结果废弃，最新章修复后 50%；切 Provider 为 0%、切回恢复 50%，无 Plan 重建且物理缓存保留。
-  自动验收：locked win-x64 restore、format verify、零警告 Release build、完整测试 1,019 项（Domain 34 / Application 261 / Infrastructure 352 / Presentation 319 / 隔离 Desktop WPF 53）全部通过；局部刷新修正后 CacheManagement 20 项通过，原失败用例独立进程重复 20/20 通过。架构/全量 XAML 主题静态检查包含于完整测试，既有主题运行证据保留，diff/LF/schema/临时产物检查通过。发现 10 个历史 lock 文件含 CRLF，仅归一化为 LF，逐文件确认依赖 JSON 未变。临时真实 BookDetails 10k 章滚动 125 窗口，最多 15 个容器，滚动加 layout P50/P95 14.65/18.10 ms；环境无未执行的强制检查，受控本机采样不承诺所有机器绝对无卡顿，人工视觉验收未执行。
+完成标准：区分 Gallery 静态模拟状态与真实 WPF 输入状态；对关键模板路径做代表性运行时验证，对稳定的架构/对比度合同增加少量自动检查，不新增像素基线体系。
 
-### Phase F — Playback 暂停预取修复
+### [x] T006（P1 / Closure）— 全项目复核、完整门禁与清理收口
 
-- [x] **T006（P1 / Playback）— 暂停时停止自动音频预取**
-  完成成果：Playback intent 为 Play 才生成预取需求；手动/定时暂停立即递增窗口版本、清空待处理请求并协作取消在途预取，暂停打开/跳转/配置刷新不再入队。异步解析前及串行提交时复核 intent、session、target 和窗口版本，拒绝迟到窗口；恢复未加载音频时也刷新预取，已取消的同键在途请求不再吞掉快速 Resume 的新需求。共享生成层沿用 Current 的取消结果重试语义，使仍有效的恢复预取不被旧 execution 吞掉。删除暂停“一段例外”和 maxCount 分支，保留播放时当前目标保护、设备音频恢复、已完成缓存及独立 Active Cache；仅在 Cache owner 文档补充稳定规则，无 schema/配置/兼容层变化或长期文档冲突。
-  自动验收：新增 7 个核心用例覆盖暂停打开/跳转/Provider/语速、0 预取、手动/定时暂停、在途与待处理取消、Active Cache 隔离、快速恢复、迟到窗口及真实共享生成链的取消后恢复/Ready 保留/旧流释放；保留既有 Playback/Prefetch、Plan/SQLite、退出和架构回归，不删除/合并核心测试。Playback 集成 47 项、Application Playback/Active Cache focused 79 项、locked win-x64 restore、format verify、零警告 Release build、完整测试 1,026 项（Domain 34 / Application 262 / Infrastructure 358 / Presentation 319 / 隔离 Desktop WPF 53）、diff/LF 检查通过；任务临时诊断产物与规格已清理。无环境阻止的强制检查；取消沿用已有协作语义，无法承诺远端请求瞬时中断；人工交互验收未执行。
+完成标准：全量样式与调用点复扫通过，完成 Review Checklist 与完整质量门禁，清理临时副产物并记录成果。
 
-## 4. 明确不实施
+## 4. 完成记录
 
-- 不因为 Provider 切换而生成新的 Speech Plan，保留已有 synthesis fingerprint + 音频键匹配设计。
-- 不为 `PlanMissing` 批量预计算、不为无音频的章节提前写入 `ChapterSpeechPlanSegments`。
-- 不在普通目录显示 0%、“计算中”、过期值或其它替代文案；真实有效百分比计算完成后再显示。
-- 不进行同步等待修复、不在 Dispatcher 做正文分段/Regex 计算、不扫描/解码可见章节的所有音频文件。
-- 不添加复杂优先级、多 worker 池、持久化修复任务表、跨页面永久缓存或通用 Scheduler。
-- 不重写 Book/Source/CurrentCatalog、Provider、TTS 输出身份、缓存文件根信任边界、Playback target-first 或已完成的上一轮 T007 修复。
+本阶段已完成 T001–T006。
 
-## 5. 完成标准
+- T001 完成：形成按钮样式、调用点、主题状态与 Wpf.Ui 4.3.0 模板行为审计报告；发现 Light DangerItem Hover 对比度 4.19:1；报告保留在根目录，不提交。
+- T002 完成：共享可视按钮统一使用 ui:Button / Provider.UiButton 状态属性，迁移页面、局部派生样式、导入取消按钮和 Gallery 调用点；保留 InteractionHost 无视觉宿主，修正 PressedForeground 的 Self 绑定桥接并清理无效 Disabled Surface Setter。Light/Dark 临时模板状态、主题切换与页面/Gallery 资源加载验证通过；永久测试保留并适配控件子类型，未新增外观测试。Release build（0 警告/错误）、Presentation 319 项、隔离 Desktop WPF 58 项及格式检查通过。
+- T003 完成：Metadata 保存/取消显式使用 Primary/Secondary；SettingsEntry 迁移 ui:Button/Subtle 并同步 Gallery；媒体按钮复用共享前景状态，ToolbarControl 使用状态属性桥接并删除无效 Disabled Setter。全项目 XAML/C# 按钮复扫及例外 owner 已在本地审计报告记录。Release build、Presentation 319 项、隔离 Desktop WPF 58 项通过；临时 Light/Dark 冷创建、已加载控件切换、新建控件及全部 Gallery 场景验证 2/2 通过，永久核心测试保持不变，临时验证已删除。
+- T004 完成：Filled Danger Hover 保持实色危险语义，危险菜单 Light Hover 对比度提升至 5.61:1；按背景角色拆分危险/Control 文字，修正 HC Window/Control/Highlight 配对及 Focus 外缘、活动定时/预设/置顶按钮；菜单用每项资源投影适配 Provider 内部高亮，导航用现有 Palette projection，未复制 Provider 模板。删除重复 checked Surface 和禁用透明度混色。Release build（0 警告/错误）、Presentation 319 项、隔离 Desktop WPF 58 项及格式检查通过；临时完整模板状态/对比度、主题生命周期、菜单 Popup、导航和 HC 角色替身验证 2/2 通过。保留全部永久核心测试，未新增外观测试；临时产物已清理，未改系统 HC 设置。
+- T005 完成：按钮矩阵改为可用真实鼠标/键盘操作的 Wpf.Ui 样本，媒体按钮和 ToolbarControl 纳入覆盖；导航、菜单与媒体固定状态显式标记为资源映射样例。新增架构 owner、Light/Dark 对比度和 HC 系统角色合同检查（4/4）；Style Gallery 全部 23 个场景的 Light/Dark 截图生成通过。隔离 Desktop 未能传递注入鼠标状态，未声称自动验证真实 Hover/Pressed；未设置可见窗口绕过。临时截图已清理。
+- T006 完成：全项目复扫确认 148 个 XAML Button 与 17 个 MenuItem 均显式使用样式；生产可视按钮样式无直接争夺 Background/BorderBrush 的 IsMouseOver/IsPressed setter，Slider、MenuItem、SelectionSurface 与无视觉 InteractionHost 保留各自单一状态 owner。对比度检查补齐 raised surface 与 selected navigation 配对；XAML/资源全场景 Light/Dark 加载通过。完整门禁通过：locked restore（需沙箱外 NuGet 网络访问）、format、Release build（0 警告/错误）、全量测试（5 个程序集，1035 项通过）。T006 最新 diff 的 Review Checklist：NS-01 PASS（只补充现有语义色对的自动合同），NS-02 N/A（未改通知），NS-03 N/A（未改列表/滚动）。临时截图及诊断产物已清理，根目录审计报告继续保留且未提交。
+各任务完成后按 `AGENTS.md` 更新状态、记录简短成果并删除对应的临时 `tasks/Txxx_*.md`；最终保留阶段成果摘要，Git 历史保存已完成任务规格的演进记录。
 
-1. 仅打开/滚动 10k 章节目录，未缓存章节不会创建新 Plan/Segment 行，数据库写入量和 UI 交互不随扫过章节数异常膨胀。
-2. `PlanStale` 只在存在实际缓存且当前需要展示时异步修复；快速滚动/离开页面后不残留大量排队补建；修复失败不触发无限重试。
-3. Speech Plan 计算是无持久化副作用的能力；实际 Ready 音频缓存和可用 Plan 在重启后保持正确关联；失效缓存不能计入当前配置的百分比。
-4. UI 仅显示有效且非零的真实百分比；无缓存、0%、缺失、过期或失败均空白。切换 Provider 后的当前配置匹配行为不退化。
-5. 维持现有可用的 MP3 导出、正常播放及 target-first、主动缓存、退出排空；无长期持有跨大量章节正文/段落的批次内存结构。
-6. 无不必要 schema migration、Compat/V2 层、临时测试文件；T005 完整质量门禁结果如实记录。
+## 5. Edge v2 直连合成修复（已完成）
 
-## 6. T006 独立验收
+### [x] T007（P1 / Provider）— 保持 GEC v2 并补齐 v2 握手请求头
 
-- 暂停、定时暂停、以暂停状态打开书籍、暂停中切段/切章和修改 Provider/语速，均不发起新的自动预取 TTS；预取窗口撤销时的旧异步结果不能重新激活预取。
-- 暂停时仅取消 Playback Prefetch 所拥有的待处理及进行中工作，尽力取消进行中的预取；已成功提交的缓存保留，不影响主动缓存及已加载的暂停音频。
-- 恢复播放后按原有配置恢复正常预取，保留 `target-first` 和当前音频准备优先级。
-- 完成后将 T006 标记 `[x]`，记录核心测试/构建与限制，删除 `tasks/T006_PAUSED_PREFETCH.md`；不新增数据库 schema、配置开关或通用任务调度组件。
+完成成果：确认现有 GEC v2 算法的六个固定时间向量与 `edge-tts 7.3.1` 完全一致，未做无效重写；定位 .NET 握手缺少 `Accept-Encoding` 时服务器返回 HTTP 200，加入该头、MUID Cookie、Accept-Language 与 no-cache 请求头后，生产 `EdgeSpeechTransport` 使用 v2 endpoint 成功合成并通过生产 MP3 解码器。新增 v2 握手请求头合同测试；语音目录仍使用当前 HTTP endpoint，未实现 v1 WebSocket 回退或数据结构变化。验收：EdgeProtocolTests 12 项通过、EdgeProviderTests 5 项通过、真实 v2 合成/解码通过、`dotnet format --verify-no-changes --no-restore` 通过。临时测试、上游 Python 包、生成音频及 `tasks/T007_edge_v2_authentication.md` 已删除；完整解决方案测试套件未运行。剩余限制：v2 接口为非正式上游服务，其端点与协议可用性仍由服务方控制。

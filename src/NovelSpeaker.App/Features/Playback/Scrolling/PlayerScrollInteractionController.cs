@@ -140,7 +140,9 @@ internal sealed class PlayerScrollInteractionController
         // Chapter-title speech segments are intentionally omitted from the preview list. The
         // first body segment is therefore the visual anchor while a title is being read.
         var targetItem = viewModel?.CurrentSegmentItem ?? viewModel?.Segments.FirstOrDefault();
-        _autoCenterController.Request(targetItem, animate);
+        // Pixel-virtualized extents can change while the animation realizes
+        // wrapped paragraphs. Resolve the final anchor from the settled layout.
+        _autoCenterController.Request(targetItem, animate, animate ? RecenterAfterLayoutChange : null);
     }
 
     private void InitializeScrollViewer()
@@ -157,6 +159,8 @@ internal sealed class PlayerScrollInteractionController
         }
 
         _segmentScrollViewer.ScrollChanged += OnScrollChanged;
+        _segmentScrollViewer.SizeChanged += OnScrollViewportSizeChanged;
+        _segmentScrollViewer.PreviewMouseLeftButtonDown += OnScrollViewerMouseDown;
         _segmentScrollViewer.AddHandler(
             Thumb.DragStartedEvent,
             new DragStartedEventHandler(OnThumbDragStarted));
@@ -173,6 +177,8 @@ internal sealed class PlayerScrollInteractionController
         }
 
         _segmentScrollViewer.ScrollChanged -= OnScrollChanged;
+        _segmentScrollViewer.SizeChanged -= OnScrollViewportSizeChanged;
+        _segmentScrollViewer.PreviewMouseLeftButtonDown -= OnScrollViewerMouseDown;
         _segmentScrollViewer.RemoveHandler(
             Thumb.DragStartedEvent,
             new DragStartedEventHandler(OnThumbDragStarted));
@@ -184,9 +190,52 @@ internal sealed class PlayerScrollInteractionController
 
     private void OnScrollChanged(object sender, ScrollChangedEventArgs eventArgs)
     {
-        if (eventArgs.VerticalChange != 0 && !_autoCenterController.IsSuppressingPassiveScroll)
+        // Reflow and virtualized extent corrections are layout changes, not user
+        // browsing. Keep the current target anchored only while following it.
+        if (eventArgs.ExtentHeightChange != 0 || eventArgs.ViewportHeightChange != 0 ||
+            eventArgs.ViewportWidthChange != 0)
+        {
+            if (!_autoCenterController.IsSuppressingPassiveScroll)
+            {
+                RecenterAfterLayoutChange();
+            }
+            return;
+        }
+
+        // A delayed WPF offset correction can arrive without an extent change.
+        // Only explicit input enters browsing; offset changes extend an existing gesture.
+        if (eventArgs.VerticalChange != 0 && !_autoCenterController.IsSuppressingPassiveScroll &&
+            _getViewModel()?.ShouldAutoCenterCurrentSegment == false)
         {
             _getViewModel()?.NotifyPassiveSegmentScrollChange();
+        }
+    }
+
+    private void OnScrollViewerMouseDown(object sender, MouseButtonEventArgs eventArgs)
+    {
+        for (var source = eventArgs.OriginalSource as Visual; source is not null;
+             source = VisualTreeHelper.GetParent(source) as Visual)
+        {
+            if (source is ScrollBar)
+            {
+                _autoCenterController.Cancel();
+                _getViewModel()?.NotifyUserScrollInput();
+                return;
+            }
+            if (ReferenceEquals(source, _segmentScrollViewer)) return;
+        }
+    }
+
+    private void OnScrollViewportSizeChanged(object sender, SizeChangedEventArgs eventArgs)
+    {
+        RecenterAfterLayoutChange();
+    }
+
+    private void RecenterAfterLayoutChange()
+    {
+        if (_getViewModel()?.ShouldAutoCenterCurrentSegment == true)
+        {
+            RequestCurrentSegmentCentering(animate: false);
         }
     }
 

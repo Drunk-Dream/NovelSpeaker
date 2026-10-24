@@ -1,5 +1,6 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:theming="clr-namespace:NovelSpeaker.App.Shared.Theming">
     <!--
         Menu styles own the menu and context-menu surfaces plus the ordinary,
         danger and group-header items. Provider.Menu, Provider.ContextMenu,
@@ -29,11 +30,17 @@
     <Style x:Key="App.Menu.Item"
            TargetType="{x:Type MenuItem}"
            BasedOn="{StaticResource Provider.MenuItem}">
+        <!-- Project this item's effective state into the Provider template's resource hooks. -->
+        <Setter Property="theming:MenuItemStateResources.IsEnabled" Value="True" />
         <Setter Property="Padding" Value="12,7" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+            </Trigger>
             <Trigger Property="IsHighlighted" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
@@ -42,39 +49,10 @@
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
             </Trigger>
-            <Trigger Property="IsChecked" Value="True">
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-            </Trigger>
-            <MultiTrigger>
-                <MultiTrigger.Conditions>
-                    <Condition Property="IsChecked" Value="True" />
-                    <Condition Property="IsPressed" Value="True" />
-                </MultiTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
-            </MultiTrigger>
-            <MultiTrigger>
-                <MultiTrigger.Conditions>
-                    <Condition Property="IsChecked" Value="True" />
-                    <Condition Property="IsHighlighted" Value="True" />
-                </MultiTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
-            </MultiTrigger>
-            <MultiTrigger>
-                <MultiTrigger.Conditions>
-                    <Condition Property="IsChecked" Value="True" />
-                    <Condition Property="IsPressed" Value="True" />
-                    <Condition Property="IsHighlighted" Value="True" />
-                </MultiTrigger.Conditions>
-                <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
-            </MultiTrigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -82,12 +60,16 @@
     <Style x:Key="App.Menu.DangerItem"
            TargetType="{x:Type MenuItem}"
            BasedOn="{StaticResource App.Menu.Item}">
-        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
+        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Foreground}" />
         <Setter Property="Tag" Value="Danger" />
         <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Subtle.Text}" />
+            </Trigger>
             <Trigger Property="IsHighlighted" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Subtle}" />
-                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger}" />
+                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Danger.Subtle.Text}" />
             </Trigger>
             <Trigger Property="IsPressed" Value="True">
                 <Setter Property="Background" Value="{DynamicResource App.Brush.Danger.Pressed}" />
@@ -96,7 +78,7 @@
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Background" Value="Transparent" />
                 <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                <Setter Property="Opacity" Value="1" />
             </Trigger>
         </Style.Triggers>
     </Style>

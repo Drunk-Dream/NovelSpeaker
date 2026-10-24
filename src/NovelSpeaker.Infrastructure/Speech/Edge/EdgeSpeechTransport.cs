@@ -75,8 +75,8 @@ public sealed class EdgeSpeechTransport : IEdgeSpeechTransport, IDisposable
             var now = _time.GetUtcNow();
             var requestId = Guid.NewGuid().ToString("N");
             var uri = EdgeReadAloudProtocol.CreateSynthesisUri(_profile, now, Guid.NewGuid().ToString("N"));
-            socket.Options.SetRequestHeader("Origin", _profile.Origin);
-            socket.Options.SetRequestHeader("User-Agent", _profile.UserAgent);
+            foreach (var header in EdgeReadAloudProtocol.CreateSynthesisHeaders(_profile))
+                socket.Options.SetRequestHeader(header.Key, header.Value);
             await socket.ConnectAsync(uri, timeout.Token).ConfigureAwait(false);
             await SendAsync(socket, EdgeReadAloudProtocol.CreateConfig(now), timeout.Token).ConfigureAwait(false);
             await SendAsync(socket, EdgeReadAloudProtocol.CreateSsmlMessage(requestId, voice, text, ratePercent, now), timeout.Token).ConfigureAwait(false);

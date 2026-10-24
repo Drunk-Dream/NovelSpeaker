@@ -753,6 +753,10 @@ internal static class GallerySceneBuilders
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
         var content = new StackPanel();
+        content.Children.Add(CreateText(
+            "按钮状态由实际 WPF 输入和 Provider 模板呈现。将鼠标移到启用按钮上、按住查看 Pressed，或用 Tab 移动键盘焦点；下方不模拟 Hover、Pressed 或 Focus。",
+            12,
+            FontWeights.Normal));
         content.Children.Add(CreateButtonStateTable());
         content.Children.Add(CreateButtonContentSamples());
         scrollViewer.Content = content;
@@ -1068,11 +1072,9 @@ internal static class GallerySceneBuilders
     private static Border CreateButtonStateTable()
     {
         var table = new Grid();
-        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(140) });
-        foreach (var _ in ButtonPreviewStates)
-        {
-            table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
-        }
+        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(170) });
+        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
+        table.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(190) });
 
         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         foreach (var _ in ButtonStyleVariants)
@@ -1081,10 +1083,8 @@ internal static class GallerySceneBuilders
         }
 
         AddButtonTableHeader(table, "Variant", 0);
-        for (var stateIndex = 0; stateIndex < ButtonPreviewStates.Length; stateIndex++)
-        {
-            AddButtonTableHeader(table, ButtonPreviewStates[stateIndex], stateIndex + 1);
-        }
+        AddButtonTableHeader(table, "真实交互样本", 1);
+        AddButtonTableHeader(table, "Disabled", 2);
 
         for (var variantIndex = 0; variantIndex < ButtonStyleVariants.Length; variantIndex++)
         {
@@ -1096,14 +1096,15 @@ internal static class GallerySceneBuilders
             Grid.SetColumn(label, 0);
             table.Children.Add(label);
 
-            for (var stateIndex = 0; stateIndex < ButtonPreviewStates.Length; stateIndex++)
-            {
-                var state = ButtonPreviewStates[stateIndex];
-                var button = CreateButtonPreview(variant, state);
-                Grid.SetRow(button, variantIndex + 1);
-                Grid.SetColumn(button, stateIndex + 1);
-                table.Children.Add(button);
-            }
+            var interactiveButton = CreateButtonPreview(variant, disabled: false);
+            Grid.SetRow(interactiveButton, variantIndex + 1);
+            Grid.SetColumn(interactiveButton, 1);
+            table.Children.Add(interactiveButton);
+
+            var disabledButton = CreateButtonPreview(variant, disabled: true);
+            Grid.SetRow(disabledButton, variantIndex + 1);
+            Grid.SetColumn(disabledButton, 2);
+            table.Children.Add(disabledButton);
         }
 
         var surface = CreateComponentSurface("button-style-state-table");
@@ -1120,182 +1121,44 @@ internal static class GallerySceneBuilders
         table.Children.Add(header);
     }
 
-    private static Button CreateButtonPreview(string variant, string state)
+    private static Button CreateButtonPreview(string variant, bool disabled)
     {
-        Button button = variant is "Primary" or "Icon" or "DangerIcon" or "ToolbarValue" or "FloatingIcon"
-            ? new WpfUiButton
+        var button = new WpfUiButton
+        {
+            Style = FindButtonStyle(variant),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 0, 12, 8),
+            IsEnabled = !disabled,
+            Icon = variant is "Primary" or "Secondary" or "Subtle" or "Danger" ? null : new SymbolIcon
             {
-                Style = FindButtonStyle(variant),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 12, 8),
-                Icon = variant == "Primary" ? null : new SymbolIcon
-                {
-                    Symbol = variant == "DangerIcon"
+                Symbol = variant == "DangerIcon"
                         ? SymbolRegular.Delete24
-                        : variant == "FloatingIcon"
+                        : variant == "ContextAction"
                             ? SymbolRegular.TargetArrow24
-                            : variant == "ToolbarValue"
+                            : variant == "MediaButton"
+                                ? SymbolRegular.PlayCircle24
+                            : variant == "ToolbarControl"
                             ? SymbolRegular.Speaker124
                             : SymbolRegular.Settings24
-                },
-                Content = variant == "Primary" ? variant : variant == "ToolbarValue" ? "10" : null,
-                ToolTip = $"{variant} · {state}"
-            }
-            : new Button
-            {
-                Style = FindButtonStyle(variant),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 12, 8),
-                Content = variant,
-                ToolTip = $"{variant} · {state}"
-            };
+            },
+            Content = variant is "Primary" or "Secondary" or "Subtle" or "Danger"
+                ? variant
+                : variant == "ToolbarControl" ? "10" : null,
+            ToolTip = disabled ? $"{variant} · Disabled" : $"{variant} · 实际 Hover / Pressed / Focus"
+        };
         AutomationProperties.SetAutomationId(
             button,
-            $"button-{variant.ToLowerInvariant()}-{state.ToLowerInvariant()}");
-        AutomationProperties.SetName(button, $"App.Button.{variant} {state}");
-        ApplyButtonPreviewState(button, variant, state);
+            $"button-{variant.ToLowerInvariant()}-{(disabled ? "disabled" : "interactive")}");
+        AutomationProperties.SetName(button, $"{GetButtonStyleKey(variant)} {(disabled ? "Disabled" : "interactive states by real input")}");
         return button;
     }
 
-    private static void ApplyButtonPreviewState(Button button, string variant, string state)
+    private static string GetButtonStyleKey(string variant) => variant switch
     {
-        // Gallery fixtures use an attached visual-state trigger so every row
-        // can display a stable state at once without pretending to own input
-        // devices or copying the provider's Button template.
-        button.SetValue(GalleryVisualStateProperty, state);
-        var baseStyle = button.Style
-            ?? throw new InvalidOperationException($"Button style was not resolved for '{variant}'.");
-        var previewStyle = new Style(baseStyle.TargetType, baseStyle);
-        var stateTrigger = new Trigger
-        {
-            Property = GalleryVisualStateProperty,
-            Value = state
-        };
-
-        if (state == "Disabled")
-        {
-            button.IsEnabled = false;
-        }
-
-        switch (state)
-        {
-            case "Hover":
-                var hoverBackground = variant == "FloatingIcon"
-                    ? "App.Brush.Interaction.Surface.Hover"
-                    : variant is "Primary"
-                        ? "App.Brush.Accent.Hover"
-                        : variant == "DangerIcon"
-                            ? "App.Brush.Danger"
-                            : variant == "Danger"
-                                ? "App.Brush.Danger.Subtle"
-                                : variant is "Secondary"
-                                    ? "App.Brush.Surface.Secondary"
-                                    : "App.Brush.Accent.Subtle";
-                stateTrigger.Setters.Add(new Setter(
-                    Control.BackgroundProperty,
-                    FindBrush(hoverBackground)));
-                if (variant is "Primary" or "FloatingIcon")
-                {
-                    stateTrigger.Setters.Add(new Setter(
-                        WpfUiButton.MouseOverBackgroundProperty,
-                        FindBrush(hoverBackground)));
-                    if (variant == "FloatingIcon")
-                    {
-                        stateTrigger.Setters.Add(new Setter(
-                            Control.ForegroundProperty,
-                            FindBrush("App.Brush.Interaction.Foreground.Hover")));
-                    }
-                }
-                else if (variant is "Danger" or "DangerIcon")
-                {
-                    stateTrigger.Setters.Add(new Setter(
-                        Control.ForegroundProperty,
-                        FindBrush(variant == "DangerIcon"
-                            ? "App.Brush.Danger.Text"
-                            : "App.Brush.Text.Primary")));
-                }
-
-                break;
-            case "Pressed":
-                var pressedBackground = variant == "FloatingIcon"
-                    ? "App.Brush.Interaction.Surface.Pressed"
-                    : variant is "Primary"
-                        ? "App.Brush.Accent.Pressed"
-                        : variant is "Secondary"
-                            ? "App.Brush.Accent.Subtle"
-                            : variant is "Danger" or "DangerIcon"
-                                ? "App.Brush.Danger.Pressed"
-                                : "App.Brush.Surface.Secondary";
-                stateTrigger.Setters.Add(new Setter(
-                    Control.BackgroundProperty,
-                    FindBrush(pressedBackground)));
-                if (variant is "Primary" or "FloatingIcon")
-                {
-                    stateTrigger.Setters.Add(new Setter(
-                        WpfUiButton.PressedBackgroundProperty,
-                        FindBrush(pressedBackground)));
-                    if (variant == "FloatingIcon")
-                    {
-                        stateTrigger.Setters.Add(new Setter(
-                            Control.ForegroundProperty,
-                            FindBrush("App.Brush.Interaction.Foreground.Pressed")));
-                        stateTrigger.Setters.Add(new Setter(
-                            WpfUiButton.PressedForegroundProperty,
-                            FindBrush("App.Brush.Interaction.Foreground.Pressed")));
-                    }
-                }
-                else if (variant is "Danger" or "DangerIcon")
-                {
-                    stateTrigger.Setters.Add(new Setter(
-                        Control.ForegroundProperty,
-                        FindBrush("App.Brush.Danger.Pressed.Text")));
-                    stateTrigger.Setters.Add(new Setter(
-                        Control.BorderBrushProperty,
-                        FindBrush("App.Brush.Danger.Pressed")));
-                }
-
-                break;
-            case "Focus":
-                stateTrigger.Setters.Add(new Setter(
-                    Control.BackgroundProperty,
-                    FindBrush(variant == "FloatingIcon"
-                        ? "App.Brush.Surface.Raised"
-                        : "App.Brush.Accent.Subtle")));
-                stateTrigger.Setters.Add(new Setter(
-                    Control.BorderBrushProperty,
-                    FindBrush("App.Brush.Focus")));
-                if (variant == "FloatingIcon")
-                {
-                    stateTrigger.Setters.Add(new Setter(
-                        Control.ForegroundProperty,
-                        FindBrush("App.Brush.Text.Primary")));
-                }
-                else if (variant is "Primary" or "Danger" or "DangerIcon")
-                {
-                    stateTrigger.Setters.Add(new Setter(
-                        Control.ForegroundProperty,
-                        FindBrush("App.Brush.Text.Primary")));
-                }
-                break;
-        }
-
-        if (state != "Default" && state != "Disabled")
-        {
-            previewStyle.Triggers.Add(stateTrigger);
-        }
-
-        button.Style = previewStyle;
-    }
-
-    private static DynamicResourceExtension FindBrush(string key) =>
-        new DynamicResourceExtension(key);
-
-    private static readonly DependencyProperty GalleryVisualStateProperty =
-        DependencyProperty.RegisterAttached(
-            "GalleryVisualState",
-            typeof(string),
-            typeof(GallerySceneBuilders),
-            new FrameworkPropertyMetadata("Default"));
+        "MediaButton" => "App.Media.Button",
+        "ToolbarControl" => "App.Media.ToolbarControl",
+        _ => $"App.Button.{variant}"
+    };
 
     private static Border CreateButtonContentSamples()
     {
@@ -1333,7 +1196,7 @@ internal static class GallerySceneBuilders
         Grid.SetColumn(iconAndText, 0);
         grid.Children.Add(iconAndText);
 
-        var longText = new Button
+        var longText = new WpfUiButton
         {
             Style = FindButtonStyle("Secondary"),
             Width = 520,
@@ -1403,8 +1266,8 @@ internal static class GallerySceneBuilders
     }
 
     private static Style FindButtonStyle(string variant) =>
-        System.Windows.Application.Current?.FindResource($"App.Button.{variant}") as Style
-        ?? throw new InvalidOperationException($"Button style 'App.Button.{variant}' was not found.");
+        System.Windows.Application.Current?.FindResource(GetButtonStyleKey(variant)) as Style
+        ?? throw new InvalidOperationException($"Button style '{GetButtonStyleKey(variant)}' was not found.");
 
     private static readonly string[] ButtonStyleVariants =
     [
@@ -1414,17 +1277,9 @@ internal static class GallerySceneBuilders
         "Icon",
         "Danger",
         "DangerIcon",
-        "ToolbarValue",
-        "FloatingIcon"
-    ];
-
-    private static readonly string[] ButtonPreviewStates =
-    [
-        "Default",
-        "Hover",
-        "Pressed",
-        "Focus",
-        "Disabled"
+        "MediaButton",
+        "ToolbarControl",
+        "ContextAction"
     ];
 
     private static Border CreatePageHeaderSample()
@@ -1459,17 +1314,15 @@ internal static class GallerySceneBuilders
         icon.SetResourceReference(SymbolIcon.ForegroundProperty, "App.Brush.Accent");
         AutomationProperties.SetAutomationId(icon, "component-page-header-icon");
 
-        var action = new Button
+        var action = new Wpf.Ui.Controls.Button
         {
             Content = "示例动作",
             HorizontalContentAlignment = HorizontalAlignment.Center,
             VerticalContentAlignment = VerticalAlignment.Center,
             Padding = TokenPadding("App.Space.12")
         };
-        action.Style = System.Windows.Application.Current?.FindResource("Provider.Button") as Style;
+        action.SetResourceReference(FrameworkElement.StyleProperty, "App.Button.Primary");
         action.SetResourceReference(FrameworkElement.MinHeightProperty, "App.Size.Control.Compact");
-        action.SetResourceReference(Control.BackgroundProperty, "App.Brush.Accent");
-        action.SetResourceReference(Control.ForegroundProperty, "App.Brush.Accent.Text");
         AutomationProperties.SetName(action, "PageHeader sample action");
 
         var grid = new Grid();

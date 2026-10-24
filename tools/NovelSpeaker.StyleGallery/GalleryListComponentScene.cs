@@ -8,7 +8,7 @@ using NovelSpeaker.App.Shared.Presentation.Controls.Feedback;
 using NovelSpeaker.App.Shared.Presentation.Controls.Settings;
 using NovelSpeaker.App.Shared.Presentation.Selection;
 using Wpf.Ui.Controls;
-using WpfButton = System.Windows.Controls.Button;
+using WpfButton = Wpf.Ui.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.StyleGallery;

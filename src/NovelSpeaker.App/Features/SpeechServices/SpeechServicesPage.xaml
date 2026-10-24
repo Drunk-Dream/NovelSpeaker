@@ -382,7 +382,7 @@
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                    <Button HorizontalAlignment="Left"
+                                    <ui:Button HorizontalAlignment="Left"
                                             Style="{StaticResource App.Button.Subtle}"
                                             Command="{Binding AddHeaderEntryCommand}"
                                             Content="添加 Header" />
@@ -418,12 +418,12 @@
 
                             <WrapPanel Margin="0,20,0,0"
                                        HorizontalAlignment="Right">
-                                <Button Margin="0,0,8,0"
+                                <ui:Button Margin="0,0,8,0"
                                         Style="{StaticResource App.Button.Secondary}"
                                         Command="{Binding TestDraftCommand}"
                                         Content="试听"
                                         IsEnabled="{Binding CanTestDraft}" />
-                                <Button Margin="0,0,8,0"
+                                <ui:Button Margin="0,0,8,0"
                                         Style="{StaticResource App.Button.Subtle}"
                                         Command="{Binding CancelEditingCommand}"
                                         Content="取消"
@@ -455,9 +455,9 @@
                                 </StackPanel>
                             </formControls:AppFormField>
                             <WrapPanel Margin="0,16,0,0">
-                                <Button Content="更换 Voice" Command="{Binding ChangeVoiceCommand}"
+                                <ui:Button Content="更换 Voice" Command="{Binding ChangeVoiceCommand}"
                                         Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" />
-                                <Button Content="刷新列表" Command="{Binding RefreshVoiceCatalogCommand}"
+                                <ui:Button Content="刷新列表" Command="{Binding RefreshVoiceCatalogCommand}"
                                         Style="{StaticResource App.Button.Subtle}" />
                             </WrapPanel>
                             <TextBlock Text="正在加载 Voice 列表…" Margin="0,8,0,0"
@@ -487,7 +487,7 @@
                                     </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
-                                            <Button Style="{StaticResource App.Button.Subtle}" HorizontalContentAlignment="Left"
+                                            <ui:Button Style="{StaticResource App.Button.Subtle}" HorizontalContentAlignment="Left"
                                                     Command="{Binding DataContext.SelectVoiceCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                     CommandParameter="{Binding}" AutomationProperties.Name="{Binding FriendlyName}">
                                                 <StackPanel>
@@ -497,15 +497,15 @@
                                                     <TextBlock Text="{Binding VoiceId}" TextTrimming="CharacterEllipsis"
                                                                Style="{StaticResource App.Typography.Secondary}" />
                                                 </StackPanel>
-                                            </Button>
+                                            </ui:Button>
                                         </DataTemplate>
                                     </ListBox.ItemTemplate>
                                 </ListBox>
                             </StackPanel>
                             <WrapPanel Margin="0,20,0,0">
-                                <Button Content="试听" Command="{Binding TestDraftCommand}" IsEnabled="{Binding CanTestDraft}"
+                                <ui:Button Content="试听" Command="{Binding TestDraftCommand}" IsEnabled="{Binding CanTestDraft}"
                                         Margin="0,0,8,0" Style="{StaticResource App.Button.Secondary}" />
-                                <Button Content="取消" Command="{Binding CancelEditingCommand}" IsEnabled="{Binding CanCancelEditing}"
+                                <ui:Button Content="取消" Command="{Binding CancelEditingCommand}" IsEnabled="{Binding CanCancelEditing}"
                                         Margin="0,0,8,0" Style="{StaticResource App.Button.Subtle}" />
                                 <ui:Button Content="保存" Command="{Binding SaveDraftCommand}" IsEnabled="{Binding CanSaveDraft}"
                                            Style="{StaticResource App.Button.Primary}" />

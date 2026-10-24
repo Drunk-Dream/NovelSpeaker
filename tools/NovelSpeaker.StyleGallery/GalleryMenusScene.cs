@@ -3,7 +3,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using MenuItem = System.Windows.Controls.MenuItem;
-using WpfButton = System.Windows.Controls.Button;
+using WpfButton = Wpf.Ui.Controls.Button;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 
 namespace NovelSpeaker.StyleGallery;
@@ -52,7 +52,7 @@ internal static class GalleryMenusScene
             {
                 CreateTitle("Menu / ContextMenu 表面与菜单项"),
                 CreateBody(
-                    "App.Menu.Surface 与 App.Menu.ContextSurface 使用 Raised 表面和中等抬升；普通、Hover、Pressed、Checked、Disabled 与 Danger 状态由同一菜单项样式拥有。"),
+                    "App.Menu.Surface 与 App.Menu.ContextSurface 使用 Raised 表面和中等抬升；下方 Hover、Pressed、Checked、Disabled 与 Danger 均为 Gallery 固定状态样例，用于比较菜单项资源映射。"),
                 CreateBody(
                     "所有菜单项通过 Provider.MenuItem 继承 WPF MenuItem 基础模板；分隔线由独立 App.Menu.Separator 绘制，并与文字列对齐。")
             }
@@ -67,7 +67,7 @@ internal static class GalleryMenusScene
         surface.Padding = new Thickness(12);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("Menu"));
-        content.Children.Add(CreateBody("内联 Menu 使用 App.Menu.Surface；状态示例覆盖普通、Hover、Pressed、Checked、Disabled、Danger，以及多组独立分隔线。"));
+        content.Children.Add(CreateBody("内联 Menu 使用 App.Menu.Surface；Hover / Pressed / Checked / Disabled / Danger 为 Gallery 固定状态样例，用于比较 MenuItem 资源映射，不代表真实鼠标或键盘输入。"));
 
         var menu = new Menu
         {
@@ -92,7 +92,7 @@ internal static class GalleryMenusScene
         surface.Padding = new Thickness(12);
         var content = new StackPanel();
         content.Children.Add(CreateTitle("ContextMenu"));
-        content.Children.Add(CreateBody("右键菜单使用 App.Menu.ContextSurface；危险删除独立于中性操作分组，分隔线不受相邻项禁用状态影响。"));
+        content.Children.Add(CreateBody("右键菜单使用 App.Menu.ContextSurface；高亮和危险项为 Gallery 固定状态样例，用于比较 MenuItem 资源映射，不代表真实输入序列。"));
 
         var anchor = new WpfButton
         {

@@ -121,7 +121,7 @@ public sealed class FeedbackServicesTests
                 Assert.IsType<ProgressBar>(content.Children[2]).Style);
             Assert.Same(
                 global::System.Windows.Application.Current.FindResource("App.Button.Secondary"),
-                Assert.IsType<WpfButton>(content.Children[3]).Style);
+                Assert.IsAssignableFrom<WpfButton>(content.Children[3]).Style);
         });
     }
 

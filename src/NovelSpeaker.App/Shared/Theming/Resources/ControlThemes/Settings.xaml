@@ -4,7 +4,7 @@
                     xmlns:theming="clr-namespace:NovelSpeaker.App.Shared.Theming"
                     xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
     <DataTemplate DataType="{x:Type theming:SettingsNavigationIcon}">
-        <ui:SymbolIcon>
+        <ui:SymbolIcon Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType={x:Type controls:AppSettingsNavigationRow}}}">
             <ui:SymbolIcon.Style>
                 <Style TargetType="ui:SymbolIcon"
                        BasedOn="{StaticResource App.Icon.Primary}">
@@ -249,7 +249,7 @@
         <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
-        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Default}" />
         <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Primary}" />
@@ -282,6 +282,7 @@
                                 <TextBlock x:Name="TitlePresenter"
                                            Text="{TemplateBinding Title}"
                                            Style="{StaticResource App.Typography.ItemTitle}"
+                                           Foreground="{TemplateBinding Foreground}"
                                            AutomationProperties.Name="{TemplateBinding Title}" />
                                 <TextBlock x:Name="DescriptionPresenter"
                                            Margin="0,4,0,0"
@@ -305,14 +306,34 @@
                             <Setter TargetName="DescriptionPresenter" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+                            <Setter TargetName="DescriptionPresenter" Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+                            <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
                             <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Hover}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
+                            <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+                            <Setter TargetName="DescriptionPresenter" Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
+                            <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Pressed}" />
                             <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Interaction.Surface.Pressed}" />
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Focus.OnSurface}" />
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsKeyboardFocusWithin" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Interaction.Foreground.Hover}" />
+                        </MultiTrigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsPressed" Value="True" />
+                                <Condition Property="IsKeyboardFocusWithin" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
+                        </MultiTrigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Surface" Property="Background" Value="{DynamicResource App.Brush.Surface.Secondary}" />
                             <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource App.Brush.Border.Subtle}" />
@@ -321,7 +342,7 @@
                             <Setter TargetName="IconPresenter" Property="TextElement.Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                             <Setter TargetName="ChevronIcon" Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
                             <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Disabled}" />
-                            <Setter Property="Opacity" Value="{StaticResource App.Opacity.Disabled}" />
+                            <Setter Property="Opacity" Value="1" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

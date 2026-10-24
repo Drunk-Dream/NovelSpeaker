@@ -109,10 +109,11 @@ public sealed class GalleryWindow : Window
         return root;
     }
 
-    private Button CreateThemeButton(string label, GalleryTheme theme)
+    private Wpf.Ui.Controls.Button CreateThemeButton(string label, GalleryTheme theme)
     {
-        var button = new Button
+        var button = new Wpf.Ui.Controls.Button
         {
+            Style = (Style)FindResource("App.Button.Secondary"),
             Content = label,
             MinWidth = 64,
             MinHeight = 32,

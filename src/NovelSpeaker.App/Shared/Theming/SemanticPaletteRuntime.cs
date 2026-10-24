@@ -14,6 +14,14 @@ internal static class SemanticPaletteRuntime
     private static readonly IReadOnlyDictionary<string, string> ProjectionAliases =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {
+            ["NavigationViewItemBackground"] = "App.Brush.Interaction.Surface.Default",
+            ["NavigationViewItemBackgroundPointerOver"] = "App.Brush.Interaction.Surface.Hover",
+            ["NavigationViewItemBackgroundSelected"] = "App.Brush.Accent.Subtle",
+            ["NavigationViewItemBackgroundPressed"] = "App.Brush.Interaction.Surface.Pressed",
+            ["NavigationViewItemForeground"] = "App.Brush.Text.Primary",
+            ["NavigationViewItemForegroundPointerOver"] = "App.Brush.Interaction.Foreground.Hover",
+            ["NavigationViewItemForegroundPressed"] = "App.Brush.Interaction.Foreground.Pressed",
+            ["NavigationViewSelectionIndicatorForeground"] = "App.Brush.Interaction.CurrentRail.OnSelected",
             ["NavigationViewContentBackground"] = "App.Brush.Canvas",
             ["NavigationViewContentGridBorderBrush"] = "App.Brush.Border.Subtle"
         };
@@ -30,6 +38,7 @@ internal static class SemanticPaletteRuntime
         "App.Brush.Text.Tertiary",
         "App.Brush.Border.Subtle",
         "App.Brush.Border.Strong",
+        "App.Brush.Interaction.Surface.Default",
         "App.Brush.Interaction.Surface.Hover",
         "App.Brush.Interaction.Surface.Selected",
         "App.Brush.Interaction.Surface.Selected.Hover",
@@ -50,7 +59,12 @@ internal static class SemanticPaletteRuntime
         "App.Brush.Accent.Subtle.Hover",
         "App.Brush.Accent.Text",
         "App.Brush.Focus",
+        "App.Brush.Focus.OnSurface",
         "App.Brush.Danger",
+        "App.Brush.Danger.Hover",
+        "App.Brush.Danger.Foreground",
+        "App.Brush.Danger.Subtle.Text",
+        "App.Brush.Surface.Secondary.Text",
         "App.Brush.Danger.Subtle",
         "App.Brush.Danger.Text",
         "App.Brush.Danger.Pressed",
@@ -61,7 +75,15 @@ internal static class SemanticPaletteRuntime
         "App.Brush.Success",
         "App.Brush.Success.Subtle",
         "App.Brush.Success.Text",
-        // Provider projections used by the NavigationView shell content host.
+        // Provider projections used by NavigationView items and the shell content host.
+        "NavigationViewItemBackground",
+        "NavigationViewItemBackgroundPointerOver",
+        "NavigationViewItemBackgroundSelected",
+        "NavigationViewItemBackgroundPressed",
+        "NavigationViewItemForeground",
+        "NavigationViewItemForegroundPointerOver",
+        "NavigationViewItemForegroundPressed",
+        "NavigationViewSelectionIndicatorForeground",
         "NavigationViewContentBackground",
         "NavigationViewContentGridBorderBrush"
     ];

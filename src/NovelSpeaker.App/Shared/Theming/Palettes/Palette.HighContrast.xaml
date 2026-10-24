@@ -28,6 +28,8 @@
     <SolidColorBrush x:Key="App.Brush.Border.Strong"
                      Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
 
+    <!-- Transparent in brand themes; pair neutral button text with Window in High Contrast. -->
+    <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Default" Color="{DynamicResource {x:Static SystemColors.WindowColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Hover"
                      Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Selected"
@@ -45,7 +47,7 @@
     <SolidColorBrush x:Key="App.Brush.Interaction.Border.Pressed"
                      Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Hover"
-                     Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
+                     Color="{DynamicResource {x:Static SystemColors.ControlTextColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Pressed"
                      Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Foreground.Selected"
@@ -70,8 +72,17 @@
     <SolidColorBrush x:Key="App.Brush.Focus"
                      Color="{DynamicResource {x:Static SystemColors.HighlightTextColorKey}}" />
 
+    <SolidColorBrush x:Key="App.Brush.Focus.OnSurface" Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Danger"
                      Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Hover"
+                     Color="{DynamicResource {x:Static SystemColors.HighlightColorKey}}" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Foreground"
+                     Color="{DynamicResource {x:Static SystemColors.WindowTextColorKey}}" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Subtle.Text"
+                     Color="{DynamicResource {x:Static SystemColors.ControlTextColorKey}}" />
+    <SolidColorBrush x:Key="App.Brush.Surface.Secondary.Text"
+                     Color="{DynamicResource {x:Static SystemColors.ControlTextColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Danger.Subtle"
                      Color="{DynamicResource {x:Static SystemColors.ControlColorKey}}" />
     <SolidColorBrush x:Key="App.Brush.Danger.Text"
@@ -97,4 +108,20 @@
                      Color="{Binding Color, Source={StaticResource App.Brush.Canvas}}" />
     <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush"
                      Color="{Binding Color, Source={StaticResource App.Brush.Border.Subtle}}" />
+    <SolidColorBrush x:Key="NavigationViewItemBackground"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Surface.Default}}" />
+    <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Surface.Hover}}" />
+    <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Accent.Subtle}}" />
+    <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Surface.Pressed}}" />
+    <SolidColorBrush x:Key="NavigationViewItemForeground"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Text.Primary}}" />
+    <SolidColorBrush x:Key="NavigationViewItemForegroundPointerOver"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Foreground.Hover}}" />
+    <SolidColorBrush x:Key="NavigationViewItemForegroundPressed"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Foreground.Pressed}}" />
+    <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.CurrentRail.OnSelected}}" />
 </ResourceDictionary>

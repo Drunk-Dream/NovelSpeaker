@@ -252,7 +252,7 @@
                     <TextBlock Margin="0,12,0,0"
                                Style="{StaticResource App.Typography.Secondary}"
                                Text="{Binding ActiveCache.TotalChapterProgressText}" />
-                    <Button x:Name="CancelActiveCacheButton"
+                    <ui:Button x:Name="CancelActiveCacheButton"
                             Margin="0,16,0,0"
                             HorizontalAlignment="Right"
                             Padding="12,7"
@@ -290,7 +290,7 @@
                                Style="{StaticResource App.Typography.Secondary}"
                                Text="{Binding ChapterExport.ProgressText}" />
 
-                    <Button x:Name="CancelChapterExportButton"
+                    <ui:Button x:Name="CancelChapterExportButton"
                             Margin="0,16,0,0"
                             HorizontalAlignment="Right"
                             Padding="12,7"
@@ -305,7 +305,7 @@
                                 HorizontalAlignment="Right"
                                 Orientation="Horizontal"
                                 Visibility="{Binding ChapterExport.CanDismiss, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Button x:Name="OpenChapterExportDirectoryButton"
+                        <ui:Button x:Name="OpenChapterExportDirectoryButton"
                                 Margin="0,0,8,0"
                                 Padding="12,7"
                                 Style="{StaticResource App.Button.Secondary}"
@@ -313,7 +313,7 @@
                                 Content="打开目录"
                                 ToolTip="打开导出目录"
                                 AutomationProperties.Name="打开章节导出目录" />
-                        <Button x:Name="DismissChapterExportButton"
+                        <ui:Button x:Name="DismissChapterExportButton"
                                 Padding="12,7"
                                 Style="{StaticResource App.Button.Subtle}"
                                 Command="{Binding ChapterExport.DismissCommand}"

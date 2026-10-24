@@ -14,6 +14,8 @@
     <SolidColorBrush x:Key="App.Brush.Border.Subtle" Color="#3A414D" />
     <SolidColorBrush x:Key="App.Brush.Border.Strong" Color="#59616F" />
 
+    <!-- Transparent in brand themes; pair neutral button text with Window in High Contrast. -->
+    <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Default" Color="Transparent" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Hover" Color="#2B303A" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Selected" Color="#363D48" />
     <SolidColorBrush x:Key="App.Brush.Interaction.Surface.Selected.Hover" Color="#404855" />
@@ -36,7 +38,12 @@
     <SolidColorBrush x:Key="App.Brush.Accent.Text" Color="#101218" />
     <SolidColorBrush x:Key="App.Brush.Focus" Color="#AAB3FF" />
 
+    <SolidColorBrush x:Key="App.Brush.Focus.OnSurface" Color="#AAB3FF" />
     <SolidColorBrush x:Key="App.Brush.Danger" Color="#FF7A86" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Hover" Color="#FF929C" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Foreground" Color="#FF7A86" />
+    <SolidColorBrush x:Key="App.Brush.Danger.Subtle.Text" Color="#FF9BA4" />
+    <SolidColorBrush x:Key="App.Brush.Surface.Secondary.Text" Color="#F2F4F8" />
     <SolidColorBrush x:Key="App.Brush.Danger.Subtle" Color="#4A2028" />
     <SolidColorBrush x:Key="App.Brush.Danger.Text" Color="#160B0D" />
     <SolidColorBrush x:Key="App.Brush.Danger.Pressed" Color="#B83E4B" />
@@ -55,4 +62,20 @@
     <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush"
                      Color="{Binding Color, Source={StaticResource App.Brush.Border.Subtle}}" />
 
+    <SolidColorBrush x:Key="NavigationViewItemBackground"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Surface.Default}}" />
+    <SolidColorBrush x:Key="NavigationViewItemBackgroundPointerOver"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Surface.Hover}}" />
+    <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Accent.Subtle}}" />
+    <SolidColorBrush x:Key="NavigationViewItemBackgroundPressed"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Surface.Pressed}}" />
+    <SolidColorBrush x:Key="NavigationViewItemForeground"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Text.Primary}}" />
+    <SolidColorBrush x:Key="NavigationViewItemForegroundPointerOver"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Foreground.Hover}}" />
+    <SolidColorBrush x:Key="NavigationViewItemForegroundPressed"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.Foreground.Pressed}}" />
+    <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground"
+                     Color="{Binding Color, Source={StaticResource App.Brush.Interaction.CurrentRail.OnSelected}}" />
 </ResourceDictionary>

@@ -10,7 +10,7 @@
              PreviewKeyDown="PlayerView_OnPreviewKeyDown">
     <UserControl.Resources>
         <Style x:Key="Player.StopTimerChoice"
-               TargetType="{x:Type Button}"
+               TargetType="{x:Type ui:Button}"
                BasedOn="{StaticResource App.Button.Subtle}">
             <Style.Triggers>
                 <MultiDataTrigger>
@@ -19,9 +19,13 @@
                                    Value="15" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="15" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -29,9 +33,13 @@
                                    Value="30" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="30" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -39,9 +47,13 @@
                                    Value="45" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="45" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -49,9 +61,13 @@
                                    Value="60" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="60" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
                 <MultiDataTrigger>
                     <MultiDataTrigger.Conditions>
@@ -59,14 +75,18 @@
                                    Value="90" />
                         <Condition Binding="{Binding StopTimerPresetMinutesText}"
                                    Value="90" />
+                        <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
                     </MultiDataTrigger.Conditions>
                     <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
-                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                    <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
+                    <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                    <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
                 </MultiDataTrigger>
             </Style.Triggers>
         </Style>
     </UserControl.Resources>
-    <Grid Margin="24"
+    <Grid x:Name="PlayerLayout" Margin="24"
           MinHeight="0"
           ClipToBounds="True">
         <Grid.RowDefinitions>
@@ -142,12 +162,17 @@
                                     <Style TargetType="{x:Type ui:Button}"
                                         BasedOn="{StaticResource App.Media.ToolbarControl}">
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasActiveStopTimer}" Value="True">
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding HasActiveStopTimer}" Value="True" />
+                                                    <Condition Binding="{Binding IsEnabled, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                </MultiDataTrigger.Conditions>
                                                 <Setter Property="Background" Value="{DynamicResource App.Brush.Accent.Subtle}" />
                                                 <Setter Property="MouseOverBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
                                                 <Setter Property="PressedBackground" Value="{DynamicResource App.Brush.Accent.Subtle.Hover}" />
-                                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
-                                            </DataTrigger>
+                                                <Setter Property="PressedForeground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Interaction.Foreground.Selected}" />
+                                            </MultiDataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </ui:Button.Style>
@@ -230,7 +255,7 @@
                         <TextBlock Style="{StaticResource App.Typography.SectionTitle}"
                                    Text="定时停止" />
                         <WrapPanel Margin="0,16,0,0">
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -238,7 +263,7 @@
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter15MinutesCommand}"
                                     Content="15 分钟" />
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -246,7 +271,7 @@
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter30MinutesCommand}"
                                     Content="30 分钟" />
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -254,7 +279,7 @@
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter45MinutesCommand}"
                                     Content="45 分钟" />
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -262,7 +287,7 @@
                                     Padding="10,6"
                                     Command="{Binding ScheduleStopAfter60MinutesCommand}"
                                     Content="60 分钟" />
-                            <Button Margin="0,0,8,8"
+                            <ui:Button Margin="0,0,8,8"
                                     MinWidth="72"
                                     Height="36"
                                     Style="{StaticResource Player.StopTimerChoice}"
@@ -284,7 +309,7 @@
                                      Text="{Binding CustomStopMinutesText, UpdateSourceTrigger=PropertyChanged}"
                                      ToolTip="自定义分钟数，范围 1 到 1440"
                                      AutomationProperties.Name="自定义定时停止分钟数" />
-                            <Button x:Name="CancelStopTimerButton"
+                            <ui:Button x:Name="CancelStopTimerButton"
                                     Grid.Column="1"
                                     Margin="8,0,0,0"
                                     Padding="12,6"
@@ -375,19 +400,19 @@
                             </TextBlock>
                         <Border Height="1" Margin="0,12,0,4"
                                 Background="{DynamicResource App.Brush.Border.Subtle}" />
-                        <Button MinHeight="44" Padding="12,8"
+                        <ui:Button MinHeight="44" Padding="12,8"
                                 HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch"
                                 Command="{Binding OpenSpeechServicesCommand}"
                                 AutomationProperties.Name="语音服务管理">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource App.Button.Subtle}">
+                            <ui:Button.Style>
+                                <Style TargetType="{x:Type ui:Button}" BasedOn="{StaticResource App.Button.Subtle}">
                                     <Style.Triggers>
                                         <Trigger Property="IsKeyboardFocused" Value="True">
                                             <Setter Property="BorderBrush" Value="{DynamicResource App.Brush.Focus}" />
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>
-                            </Button.Style>
+                            </ui:Button.Style>
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
@@ -403,7 +428,7 @@
                                                Style="{StaticResource App.Icon.Secondary}"
                                                VerticalAlignment="Center" />
                             </Grid>
-                        </Button>
+                        </ui:Button>
                     </StackPanel>
                 </Border>
             </Popup>
@@ -430,7 +455,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="DecreaseSpeedButton"
+                                <ui:Button x:Name="DecreaseSpeedButton"
                                         Grid.Column="0"
                                         Width="40"
                                         Height="36"
@@ -450,7 +475,7 @@
                                          PreviewKeyDown="SpeedEditorTextBox_OnPreviewKeyDown"
                                          LostKeyboardFocus="SpeedEditorTextBox_OnLostKeyboardFocus"
                                          Text="{Binding SpeedEditorText, UpdateSourceTrigger=PropertyChanged}" />
-                                <Button x:Name="IncreaseSpeedButton"
+                                <ui:Button x:Name="IncreaseSpeedButton"
                                         Grid.Column="2"
                                         Width="40"
                                         Height="36"
@@ -481,14 +506,68 @@
             </Popup>
         </Grid>
 
-        <Grid Grid.Row="1"
+        <Grid x:Name="ContentColumns" Grid.Row="1"
               Margin="0,20,0,0"
               MinHeight="0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" />
+                <ColumnDefinition x:Name="CatalogColumn" Width="320" MinWidth="220" />
                 <ColumnDefinition Width="24" />
-                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="*" MinWidth="360" />
             </Grid.ColumnDefinitions>
+
+            <Path Grid.Column="1" IsHitTestVisible="False"
+                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Fill="{Binding Foreground, ElementName=CatalogSplitter}">
+                <Path.Data>
+                    <GeometryGroup>
+                        <EllipseGeometry Center="2,2" RadiusX="1.5" RadiusY="1.5" />
+                        <EllipseGeometry Center="2,10" RadiusX="1.5" RadiusY="1.5" />
+                        <EllipseGeometry Center="2,18" RadiusX="1.5" RadiusY="1.5" />
+                    </GeometryGroup>
+                </Path.Data>
+            </Path>
+            <GridSplitter x:Name="CatalogSplitter" Grid.Column="1"
+                          Width="12" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                          Background="Transparent" Cursor="SizeWE" Focusable="True"
+                          ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                          KeyboardIncrement="10" DragIncrement="1"
+                          AutomationProperties.Name="调整目录与正文宽度"
+                          DragStarted="CatalogSplitter_OnDragStarted"
+                          DragCompleted="CatalogSplitter_OnDragCompleted"
+                          PreviewKeyDown="CatalogSplitter_OnPreviewKeyDown"
+                          KeyUp="CatalogSplitter_OnKeyUp"
+                          LostKeyboardFocus="CatalogSplitter_OnLostKeyboardFocus">
+                <GridSplitter.Style>
+                    <Style TargetType="GridSplitter">
+                        <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Tertiary}" />
+                        <Setter Property="FocusVisualStyle">
+                            <Setter.Value>
+                                <!-- WPF shows this chrome for keyboard focus, not mouse clicks. -->
+                                <Style TargetType="Control">
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Control">
+                                                <Border Width="12" Height="32" CornerRadius="3"
+                                                        HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        BorderThickness="1" IsHitTestVisible="False"
+                                                        BorderBrush="{DynamicResource App.Brush.Focus}" />
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Text.Secondary}" />
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter Property="Foreground" Value="{DynamicResource App.Brush.Accent.Default}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </GridSplitter.Style>
+            </GridSplitter>
 
             <commonControls:AppSectionSurface x:Name="CatalogPanelSurface"
                                               MinHeight="0">

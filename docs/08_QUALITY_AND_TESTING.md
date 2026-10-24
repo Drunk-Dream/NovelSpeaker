@@ -130,9 +130,12 @@ Architecture Fitness Tests 保留在少量、稳定、长期的约束上，例�
 7. 不新增 Service Locator 或通用 EventBus/Messenger；
 8. 不把 Provider 扩展做成万能 Config/Plugin framework；
 9. 存储信任边界只有一个权威实现；
-10. Observability 不向业务层泄露 Infrastructure store 类型。
+10. Observability 不向业务层泄露 Infrastructure store 类型；
+11. 普通可视按钮只有一个交互状态 owner；共享视觉按钮遵守 Wpf.Ui 的状态属性合同，High Contrast 前景/背景使用正确的系统语义配对。
 
 不要为 architecture test 检测器自身建立大量穷举式 parser/语法边界测试；只保留足以证明规则有效的代表性 contract tests。
+
+按钮状态与主题可访问性可以使用少量长期架构/对比度检查保护：例如检查共享视觉按钮没有额外争夺 Wpf.Ui 背景/边框状态的触发器，并计算关键 Light / Dark 前景/背景配对的对比度。不要冻结全部 Style Key、BasedOn 路径、Setter 顺序或具体 Hex 色值。
 
 ### 6.5 Observability 与 Diagnostics
 
@@ -182,6 +185,8 @@ WPF 自动测试必须非常克制，只用于确实依赖 WPF 才能验证的�
 曾导致应用级崩溃、且只有在 Popup/DataTemplate 延迟实例化时才暴露的 WPF 回归，可以保留一个代表性核心测试：使用真实的最小 ViewModel 数据展开对应 Popup、完成必要的 layout/render，并验证该核心入口不会因 Binding/StaticResource 解析而抛出异常。此类测试保护的是“入口可安全打开”，不得进一步断言具体 Style Key、Visual Tree 层级或像素外观。
 
 Provider 选择器 Stretch、CurrentItem 外观、拖拽插入横线等视觉优化默认使用任务内临时验证，不新增长期像素/Visual Tree 测试。
+
+如果 Wpf.Ui 模板状态优先级曾导致真实按钮不可读或反馈错误，可以用隔离 Desktop 的临时测试实际触发鼠标 Hover / Pressed 与键盘 Focus，确认用户可见状态。只有在它保护无法由静态架构/对比度检查发现的稳定高风险合同、且维护成本合理时，才保留一个代表性长期运行时测试；不得将私有 Visual Tree 结构或精确像素作为断言。
 
 ## 8. WPF 隔离 Desktop
 
