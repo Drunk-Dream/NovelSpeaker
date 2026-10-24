@@ -14,10 +14,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           cache: true
@@ -48,7 +48,7 @@ jobs:
           }
 
       - name: Upload test build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quality-test-build
           path: |
@@ -82,17 +82,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup .NET and restore package cache
-        uses: actions/setup-dotnet@v5
+        uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
           cache: true
           cache-dependency-path: '**/packages.lock.json'
 
       - name: Download test build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: quality-test-build
           path: .
@@ -102,7 +102,7 @@ jobs:
 
       - name: Upload WPF failure diagnostics
         if: failure() && matrix.layer == 'wpf'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: wpf-diagnostics
           path: TestResults/wpf-diagnostics
