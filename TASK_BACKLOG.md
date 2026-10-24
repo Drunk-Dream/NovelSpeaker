@@ -59,3 +59,9 @@
 - T005 完成：按钮矩阵改为可用真实鼠标/键盘操作的 Wpf.Ui 样本，媒体按钮和 ToolbarControl 纳入覆盖；导航、菜单与媒体固定状态显式标记为资源映射样例。新增架构 owner、Light/Dark 对比度和 HC 系统角色合同检查（4/4）；Style Gallery 全部 23 个场景的 Light/Dark 截图生成通过。隔离 Desktop 未能传递注入鼠标状态，未声称自动验证真实 Hover/Pressed；未设置可见窗口绕过。临时截图已清理。
 - T006 完成：全项目复扫确认 148 个 XAML Button 与 17 个 MenuItem 均显式使用样式；生产可视按钮样式无直接争夺 Background/BorderBrush 的 IsMouseOver/IsPressed setter，Slider、MenuItem、SelectionSurface 与无视觉 InteractionHost 保留各自单一状态 owner。对比度检查补齐 raised surface 与 selected navigation 配对；XAML/资源全场景 Light/Dark 加载通过。完整门禁通过：locked restore（需沙箱外 NuGet 网络访问）、format、Release build（0 警告/错误）、全量测试（5 个程序集，1035 项通过）。T006 最新 diff 的 Review Checklist：NS-01 PASS（只补充现有语义色对的自动合同），NS-02 N/A（未改通知），NS-03 N/A（未改列表/滚动）。临时截图及诊断产物已清理，根目录审计报告继续保留且未提交。
 各任务完成后按 `AGENTS.md` 更新状态、记录简短成果并删除对应的临时 `tasks/Txxx_*.md`；最终保留阶段成果摘要，Git 历史保存已完成任务规格的演进记录。
+
+## 5. Edge v2 直连合成修复（已完成）
+
+### [x] T007（P1 / Provider）— 保持 GEC v2 并补齐 v2 握手请求头
+
+完成成果：确认现有 GEC v2 算法的六个固定时间向量与 `edge-tts 7.3.1` 完全一致，未做无效重写；定位 .NET 握手缺少 `Accept-Encoding` 时服务器返回 HTTP 200，加入该头、MUID Cookie、Accept-Language 与 no-cache 请求头后，生产 `EdgeSpeechTransport` 使用 v2 endpoint 成功合成并通过生产 MP3 解码器。新增 v2 握手请求头合同测试；语音目录仍使用当前 HTTP endpoint，未实现 v1 WebSocket 回退或数据结构变化。验收：EdgeProtocolTests 12 项通过、EdgeProviderTests 5 项通过、真实 v2 合成/解码通过、`dotnet format --verify-no-changes --no-restore` 通过。临时测试、上游 Python 包、生成音频及 `tasks/T007_edge_v2_authentication.md` 已删除；完整解决方案测试套件未运行。剩余限制：v2 接口为非正式上游服务，其端点与协议可用性仍由服务方控制。

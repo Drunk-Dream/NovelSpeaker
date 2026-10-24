@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using NovelSpeaker.Application.Speech.Providers;
 using NovelSpeaker.Domain.Speech.Providers;
@@ -10,7 +11,7 @@ namespace NovelSpeaker.Infrastructure.IntegrationTests.Speech;
 
 public sealed class EdgeProtocolTests
 {
-    // Expected values are calculated by the unmodified upstream TypeScript implementation.
+    // Expected values were checked against edge-tts 7.3.1's current v2 implementation.
     [Theory]
     [InlineData(0L, "52BC7A17B50DFEC9-28C4394775C8751CD2F6859C030C06DB1489ACAB3B3A7651831FC26895177ED6")]
     [InlineData(299999L, "52BC7A17B50DFEC9-28C4394775C8751CD2F6859C030C06DB1489ACAB3B3A7651831FC26895177ED6")]
@@ -33,6 +34,18 @@ public sealed class EdgeProtocolTests
         Assert.Equal("?Ocp-Apim-Subscription-Key=" + profile.TrustedClientToken +
             "&Sec-MS-GEC=52BC7A17B50DFEC9-28C4394775C8751CD2F6859C030C06DB1489ACAB3B3A7651831FC26895177ED6" +
             "&Sec-MS-GEC-Version=2-155.0.4283.45&ConnectionId=abc123", uri.Query);
+    }
+
+    [Fact]
+    public void Synthesis_headers_include_v2_accept_encoding_and_a_random_muid_cookie()
+    {
+        var headers = EdgeReadAloudProtocol.CreateSynthesisHeaders(EdgeReadAloudProfile.Default);
+
+        Assert.Equal(EdgeReadAloudProfile.Default.Origin, headers["Origin"]);
+        Assert.Equal(EdgeReadAloudProfile.Default.UserAgent, headers["User-Agent"]);
+        Assert.Equal("gzip, deflate, br, zstd", headers["Accept-Encoding"]);
+        Assert.Equal("en-US,en;q=0.9", headers["Accept-Language"]);
+        Assert.Matches(new Regex("^muid=[A-F0-9]{32};$"), headers["Cookie"]);
     }
 
     [Fact]
